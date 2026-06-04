@@ -1,11 +1,27 @@
 'use client'
-import { useState } from 'react'
-import { saveSettings, type AppSettings } from '@/lib/settings'
+import { useState, useEffect } from 'react'
+import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
 
 type Step = 'notion' | 'algolia' | 'sync'
 
 type Props = {
   onComplete: () => void
+}
+
+function parseErrorMessage(msg: string): string {
+  if (msg.includes('unauthorized') || msg.includes('Unauthorized') || msg.includes('401')) {
+    return 'APIキーが正しくありません。Notion Integration TokenまたはAlgoliaのキーを確認してください。'
+  }
+  if (msg.includes('object_not_found') || msg.includes('404')) {
+    return 'データベースIDが見つかりません。NotionのDB IDを再確認してください。'
+  }
+  if (msg.includes('restricted_resource') || msg.includes('403')) {
+    return 'Notionのアクセス権がありません。DBページの「接続先に追加」からIntegrationを接続しているか確認してください。'
+  }
+  if (msg.includes('必要なキー')) {
+    return '入力が不足しています。前の手順に戻って全ての項目を入力してください。'
+  }
+  return `同期に失敗しました: ${msg}`
 }
 
 export function SetupWizard({ onComplete }: Props) {
@@ -20,12 +36,29 @@ export function SetupWizard({ onComplete }: Props) {
     algoliaIndex: 'medical_knowledge',
   })
   const [syncing, setSyncing] = useState(false)
+  const [syncProgress, setSyncProgress] = useState('')
   const [syncResult, setSyncResult] = useState<{ medical: number; reference: number; total: number } | null>(null)
   const [error, setError] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null)
+
+  // 途中保存を復元
+  useEffect(() => {
+    const draft = getDraft()
+    if (draft) {
+      setForm((prev) => ({ ...prev, ...draft }))
+    }
+  }, [])
 
   const update = (key: keyof AppSettings, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }))
+    const processed = (key === 'notionMedicalDbId' || key === 'notionReferenceDbId')
+      ? extractNotionDbId(value)
+      : value
+    const next = { ...form, [key]: processed }
+    setForm(next)
+    saveDraft(next) // 入力のたびに途中保存
     setError('')
+    setTestResult(null)
   }
 
   const handleNotionNext = () => {
@@ -37,6 +70,7 @@ export function SetupWizard({ onComplete }: Props) {
       setError('Medical DBのIDを入力してください')
       return
     }
+    setError('')
     setStep('algolia')
   }
 
@@ -53,12 +87,48 @@ export function SetupWizard({ onComplete }: Props) {
       setError('Admin API Keyを入力してください')
       return
     }
+    setError('')
     setStep('sync')
+  }
+
+  // 接続テスト（Notionのみ確認）
+  const handleTest = async () => {
+    setTesting(true)
+    setTestResult(null)
+    setError('')
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: form.notionToken,
+          notionMedicalDbId: form.notionMedicalDbId,
+          notionReferenceDbId: form.notionReferenceDbId || undefined,
+          algoliaAppId: form.algoliaAppId,
+          algoliaAdminKey: form.algoliaAdminKey,
+          algoliaIndex: form.algoliaIndex,
+          testOnly: true, // テストフラグ（1件だけ取得）
+        }),
+      })
+      if (res.ok) {
+        setTestResult('ok')
+      } else {
+        const data = await res.json()
+        setTestResult('error')
+        setError(parseErrorMessage(data.error || ''))
+      }
+    } catch {
+      setTestResult('error')
+      setError('ネットワークエラーが発生しました。接続を確認してください。')
+    } finally {
+      setTesting(false)
+    }
   }
 
   const handleSync = async () => {
     setSyncing(true)
     setError('')
+    setSyncProgress('Notionからデータを取得中...')
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
@@ -72,28 +142,21 @@ export function SetupWizard({ onComplete }: Props) {
           algoliaIndex: form.algoliaIndex,
         }),
       })
+      setSyncProgress('Algoliaにデータを保存中...')
       const data = await res.json()
       if (!res.ok) {
-        const msg = data.error || ''
-        if (msg.includes('unauthorized') || msg.includes('Unauthorized') || msg.includes('401')) {
-          setError('APIキーが正しくありません。Notion Integration TokenまたはAlgoliaのキーを確認してください。')
-        } else if (msg.includes('object_not_found') || msg.includes('404')) {
-          setError('データベースIDが見つかりません。NotionのDB IDを再確認してください。')
-        } else if (msg.includes('restricted_resource') || msg.includes('403')) {
-          setError('Notionのアクセス権がありません。DBページの「接続先に追加」からIntegrationを接続しているか確認してください。')
-        } else if (msg.includes('必要なキー')) {
-          setError('入力が不足しています。前の手順に戻って全ての項目を入力してください。')
-        } else {
-          setError(`同期に失敗しました: ${msg}`)
-        }
+        setError(parseErrorMessage(data.error || ''))
         return
       }
       setSyncResult(data.synced)
       saveSettings(form)
+      saveLastSynced()
+      clearDraft()
     } catch {
       setError('ネットワークエラーが発生しました。インターネット接続を確認して再度お試しください。')
     } finally {
       setSyncing(false)
+      setSyncProgress('')
     }
   }
 
@@ -105,13 +168,13 @@ export function SetupWizard({ onComplete }: Props) {
   const stepIndex = steps.findIndex((s) => s.id === step)
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 flex items-start justify-center px-4 pt-10 pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🏥</div>
-          <h1 className="text-2xl font-bold text-gray-900">Medical Search</h1>
-          <p className="text-sm text-gray-500 mt-1">初回セットアップ</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Search</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>
         </div>
 
         {/* ステップインジケーター */}
@@ -124,47 +187,43 @@ export function SetupWizard({ onComplete }: Props) {
                     ? 'bg-blue-500 text-white'
                     : i === stepIndex
                     ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                    : 'bg-gray-200 text-gray-400'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                 }`}
               >
                 {i < stepIndex ? '✓' : i + 1}
               </div>
-              <span
-                className={`text-sm font-medium ${
-                  i === stepIndex ? 'text-blue-600' : 'text-gray-400'
-                }`}
-              >
+              <span className={`text-sm font-medium ${i === stepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
                 {s.label}
               </span>
               {i < steps.length - 1 && (
-                <div className={`w-8 h-px ${i < stepIndex ? 'bg-blue-400' : 'bg-gray-200'}`} />
+                <div className={`w-8 h-px ${i < stepIndex ? 'bg-blue-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
               )}
             </div>
           ))}
         </div>
 
         {/* カード */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
 
           {/* Step 1: Notion */}
           {step === 'notion' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-1">Notionの設定</h2>
-                <p className="text-sm text-gray-500">
-                  NotionのIntegration TokenとデータベースIDを入力してください。
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  NotionのIntegration TokenとデータベースのURLまたはIDを入力してください。
                 </p>
               </div>
-              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 space-y-1">
+              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
                 <p className="font-semibold">取得方法</p>
                 <p>① <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline">notion.so/my-integrations</a> でIntegrationを作成</p>
                 <p>② DBページを開き、右上「…」→「接続先に追加」でIntegrationを接続</p>
-                <p>③ DBのURLから32桁のIDをコピー</p>
+                <p>③ DBのURLをそのまま貼り付けてください（IDが自動で入力されます）</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Integration Token <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -172,32 +231,38 @@ export function SetupWizard({ onComplete }: Props) {
                     value={form.notionToken}
                     onChange={(e) => update('notionToken', e.target.value)}
                     placeholder="secret_xxxxxxxxxxxx"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Medical DB ID <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Medical DB（URLまたはID） <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={form.notionMedicalDbId}
                     onChange={(e) => update('notionMedicalDbId', e.target.value)}
-                    placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="https://www.notion.so/... またはID32桁"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                  {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
+                    <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Reference DB ID <span className="text-gray-400 font-normal">（任意）</span>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Reference DB（URLまたはID） <span className="text-gray-400 font-normal">（任意）</span>
                   </label>
                   <input
                     type="text"
                     value={form.notionReferenceDbId}
                     onChange={(e) => update('notionReferenceDbId', e.target.value)}
-                    placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="https://www.notion.so/... またはID32桁"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                  {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
+                    <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                  )}
                 </div>
               </div>
 
@@ -216,12 +281,12 @@ export function SetupWizard({ onComplete }: Props) {
           {step === 'algolia' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-1">Algoliaの設定</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Algoliaの設定</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   高速検索エンジンのAPIキーを入力してください。無料プランで利用できます。
                 </p>
               </div>
-              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 space-y-1">
+              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
                 <p className="font-semibold">取得方法</p>
                 <p>① <a href="https://www.algolia.com" target="_blank" rel="noopener noreferrer" className="underline">algolia.com</a> でアカウント作成（無料）</p>
                 <p>② ダッシュボード → Settings → API Keys を開く</p>
@@ -230,7 +295,7 @@ export function SetupWizard({ onComplete }: Props) {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     App ID <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -238,11 +303,11 @@ export function SetupWizard({ onComplete }: Props) {
                     value={form.algoliaAppId}
                     onChange={(e) => update('algoliaAppId', e.target.value)}
                     placeholder="XXXXXXXXXX"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Search API Key <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -250,11 +315,11 @@ export function SetupWizard({ onComplete }: Props) {
                     value={form.algoliaSearchKey}
                     onChange={(e) => update('algoliaSearchKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Admin API Key <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -262,11 +327,11 @@ export function SetupWizard({ onComplete }: Props) {
                     value={form.algoliaAdminKey}
                     onChange={(e) => update('algoliaAdminKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     インデックス名
                   </label>
                   <input
@@ -274,7 +339,7 @@ export function SetupWizard({ onComplete }: Props) {
                     value={form.algoliaIndex}
                     onChange={(e) => update('algoliaIndex', e.target.value)}
                     placeholder="medical_knowledge"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <p className="text-xs text-gray-400 mt-1">特別な理由がなければそのままでOKです</p>
                 </div>
@@ -284,8 +349,8 @@ export function SetupWizard({ onComplete }: Props) {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setStep('notion')}
-                  className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                  onClick={() => { setStep('notion'); setError('') }}
+                  className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ← 戻る
                 </button>
@@ -303,16 +368,16 @@ export function SetupWizard({ onComplete }: Props) {
           {step === 'sync' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-1">データの同期</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">データの同期</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   NotionのデータをAlgoliaに同期します。初回は数分かかる場合があります。
                 </p>
               </div>
 
               {!syncResult ? (
                 <>
-                  <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-2">
-                    <p className="font-semibold text-gray-700">同期内容</p>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                    <p className="font-semibold text-gray-700 dark:text-gray-200">同期内容</p>
                     <p>• Medical DB → Algolia</p>
                     {form.notionReferenceDbId && <p>• Reference DB → Algolia</p>}
                     <p className="text-xs text-gray-400 mt-2">
@@ -320,18 +385,45 @@ export function SetupWizard({ onComplete }: Props) {
                     </p>
                   </div>
 
+                  {/* 接続テストボタン */}
+                  {testResult === 'ok' ? (
+                    <div className="bg-green-50 rounded-xl p-3 text-sm text-green-700 text-center font-medium">
+                      ✅ 接続確認OK！同期を開始できます
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleTest}
+                      disabled={testing || syncing}
+                      className="w-full border border-blue-300 text-blue-600 rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {testing ? (
+                        <><span className="animate-spin">⟳</span>接続確認中...</>
+                      ) : (
+                        '🔌 接続テスト（推奨）'
+                      )}
+                    </button>
+                  )}
+
                   {error && (
-                    <div className="bg-red-50 rounded-xl p-4 text-sm text-red-600">
-                      <p className="font-semibold mb-1">エラーが発生しました</p>
+                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                      <p className="font-semibold mb-1">⚠️ エラー</p>
                       <p>{error}</p>
+                    </div>
+                  )}
+
+                  {/* 同期中の進捗 */}
+                  {syncing && syncProgress && (
+                    <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-600 text-center">
+                      <span className="animate-spin inline-block mr-2">⟳</span>
+                      {syncProgress}
                     </div>
                   )}
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => setStep('algolia')}
+                      onClick={() => { setStep('algolia'); setError(''); setTestResult(null) }}
                       disabled={syncing}
-                      className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
                       ← 戻る
                     </button>
@@ -341,31 +433,26 @@ export function SetupWizard({ onComplete }: Props) {
                       className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                     >
                       {syncing ? (
-                        <>
-                          <span className="animate-spin">⟳</span>
-                          同期中...
-                        </>
-                      ) : (
-                        '同期開始'
-                      )}
+                        <><span className="animate-spin">⟳</span>同期中...</>
+                      ) : '同期開始'}
                     </button>
                   </div>
                 </>
               ) : (
                 <div className="space-y-4">
-                  <div className="bg-green-50 rounded-xl p-5 text-center">
+                  <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-5 text-center">
                     <div className="text-3xl mb-2">✅</div>
-                    <p className="font-bold text-green-700 text-lg">同期完了！</p>
-                    <div className="mt-3 text-sm text-green-600 space-y-1">
+                    <p className="font-bold text-green-700 dark:text-green-400 text-lg">同期完了！</p>
+                    <div className="mt-3 text-sm text-green-600 dark:text-green-400 space-y-1">
                       <p>医療知識: {syncResult.medical} 件</p>
                       {syncResult.reference > 0 && <p>参考文献: {syncResult.reference} 件</p>}
                       <p className="font-semibold">合計 {syncResult.total} 件を同期しました</p>
                     </div>
                   </div>
-                  <div className="bg-amber-50 rounded-xl p-4 text-sm text-amber-700 space-y-1">
+                  <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400 space-y-1">
                     <p className="font-semibold">⚠️ ご注意</p>
                     <p>APIキーは入力した端末のブラウザにのみ保存されます。スマホや他のPCでも使いたい場合は、同じAPIキーを再度入力してください。</p>
-                    <p className="text-xs text-amber-600 mt-1">※ データの再同期は不要です。</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。</p>
                   </div>
                   <button
                     onClick={onComplete}

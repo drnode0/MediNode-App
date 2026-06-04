@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       algoliaAppId,
       algoliaAdminKey,
       algoliaIndex,
+      testOnly,
     } = body
 
     if (!notionToken || !notionMedicalDbId || !algoliaAppId || !algoliaAdminKey) {
@@ -49,6 +50,28 @@ export async function POST(req: NextRequest) {
     }
 
     const notion = new Client({ auth: notionToken })
+
+    // 接続テストのみ（testOnly=true の場合）
+    if (testOnly) {
+      try {
+        // Notion接続テスト：DBに1件だけクエリ
+        await notion.databases.query({
+          database_id: notionMedicalDbId,
+          page_size: 1,
+        })
+
+        // Algolia接続テスト：インデックス一覧取得
+        const algolia = algoliasearch(algoliaAppId, algoliaAdminKey)
+        await algolia.listIndices()
+
+        return NextResponse.json({ success: true, testOnly: true })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '接続エラーが発生しました'
+        return NextResponse.json({ error: message }, { status: 500 })
+      }
+    }
+
+    // 通常の同期処理
     const algolia = algoliasearch(algoliaAppId, algoliaAdminKey)
     const index = algolia.initIndex(algoliaIndex || 'medical_knowledge')
 

@@ -35,16 +35,28 @@ function RecentHits() {
     else groups[3].hits.push(hit)
   }
 
+  if (hits.length === 0) {
+    return (
+      <div className="text-center py-14 px-4">
+        <div className="text-5xl mb-4">📭</div>
+        <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">
+          画面下の「🔄 再同期」からデータを取り込んでください
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {groups.filter((g) => g.hits.length > 0).map((group) => (
         <div key={group.label}>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               {group.label}
             </span>
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-300">{group.hits.length}件</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs text-gray-300 dark:text-gray-600">{group.hits.length}件</span>
           </div>
           <div className="space-y-3">
             {group.hits.map((hit) => (
@@ -71,10 +83,22 @@ function QuizHits() {
     setShuffled(arr.slice(0, 20))
   }, [hits.length])
 
+  if (hits.length === 0) {
+    return (
+      <div className="text-center py-14 px-4">
+        <div className="text-5xl mb-4">🧠</div>
+        <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500">
+          「❓ クリニカルクエスチョン」または「💡 ナレッジ」の<br />知識レベルを持つデータが必要です
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-gray-400">タイトルを見て内容を思い出してみましょう</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
         <button
           onClick={() => {
             const arr = [...hits] as unknown as Hit[]
@@ -84,7 +108,7 @@ function QuizHits() {
             }
             setShuffled(arr.slice(0, 20))
           }}
-          className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
         >
           シャッフル
         </button>
@@ -109,7 +133,7 @@ function ReferenceHits({ sort }: { sort: RefSort }) {
   })
   if (sorted.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         <p className="text-lg">該当なし</p>
         <p className="text-sm mt-1">別のキーワードで試してください</p>
       </div>
@@ -134,14 +158,14 @@ function ReferenceTab() {
   return (
     <>
       <Configure hitsPerPage={200} filters="source:reference" />
-      <div className="sticky top-[88px] z-10 bg-white/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4 flex items-center gap-2">
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4 flex items-center gap-2">
         <div className="flex-1">
           <SearchBox />
         </div>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as RefSort)}
-          className="text-xs border border-gray-200 rounded-lg px-2 py-2 bg-white text-gray-600 shrink-0"
+          className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0"
         >
           {sortOptions.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -166,7 +190,7 @@ function SearchTab() {
 
   return (
     <>
-      <div className="sticky top-[88px] z-10 bg-white/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox />
       </div>
       {!query && !hasSearched ? (
@@ -199,7 +223,7 @@ export default function Home() {
 
   if (setupDone === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
         <div className="text-gray-400 text-sm">読み込み中...</div>
       </div>
     )
@@ -223,28 +247,28 @@ export default function Home() {
 
   return (
     <InstantSearch key={tab} searchClient={dynamicSearchClient} indexName={dynamicIndexName}>
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {/* 固定ヘッダー */}
-        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+        <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
           <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
             {/* ヘッダー */}
             <div className="flex items-center justify-between mb-3">
               <div className="w-16" />
-              <h1 className="text-lg font-bold text-gray-900">🏥 Medical Search</h1>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">🏥 Medical Search</h1>
               <div className="w-16 flex justify-end">
                 {showResetConfirm ? (
                   <div className="flex gap-1">
                     <button onClick={handleReset} className="text-xs text-red-500 font-medium">
                       リセット
                     </button>
-                    <button onClick={() => setShowResetConfirm(false)} className="text-xs text-gray-400">
+                    <button onClick={() => setShowResetConfirm(false)} className="text-xs text-gray-400 dark:text-gray-500">
                       ✕
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setShowResetConfirm(true)}
-                    className="text-xs text-gray-300 hover:text-gray-500"
+                    className="text-xs text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
                     title="設定をリセット"
                   >
                     ⚙️
@@ -254,15 +278,15 @@ export default function Home() {
             </div>
 
             {/* タブ */}
-            <div className="flex rounded-xl bg-gray-100 p-1 gap-0.5 overflow-x-auto">
+            <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 gap-0.5 overflow-x-auto">
               {tabs.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   className={`shrink-0 flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                     tab === t.id
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
                   {t.label}
@@ -309,7 +333,7 @@ export default function Home() {
         </div>
 
         {/* 再同期パネル（全タブ共通・画面下部） */}
-        <div className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm border-t border-gray-100 mt-4">
+        <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-t border-gray-100 dark:border-gray-700 mt-4">
           <SyncPanel />
         </div>
       </div>
