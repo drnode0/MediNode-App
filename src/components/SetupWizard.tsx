@@ -74,13 +74,24 @@ export function SetupWizard({ onComplete }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '同期に失敗しました')
+        const msg = data.error || ''
+        if (msg.includes('unauthorized') || msg.includes('Unauthorized') || msg.includes('401')) {
+          setError('APIキーが正しくありません。Notion Integration TokenまたはAlgoliaのキーを確認してください。')
+        } else if (msg.includes('object_not_found') || msg.includes('404')) {
+          setError('データベースIDが見つかりません。NotionのDB IDを再確認してください。')
+        } else if (msg.includes('restricted_resource') || msg.includes('403')) {
+          setError('Notionのアクセス権がありません。DBページの「接続先に追加」からIntegrationを接続しているか確認してください。')
+        } else if (msg.includes('必要なキー')) {
+          setError('入力が不足しています。前の手順に戻って全ての項目を入力してください。')
+        } else {
+          setError(`同期に失敗しました: ${msg}`)
+        }
         return
       }
       setSyncResult(data.synced)
       saveSettings(form)
     } catch {
-      setError('ネットワークエラーが発生しました')
+      setError('ネットワークエラーが発生しました。インターネット接続を確認して再度お試しください。')
     } finally {
       setSyncing(false)
     }

@@ -10,6 +10,7 @@ import { QuizCard } from '@/components/QuizCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { GenreBrowse } from '@/components/GenreBrowse'
 import { SetupWizard } from '@/components/SetupWizard'
+import { SyncPanel } from '@/components/SyncPanel'
 
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
 
@@ -305,6 +306,11 @@ export default function Home() {
               <QuizHits />
             </>
           )}
+        </div>
+
+        {/* 再同期パネル（全タブ共通・画面下部） */}
+        <div className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm border-t border-gray-100 mt-4">
+          <SyncPanel />
         </div>
       </div>
     </InstantSearch>
