@@ -1,0 +1,183 @@
+'use client'
+import { Highlight, Snippet } from 'react-instantsearch'
+import { useState } from 'react'
+
+export type Hit = {
+  objectID: string
+  title: string
+  source: 'medical' | 'reference'
+  genre?: string
+  detailGenre?: string
+  knowledgeLevel?: string
+  type?: string
+  tags?: string
+  status?: string
+  summary?: string
+  aiSummary?: string
+  evidenceLevel?: string
+  author?: string
+  journal?: string
+  year?: string
+  relatedCQTitles?: string[]
+  relatedRefTitles?: string[]
+  content?: string
+  aiKeywords?: string
+  notionUrl: string
+  lastEdited: string
+  createdAt?: string
+}
+
+const LEVEL_STYLE: Record<string, string> = {
+  '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
+  '💡 ナレッジ': 'bg-green-50 text-green-700',
+  '📋 エンティティ': 'bg-blue-50 text-blue-700',
+  '🚦 プロトコル': 'bg-red-50 text-red-700',
+  '📎 メモ': 'bg-gray-50 text-gray-600',
+}
+
+export function ResultCard({ hit }: { hit: Hit }) {
+  const [expanded, setExpanded] = useState(false)
+  const isMedical = hit.source === 'medical'
+  const sourceLabel = isMedical ? '🚑 Medical' : '📖 Ref'
+  const sourceBg = isMedical ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+  const borderColor = isMedical ? 'border-l-blue-400' : 'border-l-amber-400'
+  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 text-gray-600') : ''
+  const displaySummary = hit.aiSummary || hit.summary || null
+  const hasExpandable = !!displaySummary
+
+  return (
+    <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${borderColor} overflow-hidden`}>
+      {/* メイン部分：タップで展開（要約ありの場合のみ） */}
+      <div
+        className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`}
+        onClick={() => hasExpandable && setExpanded((v) => !v)}
+      >
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <h3 className="font-semibold text-gray-900 text-base leading-snug flex-1">
+            <Highlight attribute="title" hit={hit as any} />
+          </h3>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${sourceBg}`}>
+              {sourceLabel}
+            </span>
+            {hasExpandable && (
+              <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1 mb-2">
+          {hit.knowledgeLevel && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelStyle}`}>
+              {hit.knowledgeLevel}
+            </span>
+          )}
+          {!isMedical && hit.evidenceLevel && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+              {hit.evidenceLevel}
+            </span>
+          )}
+          {hit.genre && (
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+              {hit.genre}
+            </span>
+          )}
+          {hit.detailGenre && hit.detailGenre !== hit.genre && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              {hit.detailGenre}
+            </span>
+          )}
+        </div>
+
+        {/* 折りたたみ時：2行まで表示 */}
+        {!expanded && (
+          displaySummary ? (
+            <p className="text-sm text-gray-600 line-clamp-2">{displaySummary}</p>
+          ) : hit.content ? (
+            <p className="text-sm text-gray-500 line-clamp-2">
+              <Snippet attribute="content" hit={hit as any} />
+            </p>
+          ) : null
+        )}
+
+        <div className="flex items-center justify-between mt-1.5 gap-2">
+          <p className="text-xs text-gray-400 truncate">
+            {hit.author || ''}{hit.journal ? (hit.author ? ` · ${hit.journal}` : hit.journal) : ''}
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!isMedical && hit.year && (
+              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                {hit.year}
+              </span>
+            )}
+            {hit.createdAt && isMedical && (
+              <p className="text-xs text-gray-300">
+                {new Date(hit.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {!isMedical && hit.relatedCQTitles && hit.relatedCQTitles.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {hit.relatedCQTitles.map((cq, i) => (
+              <span key={i} className="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
+                ❓ {cq}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isMedical && hit.relatedRefTitles && hit.relatedRefTitles.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {hit.relatedRefTitles.map((ref, i) => (
+              <span key={i} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 leading-snug">
+                📖 {ref}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 展開時：全文＋Notionリンク */}
+      {expanded && displaySummary && (
+        <div className="px-4 pb-4 border-t border-gray-100">
+          <p className="text-sm text-gray-700 leading-relaxed pt-3 whitespace-pre-wrap">
+            {displaySummary}
+          </p>
+          {hit.aiKeywords && (
+            <p className="text-xs text-gray-300 mt-3 leading-relaxed">
+              {hit.aiKeywords}
+            </p>
+          )}
+          <div className="flex justify-end mt-3">
+            <a
+              href={hit.notionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+            >
+              Notionで開く
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* 要約なし：カード全体がNotionリンク */}
+      {!hasExpandable && (
+        <a
+          href={hit.notionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block px-4 pb-3 text-xs text-blue-500 hover:text-blue-700"
+        >
+          Notionで開く →
+        </a>
+      )}
+    </div>
+  )
+}
