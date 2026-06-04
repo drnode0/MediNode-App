@@ -3,7 +3,7 @@
 NotionのデータベースをAlgoliaで高速検索するWebアプリです。
 URLを開いて手順通りに進めるだけで、自分のNotionデータベースの検索環境が構築できます。
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2Fmedical-search-public)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fdrnode0%2Fmedical-search-template)
 
 ---
 
