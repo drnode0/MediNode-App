@@ -351,6 +351,11 @@ export function SetupWizard({ onComplete }: Props) {
                       <p className="font-semibold">合計 {syncResult.total} 件を同期しました</p>
                     </div>
                   </div>
+                  <div className="bg-amber-50 rounded-xl p-4 text-sm text-amber-700 space-y-1">
+                    <p className="font-semibold">⚠️ ご注意</p>
+                    <p>APIキーは入力した端末のブラウザにのみ保存されます。スマホや他のPCでも使いたい場合は、同じAPIキーを再度入力してください。</p>
+                    <p className="text-xs text-amber-600 mt-1">※ データの再同期は不要です。</p>
+                  </div>
                   <button
                     onClick={onComplete}
                     className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
