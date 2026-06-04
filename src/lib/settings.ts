@@ -1,6 +1,7 @@
 // ユーザーのAPIキー設定をlocalStorageで管理するユーティリティ
 
 export type AppSettings = {
+  // 個人用（必須）
   notionToken: string
   notionMedicalDbId: string
   notionReferenceDbId: string
@@ -8,6 +9,16 @@ export type AppSettings = {
   algoliaSearchKey: string
   algoliaAdminKey: string
   algoliaIndex: string
+
+  // 部署用（任意）
+  teamLabel: string
+  teamNotionToken: string
+  teamNotionMedicalDbId: string
+
+  // サブスク用（任意）
+  subscriptionSearchKey: string
+  subscriptionAppId: string
+  subscriptionIndex: string
 }
 
 const STORAGE_KEY = 'medical_search_settings'

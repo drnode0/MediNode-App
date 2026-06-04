@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
 
-type Step = 'notion' | 'algolia' | 'sync'
+type Step = 'notion' | 'algolia' | 'sync' | 'options'
 
 type Props = {
   onComplete: () => void
@@ -34,6 +34,12 @@ export function SetupWizard({ onComplete }: Props) {
     algoliaSearchKey: '',
     algoliaAdminKey: '',
     algoliaIndex: 'medical_knowledge',
+    teamLabel: '',
+    teamNotionToken: '',
+    teamNotionMedicalDbId: '',
+    subscriptionSearchKey: '',
+    subscriptionAppId: '',
+    subscriptionIndex: '',
   })
   const [syncing, setSyncing] = useState(false)
   const [syncProgress, setSyncProgress] = useState('')
@@ -51,9 +57,8 @@ export function SetupWizard({ onComplete }: Props) {
   }, [])
 
   const update = (key: keyof AppSettings, value: string) => {
-    const processed = (key === 'notionMedicalDbId' || key === 'notionReferenceDbId')
-      ? extractNotionDbId(value)
-      : value
+    const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'teamNotionMedicalDbId']
+    const processed = dbIdKeys.includes(key) ? extractNotionDbId(value) : value
     const next = { ...form, [key]: processed }
     setForm(next)
     saveDraft(next) // 入力のたびに途中保存
@@ -152,6 +157,7 @@ export function SetupWizard({ onComplete }: Props) {
       saveSettings(form)
       saveLastSynced()
       clearDraft()
+      // オプション設定ステップへ遷移するため、ここでは onComplete は呼ばない
     } catch {
       setError('ネットワークエラーが発生しました。インターネット接続を確認して再度お試しください。')
     } finally {
@@ -164,6 +170,7 @@ export function SetupWizard({ onComplete }: Props) {
     { id: 'notion', label: 'Notion' },
     { id: 'algolia', label: 'Algolia' },
     { id: 'sync', label: '同期' },
+    { id: 'options', label: 'オプション' },
   ]
   const stepIndex = steps.findIndex((s) => s.id === step)
 
@@ -460,13 +467,133 @@ export function SetupWizard({ onComplete }: Props) {
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">URLを第三者に共有すると、あなたのデータが閲覧できる状態になります。信頼できる方のみに共有してください。</p>
                   </div>
                   <button
-                    onClick={onComplete}
+                    onClick={() => setStep('options')}
                     className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
                   >
-                    検索を開始する →
+                    次へ（オプション設定） →
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Step 4: オプション設定 */}
+          {step === 'options' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">オプション設定</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  部署の共有DBやサブスクリプションDBを追加できます。スキップしても後で設定できます。
+                </p>
+              </div>
+
+              {/* 部署用DB */}
+              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🏥 部署用DB（任意）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">職場の共有NotionDBを接続します</p>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      部署名（表示ラベル）
+                    </label>
+                    <input
+                      type="text"
+                      value={form.teamLabel}
+                      onChange={(e) => update('teamLabel', e.target.value)}
+                      placeholder="例：3病棟、ICU、外科チーム"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      部署用 Integration Token
+                    </label>
+                    <input
+                      type="password"
+                      value={form.teamNotionToken}
+                      onChange={(e) => update('teamNotionToken', e.target.value)}
+                      placeholder="secret_xxxxxxxxxxxx"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      部署用 Medical DB（URLまたはID）
+                    </label>
+                    <input
+                      type="text"
+                      value={form.teamNotionMedicalDbId}
+                      onChange={(e) => update('teamNotionMedicalDbId', e.target.value)}
+                      placeholder="https://www.notion.so/... またはID32桁"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
+                      <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* サブスク用 */}
+              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">⭐ サブスクリプションDB（任意）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">作者から配布されたキーを入力します</p>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      サブスク Search-Only APIキー
+                    </label>
+                    <input
+                      type="password"
+                      value={form.subscriptionSearchKey}
+                      onChange={(e) => update('subscriptionSearchKey', e.target.value)}
+                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      サブスク App ID
+                    </label>
+                    <input
+                      type="text"
+                      value={form.subscriptionAppId}
+                      onChange={(e) => update('subscriptionAppId', e.target.value)}
+                      placeholder="XXXXXXXXXX"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      サブスク インデックス名
+                    </label>
+                    <input
+                      type="text"
+                      value={form.subscriptionIndex}
+                      onChange={(e) => update('subscriptionIndex', e.target.value)}
+                      placeholder="subscription_medical"
+                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { saveSettings(form); onComplete() }}
+                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                設定を保存して検索を開始する →
+              </button>
+              <button
+                onClick={onComplete}
+                className="w-full text-gray-400 dark:text-gray-500 text-sm py-1 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                スキップして検索を開始する
+              </button>
             </div>
           )}
         </div>

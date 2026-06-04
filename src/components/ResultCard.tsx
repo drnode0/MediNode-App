@@ -6,6 +6,8 @@ export type Hit = {
   objectID: string
   title: string
   source: 'medical' | 'reference'
+  owner?: 'personal' | 'team' | 'subscription'
+  teamLabel?: string
   genre?: string
   detailGenre?: string
   knowledgeLevel?: string
@@ -35,6 +37,12 @@ const LEVEL_STYLE: Record<string, string> = {
   '📎 メモ': 'bg-gray-50 text-gray-600',
 }
 
+const OWNER_BADGE: Record<string, { label: string; style: string }> = {
+  personal: { label: '個人', style: 'bg-indigo-50 text-indigo-600' },
+  team: { label: '部署', style: 'bg-teal-50 text-teal-700' },
+  subscription: { label: 'サブスク', style: 'bg-purple-50 text-purple-700' },
+}
+
 export function ResultCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
@@ -44,6 +52,10 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 text-gray-600') : ''
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
+  const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
+  const ownerLabel = ownerBadge
+    ? (hit.owner === 'team' && hit.teamLabel ? hit.teamLabel : ownerBadge.label)
+    : null
 
   return (
     <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${borderColor} overflow-hidden`}>
@@ -57,6 +69,11 @@ export function ResultCard({ hit }: { hit: Hit }) {
             <Highlight attribute="title" hit={hit as any} />
           </h3>
           <div className="flex items-center gap-1 shrink-0">
+            {ownerLabel && ownerBadge && (
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${ownerBadge.style}`}>
+                {ownerLabel}
+              </span>
+            )}
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${sourceBg}`}>
               {sourceLabel}
             </span>

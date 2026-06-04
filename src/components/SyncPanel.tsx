@@ -30,6 +30,10 @@ export function SyncPanel() {
           algoliaAppId: settings.algoliaAppId,
           algoliaAdminKey: settings.algoliaAdminKey,
           algoliaIndex: settings.algoliaIndex,
+          // 部署用（設定済みの場合のみ送信）
+          teamLabel: settings.teamLabel || undefined,
+          teamNotionToken: settings.teamNotionToken || undefined,
+          teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
         }),
       })
       const data = await res.json()

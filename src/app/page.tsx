@@ -13,6 +13,7 @@ import { SetupWizard } from '@/components/SetupWizard'
 import { SyncPanel } from '@/components/SyncPanel'
 
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
+type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
 // 新着タブ：期間別に仕切り
 function RecentHits() {
@@ -177,21 +178,70 @@ function ReferenceTab() {
   )
 }
 
+// ownerフィルターをAlgoliaのfilters文字列に変換
+function buildOwnerFilter(owner: OwnerFilter): string {
+  if (owner === 'all') return ''
+  return `owner:${owner}`
+}
+
+// ownersフィルタータブ
+function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
+  owner: OwnerFilter
+  onChange: (v: OwnerFilter) => void
+  hasTeam: boolean
+  hasSubscription: boolean
+}) {
+  const options: { id: OwnerFilter; label: string }[] = [
+    { id: 'all', label: '全て' },
+    { id: 'personal', label: '個人' },
+    ...(hasTeam ? [{ id: 'team' as OwnerFilter, label: '部署' }] : []),
+    ...(hasSubscription ? [{ id: 'subscription' as OwnerFilter, label: 'サブスク' }] : []),
+  ]
+  if (options.length <= 2) return null
+  return (
+    <div className="flex gap-1 mb-2">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+            owner === o.id
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // 検索タブの内部コンポーネント（useSearchBoxを使うため）
-function SearchTab() {
+function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { refine, query } = useSearchBox()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [hasSearched, setHasSearched] = useState(false)
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
 
   const handleSelect = (q: string) => {
     refine(q)
     setHasSearched(true)
   }
 
+  const filterStr = buildOwnerFilter(ownerFilter)
+
   return (
     <>
+      <Configure hitsPerPage={20} filters={filterStr || undefined} />
       <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox />
+        <OwnerFilterTabs
+          owner={ownerFilter}
+          onChange={setOwnerFilter}
+          hasTeam={hasTeam}
+          hasSubscription={hasSubscription}
+        />
       </div>
       {!query && !hasSearched ? (
         <SearchHistoryList
@@ -236,6 +286,8 @@ export default function Home() {
   const settings = getSettings()
   const dynamicSearchClient = createSearchClient()
   const dynamicIndexName = settings?.algoliaIndex || getIndexName()
+  const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
+  const hasSubscription = !!(settings?.subscriptionSearchKey && settings?.subscriptionAppId)
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'search', label: '🔍 検索' },
@@ -300,10 +352,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           {/* 検索タブ */}
           {tab === 'search' && (
-            <>
-              <Configure hitsPerPage={20} />
-              <SearchTab />
-            </>
+            <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
 
           {/* 新着タブ */}
