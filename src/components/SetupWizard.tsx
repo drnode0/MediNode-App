@@ -227,6 +227,11 @@ export function SetupWizard({ onComplete }: Props) {
                 <p>② DBページを開き、右上「…」→「接続先に追加」でIntegrationを接続</p>
                 <p>③ DBのURLをそのまま貼り付けてください（IDが自動で入力されます）</p>
               </div>
+              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                <p className="font-semibold">⚠️ プロパティ名について</p>
+                <p>テンプレートのプロパティ名（「名前」「ジャンル」「AI要約」など）は<strong>変更しないでください</strong>。</p>
+                <p className="text-xs mt-1">名前を変えると同期時にデータが読み取れなくなります。選択肢の追加・変更は自由です。</p>
+              </div>
 
               <div className="space-y-4">
                 <div>
