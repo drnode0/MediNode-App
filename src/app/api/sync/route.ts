@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
             journal: extractText(props['ジャーナル名'] || {}),
             year: extractText(props['発行年'] || {}),
             evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+            aiSummary: extractText(props['AI要約'] || {}),
             aiKeywords: extractText(props['キーワード'] || {}),
             lastEdited: (p.last_edited_time as string) || '',
             createdAt: (p.created_time as string) || '',
