@@ -39,12 +39,40 @@ export function SyncPanel() {
       const data = await res.json()
       if (!res.ok) {
         const msg = data.error || ''
-        if (msg.includes('unauthorized') || msg.includes('Unauthorized') || msg.includes('401')) {
-          setError('APIキーが正しくありません。⚙️ボタンから設定を確認してください。')
-        } else if (msg.includes('object_not_found') || msg.includes('404')) {
-          setError('データベースIDが見つかりません。NotionのDB IDを確認してください。')
+        if (
+          msg.includes('API token is invalid') ||
+          msg.includes('invalid_token') ||
+          msg.includes('unauthorized') ||
+          msg.includes('Unauthorized') ||
+          msg.includes('401')
+        ) {
+          setError(
+            'Notion Integration Tokenが無効です。\n' +
+            '【対処法】⚙️設定から「Notion設定」に戻り、\n' +
+            'notion.so/my-integrations でTokenを再コピーして入力し直してください。'
+          )
+        } else if (msg.includes('object_not_found') || msg.includes('Could not find database') || msg.includes('404')) {
+          setError(
+            'データベースIDが見つかりません。\n' +
+            '【対処法】⚙️設定から「Notion設定」に戻り、\n' +
+            'DBのURLを貼り直してください。'
+          )
         } else if (msg.includes('restricted_resource') || msg.includes('403')) {
-          setError('Notionのアクセス権がありません。DBにIntegrationを接続しているか確認してください。')
+          setError(
+            'Notionのアクセス権がありません。\n' +
+            '【対処法】NotionでDBページを開き、\n' +
+            '右上「…」→「接続先に追加」→ Integrationを接続してから再度同期してください。'
+          )
+        } else if (
+          msg.includes('Invalid Application-ID') ||
+          msg.includes('Invalid API key') ||
+          msg.includes('Valid appId')
+        ) {
+          setError(
+            'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。\n' +
+            '【対処法】⚙️設定から「Algolia設定」に戻り、\n' +
+            'Algolia Dashboard → API Keys から再コピーして入力し直してください。'
+          )
         } else if (msg.includes('network') || msg.includes('fetch')) {
           setError('ネットワークエラーが発生しました。接続を確認して再度お試しください。')
         } else {
@@ -97,7 +125,9 @@ export function SyncPanel() {
           ) : error ? (
             <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
               <p className="font-semibold mb-1">⚠️ エラー</p>
-              <p>{error}</p>
+              {error.split('\n').map((line, i) => (
+                <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+              ))}
             </div>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">Notionのデータを更新した後に同期してください。</p>

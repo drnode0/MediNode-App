@@ -9,19 +9,68 @@ type Props = {
 }
 
 function parseErrorMessage(msg: string): string {
-  if (msg.includes('unauthorized') || msg.includes('Unauthorized') || msg.includes('401')) {
-    return 'APIキーが正しくありません。Notion Integration TokenまたはAlgoliaのキーを確認してください。'
+  // Notion: APIトークン無効（"API token is invalid" など）
+  if (
+    msg.includes('API token is invalid') ||
+    msg.includes('invalid_token') ||
+    msg.includes('unauthorized') ||
+    msg.includes('Unauthorized') ||
+    msg.includes('401')
+  ) {
+    return [
+      'Notion Integration Tokenが無効です。',
+      '【対処法】',
+      '① notion.so/my-integrations でTokenのシークレットを再コピー',
+      '② 「secret_xxx...」という形式になっているか確認',
+      '③ コピー時に前後の空白が混入していないか確認',
+      '④「← 戻る」でStep 1に戻り、再入力してください',
+    ].join('\n')
   }
-  if (msg.includes('object_not_found') || msg.includes('404')) {
-    return 'データベースIDが見つかりません。NotionのDB IDを再確認してください。'
+  // Notion: DBが見つからない
+  if (
+    msg.includes('object_not_found') ||
+    msg.includes('Could not find database') ||
+    msg.includes('404')
+  ) {
+    return [
+      'データベースIDが見つかりません。',
+      '【対処法】',
+      '① NotionのDBページURLからIDをコピー（32桁の英数字）',
+      '② URLの「?v=」以降は含めないでください',
+      '③「← 戻る」でStep 1に戻り、URLを貼り直してください',
+    ].join('\n')
   }
+  // Notion: DBにIntegrationが接続されていない
   if (msg.includes('restricted_resource') || msg.includes('403')) {
-    return 'Notionのアクセス権がありません。DBページの「接続先に追加」からIntegrationを接続しているか確認してください。'
+    return [
+      'NotionのDBへのアクセス権がありません。',
+      '【対処法】',
+      '① NotionでMedical DBページを開く',
+      '② 右上「…」→「接続先に追加」→ 作成したIntegrationを選択',
+      '③ Reference DBも同様に接続する',
+      '④ 接続後、再度「接続テスト」を押してください',
+    ].join('\n')
   }
+  // Algolia: App IDまたはAdmin Keyが無効
+  if (
+    msg.includes('Invalid Application-ID') ||
+    msg.includes('Invalid API key') ||
+    msg.includes('invalid_api_key') ||
+    msg.includes('Valid appId')
+  ) {
+    return [
+      'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。',
+      '【対処法】',
+      '① Algolia Dashboard → Settings → API Keys を開く',
+      '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
+      '③「← 戻る」でStep 2に戻り、再入力してください',
+    ].join('\n')
+  }
+  // 必須キー不足
   if (msg.includes('必要なキー')) {
-    return '入力が不足しています。前の手順に戻って全ての項目を入力してください。'
+    return '入力が不足しています。前の手順に戻って全ての必須項目を入力してください。'
   }
-  return `同期に失敗しました: ${msg}`
+  return `エラーが発生しました: ${msg}`
 }
 
 export function SetupWizard({ onComplete }: Props) {
@@ -278,7 +327,14 @@ export function SetupWizard({ onComplete }: Props) {
                 </div>
               </div>
 
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-semibold mb-1">⚠️ エラー</p>
+                  {error.split('\n').map((line, i) => (
+                    <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                  ))}
+                </div>
+              )}
 
               <button
                 onClick={handleNotionNext}
@@ -357,7 +413,14 @@ export function SetupWizard({ onComplete }: Props) {
                 </div>
               </div>
 
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-semibold mb-1">⚠️ エラー</p>
+                  {error.split('\n').map((line, i) => (
+                    <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                  ))}
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button
@@ -419,7 +482,9 @@ export function SetupWizard({ onComplete }: Props) {
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
                       <p className="font-semibold mb-1">⚠️ エラー</p>
-                      <p>{error}</p>
+                      {error.split('\n').map((line, i) => (
+                        <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                      ))}
                     </div>
                   )}
 
