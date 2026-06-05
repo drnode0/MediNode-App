@@ -256,10 +256,154 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
   )
 }
 
+// 設定パネル（⚙️を押したときに開くモーダル）
+type SettingsPanelProps = {
+  onClose: () => void
+  onReset: () => void
+  onRedo: () => void
+}
+function SettingsPanel({ onClose, onReset, onRedo }: SettingsPanelProps) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+
+  return (
+    <>
+      {/* オーバーレイ */}
+      <div
+        className="fixed inset-0 bg-black/40 z-40"
+        onClick={onClose}
+      />
+      {/* パネル本体（画面下からスライドアップ） */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-2xl mx-auto">
+        {/* ハンドル */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+
+        <div className="px-5 pb-8 pt-2">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white mb-4">⚙️ 設定</h2>
+
+          {/* ヘルプ表示中 */}
+          {showHelp ? (
+            <div className="space-y-4">
+              <button
+                onClick={() => setShowHelp(false)}
+                className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
+              >
+                ← 戻る
+              </button>
+              <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[60vh] overflow-y-auto pr-1">
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
+                  <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                    <p><strong>「API token is invalid」</strong></p>
+                    <p>→ Notion Integration Tokenが間違っています。<br/>notion.so/my-integrations で「シークレット」を再コピーし、設定をやり直してください。</p>
+                    <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
+                    <p>→ DBにIntegrationが接続されていません。<br/>NotionのDBページ右上「…」→「接続先に追加」→ Integrationを選択してください。</p>
+                    <p className="mt-2"><strong>「Admin API Key エラー」</strong></p>
+                    <p>→ AlgoliaのAdmin API Keyが間違っています。<br/>Search API KeyではなくAdmin API Keyを使用してください。</p>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 APIキーの取得場所</h3>
+                  <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                    <p><strong>Notion Integration Token</strong></p>
+                    <p>→ notion.so/my-integrations → 該当Integration → 「シークレット」をコピー</p>
+                    <p className="mt-2"><strong>Algolia キー</strong></p>
+                    <p>→ Algolia Dashboard → Settings → API Keys<br/>・Application ID<br/>・Search-Only API Key（検索用）<br/>・Admin API Key（同期用・長い方）</p>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
+                  <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300">
+                    <p>NotionDBのプロパティ名（「名前」「ジャンル」「AI要約」など）は<strong>変更しないでください</strong>。</p>
+                    <p className="mt-1">名前を変えると同期時にデータが読み取れなくなります。選択肢の追加・変更は自由です。</p>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
+                  <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                    <p>APIキーはこのブラウザのみに保存されています。スマホや別のPCで使う場合は、同じURLを開いてAPIキーを再入力してください（データの再同期は不要です）。</p>
+                  </div>
+                </section>
+              </div>
+            </div>
+          ) : showResetConfirm ? (
+            /* リセット確認 */
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-700 dark:text-red-300">
+                <p className="font-bold mb-1">⚠️ 本当にリセットしますか？</p>
+                <p>入力したAPIキーが全て削除されます。<br/>再度セットアップが必要になります。</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={onReset}
+                  className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-red-600 transition-colors"
+                >
+                  リセットする
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* メインメニュー */
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowHelp(true)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+              >
+                <span className="text-xl">📖</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">同期エラーの対処法・APIキーの取得方法</p>
+                </div>
+                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
+              </button>
+
+              <button
+                onClick={() => { onClose(); onRedo() }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+              >
+                <span className="text-xl">🔑</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">設定を変更する</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">APIキーの入力し直し・部署DB・サブスク設定</p>
+                </div>
+                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
+              </button>
+
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                >
+                  <span className="text-xl">🗑</span>
+                  <div>
+                    <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定をリセット</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">全てのAPIキーを削除してセットアップをやり直す</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function Home() {
   const [tab, setTab] = useState<Tab>('search')
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     setSetupDone(isSetupComplete())
@@ -268,7 +412,11 @@ export default function Home() {
   const handleReset = () => {
     clearSettings()
     setSetupDone(false)
-    setShowResetConfirm(false)
+    setShowSettings(false)
+  }
+
+  const handleRedo = () => {
+    setSetupDone(false)
   }
 
   if (setupDone === null) {
@@ -280,7 +428,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => setSetupDone(true)} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false) }} />
   }
 
   const settings = getSettings()
@@ -308,24 +456,13 @@ export default function Home() {
               <div className="w-16" />
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">🏥 Medical Search</h1>
               <div className="w-16 flex justify-end">
-                {showResetConfirm ? (
-                  <div className="flex gap-1">
-                    <button onClick={handleReset} className="text-xs text-red-500 font-medium">
-                      リセット
-                    </button>
-                    <button onClick={() => setShowResetConfirm(false)} className="text-xs text-gray-400 dark:text-gray-500">
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowResetConfirm(true)}
-                    className="text-xs text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
-                    title="設定をリセット"
-                  >
-                    ⚙️
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="text-xl text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+                  title="設定"
+                >
+                  ⚙️
+                </button>
               </div>
             </div>
 
@@ -386,6 +523,15 @@ export default function Home() {
           <SyncPanel />
         </div>
       </div>
+
+      {/* 設定パネル（モーダル） */}
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          onReset={handleReset}
+          onRedo={handleRedo}
+        />
+      )}
     </InstantSearch>
   )
 }
