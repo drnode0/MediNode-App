@@ -114,6 +114,20 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <p className="text-xs text-gray-600 dark:text-gray-300">NotionのDBページURLをそのまま貼り付けてください。IDが自動で抽出されます。</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 break-all">例: https://www.notion.so/workspace/<strong>abc123...</strong>?v=...</p>
         </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⚠️ プロパティ名のルール</p>
+          <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
+            <p>アプリはプロパティ名でデータを読み取ります。以下の名前は<strong>変更しないでください</strong>（同期が壊れます）。</p>
+            <div className="font-mono text-xs space-y-0.5">
+              <p className="font-sans font-semibold text-amber-800 dark:text-amber-200">Medical DB：</p>
+              <p>名前 / ジャンル / 詳細ジャンル / タグ / 知識レベル / AI要約 / キーワード</p>
+              <p className="font-sans font-semibold text-amber-800 dark:text-amber-200 mt-1">Reference DB：</p>
+              <p>名前 / 著者 / ジャーナル名 / 発行年 / エビデンスレベル / AI要約 / キーワード</p>
+            </div>
+            <p className="text-green-700 dark:text-green-400">✅ 新しいプロパティの<strong>追加はOK</strong>（同期対象外として使えます）</p>
+            <p className="text-green-700 dark:text-green-400">✅ セレクトの<strong>選択肢の追加・変更はOK</strong></p>
+          </div>
+        </section>
       </div>
     ),
   },
@@ -425,10 +439,19 @@ export function SetupWizard({ onComplete }: Props) {
                 <p>② DBページを開き、右上「…」→「接続先に追加」でIntegrationを接続</p>
                 <p>③ DBのURLをそのまま貼り付けてください（IDが自動で入力されます）</p>
               </div>
-              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-1">
-                <p className="font-semibold">⚠️ プロパティ名について</p>
-                <p>テンプレートのプロパティ名（「名前」「ジャンル」「AI要約」など）は<strong>変更しないでください</strong>。</p>
-                <p className="text-xs mt-1">名前を変えると同期時にデータが読み取れなくなります。選択肢の追加・変更は自由です。</p>
+              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-2">
+                <p className="font-semibold">⚠️ Notionのプロパティ名について</p>
+                <p>このアプリはプロパティ名でデータを読み取るため、以下の名前を変えると同期が壊れます。</p>
+                <div className="bg-amber-100/60 dark:bg-amber-800/30 rounded-lg p-2.5 text-xs space-y-1 font-mono">
+                  <p className="text-amber-800 dark:text-amber-200 font-semibold not-italic font-sans mb-1">🔒 変更禁止（Medical DB）</p>
+                  <p>名前 / ジャンル / 詳細ジャンル / タグ</p>
+                  <p>知識レベル / AI要約 / キーワード</p>
+                  <p className="text-amber-800 dark:text-amber-200 font-semibold not-italic font-sans mt-2 mb-1">🔒 変更禁止（Reference DB）</p>
+                  <p>名前 / 著者 / ジャーナル名 / 発行年</p>
+                  <p>エビデンスレベル / AI要約 / キーワード</p>
+                </div>
+                <p className="text-xs">✅ <strong>新しいプロパティの追加はOK</strong>です（同期対象外になりますが、Notionでの管理に使えます）</p>
+                <p className="text-xs">✅ セレクト・マルチセレクトの<strong>選択肢の追加・変更もOK</strong>です</p>
               </div>
 
               <div className="space-y-4">
