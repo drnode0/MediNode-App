@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import type React from 'react'
 import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
 
 type Step = 'notion' | 'algolia' | 'sync' | 'options'
@@ -83,8 +84,110 @@ function parseErrorMessage(msg: string): string {
   return `エラーが発生しました: ${msg}`
 }
 
+// ステップごとのヘルプ内容
+const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
+  notion: {
+    title: 'Notion設定のヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 Integration Tokenの取得方法</p>
+          <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
+            <li><a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">notion.so/my-integrations</a> を開く</li>
+            <li>「新しいインテグレーション」を作成</li>
+            <li>表示された「シークレット」の <strong>コピーボタン</strong> を押す</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_xxx...</code> という形式になっているか確認</li>
+          </ol>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔗 DBにIntegrationを接続する（必須）</p>
+          <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
+            <li>NotionでMedical DBのページを開く</li>
+            <li>右上「<strong>…</strong>」→「接続先に追加」をクリック</li>
+            <li>作成したIntegrationを選択</li>
+            <li>Reference DBも同様に接続する</li>
+          </ol>
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">⚠️ この接続を忘れると同期時にエラーになります</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🆔 DB IDの入力方法</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">NotionのDBページURLをそのまま貼り付けてください。IDが自動で抽出されます。</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 break-all">例: https://www.notion.so/workspace/<strong>abc123...</strong>?v=...</p>
+        </section>
+      </div>
+    ),
+  },
+  algolia: {
+    title: 'Algolia設定のヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 APIキーの取得方法</p>
+          <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
+            <li><a href="https://www.algolia.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">algolia.com</a> でアカウント作成（無料）</li>
+            <li>ダッシュボード → <strong>Settings → API Keys</strong> を開く</li>
+            <li>以下の3つをコピー</li>
+          </ol>
+        </section>
+        <section className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 space-y-2 text-xs">
+          <div>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">Application ID</p>
+            <p className="text-gray-500 dark:text-gray-400">アプリの識別子（短い英数字）</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">Search-Only API Key</p>
+            <p className="text-gray-500 dark:text-gray-400">検索専用キー（読み取りのみ）</p>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">Admin API Key ⚠️</p>
+            <p className="text-gray-500 dark:text-gray-400">同期・書き込みに使用。<strong className="text-red-500">Search KeyではなくAdmin Keyを入力</strong>してください</p>
+          </div>
+        </section>
+      </div>
+    ),
+  },
+  sync: {
+    title: '同期のヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔌 接続テストでエラーが出たら</p>
+          <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+            <p><strong>「API token is invalid」</strong></p>
+            <p className="text-gray-600 dark:text-gray-300">→ Notion Tokenが間違っています。Step 1に戻って再入力してください</p>
+            <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
+            <p className="text-gray-600 dark:text-gray-300">→ DBにIntegrationが接続されていません。NotionのDB右上「…」→「接続先に追加」</p>
+            <p className="mt-2"><strong>「Algolia / Admin Key エラー」</strong></p>
+            <p className="text-gray-600 dark:text-gray-300">→ Admin API Keyが間違っています。Step 2に戻って再入力してください</p>
+          </div>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">💾 同期とは？</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">NotionのデータをAlgoliaに取り込む作業です。Notionを更新したときは、検索画面から再同期できます（セットアップをやり直す必要はありません）。</p>
+        </section>
+      </div>
+    ),
+  },
+  options: {
+    title: 'オプション設定のヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🏥 部署用DB</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">職場の共有NotionDBを接続して、個人DBと統合検索できます。別のIntegration TokenとDB IDが必要です。</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ サブスクリプション</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">作者から配布されたSearch-Only APIキーを入力します。Admin Keyは不要なため、データを書き換えられるリスクはありません。</p>
+        </section>
+      </div>
+    ),
+  },
+}
+
 export function SetupWizard({ onComplete }: Props) {
   const [step, setStep] = useState<Step>('notion')
+  const [showHelp, setShowHelp] = useState(false)
   const [form, setForm] = useState<AppSettings>({
     notionToken: '',
     notionMedicalDbId: '',
@@ -237,11 +340,47 @@ export function SetupWizard({ onComplete }: Props) {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
-        <div className="text-center mb-8">
+        <div className="relative text-center mb-8">
           <div className="text-4xl mb-3">🏥</div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Search</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>
+          {/* ヘルプボタン */}
+          <button
+            onClick={() => setShowHelp(true)}
+            className="absolute top-0 right-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-sm font-bold flex items-center justify-center"
+            title="このステップのヘルプ"
+          >
+            ?
+          </button>
         </div>
+
+        {/* ヘルプパネル（オーバーレイ） */}
+        {showHelp && (
+          <>
+            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setShowHelp(false)} />
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-lg mx-auto">
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+              </div>
+              <div className="px-5 pb-8 pt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                    {STEP_HELP[step].title}
+                  </h2>
+                  <button
+                    onClick={() => setShowHelp(false)}
+                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-[60vh] overflow-y-auto pr-1">
+                  {STEP_HELP[step].content}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ステップインジケーター */}
         <div className="flex items-center justify-center gap-2 mb-8">
