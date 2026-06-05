@@ -9,6 +9,16 @@ type Props = {
 }
 
 function parseErrorMessage(msg: string): string {
+  // Algolia側のエラー（プレフィックスで明示）
+  if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
+    return [
+      'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。',
+      '【対処法】',
+      '① Algolia Dashboard → Settings → API Keys を開く',
+      '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
+      '③「← 戻る」でStep 2に戻り、再入力してください',
+    ].join('\n')
+  }
   // Notion: APIトークン無効（"API token is invalid" など）
   if (
     msg.includes('API token is invalid') ||

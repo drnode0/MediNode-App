@@ -147,22 +147,27 @@ export async function POST(req: NextRequest) {
 
     // 接続テストのみ（testOnly=true の場合）
     if (testOnly) {
+      // Notion接続テスト
       try {
-        // Notion接続テスト：DBに1件だけクエリ
         await notion.databases.query({
           database_id: notionMedicalDbId,
           page_size: 1,
         })
-
-        // Algolia接続テスト：インデックス一覧取得
-        const algolia = algoliasearch(algoliaAppId, algoliaAdminKey)
-        await algolia.listIndices()
-
-        return NextResponse.json({ success: true, testOnly: true })
       } catch (err) {
         const message = err instanceof Error ? err.message : '接続エラーが発生しました'
-        return NextResponse.json({ error: message }, { status: 500 })
+        return NextResponse.json({ error: `[Notion] ${message}` }, { status: 500 })
       }
+
+      // Algolia接続テスト
+      try {
+        const algolia = algoliasearch(algoliaAppId, algoliaAdminKey)
+        await algolia.listIndices()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '接続エラーが発生しました'
+        return NextResponse.json({ error: `[Algolia] ${message}` }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, testOnly: true })
     }
 
     // 通常の同期処理

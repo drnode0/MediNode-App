@@ -64,14 +64,17 @@ export function SyncPanel() {
             '右上「…」→「接続先に追加」→ Integrationを接続してから再度同期してください。'
           )
         } else if (
+          msg.startsWith('[Algolia]') ||
           msg.includes('Invalid Application-ID') ||
           msg.includes('Invalid API key') ||
-          msg.includes('Valid appId')
+          msg.includes('Valid appId') ||
+          msg.includes('invalid_api_key')
         ) {
           setError(
             'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。\n' +
-            '【対処法】⚙️設定から「Algolia設定」に戻り、\n' +
-            'Algolia Dashboard → API Keys から再コピーして入力し直してください。'
+            '【対処法】⚙️設定をリセットしてやり直し、\n' +
+            'Algolia Dashboard → API Keys の「Admin API Key」を使用してください。\n' +
+            '（Search API KeyではなくAdmin Keyが必要です）'
           )
         } else if (msg.includes('network') || msg.includes('fetch')) {
           setError('ネットワークエラーが発生しました。接続を確認して再度お試しください。')
