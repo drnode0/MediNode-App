@@ -9,6 +9,7 @@ export type Hit = {
   owner?: 'personal' | 'team' | 'subscription'
   teamLabel?: string
   genre?: string
+  genreList?: string[]
   detailGenre?: string
   knowledgeLevel?: string
   type?: string

@@ -481,11 +481,17 @@ function NotionBrowseTab() {
   const [genreLoading, setGenreLoading] = useState(false)
   const settings = getSettings()
 
-  // 全件取得してジャンル一覧を生成
+  // 全件取得してジャンル一覧を生成（genreList から個別ジャンルを収集）
   useEffect(() => {
     if (records.length > 0) {
       const genreSet = new Set<string>()
-      for (const r of records) { if (r.genre) genreSet.add(r.genre) }
+      for (const r of records) {
+        if (r.genreList && r.genreList.length > 0) {
+          r.genreList.forEach((g) => g && genreSet.add(g))
+        } else if (r.genre) {
+          genreSet.add(r.genre)
+        }
+      }
       setGenres(Array.from(genreSet).sort())
     }
   }, [records])

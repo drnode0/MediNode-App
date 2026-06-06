@@ -22,12 +22,26 @@ function extractText(prop: Record<string, unknown>): string {
   return ''
 }
 
+function extractList(prop: Record<string, unknown>): string[] {
+  if (!prop) return []
+  const type = prop.type as string
+  if (type === 'multi_select') {
+    return ((prop.multi_select as Array<{ name: string }>) || []).map((t) => t.name)
+  }
+  if (type === 'select') {
+    const name = (prop.select as { name: string } | null)?.name
+    return name ? [name] : []
+  }
+  return []
+}
+
 type NotionRecord = {
   objectID: string
   source: 'medical' | 'reference'
   owner: 'personal'
   title: string
   genre: string
+  genreList: string[]
   detailGenre: string
   tags: string
   knowledgeLevel: string
@@ -77,12 +91,14 @@ async function queryDb(
     if (!title) continue
 
     if (source === 'medical') {
+      const genreList = extractList(props['ジャンル'] || {})
       records.push({
         objectID: `personal_${page.id}`,
         source: 'medical',
         owner: 'personal',
         title,
-        genre: extractText(props['ジャンル'] || {}),
+        genre: genreList[0] || '',
+        genreList,
         detailGenre: extractText(props['詳細ジャンル'] || {}),
         tags: extractText(props['タグ'] || {}),
         knowledgeLevel: extractText(props['知識レベル'] || {}),
@@ -103,6 +119,7 @@ async function queryDb(
         owner: 'personal',
         title,
         genre: '',
+        genreList: [],
         detailGenre: '',
         tags: '',
         knowledgeLevel: '',
@@ -198,12 +215,14 @@ export async function POST(req: NextRequest) {
         // フォールバック取得の場合はクライアント側でフィルタ
         const isQuizLevel = knowledgeLevel.includes('クリニカルクエスチョン') || knowledgeLevel.includes('ナレッジ')
         if (!isQuizLevel) continue
+        const genreList = extractList(props['ジャンル'] || {})
         records.push({
           objectID: `personal_${page.id}`,
           source: 'medical',
           owner: 'personal',
           title,
-          genre: extractText(props['ジャンル'] || {}),
+          genre: genreList[0] || '',
+          genreList,
           detailGenre: extractText(props['詳細ジャンル'] || {}),
           tags: extractText(props['タグ'] || {}),
           knowledgeLevel,
@@ -216,9 +235,9 @@ export async function POST(req: NextRequest) {
         })
       }
     } else if (mode === 'browse') {
-      // ジャンル別：genreで絞り込み
+      // ジャンル別：genreで絞り込み（multi_select: contains を使用）
       const filter = genre
-        ? { property: 'ジャンル', select: { equals: genre } }
+        ? { property: 'ジャンル', multi_select: { contains: genre } }
         : undefined
       const res = await notion.databases.query({
         database_id: notionMedicalDbId,
@@ -233,12 +252,14 @@ export async function POST(req: NextRequest) {
         const props = p.properties as Record<string, Record<string, unknown>>
         const title = extractText(props['名前'] || {})
         if (!title) continue
+        const genreList = extractList(props['ジャンル'] || {})
         records.push({
           objectID: `personal_${page.id}`,
           source: 'medical',
           owner: 'personal',
           title,
-          genre: extractText(props['ジャンル'] || {}),
+          genre: genreList[0] || '',
+          genreList,
           detailGenre: extractText(props['詳細ジャンル'] || {}),
           tags: extractText(props['タグ'] || {}),
           knowledgeLevel: extractText(props['知識レベル'] || {}),
