@@ -157,23 +157,47 @@ export async function POST(req: NextRequest) {
       // createdAt降順でソート
       records.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
     } else if (mode === 'quiz') {
-      // クイズ：知識レベルが「クリニカルクエスチョン」or「ナレッジ」のもの
-      const res = await notion.databases.query({
-        database_id: notionMedicalDbId,
-        filter: {
-          or: [
-            { property: '知識レベル', select: { equals: '❓ クリニカルクエスチョン' } },
-            { property: '知識レベル', select: { equals: '💡 ナレッジ' } },
-          ],
-        },
-        page_size: 100,
-      })
+      // クイズ：知識レベルが「クリニカルクエスチョン」or「ナレッジ系」のもの
+      // 選択肢名のバリエーションを全て列挙（Notionはcontainsが使えないためequalsで複数カバー）
+      const quizLevelOptions = [
+        '❓ クリニカルクエスチョン',
+        '💡 ナレッジ',
+        '💡 ナレッジユニット',
+        '💡ナレッジ',
+        '💡ナレッジユニット',
+        'クリニカルクエスチョン',
+        'ナレッジ',
+        'ナレッジユニット',
+      ]
+      let res
+      try {
+        res = await notion.databases.query({
+          database_id: notionMedicalDbId,
+          filter: {
+            or: quizLevelOptions.map((opt) => ({
+              property: '知識レベル',
+              select: { equals: opt },
+            })),
+          },
+          page_size: 100,
+        })
+      } catch {
+        // フィルタでエラーが出た場合（選択肢が1つもマッチしないケースなど）は全件取得してクライアント側フィルタ
+        res = await notion.databases.query({
+          database_id: notionMedicalDbId,
+          page_size: 100,
+        })
+      }
       for (const page of res.results) {
         if (page.object !== 'page') continue
         const p = page as Record<string, unknown>
         const props = p.properties as Record<string, Record<string, unknown>>
         const title = extractText(props['名前'] || {})
         if (!title) continue
+        const knowledgeLevel = extractText(props['知識レベル'] || {})
+        // フォールバック取得の場合はクライアント側でフィルタ
+        const isQuizLevel = knowledgeLevel.includes('クリニカルクエスチョン') || knowledgeLevel.includes('ナレッジ')
+        if (!isQuizLevel) continue
         records.push({
           objectID: `personal_${page.id}`,
           source: 'medical',
@@ -182,7 +206,7 @@ export async function POST(req: NextRequest) {
           genre: extractText(props['ジャンル'] || {}),
           detailGenre: extractText(props['詳細ジャンル'] || {}),
           tags: extractText(props['タグ'] || {}),
-          knowledgeLevel: extractText(props['知識レベル'] || {}),
+          knowledgeLevel,
           aiSummary: extractText(props['AI要約'] || {}),
           aiKeywords: extractText(props['キーワード'] || {}),
           author: '', journal: '', year: '', evidenceLevel: '',

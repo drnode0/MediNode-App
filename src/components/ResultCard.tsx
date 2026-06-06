@@ -66,7 +66,9 @@ export function ResultCard({ hit }: { hit: Hit }) {
       >
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 text-base leading-snug flex-1">
-            <Highlight attribute="title" hit={hit as any} />
+            {(hit as any)._highlightResult
+              ? <Highlight attribute="title" hit={hit as any} />
+              : hit.title}
           </h3>
           <div className="flex items-center gap-1 shrink-0">
             {ownerLabel && ownerBadge && (
@@ -112,7 +114,9 @@ export function ResultCard({ hit }: { hit: Hit }) {
             <p className="text-sm text-gray-600 line-clamp-2">{displaySummary}</p>
           ) : hit.content ? (
             <p className="text-sm text-gray-500 line-clamp-2">
-              <Snippet attribute="content" hit={hit as any} />
+              {(hit as any)._snippetResult
+                ? <Snippet attribute="content" hit={hit as any} />
+                : hit.content}
             </p>
           ) : null
         )}
