@@ -1,10 +1,17 @@
 // ユーザーのAPIキー設定をlocalStorageで管理するユーティリティ
 
+export type SearchMode = 'notion' | 'algolia'
+
 export type AppSettings = {
+  // 検索モード
+  searchMode: SearchMode
+
   // 個人用（必須）
   notionToken: string
   notionMedicalDbId: string
   notionReferenceDbId: string
+
+  // Algoliaモードのみ必須
   algoliaAppId: string
   algoliaSearchKey: string
   algoliaAdminKey: string
@@ -15,7 +22,7 @@ export type AppSettings = {
   teamNotionToken: string
   teamNotionMedicalDbId: string
 
-  // サブスク用（任意）
+  // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string
   subscriptionAppId: string
   subscriptionIndex: string
@@ -50,13 +57,11 @@ export function clearSettings(): void {
 export function isSetupComplete(): boolean {
   const s = getSettings()
   if (!s) return false
-  return !!(
-    s.notionToken &&
-    s.notionMedicalDbId &&
-    s.algoliaAppId &&
-    s.algoliaSearchKey &&
-    s.algoliaAdminKey
-  )
+  if (!s.notionToken || !s.notionMedicalDbId) return false
+  // Notionモードはここまででok
+  if (s.searchMode === 'notion') return true
+  // Algoliaモードはキーも必要
+  return !!(s.algoliaAppId && s.algoliaSearchKey && s.algoliaAdminKey)
 }
 
 // セットアップ途中の一時保存

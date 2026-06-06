@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
+import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings, type SearchMode } from '@/lib/settings'
 import { NotionDbCreator } from './NotionDbCreator'
 
-type Step = 'notion' | 'algolia' | 'sync' | 'options'
+type Step = 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'create' | 'existing'
 
 type Props = {
@@ -88,6 +88,21 @@ function parseErrorMessage(msg: string): string {
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
+  mode: {
+    title: '接続モードのヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📋 シンプルモードとは？</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Notionに直接問い合わせて検索します。Algoliaアカウントは不要で、Notion Tokenを入力するだけで使い始められます。検索のたびにNotionへアクセスするため、結果表示まで1〜3秒かかります。</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⚡ パワーモードとは？</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Algoliaという高速検索エンジンを使います。検索は0.1秒以下で完了し、日本語の部分一致も得意です。ただしAlgoliaのアカウント作成（無料）とデータの同期が必要です。</p>
+        </section>
+      </div>
+    ),
+  },
   notion: {
     title: 'Notion設定のヘルプ',
     content: (
@@ -202,10 +217,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 }
 
 export function SetupWizard({ onComplete }: Props) {
-  const [step, setStep] = useState<Step>('notion')
+  const [step, setStep] = useState<Step>('mode')
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
   const [form, setForm] = useState<AppSettings>({
+    searchMode: 'notion',
     notionToken: '',
     notionMedicalDbId: '',
     notionReferenceDbId: '',
@@ -255,7 +271,12 @@ export function SetupWizard({ onComplete }: Props) {
       return
     }
     setError('')
-    setStep('algolia')
+    // Notionモードの場合はAlgoliaをスキップしてオプションへ
+    if (form.searchMode === 'notion') {
+      setStep('options')
+    } else {
+      setStep('algolia')
+    }
   }
 
   const handleAlgoliaNext = () => {
@@ -345,12 +366,21 @@ export function SetupWizard({ onComplete }: Props) {
     }
   }
 
-  const steps: { id: Step; label: string }[] = [
-    { id: 'notion', label: 'Notion' },
-    { id: 'algolia', label: 'Algolia' },
-    { id: 'sync', label: '同期' },
-    { id: 'options', label: 'オプション' },
-  ]
+  // モードに応じてステップ表示を切り替え
+  const allSteps: { id: Step; label: string }[] = form.searchMode === 'notion'
+    ? [
+        { id: 'mode', label: 'モード' },
+        { id: 'notion', label: 'Notion' },
+        { id: 'options', label: 'オプション' },
+      ]
+    : [
+        { id: 'mode', label: 'モード' },
+        { id: 'notion', label: 'Notion' },
+        { id: 'algolia', label: 'Algolia' },
+        { id: 'sync', label: '同期' },
+        { id: 'options', label: 'オプション' },
+      ]
+  const steps = allSteps
   const stepIndex = steps.findIndex((s) => s.id === step)
 
   return (
@@ -426,6 +456,47 @@ export function SetupWizard({ onComplete }: Props) {
 
         {/* カード */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+
+          {/* Step 0: モード選択 */}
+          {step === 'mode' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">接続モードを選択</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  検索エンジンをどう使いますか？あとから変更もできます。
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setForm((f) => ({ ...f, searchMode: 'notion' }))
+                  setStep('notion')
+                }}
+                className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+              >
+                <p className="text-sm font-bold text-blue-700 dark:text-blue-300">📋 シンプルモード（推奨）</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5 leading-relaxed">
+                  Notionに接続するだけ。<strong>Algoliaアカウント不要</strong>。<br />
+                  設定は Notion Token + DB のみ。同期も不要で常に最新。
+                </p>
+                <p className="text-xs text-blue-500/70 dark:text-blue-500/50 mt-1">※ 検索結果表示まで1〜3秒かかります</p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setForm((f) => ({ ...f, searchMode: 'algolia' }))
+                  setStep('notion')
+                }}
+                className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">⚡ パワーモード</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                  Algoliaで高速検索（0.1秒以下）。日本語の部分一致も得意。<br />
+                  Algoliaアカウント（無料）と初回同期が必要。
+                </p>
+              </button>
+            </div>
+          )}
 
           {/* Step 1: Notion */}
           {step === 'notion' && (
@@ -509,7 +580,8 @@ export function SetupWizard({ onComplete }: Props) {
                       update('notionMedicalDbId', medicalDbId)
                       if (referenceDbId) update('notionReferenceDbId', referenceDbId)
                       setNotionSetupMode('choose')
-                      setStep('algolia')
+                      // Notionモードはオプションへ、Algoliaモードはalgoliaステップへ
+                      setStep(form.searchMode === 'notion' ? 'options' : 'algolia')
                     }}
                     onCancel={() => { setNotionSetupMode('choose'); setError('') }}
                   />
@@ -914,13 +986,13 @@ export function SetupWizard({ onComplete }: Props) {
               </div>
 
               <button
-                onClick={() => { saveSettings(form); onComplete() }}
+                onClick={() => { saveSettings(form); clearDraft(); onComplete() }}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
                 設定を保存して検索を開始する →
               </button>
               <button
-                onClick={onComplete}
+                onClick={() => { saveSettings(form); clearDraft(); onComplete() }}
                 className="w-full text-gray-400 dark:text-gray-500 text-sm py-1 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 スキップして検索を開始する
