@@ -2,8 +2,10 @@
 import { useState, useEffect } from 'react'
 import type React from 'react'
 import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
+import { NotionDbCreator } from './NotionDbCreator'
 
 type Step = 'notion' | 'algolia' | 'sync' | 'options'
+type NotionSetupMode = 'choose' | 'create' | 'existing'
 
 type Props = {
   onComplete: () => void
@@ -201,6 +203,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 
 export function SetupWizard({ onComplete }: Props) {
   const [step, setStep] = useState<Step>('notion')
+  const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
   const [form, setForm] = useState<AppSettings>({
     notionToken: '',
@@ -430,90 +433,176 @@ export function SetupWizard({ onComplete }: Props) {
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  NotionのIntegration TokenとデータベースのURLまたはIDを入力してください。
+                  まずNotionのIntegration Tokenを入力してください。
                 </p>
               </div>
-              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <p className="font-semibold">取得方法</p>
-                <p>① <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline">notion.so/my-integrations</a> でIntegrationを作成</p>
-                <p>② DBページを開き、右上「…」→「接続先に追加」でIntegrationを接続</p>
-                <p>③ DBのURLをそのまま貼り付けてください（IDが自動で入力されます）</p>
-              </div>
-              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-2">
-                <p className="font-semibold">⚠️ Notionのプロパティ名について</p>
-                <p>このアプリはプロパティ名でデータを読み取るため、以下の名前を変えると同期が壊れます。</p>
-                <div className="bg-amber-100/60 dark:bg-amber-800/30 rounded-lg p-2.5 text-xs space-y-1 font-mono">
-                  <p className="text-amber-800 dark:text-amber-200 font-semibold not-italic font-sans mb-1">🔒 変更禁止（Medical DB）</p>
-                  <p>名前 / ジャンル / 詳細ジャンル / タグ</p>
-                  <p>知識レベル / AI要約 / キーワード</p>
-                  <p className="text-amber-800 dark:text-amber-200 font-semibold not-italic font-sans mt-2 mb-1">🔒 変更禁止（Reference DB）</p>
-                  <p>名前 / 著者 / ジャーナル名 / 発行年</p>
-                  <p>エビデンスレベル / AI要約 / キーワード</p>
-                </div>
-                <p className="text-xs">✅ <strong>新しいプロパティの追加はOK</strong>です（同期対象外になりますが、Notionでの管理に使えます）</p>
-                <p className="text-xs">✅ セレクト・マルチセレクトの<strong>選択肢の追加・変更もOK</strong>です</p>
+
+              {/* Integration Token（常に表示） */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Integration Token <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={form.notionToken}
+                  onChange={(e) => update('notionToken', e.target.value)}
+                  placeholder="secret_xxxxxxxxxxxx"
+                  className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> でIntegrationを作成してTokenをコピー
+                </p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Integration Token <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={form.notionToken}
-                    onChange={(e) => update('notionToken', e.target.value)}
-                    placeholder="secret_xxxxxxxxxxxx"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Medical DB（URLまたはID） <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.notionMedicalDbId}
-                    onChange={(e) => update('notionMedicalDbId', e.target.value)}
-                    placeholder="https://www.notion.so/... またはID32桁"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
-                    <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Reference DB（URLまたはID） <span className="text-gray-400 font-normal">（任意）</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.notionReferenceDbId}
-                    onChange={(e) => update('notionReferenceDbId', e.target.value)}
-                    placeholder="https://www.notion.so/... またはID32桁"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
-                    <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
-                  )}
-                </div>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                  <p className="font-semibold mb-1">⚠️ エラー</p>
-                  {error.split('\n').map((line, i) => (
-                    <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
-                  ))}
+              {/* DBのセットアップ方法の選択（choose モード） */}
+              {notionSetupMode === 'choose' && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    NotionのDBはどうしますか？
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (!form.notionToken.trim()) {
+                        setError('先にIntegration Tokenを入力してください')
+                        return
+                      }
+                      setError('')
+                      setNotionSetupMode('create')
+                    }}
+                    className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">✨ 今すぐ自動作成する（推奨）</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">アプリがNotionにDBを作成します。プロパティ設定も自動でOK。</p>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!form.notionToken.trim()) {
+                        setError('先にIntegration Tokenを入力してください')
+                        return
+                      }
+                      setError('')
+                      setNotionSetupMode('existing')
+                    }}
+                    className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  >
+                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">🔗 既存のDBに連携する</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。URLまたはIDを入力します。</p>
+                  </button>
                 </div>
               )}
 
-              <button
-                onClick={handleNotionNext}
-                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
-              >
-                次へ →
-              </button>
+              {/* DB自動作成モード */}
+              {notionSetupMode === 'create' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => { setNotionSetupMode('choose'); setError('') }}
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      ← 選択に戻る
+                    </button>
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">✨ DB自動作成</span>
+                  </div>
+                  <NotionDbCreator
+                    notionToken={form.notionToken}
+                    onComplete={(medicalDbId, referenceDbId) => {
+                      update('notionMedicalDbId', medicalDbId)
+                      if (referenceDbId) update('notionReferenceDbId', referenceDbId)
+                      setNotionSetupMode('choose')
+                      setStep('algolia')
+                    }}
+                    onCancel={() => { setNotionSetupMode('choose'); setError('') }}
+                  />
+                </div>
+              )}
+
+              {/* 既存DB連携モード */}
+              {notionSetupMode === 'existing' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => { setNotionSetupMode('choose'); setError('') }}
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      ← 選択に戻る
+                    </button>
+                    <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold">🔗 既存DB連携</span>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                    <p className="font-semibold">DB IDの入力方法</p>
+                    <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
+                    <p>右上「…」→「接続先に追加」でIntegrationをDBに接続してください</p>
+                  </div>
+
+                  <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
+                    <p className="font-semibold">⚠️ 変更禁止のプロパティ名</p>
+                    <div className="font-mono space-y-0.5">
+                      <p className="font-sans font-semibold">Medical DB:</p>
+                      <p>名前 / ジャンル / 詳細ジャンル / タグ / 知識レベル / AI要約 / キーワード</p>
+                      <p className="font-sans font-semibold mt-1">Reference DB:</p>
+                      <p>名前 / 著者 / ジャーナル名 / 発行年 / エビデンスレベル / AI要約 / キーワード</p>
+                    </div>
+                    <p className="text-green-700 dark:text-green-400">✅ 新しいプロパティの追加・選択肢の変更はOKです</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Medical DB（URLまたはID） <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionMedicalDbId}
+                        onChange={(e) => update('notionMedicalDbId', e.target.value)}
+                        placeholder="https://www.notion.so/... またはID32桁"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
+                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Reference DB（URLまたはID） <span className="text-gray-400 font-normal">（任意）</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionReferenceDbId}
+                        onChange={(e) => update('notionReferenceDbId', e.target.value)}
+                        placeholder="https://www.notion.so/... またはID32桁"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
+                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                      <p className="font-semibold mb-1">⚠️ エラー</p>
+                      {error.split('\n').map((line, i) => (
+                        <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleNotionNext}
+                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    次へ →
+                  </button>
+                </div>
+              )}
+
+              {/* choose モードでのエラー（Token未入力時） */}
+              {notionSetupMode === 'choose' && error && (
+                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-medium">{error}</p>
+                </div>
+              )}
             </div>
           )}
 
