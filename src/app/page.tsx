@@ -472,100 +472,184 @@ function NotionQuizTab() {
   )
 }
 
-// Notionモード：ジャンル別タブ（GenreBrowseはAlgolia依存なので簡易版）
+// ジャンルグループ定義（GenreBrowse.tsx と同じ定義）
+const NOTION_GENRE_GROUPS = [
+  {
+    label: '🫀 循環・血液',
+    color: 'bg-red-50 border-red-200 text-red-700',
+    activeColor: 'bg-red-600 text-white border-transparent',
+    genres: ['05.循環', '11.血液凝固線溶系', '22.輸液・輸血・水電解質'],
+  },
+  {
+    label: '🫁 呼吸器',
+    color: 'bg-blue-50 border-blue-200 text-blue-700',
+    activeColor: 'bg-blue-600 text-white border-transparent',
+    genres: ['04.呼吸'],
+  },
+  {
+    label: '🧠 神経・精神',
+    color: 'bg-purple-50 border-purple-200 text-purple-700',
+    activeColor: 'bg-purple-600 text-white border-transparent',
+    genres: ['06.中枢神経'],
+  },
+  {
+    label: '🫘 腎・泌尿器',
+    color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+    activeColor: 'bg-cyan-600 text-white border-transparent',
+    genres: ['07.腎'],
+  },
+  {
+    label: '🫃 消化器',
+    color: 'bg-orange-50 border-orange-200 text-orange-700',
+    activeColor: 'bg-orange-600 text-white border-transparent',
+    genres: ['08.肝・胆道系', '09.膵', '10.消化管・その他腹部'],
+  },
+  {
+    label: '🦠 感染症',
+    color: 'bg-green-50 border-green-200 text-green-700',
+    activeColor: 'bg-green-600 text-white border-transparent',
+    genres: ['13.感染症'],
+  },
+  {
+    label: '⚡ 救急・外傷',
+    color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+    activeColor: 'bg-yellow-600 text-white border-transparent',
+    genres: ['03.救急蘇生', '15.外傷・整形', '16.熱傷', '17.急性中毒', '18.体温異常', '28.災害'],
+  },
+  {
+    label: '💊 薬剤・代謝',
+    color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    activeColor: 'bg-indigo-600 text-white border-transparent',
+    genres: ['12.代謝内分泌', '27.薬剤', '14.多臓器障害'],
+  },
+  {
+    label: '🍼 特殊患者',
+    color: 'bg-pink-50 border-pink-200 text-pink-700',
+    activeColor: 'bg-pink-600 text-white border-transparent',
+    genres: ['19.妊産婦', '20.小児', '21.移植'],
+  },
+  {
+    label: '🔧 手技・栄養',
+    color: 'bg-gray-50 border-gray-200 text-gray-700',
+    activeColor: 'bg-gray-600 text-white border-transparent',
+    genres: ['23.栄養', '24.画像診断', '26.手技'],
+  },
+  {
+    label: '📚 総論・その他',
+    color: 'bg-slate-50 border-slate-200 text-slate-700',
+    activeColor: 'bg-slate-600 text-white border-transparent',
+    genres: ['01.総論', '02.医療倫理', '25.集中治療医', '29.学会', '30.統計・研究', '31.マイナー'],
+  },
+  {
+    label: '📥 INBOX',
+    color: 'bg-gray-50 border-gray-200 text-gray-500',
+    activeColor: 'bg-gray-500 text-white border-transparent',
+    genres: ['INBOX'],
+  },
+]
+
+// Notionモード：ジャンル別タブ
 function NotionBrowseTab() {
-  const { records, loading, error, refetch } = useNotionSearch('browse')
-  const [genres, setGenres] = useState<string[]>([])
-  const [selectedGenre, setSelectedGenre] = useState('')
+  const settings = getSettings()
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [genreRecords, setGenreRecords] = useState<Hit[]>([])
   const [genreLoading, setGenreLoading] = useState(false)
-  const settings = getSettings()
+  const [genreError, setGenreError] = useState('')
 
-  // 全件取得してジャンル一覧を生成（genreList から個別ジャンルを収集）
-  useEffect(() => {
-    if (records.length > 0) {
-      const genreSet = new Set<string>()
-      for (const r of records) {
-        if (r.genreList && r.genreList.length > 0) {
-          r.genreList.forEach((g) => g && genreSet.add(g))
-        } else if (r.genre) {
-          genreSet.add(r.genre)
-        }
-      }
-      setGenres(Array.from(genreSet).sort())
+  const handleGroupSelect = async (group: typeof NOTION_GENRE_GROUPS[number] | null) => {
+    if (!group || selectedGroup === group.label) {
+      setSelectedGroup(null)
+      setGenreRecords([])
+      return
     }
-  }, [records])
-
-  const handleGenreSelect = async (genre: string) => {
-    setSelectedGenre(genre)
+    setSelectedGroup(group.label)
     if (!settings) return
     setGenreLoading(true)
+    setGenreError('')
     setGenreRecords([])
     try {
-      const res = await window.fetch('/api/notion/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notionToken: settings.notionToken,
-          notionMedicalDbId: settings.notionMedicalDbId,
-          mode: 'browse',
-          genre,
-          pageSize: 100,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || '取得に失敗しました')
-      setGenreRecords(Array.isArray(data.records) ? data.records as Hit[] : [])
+      // グループ内の各ジャンルを並行取得してマージ（重複排除）
+      const results = await Promise.all(
+        group.genres.map((genre) =>
+          window.fetch('/api/notion/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              notionToken: settings.notionToken,
+              notionMedicalDbId: settings.notionMedicalDbId,
+              mode: 'browse',
+              genre,
+              pageSize: 100,
+            }),
+          }).then((r) => r.json())
+        )
+      )
+      const seen = new Set<string>()
+      const merged: Hit[] = []
+      for (const data of results) {
+        if (Array.isArray(data.records)) {
+          for (const rec of data.records as Hit[]) {
+            if (!seen.has(rec.objectID)) {
+              seen.add(rec.objectID)
+              merged.push(rec)
+            }
+          }
+        }
+      }
+      merged.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+      setGenreRecords(merged)
     } catch (err) {
       console.error('ジャンル取得エラー:', err)
-      setGenreRecords([])
+      setGenreError('取得に失敗しました')
     } finally {
       setGenreLoading(false)
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンル取得中...</div>
-  if (error) return <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div>
-
-  if (!selectedGenre) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">ジャンルを選択</p>
-        {genres.length === 0 ? (
-          <p className="text-sm text-gray-400">ジャンルが設定されたデータがありません</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {genres.map((g) => (
-              <button
-                key={g}
-                onClick={() => handleGenreSelect(g)}
-                className="text-left border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => { setSelectedGenre(''); setGenreRecords([]) }}
-          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400"
-        >
-          ← ジャンル一覧
-        </button>
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{selectedGenre}</span>
+    <div>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {NOTION_GENRE_GROUPS.map((group) => (
+          <button
+            key={group.label}
+            onClick={() => handleGroupSelect(group)}
+            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+              selectedGroup === group.label
+                ? group.activeColor + ' shadow-sm'
+                : group.color + ' hover:shadow-sm'
+            }`}
+          >
+            {group.label}
+          </button>
+        ))}
       </div>
-      {genreLoading ? (
-        <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
-      ) : (
-        <div className="space-y-3">
-          {genreRecords.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+      {selectedGroup && (
+        <>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedGroup}</p>
+            <button
+              onClick={() => handleGroupSelect(null)}
+              className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            >
+              ✕ 解除
+            </button>
+          </div>
+          {genreLoading ? (
+            <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
+          ) : genreError ? (
+            <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genreError}</div>
+          ) : genreRecords.length === 0 ? (
+            <div className="text-center py-8 text-gray-400"><p>このジャンルにはまだエントリがありません</p></div>
+          ) : (
+            <div className="space-y-3">
+              {genreRecords.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+            </div>
+          )}
+        </>
+      )}
+      {!selectedGroup && (
+        <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+          <p className="text-sm">カテゴリを選択してください</p>
         </div>
       )}
     </div>
