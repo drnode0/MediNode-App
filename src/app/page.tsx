@@ -295,7 +295,7 @@ function useNotionSearch(mode: Tab) {
   useEffect(() => {
     if (mode === 'recent') fetch('', { mode: 'recent' })
     if (mode === 'quiz') fetch('', { mode: 'quiz' })
-    if (mode === 'browse') fetch('', { mode: 'browse' })
+    if (mode === 'browse') fetch('', { mode: 'browse', pageSize: 200 })
     if (mode === 'reference') fetch('', { mode: 'recent' }) // referenceはrecentと共用でフィルタ
   }, [mode])
 
@@ -319,8 +319,27 @@ function NotionSearchTab() {
 
   const handleChange = (q: string) => {
     setQuery(q)
-    if (q) { setHasSearched(true); addHistory(q) }
+    if (q) { setHasSearched(true) }
     search(q)
+  }
+
+  // Enterキーまたはデバウンス完了後（600ms）に履歴保存
+  const handleKeyDown = (e: { key: string }) => {
+    if (e.key === 'Enter' && query.trim()) {
+      addHistory(query.trim())
+    }
+  }
+
+  // デバウンス後に履歴保存（検索完了タイミングに合わせる）
+  const debounceHistoryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleChangeWithHistory = (q: string) => {
+    handleChange(q)
+    if (debounceHistoryRef.current) clearTimeout(debounceHistoryRef.current)
+    if (q.trim()) {
+      debounceHistoryRef.current = setTimeout(() => {
+        addHistory(q.trim())
+      }, 800)
+    }
   }
 
   return (
@@ -329,7 +348,8 @@ function NotionSearchTab() {
         <input
           type="search"
           value={query}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => handleChangeWithHistory(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="キーワードで検索..."
           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
@@ -337,7 +357,7 @@ function NotionSearchTab() {
       {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>Notionを検索中...</div>}
       {error && <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
       {!query && !hasSearched ? (
-        <SearchHistoryList history={history} onSelect={handleChange} onClear={clearHistory} />
+        <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
       ) : !loading && records.length === 0 && query ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <p className="text-lg">該当なし</p>
@@ -474,6 +494,7 @@ function NotionBrowseTab() {
     setSelectedGenre(genre)
     if (!settings) return
     setGenreLoading(true)
+    setGenreRecords([])
     try {
       const res = await window.fetch('/api/notion/search', {
         method: 'POST',
@@ -483,11 +504,15 @@ function NotionBrowseTab() {
           notionMedicalDbId: settings.notionMedicalDbId,
           mode: 'browse',
           genre,
-          pageSize: 50,
+          pageSize: 100,
         }),
       })
       const data = await res.json()
-      setGenreRecords(data.records as Hit[])
+      if (!res.ok) throw new Error(data.error || '取得に失敗しました')
+      setGenreRecords(Array.isArray(data.records) ? data.records as Hit[] : [])
+    } catch (err) {
+      console.error('ジャンル取得エラー:', err)
+      setGenreRecords([])
     } finally {
       setGenreLoading(false)
     }
