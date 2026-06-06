@@ -11,6 +11,9 @@ import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { GenreBrowse } from '@/components/GenreBrowse'
 import { SetupWizard } from '@/components/SetupWizard'
 import { SyncPanel } from '@/components/SyncPanel'
+import { OnboardingScreen } from '@/components/OnboardingScreen'
+
+const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done'
 
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
@@ -817,10 +820,13 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
 export default function Home() {
   const [tab, setTab] = useState<Tab>('search')
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     setSetupDone(isSetupComplete())
+    const done = typeof window !== 'undefined' && !!localStorage.getItem(ONBOARDING_DONE_KEY)
+    setOnboardingDone(done)
   }, [])
 
   const handleReset = () => {
@@ -833,11 +839,26 @@ export default function Home() {
     setSetupDone(false)
   }
 
-  if (setupDone === null) {
+  const completeOnboarding = () => {
+    localStorage.setItem(ONBOARDING_DONE_KEY, '1')
+    setOnboardingDone(true)
+  }
+
+  if (setupDone === null || onboardingDone === null) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
         <div className="text-gray-400 text-sm">読み込み中...</div>
       </div>
+    )
+  }
+
+  // 初回のみオンボーディング（setupが未完了の場合のみ表示）
+  if (!onboardingDone && !setupDone) {
+    return (
+      <OnboardingScreen
+        onComplete={completeOnboarding}
+        onSkip={completeOnboarding}
+      />
     )
   }
 
