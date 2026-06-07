@@ -48,7 +48,7 @@ const PAGES = [
   {
     id: 'features',
     badge: '✨ 主な機能',
-    title: '4つのモードで\n知識にアクセス',
+    title: '3つのモードで\n知識にアクセス',
     description: null,
     illustration: null,
     features: [

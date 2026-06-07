@@ -221,7 +221,7 @@ export function SetupWizard({ onComplete }: Props) {
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
   const [form, setForm] = useState<AppSettings>({
-    searchMode: 'notion',
+    searchMode: 'algolia',
     notionToken: '',
     notionMedicalDbId: '',
     notionReferenceDbId: '',
@@ -469,30 +469,32 @@ export function SetupWizard({ onComplete }: Props) {
 
               <button
                 onClick={() => {
-                  setForm((f) => ({ ...f, searchMode: 'notion' }))
+                  setForm((f) => ({ ...f, searchMode: 'algolia' }))
                   setStep('notion')
                 }}
                 className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
               >
-                <p className="text-sm font-bold text-blue-700 dark:text-blue-300">📋 シンプルモード（推奨）</p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5 leading-relaxed">
-                  Notionに接続するだけ。<strong>Algoliaアカウント不要</strong>。<br />
-                  設定は Notion Token + DB のみ。同期も不要で常に最新。
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">⚡ パワーモード</p>
+                  <span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full">推奨</span>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+                  Algoliaで高速検索（0.1秒以下）。日本語の部分一致も得意。<br />
+                  Algoliaアカウント（無料）と初回同期が必要。
                 </p>
-                <p className="text-xs text-blue-500/70 dark:text-blue-500/50 mt-1">※ 検索結果表示まで1〜3秒かかります</p>
               </button>
 
               <button
                 onClick={() => {
-                  setForm((f) => ({ ...f, searchMode: 'algolia' }))
+                  setForm((f) => ({ ...f, searchMode: 'notion' }))
                   setStep('notion')
                 }}
                 className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
-                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">⚡ パワーモード</p>
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">📋 シンプルモード</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
-                  Algoliaで高速検索（0.1秒以下）。日本語の部分一致も得意。<br />
-                  Algoliaアカウント（無料）と初回同期が必要。
+                  Algoliaアカウント不要、設定はNotion Tokenのみ。まず試したい方に。<br />
+                  <span className="text-gray-400 dark:text-gray-500">※ 検索のたびNotionへアクセスするため、表示まで1〜3秒かかります</span>
                 </p>
               </button>
             </div>
