@@ -10,8 +10,8 @@ const PAGES = [
   {
     id: 'welcome',
     badge: 'MediNode',
-    title: 'Notionの知識を\nいつでも手元に',
-    description: 'Notionに蓄積した医療知識・文献を、スマホから即座に検索・復習。',
+    title: '移動中も、当直中も\n知識はすぐそこに',
+    description: 'Notionに蓄積した医療知識・文献を、スマホ1つで即座に検索・復習。\nポケットに入る、自分だけの医療知識ベース。',
     illustration: (
       <div className="flex items-center justify-center w-full h-full">
         <img src="/icon.png" alt="MediNode" className="w-40 h-40 rounded-3xl shadow-lg" />
@@ -22,7 +22,7 @@ const PAGES = [
   {
     id: 'features',
     badge: '✨ できること',
-    title: '検索から復習まで\nこれ1つで',
+    title: 'スマホで完結\n検索から復習まで',
     description: null,
     illustration: null,
     features: [
@@ -30,32 +30,32 @@ const PAGES = [
         icon: '🔍',
         color: 'bg-blue-50 text-blue-600',
         title: 'キーワード検索',
-        desc: '瞬時に絞り込み',
+        desc: '病名・薬名・キーワードで即絞り込み',
       },
       {
         icon: '🗂',
         color: 'bg-indigo-50 text-indigo-600',
         title: 'ジャンル別ブラウズ',
-        desc: '系統別に知識を整理',
+        desc: '内科・外科など系統別に整理して閲覧',
       },
       {
         icon: '🧠',
         color: 'bg-green-50 text-green-600',
         title: 'クイズモード',
-        desc: 'フラッシュカードで反復学習',
+        desc: 'フラッシュカードで隙間時間に反復学習',
       },
       {
         icon: '📖',
         color: 'bg-amber-50 text-amber-600',
         title: '参考文献管理',
-        desc: '📎 添付PDFもNotionで確認',
+        desc: '添付PDFもNotionからすぐ確認できる',
       },
     ],
   },
   {
     id: 'setup',
     badge: '🔑 セットアップ',
-    title: '3ステップで\n使い始められます',
+    title: '3ステップで\nすぐ使い始められます',
     description: null,
     illustration: null,
     features: [
@@ -63,19 +63,19 @@ const PAGES = [
         icon: '📋',
         color: 'bg-blue-50 text-blue-600',
         title: 'DBテンプレートを複製',
-        desc: 'Notionに無料テンプレートをコピー',
+        desc: 'Notionに無料テンプレートをワンクリックでコピー',
       },
       {
         icon: '🔑',
         color: 'bg-purple-50 text-purple-600',
         title: 'Integration Tokenを入力',
-        desc: 'notion.so/my-integrations で取得',
+        desc: 'notion.so/my-integrations で数分で取得',
       },
       {
         icon: '🚀',
         color: 'bg-green-50 text-green-600',
         title: '同期して完了',
-        desc: 'あとはNotionに書くだけ',
+        desc: 'あとはNotionに書くだけ。自動で反映される',
       },
     ],
   },
@@ -138,7 +138,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
         {/* 説明文 */}
         {current.description && (
-          <p className="text-sm text-gray-500 text-center leading-relaxed mb-6">
+          <p className="text-sm text-gray-500 text-center leading-relaxed mb-6 whitespace-pre-line">
             {current.description}
           </p>
         )}
