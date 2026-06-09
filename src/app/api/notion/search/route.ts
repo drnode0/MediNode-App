@@ -174,15 +174,13 @@ export async function POST(req: NextRequest) {
       // createdAt降順でソート
       records.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
     } else if (mode === 'quiz') {
-      // クイズ：知識レベルが「クリニカルクエスチョン」or「ナレッジ系」のもの
+      // クイズ：知識レベルが「ナレッジ系」かつ要約ありのもの
       // 選択肢名のバリエーションを全て列挙（Notionはcontainsが使えないためequalsで複数カバー）
       const quizLevelOptions = [
-        '❓ クリニカルクエスチョン',
         '💡 ナレッジ',
         '💡 ナレッジユニット',
         '💡ナレッジ',
         '💡ナレッジユニット',
-        'クリニカルクエスチョン',
         'ナレッジ',
         'ナレッジユニット',
       ]
@@ -191,15 +189,23 @@ export async function POST(req: NextRequest) {
         res = await notion.databases.query({
           database_id: notionMedicalDbId,
           filter: {
-            or: quizLevelOptions.map((opt) => ({
-              property: '知識レベル',
-              select: { equals: opt },
-            })),
+            and: [
+              {
+                or: quizLevelOptions.map((opt) => ({
+                  property: '知識レベル',
+                  select: { equals: opt },
+                })),
+              },
+              {
+                property: '要約',
+                rich_text: { is_not_empty: true },
+              },
+            ],
           },
           page_size: 100,
         })
       } catch {
-        // フィルタでエラーが出た場合（選択肢が1つもマッチしないケースなど）は全件取得してクライアント側フィルタ
+        // フィルタでエラーが出た場合は全件取得してクライアント側フィルタ
         res = await notion.databases.query({
           database_id: notionMedicalDbId,
           page_size: 100,
@@ -212,9 +218,10 @@ export async function POST(req: NextRequest) {
         const title = extractText(props['名前'] || {})
         if (!title) continue
         const knowledgeLevel = extractText(props['知識レベル'] || {})
+        const aiSummary = extractText(props['要約'] || {})
         // フォールバック取得の場合はクライアント側でフィルタ
-        const isQuizLevel = knowledgeLevel.includes('クリニカルクエスチョン') || knowledgeLevel.includes('ナレッジ')
-        if (!isQuizLevel) continue
+        const isQuizLevel = knowledgeLevel.includes('ナレッジ') && !knowledgeLevel.includes('クリニカルクエスチョン')
+        if (!isQuizLevel || !aiSummary) continue
         const genreList = extractList(props['ジャンル'] || {})
         records.push({
           objectID: `personal_${page.id}`,
