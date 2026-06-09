@@ -1097,9 +1097,12 @@ export default function Home() {
     setSetupDone(false)
   }
 
+  const [showOnboardingFromSetup, setShowOnboardingFromSetup] = useState(false)
+
   const completeOnboarding = () => {
     localStorage.setItem(ONBOARDING_DONE_KEY, '1')
     setOnboardingDone(true)
+    setShowOnboardingFromSetup(false)
   }
 
   if (setupDone === null || onboardingDone === null) {
@@ -1110,8 +1113,8 @@ export default function Home() {
     )
   }
 
-  // 初回のみオンボーディング（setupが未完了の場合のみ表示）
-  if (!onboardingDone && !setupDone) {
+  // 初回のみオンボーディング（setupが未完了の場合のみ表示）、またはSetupWizardから「使い方」ボタンで再表示
+  if ((!onboardingDone && !setupDone) || showOnboardingFromSetup) {
     return (
       <OnboardingScreen
         onComplete={completeOnboarding}
@@ -1121,7 +1124,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false) }} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false) }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} />
   }
 
   const settings = getSettings()

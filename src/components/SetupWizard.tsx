@@ -8,6 +8,7 @@ type NotionSetupMode = 'choose' | 'after-template' | 'existing'
 
 type Props = {
   onComplete: () => void
+  onShowOnboarding?: () => void
 }
 
 function parseErrorMessage(msg: string): string {
@@ -225,7 +226,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
   },
 }
 
-export function SetupWizard({ onComplete }: Props) {
+export function SetupWizard({ onComplete, onShowOnboarding }: Props) {
   const [step, setStep] = useState<Step>('mode')
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
@@ -462,6 +463,19 @@ export function SetupWizard({ onComplete }: Props) {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MediNode</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>
+          {/* オンボーディングボタン（左上） */}
+          {onShowOnboarding && (
+            <button
+              onClick={onShowOnboarding}
+              className="absolute top-0 left-0 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors px-1 py-1"
+              title="アプリの紹介を見る"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              使い方
+            </button>
+          )}
           {/* ヘルプボタン */}
           <button
             onClick={() => setShowHelp(true)}
