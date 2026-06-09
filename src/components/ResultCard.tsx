@@ -1,5 +1,5 @@
 'use client'
-import { Highlight, Snippet } from 'react-instantsearch'
+import { Highlight } from 'react-instantsearch'
 import { useState } from 'react'
 
 export type Hit = {
@@ -8,7 +8,7 @@ export type Hit = {
   source: 'medical' | 'reference'
   owner?: 'personal' | 'team' | 'subscription'
   teamLabel?: string
-  genre?: string
+  genre?: string | string[]
   genreList?: string[]
   detailGenre?: string
   knowledgeLevel?: string
@@ -23,8 +23,8 @@ export type Hit = {
   year?: string
   relatedCQTitles?: string[]
   relatedRefTitles?: string[]
-  content?: string
   aiKeywords?: string
+  hasAttachment?: boolean
   notionUrl: string
   lastEdited: string
   createdAt?: string
@@ -77,6 +77,11 @@ export function ResultCard({ hit }: { hit: Hit }) {
                 {ownerLabel}
               </span>
             )}
+            {hit.hasAttachment && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-500" title="ファイル添付あり">
+                📎
+              </span>
+            )}
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${sourceBg}`}>
               {sourceLabel}
             </span>
@@ -97,13 +102,13 @@ export function ResultCard({ hit }: { hit: Hit }) {
               {hit.evidenceLevel}
             </span>
           )}
-          {hit.genre && (
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-              {hit.genre}
+          {(Array.isArray(hit.genre) ? hit.genre : hit.genre ? [hit.genre] : []).map((g) => (
+            <span key={g} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+              {g}
             </span>
-          )}
-          {hit.detailGenre && hit.detailGenre !== hit.genre && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+          ))}
+          {hit.detailGenre && (
+            <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
               {hit.detailGenre}
             </span>
           )}
@@ -113,13 +118,9 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {!expanded && (
           displaySummary ? (
             <p className="text-sm text-gray-600 line-clamp-2">{displaySummary}</p>
-          ) : hit.content ? (
-            <p className="text-sm text-gray-500 line-clamp-2">
-              {(hit as any)._snippetResult
-                ? <Snippet attribute="content" hit={hit as any} />
-                : hit.content}
-            </p>
-          ) : null
+          ) : (
+            <p className="text-xs text-gray-300 italic">要約なし</p>
+          )
         )}
 
         <div className="flex items-center justify-between mt-1.5 gap-2">

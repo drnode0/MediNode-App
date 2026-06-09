@@ -1,11 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { saveSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings, type SearchMode } from '@/lib/settings'
-import { NotionDbCreator } from './NotionDbCreator'
+import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
 
 type Step = 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
-type NotionSetupMode = 'choose' | 'create' | 'existing'
+type NotionSetupMode = 'choose' | 'after-template' | 'existing'
 
 type Props = {
   onComplete: () => void
@@ -106,43 +105,53 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
   notion: {
     title: 'Notion設定のヘルプ',
     content: (
-      <div className="space-y-4 text-sm">
+      <div className="space-y-5 text-sm">
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 Integration Tokenの取得方法</p>
-          <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
-            <li><a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">notion.so/my-integrations</a> を開く</li>
-            <li>「新しいインテグレーション」を作成</li>
-            <li>表示された「シークレット」の <strong>コピーボタン</strong> を押す</li>
-            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_xxx...</code> という形式になっているか確認</li>
+          <ol className="space-y-2 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
+            <li>
+              <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">notion.so/my-integrations</a> を開く
+            </li>
+            <li>「<strong>新規コネクト</strong>」ボタンをクリック</li>
+            <li>名前（例: MediNode）を入力し、「<strong>保存</strong>」</li>
+            <li>作成後の画面で「シークレット」欄の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_xxx...</code> という形式のTokenが取得できます</li>
           </ol>
+          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 mt-2 text-xs text-blue-700 dark:text-blue-300">
+            💡 コピー後、画面に戻って「Integration Token」欄に貼り付けてください
+          </div>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔗 DBにIntegrationを接続する（必須）</p>
-          <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔗 IntegrationをDBに接続する（必須）</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Integrationを作っただけではNotionのDBにアクセスできません。DBごとに接続を許可する操作が必要です。</p>
+          <ol className="space-y-2 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>NotionでMedical DBのページを開く</li>
-            <li>右上「<strong>…</strong>」→「接続先に追加」をクリック</li>
-            <li>作成したIntegrationを選択</li>
-            <li>Reference DBも同様に接続する</li>
+            <li>画面右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
+            <li>メニューから「<strong>コネクト先</strong>」または「<strong>接続先に追加</strong>」を選択</li>
+            <li>作成したIntegrationの名前を見つけてクリック（確認ダイアログが出たら「確認」）</li>
+            <li>Reference DBがある場合も同じ手順で接続する</li>
           </ol>
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">⚠️ この接続を忘れると同期時にエラーになります</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">⚠️ 接続しないと「アクセス権限エラー（403）」が発生します</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🆔 DB IDの入力方法</p>
-          <p className="text-xs text-gray-600 dark:text-gray-300">NotionのDBページURLをそのまま貼り付けてください。IDが自動で抽出されます。</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 break-all">例: https://www.notion.so/workspace/<strong>abc123...</strong>?v=...</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🆔 DB URLの入力方法</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">NotionのDBページURLをそのままコピー&ペーストしてください。IDが自動で抽出されます。</p>
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 mt-2 text-xs text-gray-500 dark:text-gray-400 break-all">
+            例: https://www.notion.so/myworkspace/<span className="font-bold text-gray-700 dark:text-gray-200">abc123def456789012345678901234</span>?v=...
+          </div>
+          <p className="text-xs text-gray-400 mt-1">「?v=」以降は不要ですが、含めても自動で除外します</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⚠️ プロパティ名のルール</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📋 プロパティ名のルール</p>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
-            <p>アプリはプロパティ名でデータを読み取ります。以下の名前は<strong>変更しないでください</strong>（同期が壊れます）。</p>
-            <div className="font-mono text-xs space-y-0.5">
-              <p className="font-sans font-semibold text-amber-800 dark:text-amber-200">Medical DB：</p>
-              <p>名前 / ジャンル / 詳細ジャンル / タグ / 知識レベル / AI要約 / キーワード</p>
-              <p className="font-sans font-semibold text-amber-800 dark:text-amber-200 mt-1">Reference DB：</p>
-              <p>名前 / 著者 / ジャーナル名 / 発行年 / エビデンスレベル / AI要約 / キーワード</p>
+            <p>アプリは以下のプロパティ名でデータを読み取ります。<strong>名前を変更すると動作しなくなります</strong>。</p>
+            <div className="space-y-1">
+              <p className="font-semibold text-amber-800 dark:text-amber-200">Medical DB（必須）:</p>
+              <p className="font-mono">名前 / ジャンル / 知識レベル / 要約 / キーワード</p>
+              <p className="font-semibold text-amber-800 dark:text-amber-200 mt-1">Reference DB（全て必須）:</p>
+              <p className="font-mono">名前 / 著者 / ジャーナル名 / 発行年 / エビデンスレベル / 要約 / キーワード</p>
             </div>
-            <p className="text-green-700 dark:text-green-400">✅ 新しいプロパティの<strong>追加はOK</strong>（同期対象外として使えます）</p>
-            <p className="text-green-700 dark:text-green-400">✅ セレクトの<strong>選択肢の追加・変更はOK</strong></p>
+            <p className="text-green-700 dark:text-green-400 mt-1">✅ 上記以外のプロパティの追加や選択肢の変更はOKです</p>
           </div>
         </section>
       </div>
@@ -220,6 +229,7 @@ export function SetupWizard({ onComplete }: Props) {
   const [step, setStep] = useState<Step>('mode')
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
+  const [openSection, setOpenSection] = useState<string | null>(null)
   const [form, setForm] = useState<AppSettings>({
     searchMode: 'algolia',
     notionToken: '',
@@ -235,6 +245,10 @@ export function SetupWizard({ onComplete }: Props) {
     subscriptionSearchKey: '',
     subscriptionAppId: '',
     subscriptionIndex: '',
+    propSummary: '',
+    propKeywords: '',
+    propKnowledgeLevel: '',
+    propGenre: '',
   })
   const [syncing, setSyncing] = useState(false)
   const [syncProgress, setSyncProgress] = useState('')
@@ -242,11 +256,16 @@ export function SetupWizard({ onComplete }: Props) {
   const [error, setError] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null)
+  const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
 
-  // 途中保存を復元
+  // 既存設定またはドラフトを復元（再設定時は保存済み設定をプリフィル）
   useEffect(() => {
+    const existing = getSettings()
     const draft = getDraft()
-    if (draft) {
+    if (existing) {
+      // 既存設定がある場合はそれをベースにプリフィル
+      setForm((prev) => ({ ...prev, ...existing, ...(draft || {}) }))
+    } else if (draft) {
       setForm((prev) => ({ ...prev, ...draft }))
     }
   }, [])
@@ -260,6 +279,44 @@ export function SetupWizard({ onComplete }: Props) {
     setError('')
     setTestResult(null)
   }
+
+  const togglePassword = (field: string) => {
+    setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  // パスワードフィールド用のInputレンダリング関数
+  const PasswordInput = ({
+    field,
+    value,
+    onChange,
+    placeholder,
+    className,
+  }: {
+    field: string
+    value: string
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+    placeholder?: string
+    className?: string
+  }) => (
+    <div className="relative">
+      <input
+        type={showPassword[field] ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${className || ''}`}
+      />
+      <button
+        type="button"
+        onClick={() => togglePassword(field)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-base leading-none px-1"
+        tabIndex={-1}
+        title={showPassword[field] ? '非表示にする' : '表示する'}
+      >
+        {showPassword[field] ? '🙈' : '👁'}
+      </button>
+    </div>
+  )
 
   const handleNotionNext = () => {
     if (!form.notionToken.trim()) {
@@ -313,6 +370,12 @@ export function SetupWizard({ onComplete }: Props) {
           algoliaAdminKey: form.algoliaAdminKey,
           algoliaIndex: form.algoliaIndex,
           testOnly: true, // テストフラグ（1件だけ取得）
+          propMap: {
+            summary: form.propSummary || undefined,
+            keywords: form.propKeywords || undefined,
+            knowledgeLevel: form.propKnowledgeLevel || undefined,
+            genre: form.propGenre || undefined,
+          },
         }),
       })
       if (res.ok) {
@@ -345,6 +408,12 @@ export function SetupWizard({ onComplete }: Props) {
           algoliaAppId: form.algoliaAppId,
           algoliaAdminKey: form.algoliaAdminKey,
           algoliaIndex: form.algoliaIndex,
+          propMap: {
+            summary: form.propSummary || undefined,
+            keywords: form.propKeywords || undefined,
+            knowledgeLevel: form.propKnowledgeLevel || undefined,
+            genre: form.propGenre || undefined,
+          },
         }),
       })
       setSyncProgress('Algoliaにデータを保存中...')
@@ -388,8 +457,10 @@ export function SetupWizard({ onComplete }: Props) {
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="relative text-center mb-8">
-          <div className="text-4xl mb-3">🏥</div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Search</h1>
+          <div className="mb-3">
+            <img src="/icon.png" alt="MediNode" className="w-16 h-16 mx-auto rounded-2xl" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MediNode</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>
           {/* ヘルプボタン */}
           <button
@@ -504,6 +575,12 @@ export function SetupWizard({ onComplete }: Props) {
           {step === 'notion' && (
             <div className="space-y-5">
               <div>
+                <button
+                  onClick={() => setStep('mode')}
+                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                >
+                  ← 戻る
+                </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   まずNotionのIntegration Tokenを入力してください。
@@ -514,17 +591,25 @@ export function SetupWizard({ onComplete }: Props) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Integration Token <span className="text-red-500">*</span>
+                  <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_</code>で始まる文字列）</span>
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
+                  field="notionToken"
                   value={form.notionToken}
                   onChange={(e) => update('notionToken', e.target.value)}
                   placeholder="secret_xxxxxxxxxxxx"
-                  className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> でIntegrationを作成してTokenをコピー
-                </p>
+                <div className="mt-1.5 space-y-0.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 作成後に「シークレット」をコピー
+                  </p>
+                  {form.notionToken && !form.notionToken.startsWith('secret_') && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ Notion Tokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
+                  )}
+                  {form.notionToken && form.notionToken.startsWith('secret_') && (
+                    <p className="text-xs text-green-600 dark:text-green-400">✓ 形式OK</p>
+                  )}
+                </div>
               </div>
 
               {/* DBのセットアップ方法の選択（choose モード） */}
@@ -533,6 +618,7 @@ export function SetupWizard({ onComplete }: Props) {
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                     NotionのDBはどうしますか？
                   </p>
+                  {/* テンプレート複製（推奨） */}
                   <button
                     onClick={() => {
                       if (!form.notionToken.trim()) {
@@ -540,13 +626,21 @@ export function SetupWizard({ onComplete }: Props) {
                         return
                       }
                       setError('')
-                      setNotionSetupMode('create')
+                      // テンプレートを新タブで開きつつ、次のステップへ案内
+                      window.open('https://www.notion.so/MediNode-DB-37afd756737080ba8035f2cdb33af355', '_blank')
+                      setNotionSetupMode('after-template')
                     }}
                     className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                   >
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">✨ 今すぐ自動作成する（推奨）</p>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">アプリがNotionにDBを作成します。プロパティ設定も自動でOK。</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold text-blue-700 dark:text-blue-300">📋 テンプレートを複製して使う</p>
+                      <span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
+                    </div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+                      配布中のNotionテンプレートを複製するだけ。プロパティ設定不要ですぐ使えます。
+                    </p>
                   </button>
+                  {/* 既存DBに連携 */}
                   <button
                     onClick={() => {
                       if (!form.notionToken.trim()) {
@@ -559,34 +653,90 @@ export function SetupWizard({ onComplete }: Props) {
                     className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   >
                     <p className="text-sm font-bold text-gray-700 dark:text-gray-200">🔗 既存のDBに連携する</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。URLまたはIDを入力します。</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。</p>
                   </button>
                 </div>
               )}
 
-              {/* DB自動作成モード */}
-              {notionSetupMode === 'create' && (
+              {/* テンプレート複製後の最短フロー */}
+              {notionSetupMode === 'after-template' && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => { setNotionSetupMode('choose'); setError('') }}
                       className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
-                      ← 選択に戻る
+                      ← 戻る
                     </button>
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">✨ DB自動作成</span>
                   </div>
-                  <NotionDbCreator
-                    notionToken={form.notionToken}
-                    onComplete={(medicalDbId, referenceDbId) => {
-                      update('notionMedicalDbId', medicalDbId)
-                      if (referenceDbId) update('notionReferenceDbId', referenceDbId)
-                      setNotionSetupMode('choose')
-                      // Notionモードはオプションへ、Algoliaモードはalgoliaステップへ
-                      setStep(form.searchMode === 'notion' ? 'options' : 'algolia')
-                    }}
-                    onCancel={() => { setNotionSetupMode('choose'); setError('') }}
-                  />
+
+                  {/* ステップガイド */}
+                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">テンプレートの複製手順</p>
+                    <ol className="space-y-2.5 text-xs text-blue-700 dark:text-blue-300">
+                      <li className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
+                        <span>開いたNotionページ右上の <strong>「複製」</strong> をクリック</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
+                        <span>複製されたDBページを開き、右上 <strong>「…」→「コネクト先」</strong> から作成したIntegrationを接続</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
+                        <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Medical DB の URL <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionMedicalDbId}
+                        onChange={(e) => update('notionMedicalDbId', e.target.value)}
+                        placeholder="https://www.notion.so/..."
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Reference DB の URL <span className="text-gray-400 font-normal text-xs">（任意）</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionReferenceDbId}
+                        onChange={(e) => update('notionReferenceDbId', e.target.value)}
+                        placeholder="https://www.notion.so/..."
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                      <p className="font-semibold mb-1">⚠️ エラー</p>
+                      {error.split('\n').map((line, i) => (
+                        <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleNotionNext}
+                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    次へ →
+                  </button>
                 </div>
               )}
 
@@ -603,21 +753,79 @@ export function SetupWizard({ onComplete }: Props) {
                     <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold">🔗 既存DB連携</span>
                   </div>
 
-                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                    <p className="font-semibold">DB IDの入力方法</p>
-                    <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
-                    <p>右上「…」→「接続先に追加」でIntegrationをDBに接続してください</p>
+                  {/* Integration接続手順 */}
+                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-2">
+                    <p className="font-semibold">🔑 IntegrationをDBに接続する（必須）</p>
+                    <ol className="space-y-1 list-decimal list-inside text-blue-700 dark:text-blue-300">
+                      <li>NotionでMedical DBのページを開く</li>
+                      <li>右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
+                      <li>「<strong>コネクト先</strong>」または「<strong>接続先に追加</strong>」を選択</li>
+                      <li>作成したIntegration名を選択して接続</li>
+                      <li>Reference DBがある場合も同様に接続する</li>
+                    </ol>
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">⚠️ この接続を忘れると「403エラー」になります</p>
                   </div>
 
-                  <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2">
-                    <p className="font-semibold">⚠️ 変更禁止のプロパティ名</p>
-                    <div className="font-mono space-y-0.5">
-                      <p className="font-sans font-semibold">Medical DB:</p>
-                      <p>名前 / ジャンル / 詳細ジャンル / タグ / 知識レベル / AI要約 / キーワード</p>
-                      <p className="font-sans font-semibold mt-1">Reference DB:</p>
-                      <p>名前 / 著者 / ジャーナル名 / 発行年 / エビデンスレベル / AI要約 / キーワード</p>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                    <p className="font-semibold text-gray-700 dark:text-gray-200">🆔 DB URLの入力方法</p>
+                    <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
+                    <p className="text-gray-400 break-all">例: https://notion.so/workspace/<strong>abc123def456...</strong>?v=...</p>
+                  </div>
+
+                  {/* プロパティ名ガイダンス */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+                    <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">📋 必要なプロパティ名の確認</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">アプリはプロパティ名でデータを読み取ります</p>
                     </div>
-                    <p className="text-green-700 dark:text-green-400">✅ 新しいプロパティの追加・選択肢の変更はOKです</p>
+                    <div className="p-3 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">🚑 Medical DB</p>
+                        <div className="space-y-1">
+                          {[
+                            { name: '名前', type: 'title', note: 'タイトル型（最初から存在）' },
+                            { name: 'ジャンル', type: 'multi_select', note: 'マルチセレクト型' },
+                            { name: '知識レベル', type: 'select', note: 'セレクト型（CQ/ナレッジ等）' },
+                            { name: '要約', type: 'rich_text', note: 'テキスト型' },
+                            { name: 'キーワード', type: 'rich_text', note: 'テキスト型' },
+                          ].map((prop) => (
+                            <div key={prop.name} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                              <div className="flex items-center gap-1.5">
+                                <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-800 dark:text-gray-200 font-mono">{prop.name}</code>
+                                <span className="text-gray-400 dark:text-gray-500">{prop.note}</span>
+                              </div>
+                              <span className="text-red-500 dark:text-red-400 shrink-0 font-medium">必須</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">📖 Reference DB（任意）</p>
+                        <div className="space-y-1">
+                          {[
+                            { name: '名前', type: 'title', note: 'タイトル型（最初から存在）' },
+                            { name: '著者', type: 'rich_text', note: 'テキスト型' },
+                            { name: 'ジャーナル名', type: 'rich_text', note: 'テキスト型' },
+                            { name: '発行年', type: 'rich_text', note: 'テキスト型' },
+                            { name: 'エビデンスレベル', type: 'rich_text', note: 'テキスト型' },
+                            { name: '要約', type: 'rich_text', note: 'テキスト型' },
+                            { name: 'キーワード', type: 'rich_text', note: 'テキスト型' },
+                          ].map((prop) => (
+                            <div key={prop.name} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                              <div className="flex items-center gap-1.5">
+                                <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-800 dark:text-gray-200 font-mono">{prop.name}</code>
+                                <span className="text-gray-400 dark:text-gray-500">{prop.note}</span>
+                              </div>
+                              <span className="text-red-500 dark:text-red-400 shrink-0 font-medium">必須</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
+                        <p>⚠️ プロパティ名が異なると同期・検索が正しく動作しません</p>
+                        <p>✅ 上記以外のプロパティは自由に追加・変更できます</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -712,26 +920,27 @@ export function SetupWizard({ onComplete }: Props) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Search API Key <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（読み取り専用）</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
+                    field="algoliaSearchKey"
                     value={form.algoliaSearchKey}
                     onChange={(e) => update('algoliaSearchKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Admin API Key <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（同期・書き込み用）</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
+                    field="algoliaAdminKey"
                     value={form.algoliaAdminKey}
                     onChange={(e) => update('algoliaAdminKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠️ Search-Only KeyではなくAdmin Keyを入力してください</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -886,105 +1095,170 @@ export function SetupWizard({ onComplete }: Props) {
           {step === 'options' && (
             <div className="space-y-5">
               <div>
+                <button
+                  onClick={() => setStep(form.searchMode === 'algolia' ? 'sync' : 'notion')}
+                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                >
+                  ← 戻る
+                </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">オプション設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  部署の共有DBやサブスクリプションDBを追加できます。スキップしても後で設定できます。
+                  ほとんどの方はスキップしてOKです。後から設定画面で変更できます。
                 </p>
               </div>
 
               {/* 部署用DB */}
               <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
-                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🏥 部署用DB（任意）</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">職場の共有NotionDBを接続します</p>
-                </div>
-                <div className="p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'team' ? null : 'team')}
+                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      部署名（表示ラベル）
-                    </label>
-                    <input
-                      type="text"
-                      value={form.teamLabel}
-                      onChange={(e) => update('teamLabel', e.target.value)}
-                      placeholder="例：3病棟、ICU、外科チーム"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🏥 部署用DB</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">職場の共有NotionDBを接続する</p>
                   </div>
+                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'team' ? '▲' : '▼'}</span>
+                </button>
+                {openSection === 'team' && (
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        部署名（表示ラベル）
+                      </label>
+                      <input
+                        type="text"
+                        value={form.teamLabel}
+                        onChange={(e) => update('teamLabel', e.target.value)}
+                        placeholder="例：3病棟、ICU、外科チーム"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        部署用 Integration Token
+                      </label>
+                      <PasswordInput
+                        field="teamNotionToken"
+                        value={form.teamNotionToken}
+                        onChange={(e) => update('teamNotionToken', e.target.value)}
+                        placeholder="secret_xxxxxxxxxxxx"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        部署用 Medical DB（URLまたはID）
+                      </label>
+                      <input
+                        type="text"
+                        value={form.teamNotionMedicalDbId}
+                        onChange={(e) => update('teamNotionMedicalDbId', e.target.value)}
+                        placeholder="https://www.notion.so/... またはID32桁"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
+                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* プロパティ名マッピング */}
+              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'propmap' ? null : 'propmap')}
+                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      部署用 Integration Token
-                    </label>
-                    <input
-                      type="password"
-                      value={form.teamNotionToken}
-                      onChange={(e) => update('teamNotionToken', e.target.value)}
-                      placeholder="secret_xxxxxxxxxxxx"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🔤 プロパティ名のカスタマイズ</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">既存DBのプロパティ名が異なる場合のみ設定</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      部署用 Medical DB（URLまたはID）
-                    </label>
-                    <input
-                      type="text"
-                      value={form.teamNotionMedicalDbId}
-                      onChange={(e) => update('teamNotionMedicalDbId', e.target.value)}
-                      placeholder="https://www.notion.so/... またはID32桁"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
-                    {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
-                      <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
-                    )}
+                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'propmap' ? '▲' : '▼'}</span>
+                </button>
+                {openSection === 'propmap' && (
+                  <div className="p-4 space-y-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      空欄の場合はデフォルト名（要約・キーワード・知識レベル・ジャンル）が使われます。
+                    </p>
+                    {[
+                      { field: 'propSummary' as keyof AppSettings, label: '要約プロパティ名', placeholder: '要約', hint: '検索・クイズの答えになります' },
+                      { field: 'propKeywords' as keyof AppSettings, label: 'キーワードプロパティ名', placeholder: 'キーワード', hint: '検索のタグとして使われます' },
+                      { field: 'propKnowledgeLevel' as keyof AppSettings, label: '知識レベルプロパティ名', placeholder: '知識レベル', hint: 'クイズのCQ除外に使われます' },
+                      { field: 'propGenre' as keyof AppSettings, label: 'ジャンルプロパティ名', placeholder: 'ジャンル', hint: 'ジャンル絞り込みに使われます' },
+                    ].map(({ field, label, placeholder, hint }) => (
+                      <div key={field}>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {label}
+                          <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">（デフォルト: {placeholder}）</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={form[field] as string}
+                          onChange={(e) => update(field, e.target.value)}
+                          placeholder={placeholder}
+                          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        />
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{hint}</p>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* サブスク用 */}
               <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
-                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">⭐ サブスクリプションDB（任意）</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">作者から配布されたキーを入力します</p>
-                </div>
-                <div className="p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenSection(openSection === 'subscription' ? null : 'subscription')}
+                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      サブスク Search-Only APIキー
-                    </label>
-                    <input
-                      type="password"
-                      value={form.subscriptionSearchKey}
-                      onChange={(e) => update('subscriptionSearchKey', e.target.value)}
-                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">⭐ サブスクリプションDB</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">作者から配布されたキーを入力する</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      サブスク App ID
-                    </label>
-                    <input
-                      type="text"
-                      value={form.subscriptionAppId}
-                      onChange={(e) => update('subscriptionAppId', e.target.value)}
-                      placeholder="XXXXXXXXXX"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'subscription' ? '▲' : '▼'}</span>
+                </button>
+                {openSection === 'subscription' && (
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        サブスク Search-Only APIキー
+                      </label>
+                      <PasswordInput
+                        field="subscriptionSearchKey"
+                        value={form.subscriptionSearchKey}
+                        onChange={(e) => update('subscriptionSearchKey', e.target.value)}
+                        placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        サブスク App ID
+                      </label>
+                      <input
+                        type="text"
+                        value={form.subscriptionAppId}
+                        onChange={(e) => update('subscriptionAppId', e.target.value)}
+                        placeholder="XXXXXXXXXX"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        サブスク インデックス名
+                      </label>
+                      <input
+                        type="text"
+                        value={form.subscriptionIndex}
+                        onChange={(e) => update('subscriptionIndex', e.target.value)}
+                        placeholder="subscription_medical"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      サブスク インデックス名
-                    </label>
-                    <input
-                      type="text"
-                      value={form.subscriptionIndex}
-                      onChange={(e) => update('subscriptionIndex', e.target.value)}
-                      placeholder="subscription_medical"
-                      className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
               <button

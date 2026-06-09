@@ -26,6 +26,12 @@ export type AppSettings = {
   subscriptionSearchKey: string
   subscriptionAppId: string
   subscriptionIndex: string
+
+  // プロパティ名マッピング（任意）
+  propSummary: string       // デフォルト: 要約
+  propKeywords: string      // デフォルト: キーワード
+  propKnowledgeLevel: string // デフォルト: 知識レベル
+  propGenre: string         // デフォルト: ジャンル
 }
 
 const STORAGE_KEY = 'medical_search_settings'

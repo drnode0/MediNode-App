@@ -13,7 +13,7 @@ import { SetupWizard } from '@/components/SetupWizard'
 import { SyncPanel } from '@/components/SyncPanel'
 import { OnboardingScreen } from '@/components/OnboardingScreen'
 
-const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done'
+const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
@@ -80,23 +80,52 @@ function QuizHits() {
   const { hits } = useHits()
   const [shuffled, setShuffled] = useState<Hit[]>([])
 
+  // 要約あり AND 知識レベルがCQ（調査中）でないものだけクイズ対象
+  const quizCandidates = (hits as unknown as Hit[]).filter((h) => {
+    const hasSummary = (h.aiSummary && h.aiSummary.trim()) || (h.summary && h.summary.trim())
+    const isCQ = h.knowledgeLevel && (
+      h.knowledgeLevel.includes('❓') ||
+      h.knowledgeLevel.toLowerCase().includes('cq') ||
+      h.knowledgeLevel.includes('クリニカルクエスチョン') ||
+      h.knowledgeLevel.includes('クリニカルクエッション')
+    )
+    return hasSummary && !isCQ
+  })
+
   useEffect(() => {
-    const arr = [...hits] as unknown as Hit[]
+    const arr = [...quizCandidates]
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]]
     }
     setShuffled(arr.slice(0, 20))
-  }, [hits.length])
+  }, [quizCandidates.length])
 
-  if (hits.length === 0) {
+  // 知識レベルを1件も設定していないか確認
+  const hasAnyKnowledgeLevel = (hits as unknown as Hit[]).some((h) => h.knowledgeLevel && h.knowledgeLevel.trim())
+
+  if (quizCandidates.length === 0) {
     return (
-      <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">🧠</div>
-        <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500">
-          「❓ クリニカルクエスチョン」または「💡 ナレッジ」の<br />知識レベルを持つデータが必要です
-        </p>
+      <div className="text-center py-14 px-4 space-y-4">
+        <div className="text-5xl">🧠</div>
+        <div>
+          <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            知識レベルを「💡 ナレッジ」に設定し、要約を入れるとここに出題されます
+          </p>
+        </div>
+        {!hasAnyKnowledgeLevel && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 クイズの使い方</p>
+            <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
+              <li>Notionで確認済みの知識ページを開く</li>
+              <li>「知識レベル」プロパティを <strong>💡 ナレッジ</strong> に設定</li>
+              <li>「要約」プロパティに結論を入力</li>
+              <li>アプリで再同期 → クイズに出題されます</li>
+            </ol>
+            <p className="text-xs text-amber-500 dark:text-amber-500 mt-1">❓ CQ（調査中）と 📋 まとめはクイズ除外されます</p>
+          </div>
+        )}
       </div>
     )
   }
@@ -107,7 +136,7 @@ function QuizHits() {
         <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
         <button
           onClick={() => {
-            const arr = [...hits] as unknown as Hit[]
+            const arr = [...quizCandidates]
             for (let i = arr.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
               [arr[i], arr[j]] = [arr[j], arr[i]]
@@ -446,7 +475,7 @@ function NotionQuizTab() {
     <div className="text-center py-14 px-4">
       <div className="text-5xl mb-4">🧠</div>
       <p className="text-gray-600 dark:text-gray-300 font-semibold">クイズがありません</p>
-      <p className="text-sm text-gray-400 mt-1">「❓ クリニカルクエスチョン」または「💡 ナレッジ」の知識レベルが必要です</p>
+      <p className="text-sm text-gray-400 mt-1">知識レベルを「💡 ナレッジ」にして要約を入れるとクイズに出題されます</p>
     </div>
   )
 
@@ -717,6 +746,111 @@ type SettingsPanelProps = {
 function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [propCheck, setPropCheck] = useState<null | {
+    medical: { found: string[]; missing: string[] }
+    reference?: { found: string[]; missing: string[] }
+  }>(null)
+  const [propCheckLoading, setPropCheckLoading] = useState(false)
+  const [propCheckError, setPropCheckError] = useState<string | null>(null)
+  const [algoliaDebug, setAlgoliaDebug] = useState<null | {
+    totalHits: number
+    knowledgeLevelValues: string[]
+    settings: { attributesForFaceting?: string[]; searchableAttributes?: string[] }
+    samples: Array<{ objectID: string; source: unknown; knowledgeLevel: unknown; genre: unknown; title: unknown }>
+  }>(null)
+  const [algoliaDebugLoading, setAlgoliaDebugLoading] = useState(false)
+  const [algoliaDebugError, setAlgoliaDebugError] = useState<string | null>(null)
+  const [searchKeyCheck, setSearchKeyCheck] = useState<null | { ok: boolean; nbHits?: number; error?: string }>(null)
+  const [searchKeyCheckLoading, setSearchKeyCheckLoading] = useState(false)
+
+  const handleSearchKeyCheck = async () => {
+    const s = getSettings()
+    if (!s?.algoliaAppId || !s?.algoliaSearchKey) {
+      setSearchKeyCheck({ ok: false, error: 'App IDまたはSearch Keyが未設定です' })
+      return
+    }
+    setSearchKeyCheckLoading(true)
+    setSearchKeyCheck(null)
+    try {
+      const res = await fetch('/api/verify-search-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          algoliaAppId: s.algoliaAppId,
+          algoliaSearchKey: s.algoliaSearchKey,
+          algoliaIndex: s.algoliaIndex,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setSearchKeyCheck({ ok: false, error: data.error })
+      } else {
+        setSearchKeyCheck({ ok: true, nbHits: data.nbHits })
+      }
+    } catch (err) {
+      setSearchKeyCheck({ ok: false, error: err instanceof Error ? err.message : 'エラー' })
+    } finally {
+      setSearchKeyCheckLoading(false)
+    }
+  }
+
+  const handleAlgoliaDebug = async () => {
+    const s = getSettings()
+    if (!s?.algoliaAppId || !s?.algoliaAdminKey) {
+      setAlgoliaDebugError('Algolia設定が見つかりません')
+      return
+    }
+    setAlgoliaDebugLoading(true)
+    setAlgoliaDebugError(null)
+    setAlgoliaDebug(null)
+    try {
+      const res = await fetch('/api/debug-index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          algoliaAppId: s.algoliaAppId,
+          algoliaAdminKey: s.algoliaAdminKey,
+          algoliaIndex: s.algoliaIndex,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAlgoliaDebug(data)
+    } catch (err) {
+      setAlgoliaDebugError(err instanceof Error ? err.message : 'エラーが発生しました')
+    } finally {
+      setAlgoliaDebugLoading(false)
+    }
+  }
+
+  const handlePropCheck = async () => {
+    const s = getSettings()
+    if (!s?.notionToken || !s?.notionMedicalDbId) {
+      setPropCheckError('Notion設定が見つかりません')
+      return
+    }
+    setPropCheckLoading(true)
+    setPropCheckError(null)
+    setPropCheck(null)
+    try {
+      const res = await fetch('/api/notion/check-props', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: s.notionToken,
+          notionMedicalDbId: s.notionMedicalDbId,
+          notionReferenceDbId: s.notionReferenceDbId || '',
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setPropCheck(data)
+    } catch (err) {
+      setPropCheckError(err instanceof Error ? err.message : 'エラーが発生しました')
+    } finally {
+      setPropCheckLoading(false)
+    }
+  }
 
   return (
     <>
@@ -756,9 +890,120 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
                 <section>
                   <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
                   <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300">
-                    <p>NotionDBのプロパティ名（「名前」「ジャンル」「AI要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
+                    <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
                   </div>
                 </section>
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔍 DBプロパティ確認</h3>
+                  <button
+                    onClick={handlePropCheck}
+                    disabled={propCheckLoading}
+                    className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                  >
+                    {propCheckLoading ? '確認中...' : '接続中のDBのプロパティを確認する'}
+                  </button>
+                  {propCheckError && (
+                    <p className="text-xs text-red-500 mt-2">{propCheckError}</p>
+                  )}
+                  {propCheck && (
+                    <div className="mt-3 space-y-3">
+                      {(['medical', 'reference'] as const).map((db) => {
+                        const r = propCheck[db]
+                        if (!r) return null
+                        const allOk = r.missing.length === 0
+                        return (
+                          <div key={db} className={`rounded-xl p-3 text-xs ${allOk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                            <p className={`font-semibold mb-1.5 ${allOk ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {db === 'medical' ? '🚑 Medical DB' : '📖 Reference DB'} — {allOk ? '✅ 全て一致' : '⚠️ 不一致あり'}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {r.found.map((p) => (
+                                <span key={p} className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">✓ {p}</span>
+                              ))}
+                              {r.missing.map((p) => (
+                                <span key={p} className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">✗ {p}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+                {currentMode === 'algolia' && (
+                  <section>
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 Search Key動作確認</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      このデバイスのSearch Keyで実際に検索できるか確認します。データが表示されない場合はまずここを確認してください。
+                    </p>
+                    <button
+                      onClick={handleSearchKeyCheck}
+                      disabled={searchKeyCheckLoading}
+                      className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                    >
+                      {searchKeyCheckLoading ? '確認中...' : 'Search Keyを確認する'}
+                    </button>
+                    {searchKeyCheck && (
+                      <div className={`mt-2 rounded-xl p-3 text-xs ${searchKeyCheck.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
+                        {searchKeyCheck.ok ? (
+                          <p>✅ Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p>
+                        ) : (
+                          <>
+                            <p className="font-semibold mb-1">❌ Search Keyが機能していません</p>
+                            <p className="mb-1">エラー: {searchKeyCheck.error}</p>
+                            <p>【対処法】⚙️設定 → 「設定を変更する」から Search API Key を再入力してください。</p>
+                            <p className="mt-1 text-xs opacity-75">Algolia Dashboard → Settings → API Keys → <strong>Search-Only API Key</strong> をコピーしてください（Admin Keyではありません）。</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                )}
+                {currentMode === 'algolia' && (
+                  <section>
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔬 Algoliaインデックス診断</h3>
+                    <button
+                      onClick={handleAlgoliaDebug}
+                      disabled={algoliaDebugLoading}
+                      className="w-full text-sm bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl py-2.5 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
+                    >
+                      {algoliaDebugLoading ? '取得中...' : 'インデックスの状態を確認する'}
+                    </button>
+                    {algoliaDebugError && (
+                      <p className="text-xs text-red-500 mt-2">{algoliaDebugError}</p>
+                    )}
+                    {algoliaDebug && (
+                      <div className="mt-3 space-y-2 text-xs">
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                          <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📊 総レコード数: {algoliaDebug.totalHits}件</p>
+                          <p className="text-gray-500 dark:text-gray-400">attributesForFaceting: {algoliaDebug.settings.attributesForFaceting?.join(', ') || '未設定'}</p>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
+                          <p className="font-semibold text-blue-700 dark:text-blue-300 mb-1">💡 知識レベルの実際の値</p>
+                          {algoliaDebug.knowledgeLevelValues.length === 0 ? (
+                            <p className="text-red-500">値なし（再同期が必要）</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {algoliaDebug.knowledgeLevelValues.map((v) => (
+                                <span key={v} className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{v}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                          <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📋 サンプルレコード</p>
+                          {algoliaDebug.samples.slice(0, 3).map((s) => (
+                            <div key={s.objectID} className="text-gray-500 dark:text-gray-400 mb-1 border-b border-gray-100 dark:border-gray-700 pb-1">
+                              <p>タイトル: {String(s.title)}</p>
+                              <p>source: {String(s.source)} / level: {String(s.knowledgeLevel || 'なし')}</p>
+                              <p>genre: {JSON.stringify(s.genre)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
                 <section>
                   <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
                   <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
@@ -780,6 +1025,19 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
             </div>
           ) : (
             <div className="space-y-2">
+              <a
+                href="https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+              >
+                <span className="text-xl">📘</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップ＆運用ガイド</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">DBの作り方・AIオートフィル設定・クイズの使い方</p>
+                </div>
+                <span className="ml-auto text-gray-300 dark:text-gray-600">↗</span>
+              </a>
               <button onClick={() => setShowHelp(true)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="text-xl">📖</span>
                 <div>
@@ -884,7 +1142,7 @@ export default function Home() {
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
         <div className="flex items-center justify-between mb-3">
           <div className="w-16" />
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">🏥 Medical Search</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
           <div className="w-16 flex justify-end">
             <button
               onClick={() => setShowSettings(true)}
@@ -941,6 +1199,32 @@ export default function Home() {
   }
 
   // ========== Algoliaモード ==========
+  // Search KeyまたはApp IDが未設定の場合はエラー表示
+  if (!settings?.algoliaSearchKey || !settings?.algoliaAppId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50">
+        {header}
+        <div className="max-w-2xl mx-auto px-4 py-8 text-center">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+            <p className="text-2xl mb-3">⚠️</p>
+            <p className="font-bold text-amber-800 mb-2">Algoliaの設定が不完全です</p>
+            <p className="text-sm text-amber-700 mb-4">
+              Search API KeyまたはApp IDが設定されていません。<br />
+              ⚙️設定 → 「設定を変更する」から再入力してください。
+            </p>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="bg-amber-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-amber-700 transition-colors"
+            >
+              ⚙️ 設定を開く
+            </button>
+          </div>
+        </div>
+        {settingsModal}
+      </div>
+    )
+  }
+
   const dynamicSearchClient = createSearchClient()
   const dynamicIndexName = settings?.algoliaIndex || getIndexName()
 
@@ -961,8 +1245,8 @@ export default function Home() {
           {tab === 'quiz' && (
             <>
               <Configure
-                hitsPerPage={100}
-                filters='source:medical AND (knowledgeLevel:"❓ クリニカルクエスチョン" OR knowledgeLevel:"💡 ナレッジ")'
+                hitsPerPage={200}
+                filters='source:medical'
               />
               <QuizHits />
             </>

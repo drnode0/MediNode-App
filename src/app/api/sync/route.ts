@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 
+// プロパティ名マッピング型
+export interface PropMap {
+  summary?: string      // デフォルト: 要約
+  keywords?: string     // デフォルト: キーワード
+  knowledgeLevel?: string // デフォルト: 知識レベル
+  genre?: string        // デフォルト: ジャンル
+}
+
+function getProp(
+  props: Record<string, Record<string, unknown>>,
+  key: string,
+  fallback: string,
+): Record<string, unknown> {
+  return props[key] || props[fallback] || {}
+}
+
+function extractList(prop: Record<string, unknown>): string[] {
+  if (!prop) return []
+  const type = prop.type as string
+  if (type === 'multi_select') {
+    return ((prop.multi_select as Array<{ name: string }>) || []).map((t) => t.name)
+  }
+  return []
+}
+
 function extractText(prop: Record<string, unknown>): string {
   if (!prop) return ''
   const type = prop.type as string
@@ -32,13 +57,41 @@ function extractText(prop: Record<string, unknown>): string {
   return ''
 }
 
+function extractHasFiles(props: Record<string, Record<string, unknown>>): boolean {
+  for (const prop of Object.values(props)) {
+    if (!prop) continue
+    if (prop.type === 'files') {
+      const files = prop.files as Array<unknown> | null
+      if (files && files.length > 0) return true
+    }
+  }
+  return false
+}
+
+function extractYearText(prop: Record<string, unknown>): string {
+  if (!prop) return ''
+  const type = prop.type as string
+  if (type === 'date') {
+    const start = (prop.date as { start: string } | null)?.start || ''
+    // "2024-01-01" → "2024"
+    return start ? start.slice(0, 4) : ''
+  }
+  return extractText(prop)
+}
+
 async function syncMedicalDb(
   notion: Client,
   dbId: string,
   owner: 'personal' | 'team',
   teamLabel: string,
   records: Record<string, unknown>[],
+  propMap: PropMap,
 ): Promise<number> {
+  const summaryKey = propMap.summary || '要約'
+  const keywordsKey = propMap.keywords || 'キーワード'
+  const knowledgeLevelKey = propMap.knowledgeLevel || '知識レベル'
+  const genreKey = propMap.genre || 'ジャンル'
+
   let count = 0
   let cursor: string | undefined = undefined
   do {
@@ -60,12 +113,13 @@ async function syncMedicalDb(
         owner,
         teamLabel: owner === 'team' ? teamLabel : '',
         title,
-        genre: extractText(props['ジャンル'] || {}),
+        genre: extractList(getProp(props, genreKey, 'ジャンル')),
         detailGenre: extractText(props['詳細ジャンル'] || {}),
         tags: extractText(props['タグ'] || {}),
-        knowledgeLevel: extractText(props['知識レベル'] || {}),
-        aiSummary: extractText(props['AI要約'] || {}),
-        aiKeywords: extractText(props['キーワード'] || {}),
+        knowledgeLevel: extractText(getProp(props, knowledgeLevelKey, '知識レベル')),
+        aiSummary: extractText(getProp(props, summaryKey, '要約')),
+        aiKeywords: extractText(getProp(props, keywordsKey, 'キーワード')),
+        hasAttachment: extractHasFiles(props),
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
@@ -83,7 +137,11 @@ async function syncReferenceDb(
   owner: 'personal' | 'team',
   teamLabel: string,
   records: Record<string, unknown>[],
+  propMap: PropMap,
 ): Promise<number> {
+  const summaryKey = propMap.summary || '要約'
+  const keywordsKey = propMap.keywords || 'キーワード'
+
   let count = 0
   let cursor: string | undefined = undefined
   do {
@@ -107,10 +165,11 @@ async function syncReferenceDb(
         title,
         author: extractText(props['著者'] || {}),
         journal: extractText(props['ジャーナル名'] || {}),
-        year: extractText(props['発行年'] || {}),
+        year: extractYearText(props['発行年'] || {}),
         evidenceLevel: extractText(props['エビデンスレベル'] || {}),
-        aiSummary: extractText(props['AI要約'] || {}),
-        aiKeywords: extractText(props['キーワード'] || {}),
+        aiSummary: extractText(getProp(props, summaryKey, '要約')),
+        aiKeywords: extractText(getProp(props, keywordsKey, 'キーワード')),
+        hasAttachment: extractHasFiles(props),
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
@@ -133,6 +192,8 @@ export async function POST(req: NextRequest) {
       algoliaAdminKey,
       algoliaIndex,
       testOnly,
+      // プロパティ名マッピング（任意）
+      propMap,
       // 部署用（任意）
       teamLabel,
       teamNotionToken,
@@ -143,6 +204,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '必要なキーが不足しています' }, { status: 400 })
     }
 
+    const resolvedPropMap: PropMap = propMap || {}
     const notion = new Client({ auth: notionToken })
 
     // 接続テストのみ（testOnly=true の場合）
@@ -179,20 +241,22 @@ export async function POST(req: NextRequest) {
     let syncedReference = 0
 
     // 個人用 Medical DB の同期
-    syncedMedical += await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records)
+    syncedMedical += await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records, resolvedPropMap)
 
     // 個人用 Reference DB の同期（任意）
     if (notionReferenceDbId) {
-      syncedReference += await syncReferenceDb(notion, notionReferenceDbId, 'personal', '', records)
+      syncedReference += await syncReferenceDb(notion, notionReferenceDbId, 'personal', '', records, resolvedPropMap)
     }
 
     // 部署用 Medical DB の同期（任意）
     if (teamNotionToken && teamNotionMedicalDbId) {
       const teamNotion = new Client({ auth: teamNotionToken })
-      syncedMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records)
+      syncedMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
     }
 
     if (records.length > 0) {
+      // 古い形式のレコードが残らないよう、同期前にインデックスをクリアしてから保存
+      await index.clearObjects()
       await index.saveObjects(records)
     }
 
@@ -207,7 +271,7 @@ export async function POST(req: NextRequest) {
         'author',
         'journal',
       ],
-      attributesForFaceting: ['owner', 'teamLabel'],
+      attributesForFaceting: ['filterOnly(owner)', 'filterOnly(teamLabel)', 'filterOnly(source)', 'filterOnly(knowledgeLevel)', 'genre'],
       customRanking: ['desc(lastEdited)'],
     })
 

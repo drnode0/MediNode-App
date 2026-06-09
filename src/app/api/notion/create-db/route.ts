@@ -21,7 +21,7 @@ const MEDICAL_DB_PROPERTIES = {
       ],
     },
   },
-  'AI要約': {
+  '要約': {
     rich_text: {},
   },
   'キーワード': {
@@ -51,7 +51,7 @@ const REFERENCE_DB_PROPERTIES = {
       ],
     },
   },
-  'AI要約': {
+  '要約': {
     rich_text: {},
   },
   'キーワード': {

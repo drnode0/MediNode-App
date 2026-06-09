@@ -14,7 +14,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [revealed, setRevealed] = useState(false)
   const isMedical = hit.source === 'medical'
   const borderColor = isMedical ? 'border-l-blue-400' : 'border-l-amber-400'
-  const displaySummary = hit.aiSummary || hit.summary || hit.content?.slice(0, 200) || null
+  const displaySummary = hit.aiSummary || hit.summary || null
   const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 text-gray-600') : ''
 
   return (

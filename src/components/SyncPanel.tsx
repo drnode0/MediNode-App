@@ -34,6 +34,13 @@ export function SyncPanel() {
           teamLabel: settings.teamLabel || undefined,
           teamNotionToken: settings.teamNotionToken || undefined,
           teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+          // プロパティ名マッピング（設定済みの場合のみ送信）
+          propMap: {
+            summary: settings.propSummary || undefined,
+            keywords: settings.propKeywords || undefined,
+            knowledgeLevel: settings.propKnowledgeLevel || undefined,
+            genre: settings.propGenre || undefined,
+          },
         }),
       })
       const data = await res.json()

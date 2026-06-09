@@ -1,5 +1,16 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+
+const RECENT_PAGE_KEY = 'notion_db_creator_recent_pages'
+
+function getRecentPages(): string[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(RECENT_PAGE_KEY) || '[]') } catch { return [] }
+}
+function addRecentPage(id: string) {
+  const prev = getRecentPages().filter((x) => x !== id)
+  localStorage.setItem(RECENT_PAGE_KEY, JSON.stringify([id, ...prev].slice(0, 5)))
+}
 
 type Phase =
   | 'idle'
@@ -29,10 +40,32 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [pages, setPages] = useState<NotionPage[]>([])
   const [selectedPageId, setSelectedPageId] = useState('')
+  const [pageSearch, setPageSearch] = useState('')
+  const [recentPageIds, setRecentPageIds] = useState<string[]>([])
   const [medicalDb, setMedicalDb] = useState<CreatedDb | null>(null)
   const [referenceDb, setReferenceDb] = useState<CreatedDb | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [skipReference, setSkipReference] = useState(false)
+
+  useEffect(() => {
+    setRecentPageIds(getRecentPages())
+  }, [])
+
+  // 最近使ったページを上に、それ以外はアルファベット/五十音順
+  const sortedPages = useMemo(() => {
+    const recentSet = new Set(recentPageIds)
+    const recent = recentPageIds
+      .map((id) => pages.find((p) => p.id === id))
+      .filter((p): p is NotionPage => !!p)
+    const others = pages.filter((p) => !recentSet.has(p.id))
+    return { recent, others }
+  }, [pages, recentPageIds])
+
+  const filteredPages = useMemo(() => {
+    const q = pageSearch.trim().toLowerCase()
+    if (!q) return pages
+    return pages.filter((p) => p.title.toLowerCase().includes(q))
+  }, [pages, pageSearch])
 
   // Step 1: ページ一覧を取得
   const handleFetchPages = async () => {
@@ -59,6 +92,8 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
   // Step 2: Medical DB を作成
   const handleCreateMedical = async () => {
     if (!selectedPageId) return
+    addRecentPage(selectedPageId)
+    setRecentPageIds(getRecentPages())
     setPhase('creating_medical')
     setErrorMessage('')
     try {
@@ -163,26 +198,75 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
               DBを作成するページを選択
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               選択したページの中にMedical DBが作成されます。
             </p>
-            <select
-              value={selectedPageId}
-              onChange={(e) => setSelectedPageId(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              <option value="">-- ページを選択 --</option>
-              {pages.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-            {pages.length === 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚠️ ページが見つかりません。IntegrationをNotionのページに接続してから再度お試しください。
-              </p>
-            )}
+
+            {/* 検索ボックス */}
+            <div className="relative mb-2">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <input
+                type="text"
+                value={pageSearch}
+                onChange={(e) => setPageSearch(e.target.value)}
+                placeholder="ページ名で絞り込み..."
+                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              {pageSearch && (
+                <button
+                  onClick={() => setPageSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* ページリスト */}
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden max-h-56 overflow-y-auto">
+              {pageSearch ? (
+                // 検索中：絞り込み結果
+                filteredPages.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-center text-gray-400 dark:text-gray-500">
+                    「{pageSearch}」に一致するページがありません
+                  </div>
+                ) : (
+                  filteredPages.map((p) => (
+                    <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onSelect={setSelectedPageId} />
+                  ))
+                )
+              ) : pages.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-center text-gray-400 dark:text-gray-500">
+                  ページが見つかりません。IntegrationをNotionのページに接続してください。
+                </div>
+              ) : (
+                // 通常表示：最近使ったページ → その他
+                <>
+                  {sortedPages.recent.length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                        🕐 最近使ったページ
+                      </div>
+                      {sortedPages.recent.map((p) => (
+                        <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onSelect={setSelectedPageId} recent />
+                      ))}
+                      {sortedPages.others.length > 0 && (
+                        <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 border-t">
+                          📄 すべてのページ
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {sortedPages.others.map((p) => (
+                    <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onSelect={setSelectedPageId} />
+                  ))}
+                </>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              {pageSearch ? `${filteredPages.length}/${pages.length} 件` : `全${pages.length}件`}
+              {!pageSearch && sortedPages.recent.length > 0 && <span className="ml-1 text-blue-400">（最近使用: {sortedPages.recent.length}件）</span>}
+            </p>
           </div>
 
           {selectedPageId && (
@@ -334,6 +418,28 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
         </div>
       )}
     </div>
+  )
+}
+
+function PageRow({ page, selected, onSelect, recent }: {
+  page: NotionPage
+  selected: boolean
+  onSelect: (id: string) => void
+  recent?: boolean
+}) {
+  return (
+    <button
+      onClick={() => onSelect(page.id)}
+      className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors ${
+        selected
+          ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium'
+          : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+      }`}
+    >
+      <span className="mr-1.5">{recent ? '🕐' : '📄'}</span>
+      {page.title}
+      {selected && <span className="float-right text-blue-500">✓</span>}
+    </button>
   )
 }
 
