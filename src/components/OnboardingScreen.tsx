@@ -53,6 +53,33 @@ const PAGES = [
     ],
   },
   {
+    id: 'notion',
+    badge: '📝 Notionと連携',
+    title: '書く場所は\nそのままでいい',
+    description: null,
+    illustration: null,
+    features: [
+      {
+        icon: '✍️',
+        color: 'bg-blue-50 text-blue-600',
+        title: 'Notionに書くだけで即反映',
+        desc: '追加・編集はいつものNotionで。MediNodeに自動で同期される',
+      },
+      {
+        icon: '🔗',
+        color: 'bg-indigo-50 text-indigo-600',
+        title: '詳細はNotionでそのまま確認',
+        desc: 'タップするとNotionアプリで全文表示。書いた内容を活かせる',
+      },
+      {
+        icon: '📂',
+        color: 'bg-green-50 text-green-600',
+        title: '既存DBもそのまま使える',
+        desc: 'すでにNotionでまとめている人はテンプレート不要',
+      },
+    ],
+  },
+  {
     id: 'setup',
     badge: '🔑 セットアップ',
     title: '3ステップで\nすぐ使い始められます',
@@ -62,14 +89,14 @@ const PAGES = [
       {
         icon: '📋',
         color: 'bg-blue-50 text-blue-600',
-        title: 'DBテンプレートを複製',
-        desc: 'Notionに無料テンプレートをワンクリックでコピー',
+        title: 'テンプレートをNotionに複製',
+        desc: '無料テンプレートをコピー。既存DBがあればそちらでもOK',
       },
       {
         icon: '🔑',
         color: 'bg-purple-50 text-purple-600',
-        title: 'Integration Tokenを入力',
-        desc: 'notion.so/my-integrations で数分で取得',
+        title: 'Integration Tokenを入力・接続',
+        desc: 'notion.so/my-integrations で数分で取得できる',
       },
       {
         icon: '🚀',
