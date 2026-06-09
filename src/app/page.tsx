@@ -580,56 +580,81 @@ const NOTION_GENRE_GROUPS = [
   },
 ]
 
+const GENRE_BUTTON_COLORS = [
+  { color: 'bg-red-50 border-red-200 text-red-700', activeColor: 'bg-red-600 text-white border-transparent' },
+  { color: 'bg-blue-50 border-blue-200 text-blue-700', activeColor: 'bg-blue-600 text-white border-transparent' },
+  { color: 'bg-purple-50 border-purple-200 text-purple-700', activeColor: 'bg-purple-600 text-white border-transparent' },
+  { color: 'bg-green-50 border-green-200 text-green-700', activeColor: 'bg-green-600 text-white border-transparent' },
+  { color: 'bg-orange-50 border-orange-200 text-orange-700', activeColor: 'bg-orange-600 text-white border-transparent' },
+  { color: 'bg-cyan-50 border-cyan-200 text-cyan-700', activeColor: 'bg-cyan-600 text-white border-transparent' },
+  { color: 'bg-yellow-50 border-yellow-200 text-yellow-700', activeColor: 'bg-yellow-600 text-white border-transparent' },
+  { color: 'bg-indigo-50 border-indigo-200 text-indigo-700', activeColor: 'bg-indigo-600 text-white border-transparent' },
+  { color: 'bg-pink-50 border-pink-200 text-pink-700', activeColor: 'bg-pink-600 text-white border-transparent' },
+  { color: 'bg-teal-50 border-teal-200 text-teal-700', activeColor: 'bg-teal-600 text-white border-transparent' },
+  { color: 'bg-slate-50 border-slate-200 text-slate-700', activeColor: 'bg-slate-600 text-white border-transparent' },
+  { color: 'bg-gray-50 border-gray-200 text-gray-500', activeColor: 'bg-gray-500 text-white border-transparent' },
+]
+
+const GENRE_SHOW_LIMIT = 8
+
 // Notionモード：ジャンル別タブ
 function NotionBrowseTab() {
   const settings = getSettings()
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [genres, setGenres] = useState<string[]>([])
+  const [genresLoading, setGenresLoading] = useState(true)
+  const [genresError, setGenresError] = useState('')
+  const [showAll, setShowAll] = useState(false)
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
   const [genreRecords, setGenreRecords] = useState<Hit[]>([])
   const [genreLoading, setGenreLoading] = useState(false)
   const [genreError, setGenreError] = useState('')
 
-  const handleGroupSelect = async (group: typeof NOTION_GENRE_GROUPS[number] | null) => {
-    if (!group || selectedGroup === group.label) {
-      setSelectedGroup(null)
+  // 初回：ジャンル選択肢をAPIから取得
+  useState(() => {
+    if (!settings) { setGenresLoading(false); return }
+    window.fetch('/api/notion/genres', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        notionToken: settings.notionToken,
+        notionMedicalDbId: settings.notionMedicalDbId,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.genres) setGenres(data.genres)
+        else setGenresError(data.error || '取得に失敗しました')
+      })
+      .catch(() => setGenresError('取得に失敗しました'))
+      .finally(() => setGenresLoading(false))
+  })
+
+  const handleGenreSelect = async (genre: string | null) => {
+    if (!genre || selectedGenre === genre) {
+      setSelectedGenre(null)
       setGenreRecords([])
       return
     }
-    setSelectedGroup(group.label)
+    setSelectedGenre(genre)
     if (!settings) return
     setGenreLoading(true)
     setGenreError('')
     setGenreRecords([])
     try {
-      // グループ内の各ジャンルを並行取得してマージ（重複排除）
-      const results = await Promise.all(
-        group.genres.map((genre) =>
-          window.fetch('/api/notion/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              notionToken: settings.notionToken,
-              notionMedicalDbId: settings.notionMedicalDbId,
-              mode: 'browse',
-              genre,
-              pageSize: 100,
-            }),
-          }).then((r) => r.json())
-        )
-      )
-      const seen = new Set<string>()
-      const merged: Hit[] = []
-      for (const data of results) {
-        if (Array.isArray(data.records)) {
-          for (const rec of data.records as Hit[]) {
-            if (!seen.has(rec.objectID)) {
-              seen.add(rec.objectID)
-              merged.push(rec)
-            }
-          }
-        }
-      }
-      merged.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
-      setGenreRecords(merged)
+      const data = await window.fetch('/api/notion/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: settings.notionToken,
+          notionMedicalDbId: settings.notionMedicalDbId,
+          mode: 'browse',
+          genre,
+          pageSize: 100,
+        }),
+      }).then((r) => r.json())
+      const records: Hit[] = Array.isArray(data.records) ? data.records : []
+      records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+      setGenreRecords(records)
     } catch (err) {
       console.error('ジャンル取得エラー:', err)
       setGenreError('取得に失敗しました')
@@ -638,29 +663,50 @@ function NotionBrowseTab() {
     }
   }
 
+  const visibleGenres = showAll ? genres : genres.slice(0, GENRE_SHOW_LIMIT)
+
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {NOTION_GENRE_GROUPS.map((group) => (
-          <button
-            key={group.label}
-            onClick={() => handleGroupSelect(group)}
-            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-              selectedGroup === group.label
-                ? group.activeColor + ' shadow-sm'
-                : group.color + ' hover:shadow-sm'
-            }`}
-          >
-            {group.label}
-          </button>
-        ))}
-      </div>
-      {selectedGroup && (
+      {genresLoading ? (
+        <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンルを読み込み中...</div>
+      ) : genresError ? (
+        <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genresError}</div>
+      ) : genres.length === 0 ? (
+        <div className="text-center py-8 text-gray-400 dark:text-gray-500"><p className="text-sm">ジャンルが設定されていません</p></div>
+      ) : (
         <>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedGroup}</p>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            {visibleGenres.map((genre, i) => {
+              const c = GENRE_BUTTON_COLORS[i % GENRE_BUTTON_COLORS.length]
+              return (
+                <button
+                  key={genre}
+                  onClick={() => handleGenreSelect(genre)}
+                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                    selectedGenre === genre ? c.activeColor + ' shadow-sm' : c.color + ' hover:shadow-sm'
+                  }`}
+                >
+                  {genre}
+                </button>
+              )
+            })}
+          </div>
+          {genres.length > GENRE_SHOW_LIMIT && (
             <button
-              onClick={() => handleGroupSelect(null)}
+              onClick={() => setShowAll((v) => !v)}
+              className="w-full text-xs text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 py-2 transition-colors"
+            >
+              {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${genres.length - GENRE_SHOW_LIMIT} 件）`}
+            </button>
+          )}
+        </>
+      )}
+      {selectedGenre && (
+        <>
+          <div className="flex items-center justify-between mb-3 mt-4">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedGenre}</p>
+            <button
+              onClick={() => handleGenreSelect(null)}
               className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
             >
               ✕ 解除
@@ -679,9 +725,9 @@ function NotionBrowseTab() {
           )}
         </>
       )}
-      {!selectedGroup && (
-        <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-          <p className="text-sm">カテゴリを選択してください</p>
+      {!selectedGenre && !genresLoading && genres.length > 0 && (
+        <div className="text-center py-6 text-gray-400 dark:text-gray-500">
+          <p className="text-sm">ジャンルを選択してください</p>
         </div>
       )}
     </div>

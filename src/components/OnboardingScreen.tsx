@@ -36,7 +36,7 @@ const PAGES = [
         icon: '🗂',
         color: 'bg-indigo-50 text-indigo-600',
         title: 'ジャンル別ブラウズ',
-        desc: '内科・外科など系統別に整理して閲覧',
+        desc: '好きなカテゴリで知識を分類・ブラウズ',
       },
       {
         icon: '🧠',
@@ -48,7 +48,7 @@ const PAGES = [
         icon: '📖',
         color: 'bg-amber-50 text-amber-600',
         title: '参考文献管理',
-        desc: '添付PDFもNotionからすぐ確認できる',
+        desc: '文献・ソースをまとめて管理・参照',
       },
     ],
   },
