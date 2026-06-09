@@ -11,7 +11,7 @@ const PAGES = [
     id: 'welcome',
     badge: 'MediNode',
     title: '移動中も、当直中も\n知識はすぐそこに',
-    description: 'Notionに蓄積した医療知識・文献を、スマホ1つで即座に検索・復習。\nポケットに入る、自分だけの医療知識ベース。',
+    description: 'Notionの医療知識を、スマホから即座に検索・復習。\n知識と現場をつなぐ、自分だけのナレッジベース。',
     illustration: (
       <div className="flex items-center justify-center w-full h-full">
         <img src="/icon.png" alt="MediNode" className="w-40 h-40 rounded-3xl shadow-lg" />
