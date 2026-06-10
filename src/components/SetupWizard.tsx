@@ -11,6 +11,48 @@ type Props = {
   onShowOnboarding?: () => void
 }
 
+// Stripe Checkout へのリダイレクトボタン（SetupWizard内で使用）
+function PremiumCheckoutButton() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleCheckout = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/premium/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        setError(data.error || '購入ページを開けませんでした')
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={handleCheckout}
+        disabled={loading}
+        className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+      >
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+      </button>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  )
+}
+
 function parseErrorMessage(msg: string): string {
   // Algolia側のエラー（プレフィックスで明示）
   if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
@@ -1461,47 +1503,72 @@ export function SetupWizard({ onComplete, onShowOnboarding }: Props) {
                 )}
               </div>
 
-              {/* サブスク用 */}
-              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+              {/* プレミアム */}
+              <div className="border border-purple-200 dark:border-purple-700 rounded-xl overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setOpenSection(openSection === 'subscription' ? null : 'subscription')}
-                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  className="w-full flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-left hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">⭐ プレミアムDB</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">作者から配布されたキーを入力する</p>
+                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">⭐ プレミアム</p>
+                    <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジにアクセス</p>
                   </div>
-                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'subscription' ? '▲' : '▼'}</span>
+                  <span className="text-purple-400 dark:text-purple-500 text-xs ml-4">{openSection === 'subscription' ? '▲' : '▼'}</span>
                 </button>
                 {openSection === 'subscription' && (
                   <div className="p-4 space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        プレミアム Search-Only APIキー
-                      </label>
-                      <PasswordInput
-                        field="subscriptionSearchKey"
-                        value={form.subscriptionSearchKey}
-                        onChange={(e) => update('subscriptionSearchKey', e.target.value)}
-                        placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        プレミアム App ID
-                      </label>
-                      <input
-                        type="text"
-                        value={form.subscriptionAppId}
-                        onChange={(e) => update('subscriptionAppId', e.target.value)}
-                        placeholder="XXXXXXXXXX"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      ※ インデックス名はアプリ側で自動設定されます
-                    </p>
+                    {form.subscriptionSearchKey && form.subscriptionAppId ? (
+                      /* 既にプレミアム登録済み */
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
+                        <p className="text-xs text-green-600 dark:text-green-500">プレミアムコンテンツにアクセスできます。</p>
+                        <button
+                          type="button"
+                          onClick={() => { update('subscriptionSearchKey', ''); update('subscriptionAppId', '') }}
+                          className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        >
+                          登録を解除する
+                        </button>
+                      </div>
+                    ) : (
+                      /* 未登録: 購入ボタン */
+                      <div className="space-y-3">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                          現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
+                          購入後、このページに自動で戻りアクセスが有効になります。
+                        </p>
+                        <PremiumCheckoutButton />
+                        <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みで認証キーをお持ちの方（手動入力）：</p>
+                          <div className="space-y-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                Search-Only APIキー
+                              </label>
+                              <PasswordInput
+                                field="subscriptionSearchKey"
+                                value={form.subscriptionSearchKey}
+                                onChange={(e) => update('subscriptionSearchKey', e.target.value)}
+                                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                App ID
+                              </label>
+                              <input
+                                type="text"
+                                value={form.subscriptionAppId}
+                                onChange={(e) => update('subscriptionAppId', e.target.value)}
+                                placeholder="XXXXXXXXXX"
+                                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

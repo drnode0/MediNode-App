@@ -8,7 +8,7 @@ import {
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
-import { isSetupComplete, clearSettings, getSettings } from '@/lib/settings'
+import { isSetupComplete, clearSettings, getSettings, saveSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
@@ -383,32 +383,59 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
 
 // サブスク未設定時に「プレミアム」タブを選択した際の案内パネル
 function SubscriptionPromoPanel() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleCheckout = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/premium/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        setError(data.error || '購入ページを開けませんでした')
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="mt-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl p-6 text-center space-y-4">
       <div className="text-5xl">⭐</div>
       <div>
         <p className="text-lg font-bold text-purple-700 dark:text-purple-300">プレミアム会員限定コンテンツ</p>
         <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
-          作者が厳選した高品質な医療ナレッジを<br />
-          検索・閲覧できます
+          現役集中治療医が定期的に更新する<br />
+          医療ナレッジ＋参考文献を閲覧できます
         </p>
       </div>
       <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
         <p className="font-semibold text-gray-700 dark:text-gray-300 mb-2">✨ 含まれるコンテンツ</p>
-        <p>• 厳選された臨床ナレッジ</p>
+        <p>• 救急・集中治療領域の臨床ナレッジ</p>
         <p>• エビデンスに基づく参考文献</p>
-        <p>• 定期的なコンテンツ追加</p>
+        <p>• 現役医師による定期アップデート</p>
       </div>
-      <a
-        href="https://note.com/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-block bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors"
+      {error && (
+        <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">{error}</p>
+      )}
+      <button
+        onClick={handleCheckout}
+        disabled={loading}
+        className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        プレミアム会員について詳しく見る →
-      </a>
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+      </button>
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        既に会員の方は設定からアクセスキーを入力してください
+        既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
       </p>
     </div>
   )
@@ -1423,6 +1450,59 @@ export default function Home() {
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [premiumActivating, setPremiumActivating] = useState(false)
+  const [premiumMessage, setPremiumMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Stripe決済完了後の ?premium_session= パラメータを処理してキーを自動取得
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const sessionId = params.get('premium_session')
+    if (!sessionId) return
+
+    // URLからパラメータを消す（リロードで再処理されないよう）
+    const cleanUrl = window.location.pathname
+    window.history.replaceState({}, '', cleanUrl)
+
+    setPremiumActivating(true)
+    fetch('/api/premium/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.algolia) {
+          // LocalStorageの設定にAlgoliaキーを書き込む
+          const defaultSettings = {
+            searchMode: 'algolia' as const,
+            notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
+            algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
+            teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '',
+            subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
+            propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+          }
+          const current = getSettings() || defaultSettings
+          saveSettings({
+            ...current,
+            subscriptionAppId: data.algolia.appId,
+            subscriptionSearchKey: data.algolia.searchKey,
+            subscriptionIndex: data.algolia.index,
+          })
+          setPremiumMessage({ type: 'success', text: 'プレミアム登録が完了しました！プレミアムコンテンツにアクセスできるようになりました。' })
+          // ページをリロードして新しい設定を反映
+          setTimeout(() => window.location.reload(), 2000)
+        } else {
+          setPremiumMessage({ type: 'error', text: data.error || 'プレミアム認証に失敗しました。サポートにお問い合わせください。' })
+        }
+      })
+      .catch(() => {
+        setPremiumMessage({ type: 'error', text: 'ネットワークエラーが発生しました。再度お試しください。' })
+      })
+      .finally(() => {
+        setPremiumActivating(false)
+      })
+  }, [])
 
   useEffect(() => {
     setSetupDone(isSetupComplete())
@@ -1446,6 +1526,44 @@ export default function Home() {
     localStorage.setItem(ONBOARDING_DONE_KEY, '1')
     setOnboardingDone(true)
     setShowOnboardingFromSetup(false)
+  }
+
+  // プレミアム認証処理中のオーバーレイ
+  if (premiumActivating) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <div className="text-5xl animate-bounce">⭐</div>
+          <p className="text-lg font-bold text-purple-700 dark:text-purple-300">プレミアム登録を確認中...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">しばらくお待ちください</p>
+        </div>
+      </div>
+    )
+  }
+
+  // プレミアム認証完了メッセージ（成功/失敗）
+  if (premiumMessage) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
+        <div className="max-w-sm w-full text-center space-y-4">
+          <div className="text-5xl">{premiumMessage.type === 'success' ? '✅' : '⚠️'}</div>
+          <p className={`text-base font-semibold ${premiumMessage.type === 'success' ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {premiumMessage.text}
+          </p>
+          {premiumMessage.type === 'error' && (
+            <button
+              onClick={() => setPremiumMessage(null)}
+              className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400"
+            >
+              閉じる
+            </button>
+          )}
+          {premiumMessage.type === 'success' && (
+            <p className="text-xs text-gray-400">自動的に画面を更新します...</p>
+          )}
+        </div>
+      </div>
+    )
   }
 
   if (setupDone === null || onboardingDone === null) {
