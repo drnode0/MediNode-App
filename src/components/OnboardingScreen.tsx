@@ -80,6 +80,70 @@ const PAGES = [
     ],
   },
   {
+    id: 'dbs',
+    badge: '🗂 2つのDBの役割',
+    title: '知識本体と\n参考文献を分けて管理',
+    description: null,
+    illustration: (
+      <div className="flex items-center justify-center w-full h-full">
+        <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+          {/* Medical DB カード */}
+          <g>
+            <rect x="6" y="20" width="120" height="140" rx="14" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="2" />
+            <text x="66" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="#1D4ED8">🏥 Medical DB</text>
+            <text x="66" y="60" textAnchor="middle" fontSize="9" fill="#1E40AF">（必須）</text>
+            <line x1="18" y1="70" x2="114" y2="70" stroke="#BFDBFE" strokeWidth="1" />
+            <text x="18" y="86" fontSize="9" fill="#1E3A8A">📝 病名・治療・知識</text>
+            <text x="18" y="102" fontSize="9" fill="#1E3A8A">🏷 ジャンル / キーワード</text>
+            <text x="18" y="118" fontSize="9" fill="#1E3A8A">🎯 知識レベル</text>
+            <text x="18" y="134" fontSize="9" fill="#1E3A8A">📎 参考文献(Relation)</text>
+            <text x="66" y="152" textAnchor="middle" fontSize="8" fill="#3B82F6">本体ノート</text>
+          </g>
+          {/* Reference DB カード */}
+          <g>
+            <rect x="194" y="30" width="120" height="120" rx="14" fill="#FEF3C7" stroke="#F59E0B" strokeWidth="2" />
+            <text x="254" y="54" textAnchor="middle" fontSize="11" fontWeight="700" fill="#B45309">📖 Reference DB</text>
+            <text x="254" y="68" textAnchor="middle" fontSize="9" fill="#92400E">（任意）</text>
+            <line x1="206" y1="78" x2="302" y2="78" stroke="#FDE68A" strokeWidth="1" />
+            <text x="206" y="94" fontSize="9" fill="#78350F">📚 論文・書籍</text>
+            <text x="206" y="110" fontSize="9" fill="#78350F">🗓 発行年</text>
+            <text x="206" y="126" fontSize="9" fill="#78350F">⭐ エビデンスレベル</text>
+            <text x="254" y="144" textAnchor="middle" fontSize="8" fill="#B45309">参考文献ストック</text>
+          </g>
+          {/* 双方向矢印（カードの外側、中央ギャップ x=126〜194 / 幅68px） */}
+          <g>
+            {/* 上の矢印（Medical → Reference） */}
+            <line x1="130" y1="88" x2="188" y2="88" stroke="#64748B" strokeWidth="1.5" />
+            <polygon points="188,84 194,88 188,92" fill="#64748B" />
+            {/* 下の矢印（Reference → Medical） */}
+            <line x1="190" y1="108" x2="132" y2="108" stroke="#64748B" strokeWidth="1.5" />
+            <polygon points="132,104 126,108 132,112" fill="#64748B" />
+          </g>
+        </svg>
+      </div>
+    ),
+    features: [
+      {
+        icon: '🏥',
+        color: 'bg-blue-50 text-blue-600',
+        title: 'Medical DB（必須）',
+        desc: '病名・治療・手技などの本体ノート。検索・クイズ・ジャンルブラウズの中心',
+      },
+      {
+        icon: '📖',
+        color: 'bg-amber-50 text-amber-600',
+        title: 'Reference DB（任意）',
+        desc: '論文・書籍を別管理。Medical DBと相互リレーションで紐付け',
+      },
+      {
+        icon: '🎯',
+        color: 'bg-green-50 text-green-600',
+        title: '知識レベルで学びを育てる',
+        desc: 'CQ（疑問）→ ナレッジ（理解）→ まとめ（体系化）。思考の深さに合わせて整理できる',
+      },
+    ],
+  },
+  {
     id: 'setup',
     badge: '🔑 セットアップ',
     title: '3ステップで\nすぐ使い始められます',
@@ -95,8 +159,8 @@ const PAGES = [
       {
         icon: '🔑',
         color: 'bg-purple-50 text-purple-600',
-        title: 'Integration Tokenを入力・接続',
-        desc: 'notion.so/my-integrations で数分で取得できる',
+        title: 'コネクトTokenを入力・接続',
+        desc: 'notion.so/my-integrations で数分で取得できる（旧称: Integration）',
       },
       {
         icon: '🚀',

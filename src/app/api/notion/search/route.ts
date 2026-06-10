@@ -178,11 +178,8 @@ export async function POST(req: NextRequest) {
       // 選択肢名のバリエーションを全て列挙（Notionはcontainsが使えないためequalsで複数カバー）
       const quizLevelOptions = [
         '💡 ナレッジ',
-        '💡 ナレッジユニット',
         '💡ナレッジ',
-        '💡ナレッジユニット',
         'ナレッジ',
-        'ナレッジユニット',
       ]
       let res
       try {

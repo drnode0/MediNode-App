@@ -33,15 +33,13 @@ export type Hit = {
 const LEVEL_STYLE: Record<string, string> = {
   '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
   '💡 ナレッジ': 'bg-green-50 text-green-700',
-  '📋 エンティティ': 'bg-blue-50 text-blue-700',
-  '🚦 プロトコル': 'bg-red-50 text-red-700',
-  '📎 メモ': 'bg-gray-50 text-gray-600',
+  '📋 まとめ': 'bg-blue-50 text-blue-700',
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
   personal: { label: '個人', style: 'bg-indigo-50 text-indigo-600' },
   team: { label: '部署', style: 'bg-teal-50 text-teal-700' },
-  subscription: { label: 'サブスク', style: 'bg-purple-50 text-purple-700' },
+  subscription: { label: 'プレミアム', style: 'bg-purple-50 text-purple-700' },
 }
 
 export function ResultCard({ hit }: { hit: Hit }) {
@@ -133,7 +131,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
                 {hit.year}
               </span>
             )}
-            {hit.createdAt && isMedical && (
+            {hit.createdAt && (
               <p className="text-xs text-gray-300">
                 {new Date(hit.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
               </p>

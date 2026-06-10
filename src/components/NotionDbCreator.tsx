@@ -165,8 +165,8 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
             <p>必要なプロパティは自動でセットされます。</p>
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300">
-            ⚠️ IntegrationをNotionのページに接続する必要があります。<br />
-            ページを開き、右上「…」→「接続先に追加」→ 作成したIntegrationを選択してください。
+            ⚠️ コネクト（旧称: Integration）をNotionのページに接続する必要があります。<br />
+            ページを開き、右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。
           </div>
           <button
             onClick={handleFetchPages}
@@ -237,7 +237,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
                 )
               ) : pages.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-center text-gray-400 dark:text-gray-500">
-                  ページが見つかりません。IntegrationをNotionのページに接続してください。
+                  ページが見つかりません。コネクトをNotionのページに接続してください。
                 </div>
               ) : (
                 // 通常表示：最近使ったページ → その他
@@ -387,7 +387,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
 
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-semibold">⚠️ 次のステップ（重要）</p>
-            <p>作成されたDBページを開き、右上「…」→「接続先に追加」でIntegrationを接続してください。</p>
+            <p>作成されたDBページを開き、右上「…」→「コネクトを追加」でコネクトを接続してください。</p>
             <p>接続しないと同期時にエラーになります。</p>
           </div>
 
@@ -451,7 +451,7 @@ function formatError(msg: string): string {
     msg.includes('401')
   ) {
     return [
-      'Notion Integration Tokenが無効です。',
+      'コネクト（旧称: Integration）のTokenが無効です。',
       '【対処法】',
       '① notion.so/my-integrations でTokenを再コピー',
       '② 「← 戻る」でToken入力欄に貼り直してください',
@@ -462,7 +462,7 @@ function formatError(msg: string): string {
       'ページへのアクセス権がありません。',
       '【対処法】',
       '① Notionでページを開く',
-      '② 右上「…」→「接続先に追加」→ 作成したIntegrationを選択',
+      '② 右上「…」→「コネクトを追加」→ 作成したコネクトを選択',
       '③ 再度お試しください',
     ].join('\n')
   }

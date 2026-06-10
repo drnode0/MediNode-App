@@ -1,7 +1,13 @@
 'use client'
 import { InstantSearch, Configure, useHits, useSearchBox } from 'react-instantsearch'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { createSearchClient, getIndexName } from '@/lib/algolia'
+import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react'
+import {
+  createSearchClient,
+  getIndexName,
+  createSubscriptionSearchClient,
+  getSubscriptionIndexName,
+  hasSubscriptionConfig,
+} from '@/lib/algolia'
 import { isSetupComplete, clearSettings, getSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchResults } from '@/components/SearchResults'
@@ -17,6 +23,132 @@ const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
+
+// ============================================================
+// サブスクHits中継機構（Step 2: multi-index検索）
+// ============================================================
+// 別Algoliaアカウント（作者のサブスク用）の検索結果を、
+// 個人用の<InstantSearch>と並列で取得し、Context経由で全タブに配布する。
+
+type SubscriptionHitsContextValue = {
+  hits: Hit[]
+  setHits: (hits: Hit[]) => void
+  // 個人側の検索クエリをサブスク側にも反映するための共有state
+  query: string
+  setQuery: (q: string) => void
+  // タブごとに適用するフィルタ（owner=subscription固定、source絞り込み等を追加可能）
+  subFilters: string
+  setSubFilters: (f: string) => void
+  // hitsPerPage（タブによって異なる）
+  subHitsPerPage: number
+  setSubHitsPerPage: (n: number) => void
+}
+
+const SubscriptionHitsContext = createContext<SubscriptionHitsContextValue | null>(null)
+
+function useSubscriptionHits() {
+  return useContext(SubscriptionHitsContext)
+}
+
+// サブスク側<InstantSearch>内で動作。useHits()で取得した結果をContextに流す。
+function SubscriptionHitsRelay() {
+  const { hits } = useHits()
+  const ctx = useSubscriptionHits()
+  useEffect(() => {
+    if (!ctx) return
+    ctx.setHits(hits as unknown as Hit[])
+  }, [hits, ctx])
+  return null
+}
+
+// 個人側<InstantSearch>内で動作。useSearchBox()のqueryをContextに流す。
+function PersonalQueryRelay() {
+  const { query } = useSearchBox()
+  const ctx = useSubscriptionHits()
+  useEffect(() => {
+    if (!ctx) return
+    if (ctx.query !== query) ctx.setQuery(query)
+  }, [query, ctx])
+  return null
+}
+
+// サブスク用Algoliaクライアントの<InstantSearch>ラッパ。
+// Provider配下でのみ動作する。
+function SubscriptionSearchProvider({ children, enableBridge }: { children: React.ReactNode; enableBridge: boolean }) {
+  const [hits, setHits] = useState<Hit[]>([])
+  const [query, setQuery] = useState('')
+  const [subFilters, setSubFilters] = useState('')
+  const [subHitsPerPage, setSubHitsPerPage] = useState(20)
+  const value = useMemo<SubscriptionHitsContextValue>(
+    () => ({ hits, setHits, query, setQuery, subFilters, setSubFilters, subHitsPerPage, setSubHitsPerPage }),
+    [hits, query, subFilters, subHitsPerPage],
+  )
+
+  // サブスク設定がない場合はpassthrough（個人検索のみ）
+  if (!hasSubscriptionConfig()) {
+    return <>{children}</>
+  }
+
+  return (
+    <SubscriptionHitsContext.Provider value={value}>
+      {children}
+      {enableBridge && <SubscriptionIndexBridge />}
+    </SubscriptionHitsContext.Provider>
+  )
+}
+
+// サブスクAlgoliaに対する裏側の<InstantSearch>。表示はしない。
+function SubscriptionIndexBridge() {
+  const ctx = useSubscriptionHits()
+  // サブスク用クライアントとindex名はマウント時に固定（settingsはlocalStorageから）
+  const subClient = useMemo(() => createSubscriptionSearchClient(), [])
+  const subIndex = useMemo(() => getSubscriptionIndexName(), [])
+
+  if (!ctx) return null
+
+  return (
+    <div style={{ display: 'none' }} aria-hidden>
+      <InstantSearch searchClient={subClient} indexName={subIndex}>
+        <Configure
+          query={ctx.query}
+          hitsPerPage={ctx.subHitsPerPage}
+          filters={ctx.subFilters || undefined}
+        />
+        <SubscriptionHitsRelay />
+      </InstantSearch>
+    </div>
+  )
+}
+
+// 個人hitsとサブスクhitsをマージするヘルパー
+// owner='all' → 両方を出現順で交互マージ（Algoliaスコア順を擬似的に維持）
+// owner='personal' → 個人のみ
+// owner='subscription' → サブスクのみ
+// owner='team' → 個人の中からteamのみ
+function mergeHitsByOwnerFilter(
+  personalHits: Hit[],
+  subHits: Hit[],
+  owner: OwnerFilter,
+): Hit[] {
+  if (owner === 'subscription') return subHits
+  if (owner === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
+  if (owner === 'team') return personalHits.filter((h) => h.owner === 'team')
+  // 'all': 個人＋サブスクを「ラウンドロビン」で交互に混ぜる（関連度順の擬似マージ）
+  const merged: Hit[] = []
+  const max = Math.max(personalHits.length, subHits.length)
+  const seen = new Set<string>()
+  for (let i = 0; i < max; i++) {
+    if (personalHits[i] && !seen.has(personalHits[i].objectID)) {
+      merged.push(personalHits[i])
+      seen.add(personalHits[i].objectID)
+    }
+    if (subHits[i] && !seen.has(subHits[i].objectID)) {
+      merged.push(subHits[i])
+      seen.add(subHits[i].objectID)
+    }
+  }
+  return merged
+}
 
 // ============================================================
 // Algoliaモード用コンポーネント（既存）
@@ -82,14 +214,15 @@ function QuizHits() {
 
   // 要約あり AND 知識レベルがCQ（調査中）でないものだけクイズ対象
   const quizCandidates = (hits as unknown as Hit[]).filter((h) => {
-    const hasSummary = (h.aiSummary && h.aiSummary.trim()) || (h.summary && h.summary.trim())
-    const isCQ = h.knowledgeLevel && (
-      h.knowledgeLevel.includes('❓') ||
-      h.knowledgeLevel.toLowerCase().includes('cq') ||
-      h.knowledgeLevel.includes('クリニカルクエスチョン') ||
-      h.knowledgeLevel.includes('クリニカルクエッション')
-    )
-    return hasSummary && !isCQ
+    const summaryText = ((h.aiSummary || '') + (h.summary || '')).trim()
+    const hasSummary = summaryText.length >= 10
+    const lvl = h.knowledgeLevel || ''
+    // ホワイトリスト：「💡 ナレッジ」のみ通す（CQ・まとめ・その他は全部除外）
+    const isKnowledge = lvl.includes('💡') || lvl.includes('ナレッジ') || lvl.toLowerCase().includes('knowledge')
+    // 念のためタイトルベースでもCQ除外
+    const titleStr = (h.title || '').trim()
+    const titleIsCQ = titleStr.startsWith('❓') || titleStr.includes('CQ：') || titleStr.includes('CQ:')
+    return hasSummary && isKnowledge && !titleIsCQ
   })
 
   useEffect(() => {
@@ -226,7 +359,7 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
     ...(hasTeam ? [{ id: 'team' as OwnerFilter, label: '部署' }] : []),
-    ...(hasSubscription ? [{ id: 'subscription' as OwnerFilter, label: 'サブスク' }] : []),
+    ...(hasSubscription ? [{ id: 'subscription' as OwnerFilter, label: 'プレミアム' }] : []),
   ]
   if (options.length <= 2) return null
   return (
@@ -248,29 +381,186 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   )
 }
 
+// サブスク未設定時に「プレミアム」タブを選択した際の案内パネル
+function SubscriptionPromoPanel() {
+  return (
+    <div className="mt-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl p-6 text-center space-y-4">
+      <div className="text-5xl">⭐</div>
+      <div>
+        <p className="text-lg font-bold text-purple-700 dark:text-purple-300">プレミアム会員限定コンテンツ</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
+          作者が厳選した高品質な医療ナレッジを<br />
+          検索・閲覧できます
+        </p>
+      </div>
+      <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
+        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-2">✨ 含まれるコンテンツ</p>
+        <p>• 厳選された臨床ナレッジ</p>
+        <p>• エビデンスに基づく参考文献</p>
+        <p>• 定期的なコンテンツ追加</p>
+      </div>
+      <a
+        href="https://note.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors"
+      >
+        プレミアム会員について詳しく見る →
+      </a>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        既に会員の方は設定からアクセスキーを入力してください
+      </p>
+    </div>
+  )
+}
+
+// シンプルモード（Notion直接検索）使用中に、パワーモードへの誘導を出すバナー
+const POWER_BANNER_DISMISS_KEY = 'medinode_power_banner_dismissed_v1'
+function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const [dismissed, setDismissed] = useState(true) // SSR時はちらつき防止のため初期true
+  useEffect(() => {
+    try {
+      setDismissed(localStorage.getItem(POWER_BANNER_DISMISS_KEY) === '1')
+    } catch {
+      setDismissed(false)
+    }
+  }, [])
+  if (dismissed) return null
+  return (
+    <div className="mb-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-700 rounded-xl p-3 flex items-start gap-3">
+      <div className="text-2xl shrink-0">⚡</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+          もっと速くしたい方はパワーモードへ
+        </p>
+        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 leading-relaxed">
+          Algolia（無料）を使うと検索が<strong>0.1秒以下</strong>に。日本語の部分一致やジャンル絞り込みも快適です。
+        </p>
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={onOpenSettings}
+            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+          >
+            設定から切り替える
+          </button>
+          <button
+            onClick={() => {
+              try { localStorage.setItem(POWER_BANNER_DISMISS_KEY, '1') } catch {}
+              setDismissed(true)
+            }}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          >
+            あとで
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// マージ済みhitsを表示する検索結果コンポーネント
+function MergedSearchResults({ personalHits, ownerFilter, query, onSearch }: {
+  personalHits: Hit[]
+  ownerFilter: OwnerFilter
+  query: string
+  onSearch?: (q: string) => void
+}) {
+  const ctx = useSubscriptionHits()
+  const subHits = ctx?.hits || []
+
+  useEffect(() => {
+    if (query && onSearch) onSearch(query)
+  }, [query])
+
+  const merged = mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter)
+
+  if (merged.length === 0) {
+    if (!query) {
+      return (
+        <div className="text-center py-14 px-4">
+          <div className="text-5xl mb-4">📭</div>
+          <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
+            まず画面下の「🔄 データを再同期する」から同期を行ってください
+          </p>
+        </div>
+      )
+    }
+    return (
+      <div className="text-center py-14 px-4">
+        <div className="text-5xl mb-4">🔍</div>
+        <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">
+          「{query}」の検索結果がありません
+        </p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
+          別のキーワードで試してみてください
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>
+      <div className="space-y-3">
+        {merged.map((hit) => (
+          <ResultCard key={hit.objectID} hit={hit} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 個人側のhitsを親stateに渡すコンポーネント
+function PersonalHitsCollector({ onHits }: { onHits: (hits: Hit[]) => void }) {
+  const { hits } = useHits()
+  useEffect(() => {
+    onHits(hits as unknown as Hit[])
+  }, [hits])
+  return null
+}
+
 function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { refine, query } = useSearchBox()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [hasSearched, setHasSearched] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const [personalHits, setPersonalHits] = useState<Hit[]>([])
+  const ctx = useSubscriptionHits()
 
   const handleSelect = (q: string) => {
     refine(q)
     setHasSearched(true)
   }
 
-  const filterStr = buildOwnerFilter(ownerFilter)
+  // 個人側のフィルタ：subscription専用タブの時は個人結果を空にする
+  const personalFilter = ownerFilter === 'subscription'
+    ? 'owner:__none__'
+    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+
+  // サブスク側のフィルタ：'personal'/'team'の時は空にする、それ以外は通常検索
+  useEffect(() => {
+    if (!ctx) return
+    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+      ctx.setSubFilters('owner:__none__')
+    } else {
+      ctx.setSubFilters('')
+    }
+    ctx.setSubHitsPerPage(20)
+  }, [ownerFilter, ctx])
 
   return (
     <>
-      <Configure hitsPerPage={20} filters={filterStr || undefined} />
+      <Configure hitsPerPage={20} filters={personalFilter || undefined} />
+      <PersonalQueryRelay />
+      <PersonalHitsCollector onHits={setPersonalHits} />
       <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox />
         <OwnerFilterTabs
           owner={ownerFilter}
           onChange={setOwnerFilter}
           hasTeam={hasTeam}
-          hasSubscription={hasSubscription}
+          hasSubscription={true /* 常にタブ表示。未設定なら販売パネルへ誘導 */}
         />
       </div>
       {!query && !hasSearched ? (
@@ -279,8 +569,15 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           onSelect={handleSelect}
           onClear={clearHistory}
         />
+      ) : ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
       ) : (
-        <SearchResults onSearch={(q) => { if (q) addHistory(q) }} />
+        <MergedSearchResults
+          personalHits={personalHits}
+          ownerFilter={ownerFilter}
+          query={query}
+          onSearch={(q) => { if (q) addHistory(q) }}
+        />
       )}
     </>
   )
@@ -922,9 +1219,9 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
                   <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
                   <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                     <p><strong>「API token is invalid」</strong></p>
-                    <p>→ Notion Integration Tokenが間違っています。notion.so/my-integrations で「シークレット」を再コピーし、設定をやり直してください。</p>
+                    <p>→ コネクト（旧称: Integration）のTokenが間違っています。notion.so/my-integrations で「シークレット」を再コピーし、設定をやり直してください。</p>
                     <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
-                    <p>→ DBにIntegrationが接続されていません。NotionのDBページ右上「…」→「接続先に追加」→ Integrationを選択してください。</p>
+                    <p>→ DBにコネクトが接続されていません。NotionのDBページ右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。</p>
                     {currentMode === 'algolia' && (
                       <>
                         <p className="mt-2"><strong>「Admin API Key エラー」</strong></p>
@@ -1236,6 +1533,7 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-4">
+          <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
           {tab === 'search' && <NotionSearchTab />}
           {tab === 'recent' && <NotionRecentTab />}
           {tab === 'browse' && <NotionBrowseTab />}
@@ -1278,7 +1576,8 @@ export default function Home() {
   const dynamicIndexName = settings?.algoliaIndex || getIndexName()
 
   return (
-    <InstantSearch key={tab} searchClient={dynamicSearchClient} indexName={dynamicIndexName}>
+    <SubscriptionSearchProvider enableBridge={tab === 'search'}>
+    <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-4">
@@ -1307,5 +1606,6 @@ export default function Home() {
       </div>
       {settingsModal}
     </InstantSearch>
+    </SubscriptionSearchProvider>
   )
 }

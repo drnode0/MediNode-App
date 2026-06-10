@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-09（第3セッション）
+**最終更新**: 2026-06-09（第4セッション）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -266,30 +266,61 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
 15. **OnboardingScreen 全面刷新** — 3ページ構成を維持しつつ文言短縮・ビジュアル寄りに。welcomeページ説明文4行→1行。featuresページ5機能→4機能（📎添付PDF機能追加）。setupページを3ステップカード形式に変更
 16. **クイズ：知識レベル未設定ユーザー向け案内カード追加** — `hasAnyKnowledgeLevel`で未設定検出、amber色の4ステップ使い方ガイドを表示
 
+### 第4セッション（2026-06-09）完了作業
+
+17. **Notionマーケットプレイスページ「MediNode 専用DB」整備** — 「🤖 Notion AIと組み合わせるともっと便利に」セクションを追加（❓CQ登録・📖参考文献追加・🗂まとめ棚卸しの3スキル紹介 + 有料note誘導）。マーケットプレイス出品済み（承認待ち中）。
+18. **マーケットプレイス出品文作成** — 「簡単な説明」（280文字以内）・「詳しい説明」を作成・出品完了。
+19. **SetupWizardのテンプレートURL仮差し替え** — `src/components/SetupWizard.tsx` L630を仮URL（`https://www.notion.so/MediNode-DB-37afd756737080ba8035f2cdb33af355`）に差し替え。承認後に正式マーケットプレイスURLへ再差し替えが必要。
+20. **全変更ファイル一括コミット＆Vercelデプロイ** — 23ファイル変更（1634行追加・295行削除）をコミット。`git push origin main` 完了 → Vercel自動デプロイ完了。
+21. **Reference DBサンプル件数を7件に更新** — Notionページ記載をユーザーが更新済み。
+
 ---
 
 ## 未完了タスク（次セッションで対応が必要）
 
-### 🔴 優先度高（配布・リリースに必要）
+### 🔴 優先度高
 
-#### 1. 配布DB（Notion）にサンプルデータ20〜50件入力（Notion側作業）
-
-Medical Knowledge_DB と Reference Library_DB に、アプリのUIが映えるサンプルデータを入力する。
-- 知識レベル3種（❓CQ / 💡ナレッジ / 📋まとめ）を満遍なく入れる
-- 要約・キーワード・ジャンルなど主要プロパティを埋める
-- 参考文献DBには著者・ジャーナル・発行年・エビデンスレベルも入れる
-
-#### 2. SetupWizardのテンプレートURL差し替え
+#### 1. SetupWizardのテンプレートURL再差し替え（マーケットプレイス承認後）
 
 `src/components/SetupWizard.tsx` L630:
 ```
-window.open('https://tatsukinonaka.notion.site/MediNode-DB-Template', '_blank')
+window.open('https://www.notion.so/MediNode-DB-37afd756737080ba8035f2cdb33af355', '_blank')
 ```
-↑ **プレースホルダー。配布DB完成後に実際のNotionテンプレートURLに差し替える。**
+↑ **仮URL。マーケットプレイス承認後に正式テンプレートURLに差し替えてコミット＆デプロイ。**
 
-#### 3. Notionマーケットプレイスへの提出・有料note執筆
+#### 2. 有料note執筆（次セッションのメインタスク）
 
-配布DB完成後に対応。
+**note記事の想定構成（確定していない部分はセッション開始時に確認）：**
+
+| # | セクション | 内容 |
+|---|-----------|------|
+| 1 | はじめに | MediNodeとは・誰向けか・何が解決できるか |
+| 2 | アプリURLと初期設定 | アプリURL・セットアップ手順（Notion Integration作成〜同期まで） |
+| 3 | DBテンプレートの使い方 | Medical Knowledge_DB・Reference Library_DBの各プロパティの意味と使い方 |
+| 4 | 知識の蓄積ワークフロー | 実際の使い方（CQ登録→ナレッジ化→まとめ）の例 |
+| 5 | Notion AI活用法（目玉） | CQ登録・参考文献追加・まとめ棚卸しのAIスキル設定・使い方 |
+| 6 | 上級者向け設定 | パワーモード（Algolia）・チームDB・propMapカスタマイズ |
+| 7 | おわりに | サブスク予告・フィードバック案内 |
+
+**参照すべきNotionページ：**
+- AIスキル定義：`https://app.notion.com/p/DB-978141ced8c9469ca44666849837c468`
+- セットアップ＆運用ガイド（既存）：`https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc`
+- マーケットプレイスページ（配布DB）：`https://app.notion.com/p/MediNode-DB-37afd756737080ba8035f2cdb33af355`
+
+**note執筆セッションの開始プロンプト例：**
+```
+MediNodeという医療知識管理アプリの有料note記事を書きます。
+HANDOFF.mdを読んで背景を把握した上で、note本文のドラフトをMarkdown形式で作成してください。
+アプリURL: https://medical-search-public.vercel.app
+価格帯: ¥1,980想定
+```
+
+#### 3. 配布DB（Notion）のサンプルデータ充実（Notion側作業）
+
+Medical Knowledge_DBのサンプルを増量する（現在の件数から20〜30件程度まで）。
+- 知識レベル3種（❓CQ / 💡ナレッジ / 📋まとめ）を満遍なく入れる
+- 要約・キーワード・ジャンルなど主要プロパティを埋める
+- Reference DBは7件入力済み
 
 ### 🟡 優先度中
 

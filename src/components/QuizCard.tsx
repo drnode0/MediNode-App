@@ -5,9 +5,7 @@ import type { Hit } from './ResultCard'
 const LEVEL_STYLE: Record<string, string> = {
   '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
   '💡 ナレッジ': 'bg-green-50 text-green-700',
-  '📋 エンティティ': 'bg-blue-50 text-blue-700',
-  '🚦 プロトコル': 'bg-red-50 text-red-700',
-  '📎 メモ': 'bg-gray-50 text-gray-600',
+  '📋 まとめ': 'bg-blue-50 text-blue-700',
 }
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {

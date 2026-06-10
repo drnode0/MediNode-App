@@ -1,167 +1,293 @@
 'use client'
 import { useHits, Configure } from 'react-instantsearch'
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import {
+  createSearchClient,
+  getIndexName,
+  createSubscriptionSearchClient,
+  getSubscriptionIndexName,
+  hasSubscriptionConfig,
+} from '@/lib/algolia'
 import { ResultCard, type Hit } from './ResultCard'
 
-// ジャンルを系統別グループに分類
-const GENRE_GROUPS = [
-  {
-    label: '🫀 循環・血液',
-    color: 'bg-red-50 border-red-200 text-red-700',
-    activeColor: 'bg-red-600 text-white',
-    genres: ['05.循環', '11.血液凝固線溶系', '22.輸液・輸血・水電解質'],
-  },
-  {
-    label: '🫁 呼吸器',
-    color: 'bg-blue-50 border-blue-200 text-blue-700',
-    activeColor: 'bg-blue-600 text-white',
-    genres: ['04.呼吸'],
-  },
-  {
-    label: '🧠 神経・精神',
-    color: 'bg-purple-50 border-purple-200 text-purple-700',
-    activeColor: 'bg-purple-600 text-white',
-    genres: ['06.中枢神経'],
-  },
-  {
-    label: '🫘 腎・泌尿器',
-    color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
-    activeColor: 'bg-cyan-600 text-white',
-    genres: ['07.腎'],
-  },
-  {
-    label: '🫃 消化器',
-    color: 'bg-orange-50 border-orange-200 text-orange-700',
-    activeColor: 'bg-orange-600 text-white',
-    genres: ['08.肝・胆道系', '09.膵', '10.消化管・その他腹部'],
-  },
-  {
-    label: '🦠 感染症',
-    color: 'bg-green-50 border-green-200 text-green-700',
-    activeColor: 'bg-green-600 text-white',
-    genres: ['13.感染症'],
-  },
-  {
-    label: '⚡ 救急・外傷',
-    color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-    activeColor: 'bg-yellow-600 text-white',
-    genres: ['03.救急蘇生', '15.外傷・整形', '16.熱傷', '17.急性中毒', '18.体温異常', '28.災害'],
-  },
-  {
-    label: '💊 薬剤・代謝',
-    color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-    activeColor: 'bg-indigo-600 text-white',
-    genres: ['12.代謝内分泌', '27.薬剤', '14.多臓器障害'],
-  },
-  {
-    label: '🍼 特殊患者',
-    color: 'bg-pink-50 border-pink-200 text-pink-700',
-    activeColor: 'bg-pink-600 text-white',
-    genres: ['19.妊産婦', '20.小児', '21.移植'],
-  },
-  {
-    label: '🔧 手技・栄養',
-    color: 'bg-gray-50 border-gray-200 text-gray-700',
-    activeColor: 'bg-gray-600 text-white',
-    genres: ['23.栄養', '24.画像診断', '26.手技'],
-  },
-  {
-    label: '📚 総論・その他',
-    color: 'bg-slate-50 border-slate-200 text-slate-700',
-    activeColor: 'bg-slate-600 text-white',
-    genres: ['01.総論', '02.医療倫理', '25.集中治療医', '29.学会', '30.統計・研究', '31.マイナー'],
-  },
-  {
-    label: '📥 INBOX',
-    color: 'bg-gray-50 border-gray-200 text-gray-500',
-    activeColor: 'bg-gray-500 text-white',
-    genres: ['INBOX'],
-  },
-]
+type Source = 'all' | 'personal' | 'subscription'
 
-function GenreGroupFilter({ onGroupSelect, selectedGroup }: {
-  onGroupSelect: (genres: string[] | null) => void
-  selectedGroup: string | null
+// 個人とサブスクのファセットを別々に持つ
+type FacetData = {
+  personal: Record<string, number>
+  subscription: Record<string, number>
+}
+
+// ハイブリッドソート: 番号付き(01.〜) → 番号なし(あいうえお順) → INBOX最後
+function hybridSort(a: string, b: string): number {
+  if (a === 'INBOX') return 1
+  if (b === 'INBOX') return -1
+  const mA = a.match(/^(\d+)\./)
+  const mB = b.match(/^(\d+)\./)
+  if (mA && mB) {
+    const diff = parseInt(mA[1], 10) - parseInt(mB[1], 10)
+    if (diff !== 0) return diff
+    return a.localeCompare(b, 'ja')
+  }
+  if (mA) return -1
+  if (mB) return 1
+  return a.localeCompare(b, 'ja')
+}
+
+// 番号プレフィックスを除いた表示名
+function displayGenreName(g: string): string {
+  return g.replace(/^\d+\./, '')
+}
+
+function GenreList({ onGenreSelect, selectedGenre }: {
+  onGenreSelect: (genre: string | null) => void
+  selectedGenre: string | null
 }) {
+  const [facetData, setFacetData] = useState<FacetData>({ personal: {}, subscription: {} })
+  const [loading, setLoading] = useState(true)
+  const subEnabled = hasSubscriptionConfig()
+
+  useEffect(() => {
+    let cancelled = false
+    const tasks: Promise<{ source: 'personal' | 'subscription'; facets: Record<string, number> }>[] = []
+
+    // 個人
+    tasks.push(
+      createSearchClient()
+        .initIndex(getIndexName())
+        .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+        .then((res) => {
+          const f = (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {}
+          return { source: 'personal' as const, facets: f }
+        })
+        .catch(() => ({ source: 'personal' as const, facets: {} })),
+    )
+
+    // サブスク（設定あれば）
+    if (subEnabled) {
+      tasks.push(
+        createSubscriptionSearchClient()
+          .initIndex(getSubscriptionIndexName())
+          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+          .then((res) => {
+            const f = (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {}
+            return { source: 'subscription' as const, facets: f }
+          })
+          .catch(() => ({ source: 'subscription' as const, facets: {} })),
+      )
+    }
+
+    Promise.all(tasks).then((results) => {
+      if (cancelled) return
+      const next: FacetData = { personal: {}, subscription: {} }
+      for (const r of results) {
+        next[r.source] = r.facets
+      }
+      setFacetData(next)
+      setLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [subEnabled])
+
+  // マージしたジャンル一覧
+  const sortedGenres = useMemo(() => {
+    const all = new Set<string>([
+      ...Object.keys(facetData.personal),
+      ...Object.keys(facetData.subscription),
+    ])
+    return Array.from(all).sort(hybridSort)
+  }, [facetData])
+
+  if (loading) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        <p className="text-sm">読み込み中...</p>
+      </div>
+    )
+  }
+
+  if (sortedGenres.length === 0) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 leading-relaxed">
+        <p className="font-medium mb-2">💡 ジャンルを使ってみよう</p>
+        <p className="text-blue-700">
+          Notion側の「ジャンル」プロパティにオプションを追加すると、ここに一覧表示されます。
+        </p>
+        <p className="text-blue-700 mt-2">
+          オプション名の先頭を <span className="font-mono bg-white px-1.5 py-0.5 rounded">01.総論</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded">05.循環</span> のように
+          <strong className="font-semibold">2桁数字＋ピリオド</strong>で始めると、アプリ内でも同じ順番に並びます。
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-2 gap-2 mb-4">
-      {GENRE_GROUPS.map((group) => (
-        <button
-          key={group.label}
-          onClick={() => {
-            if (selectedGroup === group.label) {
-              onGroupSelect(null)
-            } else {
-              onGroupSelect(group.genres)
-            }
-          }}
-          className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-            selectedGroup === group.label
-              ? group.activeColor + ' border-transparent shadow-sm'
-              : group.color + ' hover:shadow-sm'
-          }`}
-        >
-          {group.label}
-        </button>
-      ))}
+      {sortedGenres.map((genre) => {
+        const personalCount = facetData.personal[genre] || 0
+        const subCount = facetData.subscription[genre] || 0
+        const total = personalCount + subCount
+        const hasSub = subCount > 0
+        const isActive = selectedGenre === genre
+        return (
+          <button
+            key={genre}
+            onClick={() => onGenreSelect(isActive ? null : genre)}
+            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
+              isActive
+                ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                : 'bg-white border-gray-200 text-gray-700 hover:shadow-sm hover:border-blue-300'
+            }`}
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate">{displayGenreName(genre)}</span>
+              {hasSub && (
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isActive ? 'bg-purple-200' : 'bg-purple-500'
+                  }`}
+                  title="プレミアムにもあります"
+                  aria-label="プレミアムにもあります"
+                />
+              )}
+            </span>
+            <span className={`text-xs shrink-0 ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>
+              {total}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
 
-function FilteredHits() {
+// 選択後の個人側ヒット取得（react-instantsearch経由）
+function PersonalHitsCollector({ onLoaded }: { onLoaded: (hits: Hit[]) => void }) {
   const { hits } = useHits()
-  if (hits.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-400">
-        <p>このジャンルにはまだエントリがありません</p>
-      </div>
-    )
-  }
+  useEffect(() => {
+    onLoaded(hits as unknown as Hit[])
+  }, [hits, onLoaded])
+  return null
+}
+
+function SelectedGenreView({ genre, onClear }: {
+  genre: string
+  onClear: () => void
+}) {
+  const subEnabled = hasSubscriptionConfig()
+  const [source, setSource] = useState<Source>('all')
+  const [personalHits, setPersonalHits] = useState<Hit[]>([])
+  const [subHits, setSubHits] = useState<Hit[]>([])
+  const [subLoading, setSubLoading] = useState(subEnabled)
+
+  // サブスクは直接Algoliaから取得
+  useEffect(() => {
+    if (!subEnabled) {
+      setSubHits([])
+      setSubLoading(false)
+      return
+    }
+    let cancelled = false
+    setSubLoading(true)
+    createSubscriptionSearchClient()
+      .initIndex(getSubscriptionIndexName())
+      .search('', { filters: `genre:"${genre}"`, hitsPerPage: 50 })
+      .then((res) => {
+        if (cancelled) return
+        const hits = (res as unknown as { hits: Hit[] }).hits || []
+        setSubHits(hits.map((h) => ({ ...h, owner: 'subscription' as const })))
+        setSubLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSubLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [genre, subEnabled])
+
+  const displayedHits = useMemo(() => {
+    if (source === 'personal') return personalHits
+    if (source === 'subscription') return subHits
+    // all: 個人 → サブスクの順に並べる（個人優先）
+    const seen = new Set<string>()
+    const merged: Hit[] = []
+    for (const h of personalHits) {
+      if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) }
+    }
+    for (const h of subHits) {
+      if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) }
+    }
+    return merged
+  }, [source, personalHits, subHits])
+
   return (
-    <div className="space-y-3">
-      {hits.map((hit) => (
-        <ResultCard key={hit.objectID} hit={hit as unknown as Hit} />
-      ))}
-    </div>
+    <>
+      {/* 個人側はreact-instantsearch経由で取得 */}
+      <Configure filters={`genre:"${genre}"`} hitsPerPage={50} />
+      <PersonalHitsCollector onLoaded={setPersonalHits} />
+
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <p className="text-sm font-medium text-gray-700 truncate">{displayGenreName(genre)}</p>
+        <button
+          onClick={onClear}
+          className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
+        >
+          ✕ 解除
+        </button>
+      </div>
+
+      {/* ソース切替トグル（サブスク設定ありのときのみ） */}
+      {subEnabled && (
+        <div className="flex gap-1 mb-3 p-1 bg-gray-100 rounded-lg">
+          {([
+            { value: 'all' as Source, label: `全て (${personalHits.length + subHits.length})` },
+            { value: 'personal' as Source, label: `個人 (${personalHits.length})` },
+            { value: 'subscription' as Source, label: `プレミアム (${subHits.length})` },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setSource(opt.value)}
+              className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all ${
+                source === opt.value
+                  ? 'bg-white text-gray-800 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {subLoading && source !== 'personal' && (
+        <p className="text-xs text-gray-400 mb-2">プレミアム読み込み中...</p>
+      )}
+
+      {displayedHits.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">
+          <p>このジャンルにはまだエントリがありません</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {displayedHits.map((hit) => (
+            <ResultCard key={hit.objectID} hit={hit} />
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
 export function GenreBrowse() {
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
-  const [filterGenres, setFilterGenres] = useState<string[] | null>(null)
-
-  const handleGroupSelect = (genres: string[] | null) => {
-    const group = genres ? GENRE_GROUPS.find((g) => g.genres === genres)?.label ?? null : null
-    setSelectedGroup(group)
-    setFilterGenres(genres)
-  }
-
-  // Algoliaのfilters文字列を構築
-  const filtersStr = filterGenres
-    ? filterGenres.map((g) => `genre:"${g}"`).join(' OR ')
-    : ''
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
 
   return (
     <div>
-      <GenreGroupFilter onGroupSelect={handleGroupSelect} selectedGroup={selectedGroup} />
-      {selectedGroup && (
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium text-gray-700">{selectedGroup}</p>
-          <button
-            onClick={() => handleGroupSelect(null)}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            ✕ 解除
-          </button>
-        </div>
-      )}
-      <Configure filters={filtersStr} hitsPerPage={50} />
-      {selectedGroup ? (
-        <FilteredHits />
+      {selectedGenre ? (
+        <SelectedGenreView genre={selectedGenre} onClear={() => setSelectedGenre(null)} />
       ) : (
-        <div className="text-center py-8 text-gray-400">
-          <p className="text-sm">カテゴリを選択してください</p>
-        </div>
+        <GenreList onGenreSelect={setSelectedGenre} selectedGenre={selectedGenre} />
       )}
     </div>
   )

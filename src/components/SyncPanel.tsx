@@ -54,7 +54,7 @@ export function SyncPanel() {
           msg.includes('401')
         ) {
           setError(
-            'Notion Integration Tokenが無効です。\n' +
+            'Notionコネクト（旧称: Integration）のTokenが無効です。\n' +
             '【対処法】⚙️設定から「Notion設定」に戻り、\n' +
             'notion.so/my-integrations でTokenを再コピーして入力し直してください。'
           )
@@ -68,7 +68,7 @@ export function SyncPanel() {
           setError(
             'Notionのアクセス権がありません。\n' +
             '【対処法】NotionでDBページを開き、\n' +
-            '右上「…」→「接続先に追加」→ Integrationを接続してから再度同期してください。'
+            '右上「…」→「コネクトを追加」→ 作成したコネクトを接続してから再度同期してください。'
           )
         } else if (
           msg.startsWith('[Algolia]') ||
