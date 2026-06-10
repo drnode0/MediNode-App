@@ -345,11 +345,31 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
       <div className="space-y-4 text-sm">
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🏥 部署用DB</p>
-          <p className="text-xs text-gray-600 dark:text-gray-300">職場の共有NotionDBを接続して、個人DBと統合検索できます。別のコネクトTokenとDB IDが必要です。</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+            病院・医局・研究室など、職場のメンバー全員で共有しているNotion DBを追加で接続できます。
+            個人DBと並べて統合検索でき、自分のノートと組織のナレッジを横断できます。
+          </p>
+          <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mt-2">
+            セットアップは <strong>代表者が一度だけ</strong> 行います。
+            代表者が部署用Notionで作成したコネクト（旧称: Integration）を共有Medical DBに接続し、
+            発行されたTokenとDB IDをメンバーに渡してください。
+            各メンバーは受け取ったToken / DB IDを入力するだけでOKです。
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            ※個人DBとは独立して管理されるので、同期が混ざることはありません。
+          </p>
         </section>
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ プレミアム</p>
-          <p className="text-xs text-gray-600 dark:text-gray-300">作者から配布されたSearch-Only APIキーを入力します。Admin Keyは不要なため、データを書き換えられるリスクはありません。</p>
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
+            <p className="text-xs text-purple-800 dark:text-purple-200 leading-relaxed">
+              現役集中治療医が<strong>定期的に更新するナレッジ＋参考文献</strong>を閲覧できます。
+              救急・集中治療領域を中心に、現場で使える知識を継続的にアップデート。
+            </p>
+            <p className="text-xs text-purple-600 dark:text-purple-300 mt-2 leading-relaxed">
+              ＊将来的に「臨床疑問への回答」機能も検討しています（提供時期未定）。
+            </p>
+          </div>
         </section>
       </div>
     ),
