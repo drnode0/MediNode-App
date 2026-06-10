@@ -1,9 +1,30 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-09（第4セッション）
+**最終更新**: 2026-06-10（第5セッション・Stripe課金フロー実装）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
+**GitHubリポジトリ**: `drnode0/medical-search-template`（Vercel自動デプロイ接続済み・`main`ブランチ）
+
+---
+
+## 🚀 次セッション開始用プロンプト（そのままコピペ）
+
+```
+MediNodeという医療知識管理アプリの開発を続けます。
+プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
+まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
+
+前回（第5セッション）でStripe月額サブスク課金フローの実装・デプロイ・
+Vercel環境変数設定・GitHub自動デプロイ接続まで完了しています。
+
+今日やりたいこと：
+- （ここに今日のタスクを書く。例：「Stripe決済フローをテストカードで実機確認したい」
+   または「有料noteの本文ドラフトを書きたい」など）
+```
+
+**デプロイの仕組み（第5セッションで確立）**: `git push origin main` すると
+`drnode0/medical-search-template` 経由でVercelが自動デプロイする。手動デプロイは不要。
 
 ---
 
@@ -274,11 +295,48 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
 20. **全変更ファイル一括コミット＆Vercelデプロイ** — 23ファイル変更（1634行追加・295行削除）をコミット。`git push origin main` 完了 → Vercel自動デプロイ完了。
 21. **Reference DBサンプル件数を7件に更新** — Notionページ記載をユーザーが更新済み。
 
+### 第5セッション（2026-06-10）完了作業 — Stripe課金フロー実装
+
+22. **Stripe月額サブスク課金フロー実装（コミット `fb711b8`）** — Supabase不要、Stripe + Vercel API Routeのみで完結するシンプルな課金導線。3つのAPIエンドポイント新規作成：
+    - `src/app/api/premium/checkout/route.ts` — Stripe Checkout Session作成。`success_url`に`?premium_session={CHECKOUT_SESSION_ID}`を付与
+    - `src/app/api/premium/verify/route.ts` — 決済後のsession_idを受け取りsubscription statusを確認。アクティブなら`SUBSCRIPTION_ALGOLIA_*`キーを返す
+    - `src/app/api/premium/webhook/route.ts` — Stripe Webhook受信・署名検証。`subscription.deleted`/`updated`/`invoice.payment_failed`を処理（Phase 1はconsole.logのみ。Phase 2でDB書き込み予定）
+23. **page.tsx に決済完了処理を追加** — `?premium_session=`URLパラメータを検知し、`/api/premium/verify`でキー取得→`saveSettings()`でlocalStorageに自動保存→リロード。認証中はフルスクリーンオーバーレイ表示
+24. **SubscriptionPromoPanel / SetupWizardに購入導線を追加** — 実際のStripe Checkout呼び出しボタン（`PremiumCheckoutButton`）。登録済みなら✅表示＋解除ボタン、未登録なら購入ボタン＋手動入力フォールバック
+25. **stripe@22.2.0 を依存追加** — v22では`Subscription.current_period_end`と`Invoice.subscription`プロパティが削除されている点に注意（ビルドエラーの原因になった。該当行は削除済み）
+26. **Stripeダッシュボード設定（テストモード/サンドボックス）** — 商品「MediNode プレミアム ¥980/月」作成。Price ID・Secret Key・Webhook Secret取得済み。Webhookエンドポイント `https://medical-search-public.vercel.app/api/premium/webhook` 登録済み
+27. **Vercel環境変数を設定** — `STRIPE_SECRET_KEY`/`STRIPE_PRICE_ID`/`STRIPE_WEBHOOK_SECRET`/`NEXT_PUBLIC_APP_URL` を本番・プレビューに追加済み。再デプロイ後、`/api/premium/checkout`が本物のStripe決済URLを返すことを確認済み（動作確認OK）
+28. **Vercel自動デプロイの修復** — `medical-search-public`プロジェクトがGitリポジトリ未接続だったため、今日のコミットが自動デプロイされていなかった。`drnode0/medical-search-template`の`main`ブランチを接続。空コミットpushで`git-main`URLの自動デプロイがトリガーされることを実証。**今後は`git push origin main`で自動デプロイされる**
+29. **lib/algolia.ts のサブスク設定をハードコードに変更** — `PREMIUM_INDEX_NAME = 'Medical Knowledge_DB（サブスク用）'` を固定。インデックス名は作者管理なのでコードに直書き（変更時はここを書き換えて再デプロイ）
+30. **GenreBrowse.tsx にソース切替トグル追加** — サブスク設定ありのとき「全て/個人/プレミアム」を切り替え。ジャンルに紫ドットでプレミアム該当を表示
+
 ---
 
 ## 未完了タスク（次セッションで対応が必要）
 
 ### 🔴 優先度高
+
+#### 0. Stripe本番化 + 決済フロー実機テスト（第5セッションの続き）
+
+Stripe課金フローの**実装・デプロイ・環境変数設定は完了済み**。残りは本番化と動作確認のみ：
+
+1. **テストカードで一連の決済フローを確認**
+   - アプリURL（https://medical-search-public.vercel.app）の購入ボタン → Stripe Checkout
+   - テストカード `4242 4242 4242 4242`（有効期限・CVCは任意の未来日付・3桁）で決済
+   - 決済後 `?premium_session=...` で戻り、`/api/premium/verify` がAlgoliaキーをlocalStorageに保存 → プレミアム検索が使えることを確認
+2. **サブスク用Algolia DBにデータ投入**
+   - `SUBSCRIPTION_ALGOLIA_APP_ID` / `SUBSCRIPTION_ALGOLIA_SEARCH_KEY` がVercelに設定済みか確認（`vercel env ls`）
+   - サブスク用Notion DB → `subscription_medical` インデックスへ `/api/subscription/sync` で同期（`SUBSCRIPTION_SYNC_SECRET` 必須）
+   - インデックス名は `lib/algolia.ts` の `PREMIUM_INDEX_NAME = 'Medical Knowledge_DB（サブスク用）'` と一致させる
+3. **テストモード → ライブモードへ切替（実課金開始時のみ）**
+   - StripeダッシュボードでライブモードのProduct/Price作成 → `STRIPE_SECRET_KEY` を `sk_live_...` に、`STRIPE_PRICE_ID` をライブのPrice IDに差し替え
+   - Webhookエンドポイントもライブモードで再登録 → `STRIPE_WEBHOOK_SECRET` 更新
+   - **注意**: ライブ化は実際に課金が走るので、note公開・集客の準備が整ってから
+
+**第5セッションで確認済みの認証情報（テストモード）**:
+- Price ID: `price_1TgmnCDZKrpUF6DafLwWHYr5`
+- Webhookエンドポイント: `https://medical-search-public.vercel.app/api/premium/webhook`
+- Vercel環境変数: `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_APP_URL` 設定済み
 
 #### 1. SetupWizardのテンプレートURL再差し替え（マーケットプレイス承認後）
 
