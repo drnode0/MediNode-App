@@ -10,7 +10,7 @@ import {
 } from '@/lib/algolia'
 import { ResultCard, type Hit } from './ResultCard'
 
-type Source = 'all' | 'personal' | 'subscription'
+type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
 // 個人とサブスクのファセットを別々に持つ
 type FacetData = {
@@ -39,9 +39,43 @@ function displayGenreName(g: string): string {
   return g.replace(/^\d+\./, '')
 }
 
-function GenreList({ onGenreSelect, selectedGenre }: {
+function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
+  owner: OwnerFilter
+  onChange: (v: OwnerFilter) => void
+  hasTeam: boolean
+  hasSubscription: boolean
+}) {
+  const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
+    { id: 'all', label: '全て' },
+    { id: 'personal', label: '個人' },
+    { id: 'team', label: '部署', inactive: !hasTeam },
+    { id: 'subscription', label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
+  ]
+  return (
+    <div className="flex gap-1 mb-3 flex-wrap">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+            owner === o.id
+              ? 'bg-blue-600 text-white'
+              : o.inactive
+                ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function GenreList({ onGenreSelect, selectedGenre, owner }: {
   onGenreSelect: (genre: string | null) => void
   selectedGenre: string | null
+  owner: OwnerFilter
 }) {
   const [facetData, setFacetData] = useState<FacetData>({ personal: {}, subscription: {} })
   const [loading, setLoading] = useState(true)
@@ -90,14 +124,18 @@ function GenreList({ onGenreSelect, selectedGenre }: {
     return () => { cancelled = true }
   }, [subEnabled])
 
-  // マージしたジャンル一覧
+  // ownerFilterに応じてジャンル一覧をフィルタ
   const sortedGenres = useMemo(() => {
-    const all = new Set<string>([
-      ...Object.keys(facetData.personal),
-      ...Object.keys(facetData.subscription),
-    ])
-    return Array.from(all).sort(hybridSort)
-  }, [facetData])
+    let genres: Set<string>
+    if (owner === 'subscription') {
+      genres = new Set(Object.keys(facetData.subscription))
+    } else if (owner === 'personal' || owner === 'team') {
+      genres = new Set(Object.keys(facetData.personal))
+    } else {
+      genres = new Set([...Object.keys(facetData.personal), ...Object.keys(facetData.subscription)])
+    }
+    return Array.from(genres).sort(hybridSort)
+  }, [facetData, owner])
 
   if (loading) {
     return (
@@ -127,8 +165,8 @@ function GenreList({ onGenreSelect, selectedGenre }: {
       {sortedGenres.map((genre) => {
         const personalCount = facetData.personal[genre] || 0
         const subCount = facetData.subscription[genre] || 0
-        const total = personalCount + subCount
-        const hasSub = subCount > 0
+        const total = owner === 'subscription' ? subCount : owner === 'personal' || owner === 'team' ? personalCount : personalCount + subCount
+        const hasSub = subCount > 0 && owner !== 'personal' && owner !== 'team'
         const isActive = selectedGenre === genre
         return (
           <button
@@ -171,12 +209,12 @@ function PersonalHitsCollector({ onLoaded }: { onLoaded: (hits: Hit[]) => void }
   return null
 }
 
-function SelectedGenreView({ genre, onClear }: {
+function SelectedGenreView({ genre, onClear, owner }: {
   genre: string
   onClear: () => void
+  owner: OwnerFilter
 }) {
   const subEnabled = hasSubscriptionConfig()
-  const [source, setSource] = useState<Source>('all')
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   const [subHits, setSubHits] = useState<Hit[]>([])
   const [subLoading, setSubLoading] = useState(subEnabled)
@@ -206,9 +244,11 @@ function SelectedGenreView({ genre, onClear }: {
     return () => { cancelled = true }
   }, [genre, subEnabled])
 
+  // ownerFilterに基づいてヒットをマージ
   const displayedHits = useMemo(() => {
-    if (source === 'personal') return personalHits
-    if (source === 'subscription') return subHits
+    if (owner === 'subscription') return subHits
+    if (owner === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
+    if (owner === 'team') return personalHits.filter((h) => h.owner === 'team')
     // all: 個人 → サブスクの順に並べる（個人優先）
     const seen = new Set<string>()
     const merged: Hit[] = []
@@ -219,12 +259,21 @@ function SelectedGenreView({ genre, onClear }: {
       if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) }
     }
     return merged
-  }, [source, personalHits, subHits])
+  }, [owner, personalHits, subHits])
+
+  // 個人側フィルタ: ownerに応じて絞る
+  const personalFilter = owner === 'subscription'
+    ? 'owner:__none__'
+    : owner === 'personal'
+      ? `genre:"${genre}" AND (owner:personal OR NOT _exists_:owner)`
+      : owner === 'team'
+        ? `genre:"${genre}" AND owner:team`
+        : `genre:"${genre}"`
 
   return (
     <>
       {/* 個人側はreact-instantsearch経由で取得 */}
-      <Configure filters={`genre:"${genre}"`} hitsPerPage={50} />
+      <Configure filters={personalFilter} hitsPerPage={50} />
       <PersonalHitsCollector onLoaded={setPersonalHits} />
 
       <div className="flex items-center justify-between mb-3 gap-2">
@@ -237,30 +286,7 @@ function SelectedGenreView({ genre, onClear }: {
         </button>
       </div>
 
-      {/* ソース切替トグル（サブスク設定ありのときのみ） */}
-      {subEnabled && (
-        <div className="flex gap-1 mb-3 p-1 bg-gray-100 rounded-lg">
-          {([
-            { value: 'all' as Source, label: `全て (${personalHits.length + subHits.length})` },
-            { value: 'personal' as Source, label: `個人 (${personalHits.length})` },
-            { value: 'subscription' as Source, label: `プレミアム (${subHits.length})` },
-          ]).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setSource(opt.value)}
-              className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all ${
-                source === opt.value
-                  ? 'bg-white text-gray-800 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {subLoading && source !== 'personal' && (
+      {subLoading && owner !== 'personal' && owner !== 'team' && (
         <p className="text-xs text-gray-400 mb-2">プレミアム読み込み中...</p>
       )}
 
@@ -279,15 +305,19 @@ function SelectedGenreView({ genre, onClear }: {
   )
 }
 
-export function GenreBrowse() {
+export function GenreBrowse({ hasTeam = false, hasSubscription = false }: { hasTeam?: boolean; hasSubscription?: boolean }) {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
+  const [owner, setOwner] = useState<OwnerFilter>('all')
 
   return (
     <div>
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-1">
+        <GenreOwnerFilterTabs owner={owner} onChange={(v) => { setOwner(v); setSelectedGenre(null) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+      </div>
       {selectedGenre ? (
-        <SelectedGenreView genre={selectedGenre} onClear={() => setSelectedGenre(null)} />
+        <SelectedGenreView genre={selectedGenre} onClear={() => setSelectedGenre(null)} owner={owner} />
       ) : (
-        <GenreList onGenreSelect={setSelectedGenre} selectedGenre={selectedGenre} />
+        <GenreList onGenreSelect={setSelectedGenre} selectedGenre={selectedGenre} owner={owner} />
       )}
     </div>
   )

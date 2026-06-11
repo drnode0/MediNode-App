@@ -437,6 +437,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     teamLabel: '',
     teamNotionToken: '',
     teamNotionMedicalDbId: '',
+    teamNotionReferenceDbId: '',
     subscriptionSearchKey: '',
     subscriptionAppId: '',
     subscriptionIndex: '',
@@ -466,7 +467,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   }, [])
 
   const update = (key: keyof AppSettings, value: string) => {
-    const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'teamNotionMedicalDbId']
+    const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'teamNotionMedicalDbId', 'teamNotionReferenceDbId']
     const processed = dbIdKeys.includes(key) ? extractNotionDbId(value) : value
     const next = { ...form, [key]: processed }
     setForm(next)
@@ -1457,6 +1458,21 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                       />
                       {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
+                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        部署用 Reference DB（任意・URLまたはID）
+                      </label>
+                      <input
+                        type="text"
+                        value={form.teamNotionReferenceDbId}
+                        onChange={(e) => update('teamNotionReferenceDbId', e.target.value)}
+                        placeholder="https://www.notion.so/... またはID32桁"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.teamNotionReferenceDbId && form.teamNotionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
                       )}
                     </div>

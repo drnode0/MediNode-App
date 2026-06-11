@@ -21,6 +21,7 @@ export type AppSettings = {
   teamLabel: string
   teamNotionToken: string
   teamNotionMedicalDbId: string
+  teamNotionReferenceDbId: string
 
   // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string

@@ -315,31 +315,264 @@ function ReferenceHits({ sort }: { sort: RefSort }) {
   )
 }
 
-function ReferenceTab() {
+function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const [sort, setSort] = useState<RefSort>('year_desc')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
+  const [personalHits, setPersonalHits] = useState<Hit[]>([])
+
   const sortOptions: { value: RefSort; label: string }[] = [
     { value: 'year_desc', label: '年 (新しい順)' },
     { value: 'year_asc', label: '年 (古い順)' },
     { value: 'lastEdited', label: '更新日順' },
   ]
+
+  // 個人側フィルタ: source:reference + ownerFilter
+  const refOwnerFilter = ownerFilter === 'subscription'
+    ? 'owner:__none__'
+    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+  const refPersonalFilter = refOwnerFilter
+    ? `source:reference AND ${refOwnerFilter}`
+    : 'source:reference'
+
+  // サブスク側フィルタ: source:reference (プレミアム / all) or 無効化
+  useEffect(() => {
+    if (!ctx) return
+    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+      ctx.setSubFilters('owner:__none__')
+    } else {
+      ctx.setSubFilters('source:reference')
+    }
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const mergedHits = useMemo(() => {
+    if (ownerFilter === 'subscription') return subHits
+    if (ownerFilter === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
+    if (ownerFilter === 'team') return personalHits.filter((h) => h.owner === 'team')
+    const seen = new Set<string>()
+    const merged: Hit[] = []
+    for (const h of personalHits) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
+    for (const h of subHits) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
+    return merged
+  }, [ownerFilter, personalHits, subHits])
+
+  const sorted = [...mergedHits].sort((a, b) => {
+    if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
+    if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
+    return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
+  })
+
   return (
     <>
-      <Configure hitsPerPage={200} filters="source:reference" />
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4 flex items-center gap-2">
-        <div className="flex-1">
-          <SearchBox />
+      <Configure hitsPerPage={200} filters={refPersonalFilter} />
+      <PersonalHitsCollector onHits={setPersonalHits} />
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex-1">
+            <SearchBox />
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as RefSort)}
+            className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0"
+          >
+            {sortOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as RefSort)}
-          className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0"
-        >
-          {sortOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
-      <ReferenceHits sort={sort} />
+      {ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+          <p className="text-lg">該当なし</p>
+          <p className="text-sm mt-1">別のキーワードで試してください</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sorted.map((hit) => (
+            <ResultCard key={hit.objectID} hit={hit} />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
+  const [personalHits, setPersonalHits] = useState<Hit[]>([])
+
+  const personalFilter = ownerFilter === 'subscription'
+    ? 'owner:__none__'
+    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+
+  useEffect(() => {
+    if (!ctx) return
+    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+      ctx.setSubFilters('owner:__none__')
+    } else {
+      ctx.setSubFilters('')
+    }
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter), [ownerFilter, personalHits, subHits])
+  const now = new Date()
+  const groups: { label: string; hits: Hit[] }[] = [
+    { label: '今日', hits: [] },
+    { label: '今週', hits: [] },
+    { label: '今月', hits: [] },
+    { label: 'それ以前', hits: [] },
+  ]
+  for (const hit of mergedHits) {
+    const d = new Date(hit.createdAt || hit.lastEdited)
+    const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
+    if (diffDays < 1) groups[0].hits.push(hit)
+    else if (diffDays < 7) groups[1].hits.push(hit)
+    else if (diffDays < 30) groups[2].hits.push(hit)
+    else groups[3].hits.push(hit)
+  }
+
+  return (
+    <>
+      <Configure hitsPerPage={300} filters={personalFilter || undefined} />
+      <PersonalHitsCollector onHits={setPersonalHits} />
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+      </div>
+      {ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
+      ) : mergedHits.length === 0 ? (
+        <div className="text-center py-14 px-4">
+          <div className="text-5xl mb-4">📭</div>
+          <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">画面下の「🔄 再同期」からデータを取り込んでください</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.filter((g) => g.hits.length > 0).map((group) => (
+            <div key={group.label}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{group.label}</span>
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                <span className="text-xs text-gray-300 dark:text-gray-600">{group.hits.length}件</span>
+              </div>
+              <div className="space-y-3">
+                {group.hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
+  const [personalHits, setPersonalHits] = useState<Hit[]>([])
+  const [shuffled, setShuffled] = useState<Hit[]>([])
+
+  const personalFilter = ownerFilter === 'subscription'
+    ? 'owner:__none__'
+    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+  const quizPersonalFilter = personalFilter
+    ? `source:medical AND ${personalFilter}`
+    : 'source:medical'
+
+  useEffect(() => {
+    if (!ctx) return
+    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+      ctx.setSubFilters('owner:__none__')
+    } else {
+      ctx.setSubFilters('source:medical')
+    }
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter), [ownerFilter, personalHits, subHits])
+
+  const quizCandidates = useMemo(() => mergedHits.filter((h) => {
+    const summaryText = ((h.aiSummary || '') + (h.summary || '')).trim()
+    const hasSummary = summaryText.length >= 10
+    const lvl = h.knowledgeLevel || ''
+    const isKnowledge = lvl.includes('💡') || lvl.includes('ナレッジ') || lvl.toLowerCase().includes('knowledge')
+    const titleStr = (h.title || '').trim()
+    const titleIsCQ = titleStr.startsWith('❓') || titleStr.includes('CQ：') || titleStr.includes('CQ:')
+    return hasSummary && isKnowledge && !titleIsCQ
+  }), [mergedHits])
+
+  useEffect(() => {
+    const arr = [...quizCandidates]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    setShuffled(arr.slice(0, 20))
+  }, [quizCandidates.length])
+
+  const hasAnyKnowledgeLevel = mergedHits.some((h) => h.knowledgeLevel && h.knowledgeLevel.trim())
+
+  return (
+    <>
+      <Configure hitsPerPage={200} filters={quizPersonalFilter} />
+      <PersonalHitsCollector onHits={setPersonalHits} />
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+      </div>
+      {ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
+      ) : quizCandidates.length === 0 ? (
+        <div className="text-center py-14 px-4 space-y-4">
+          <div className="text-5xl">🧠</div>
+          <div>
+            <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">知識レベルを「💡 ナレッジ」に設定し、要約を入れるとここに出題されます</p>
+          </div>
+          {!hasAnyKnowledgeLevel && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 クイズの使い方</p>
+              <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
+                <li>Notionで確認済みの知識ページを開く</li>
+                <li>「知識レベル」プロパティを <strong>💡 ナレッジ</strong> に設定</li>
+                <li>「要約」プロパティに結論を入力</li>
+                <li>アプリで再同期 → クイズに出題されます</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
+            <button
+              onClick={() => {
+                const arr = [...quizCandidates]
+                for (let i = arr.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [arr[i], arr[j]] = [arr[j], arr[i]]
+                }
+                setShuffled(arr.slice(0, 20))
+              }}
+              className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+            >
+              シャッフル
+            </button>
+          </div>
+          <div className="space-y-3">
+            {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -1526,7 +1759,7 @@ export default function Home() {
             searchMode: 'algolia' as const,
             notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
             algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-            teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '',
+            teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '',
             subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
             propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
           }
@@ -1752,28 +1985,19 @@ export default function Home() {
   const dynamicIndexName = settings?.algoliaIndex || getIndexName()
 
   return (
-    <SubscriptionSearchProvider enableBridge={tab === 'search'}>
+    <SubscriptionSearchProvider enableBridge={true}>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-4">
           {tab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'recent' && (
-            <>
-              <Configure hitsPerPage={300} />
-              <RecentHits />
-            </>
+            <RecentTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
-          {tab === 'browse' && <GenreBrowse />}
-          {tab === 'reference' && <ReferenceTab />}
+          {tab === 'browse' && <GenreBrowse hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'reference' && <ReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'quiz' && (
-            <>
-              <Configure
-                hitsPerPage={200}
-                filters='source:medical'
-              />
-              <QuizHits />
-            </>
+            <QuizTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
         </div>
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-t border-gray-100 dark:border-gray-700 mt-4">
