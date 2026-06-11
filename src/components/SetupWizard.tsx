@@ -172,9 +172,9 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>
               次の項目を入力:
               <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5 text-gray-500 dark:text-gray-400">
-                <li><strong>名前</strong>: 任意（例: MediNode）</li>
-                <li><strong>関連ワークスペース</strong>: 連携したいワークスペースを選択</li>
+                <li><strong>コネクト名</strong>: 任意（例: MediNode）</li>
                 <li><strong>認証方法</strong>: <strong>「ユーザー機能なし」</strong> を選択</li>
+                <li><strong>インストール可能なワークスペース</strong>: 連携したいワークスペースを選択</li>
               </ul>
             </li>
             <li>「<strong>保存</strong>」をクリック</li>
