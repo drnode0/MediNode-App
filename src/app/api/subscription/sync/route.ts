@@ -6,7 +6,7 @@ import algoliasearch from 'algoliasearch'
  * サブスクリプション用 sync API
  *
  * 環境変数から認証情報を取得して、サブスク用Notion DBの内容を
- * subscription_medical Algoliaインデックスへ同期する。
+ * サブスク用 Algoliaインデックス（既定: Medical Knowledge_DB（サブスク用））へ同期する。
  *
  * 認証:
  *   - x-sync-secret ヘッダー or ?secret=xxx クエリで SUBSCRIPTION_SYNC_SECRET と一致確認
@@ -18,7 +18,7 @@ import algoliasearch from 'algoliasearch'
  *   - SUBSCRIPTION_REFERENCE_DB_ID (任意)
  *   - SUBSCRIPTION_ALGOLIA_APP_ID
  *   - SUBSCRIPTION_ALGOLIA_ADMIN_KEY
- *   - SUBSCRIPTION_ALGOLIA_INDEX (デフォルト: subscription_medical)
+ *   - SUBSCRIPTION_ALGOLIA_INDEX (デフォルト: Medical Knowledge_DB（サブスク用）／検索側と一致必須)
  *   - SUBSCRIPTION_SYNC_SECRET (これがないと401が返る)
  */
 
@@ -194,7 +194,10 @@ export async function POST(req: NextRequest) {
     const referenceDbId = process.env.SUBSCRIPTION_REFERENCE_DB_ID
     const algoliaAppId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
     const algoliaAdminKey = process.env.SUBSCRIPTION_ALGOLIA_ADMIN_KEY
-    const algoliaIndex = process.env.SUBSCRIPTION_ALGOLIA_INDEX || 'subscription_medical'
+    // 既定のインデックス名は検索側（lib/algolia.ts の PREMIUM_INDEX_NAME）および
+    // premium/verify と一致させる。ここがズレると「同期はされるのに検索で0件
+    // （データがありません）」になるため、必ず同じ値にすること。
+    const algoliaIndex = process.env.SUBSCRIPTION_ALGOLIA_INDEX || 'Medical Knowledge_DB（サブスク用）'
 
     // 必須環境変数チェック
     const missing: string[] = []
