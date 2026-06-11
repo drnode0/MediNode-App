@@ -4,7 +4,13 @@ import { getSettings, saveLastSynced, getLastSynced, formatLastSynced } from '@/
 
 export function SyncPanel() {
   const [syncing, setSyncing] = useState(false)
-  const [result, setResult] = useState<{ total: number; medical: number; reference: number } | null>(null)
+  const [result, setResult] = useState<{
+    total: number
+    medical: number
+    reference: number
+    detail?: { personalMedical: number; personalReference: number; teamMedical: number; teamReference: number }
+  } | null>(null)
+  const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [lastSynced, setLastSynced] = useState<string | null>(null)
@@ -19,6 +25,7 @@ export function SyncPanel() {
     setSyncing(true)
     setError('')
     setResult(null)
+    setWarnings([])
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
@@ -92,6 +99,7 @@ export function SyncPanel() {
         return
       }
       setResult(data.synced)
+      setWarnings(data.warnings || [])
       saveLastSynced()
       setLastSynced(new Date().toISOString())
     } catch {
@@ -127,11 +135,27 @@ export function SyncPanel() {
           )}
 
           {result ? (
-            <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center">
-              <p className="font-semibold">✅ 同期完了！</p>
-              <p className="text-xs mt-1">
-                合計 {result.total} 件（医療知識: {result.medical} 件{result.reference > 0 ? ` / 参考文献: ${result.reference} 件` : ''}）
-              </p>
+            <div className="space-y-2">
+              <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center">
+                <p className="font-semibold">✅ 同期完了！</p>
+                <p className="text-xs mt-1">
+                  合計 {result.total} 件（医療知識: {result.medical} 件{result.reference > 0 ? ` / 参考文献: ${result.reference} 件` : ''}）
+                </p>
+                {result.detail && (result.detail.teamMedical > 0 || result.detail.teamReference > 0) && (
+                  <p className="text-xs mt-1 text-green-600 dark:text-green-500">
+                    個人: 知識{result.detail.personalMedical}件 / 文献{result.detail.personalReference}件
+                    部署: 知識{result.detail.teamMedical}件 / 文献{result.detail.teamReference}件
+                  </p>
+                )}
+              </div>
+              {warnings.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-400">
+                  <p className="font-semibold mb-1">⚠️ 部分的なエラー</p>
+                  {warnings.map((w, i) => (
+                    <p key={i}>{w}</p>
+                  ))}
+                </div>
+              )}
             </div>
           ) : error ? (
             <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">

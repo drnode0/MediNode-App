@@ -238,26 +238,40 @@ export async function POST(req: NextRequest) {
     const index = algolia.initIndex(algoliaIndex || 'medical_knowledge')
 
     const records: Record<string, unknown>[] = []
-    let syncedMedical = 0
-    let syncedReference = 0
+    let syncedPersonalMedical = 0
+    let syncedPersonalReference = 0
+    let syncedTeamMedical = 0
+    let syncedTeamReference = 0
+    const warnings: string[] = []
 
     // 個人用 Medical DB の同期
-    syncedMedical += await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records, resolvedPropMap)
+    syncedPersonalMedical += await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records, resolvedPropMap)
 
     // 個人用 Reference DB の同期（任意）
     if (notionReferenceDbId) {
-      syncedReference += await syncReferenceDb(notion, notionReferenceDbId, 'personal', '', records, resolvedPropMap)
+      syncedPersonalReference += await syncReferenceDb(notion, notionReferenceDbId, 'personal', '', records, resolvedPropMap)
     }
 
     // 部署用 Medical DB の同期（任意）
     if (teamNotionToken && teamNotionMedicalDbId) {
       const teamNotion = new Client({ auth: teamNotionToken })
-      syncedMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+      try {
+        syncedTeamMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+      } catch (err) {
+        warnings.push(`部署用 Medical DB の同期に失敗: ${err instanceof Error ? err.message : String(err)}`)
+      }
       // 部署用 Reference DB の同期（任意）
       if (teamNotionReferenceDbId) {
-        syncedReference += await syncReferenceDb(teamNotion, teamNotionReferenceDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+        try {
+          syncedTeamReference += await syncReferenceDb(teamNotion, teamNotionReferenceDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+        } catch (err) {
+          warnings.push(`部署用 Reference DB の同期に失敗: ${err instanceof Error ? err.message : String(err)}`)
+        }
       }
     }
+
+    const syncedMedical = syncedPersonalMedical + syncedTeamMedical
+    const syncedReference = syncedPersonalReference + syncedTeamReference
 
     if (records.length > 0) {
       // 古い形式のレコードが残らないよう、同期前にインデックスをクリアしてから保存
@@ -286,7 +300,14 @@ export async function POST(req: NextRequest) {
         medical: syncedMedical,
         reference: syncedReference,
         total: records.length,
+        detail: {
+          personalMedical: syncedPersonalMedical,
+          personalReference: syncedPersonalReference,
+          teamMedical: syncedTeamMedical,
+          teamReference: syncedTeamReference,
+        },
       },
+      warnings,
     })
   } catch (err) {
     console.error('Sync error:', err)

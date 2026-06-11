@@ -1348,16 +1348,71 @@ function NotionReferenceTab() {
 // 設定パネル
 // ============================================================
 
+function PremiumCheckoutButtonInline() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={async () => {
+          setLoading(true); setError('')
+          try {
+            const res = await fetch('/api/premium/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+            const data = await res.json()
+            if (!res.ok || !data.url) { setError(data.error || '購入ページを開けませんでした'); return }
+            window.location.href = data.url
+          } catch { setError('ネットワークエラーが発生しました') }
+          finally { setLoading(false) }
+        }}
+        disabled={loading}
+        className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+      >
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+      </button>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  )
+}
+
 type SettingsPanelProps = {
   onClose: () => void
   onReset: () => void
   onRedo: () => void
-  onRedoOptions: () => void
+  onRedoFromNotion: () => void
   currentMode: string
 }
-function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }: SettingsPanelProps) {
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
+function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode }: SettingsPanelProps) {
+  type Section = null | 'notion' | 'team' | 'subscription' | 'help' | 'redo-confirm' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
+  const [section, setSection] = useState<Section>(null)
+
+  // セクション別編集フォーム
+  const s0 = getSettings()
+  const [notionForm, setNotionForm] = useState({
+    notionToken: s0?.notionToken || '',
+    notionMedicalDbId: s0?.notionMedicalDbId || '',
+    notionReferenceDbId: s0?.notionReferenceDbId || '',
+    algoliaAppId: s0?.algoliaAppId || '',
+    algoliaSearchKey: s0?.algoliaSearchKey || '',
+    algoliaAdminKey: s0?.algoliaAdminKey || '',
+    algoliaIndex: s0?.algoliaIndex || '',
+  })
+  const [teamForm, setTeamForm] = useState({
+    teamLabel: s0?.teamLabel || '',
+    teamNotionToken: s0?.teamNotionToken || '',
+    teamNotionMedicalDbId: s0?.teamNotionMedicalDbId || '',
+    teamNotionReferenceDbId: s0?.teamNotionReferenceDbId || '',
+  })
+  const [saveMsg, setSaveMsg] = useState('')
+
+  const saveSection = (patch: Partial<ReturnType<typeof getSettings>>) => {
+    const cur = getSettings()
+    if (!cur) return
+    saveSettings({ ...cur, ...patch } as Parameters<typeof saveSettings>[0])
+    setSaveMsg('保存しました')
+    setTimeout(() => setSaveMsg(''), 2000)
+  }
+
+  // ヘルプ用state
   const [propCheck, setPropCheck] = useState<null | {
     medical: { found: string[]; missing: string[] }
     reference?: { found: string[]; missing: string[] }
@@ -1464,206 +1519,40 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
     }
   }
 
+  const inputCls = 'w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300'
+  const labelCls = 'block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1'
+
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-2xl mx-auto">
-        <div className="flex justify-center pt-3 pb-1">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-2xl mx-auto max-h-[90vh] flex flex-col">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
 
-        <div className="px-5 pb-8 pt-2">
+        <div className="px-5 pb-8 pt-2 overflow-y-auto">
+          {/* ヘッダー */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white">⚙️ 設定</h2>
+            {section ? (
+              <button onClick={() => { setSection(null); setSaveMsg('') }} className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">← 戻る</button>
+            ) : (
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">⚙️ 設定</h2>
+            )}
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
               {currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}
             </span>
           </div>
 
-          {showHelp ? (
-            <div className="space-y-4">
-              <button onClick={() => setShowHelp(false)} className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">← 戻る</button>
-              <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[55vh] overflow-y-auto pr-1">
-                <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
-                  <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                    <p><strong>「API token is invalid」</strong></p>
-                    <p>→ コネクト（旧称: Integration）のTokenが間違っています。notion.so/my-integrations で「シークレット」を再コピーし、設定をやり直してください。</p>
-                    <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
-                    <p>→ DBにコネクトが接続されていません。NotionのDBページ右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。</p>
-                    {currentMode === 'algolia' && (
-                      <>
-                        <p className="mt-2"><strong>「Admin API Key エラー」</strong></p>
-                        <p>→ AlgoliaのAdmin API Keyが間違っています。Search API KeyではなくAdmin API Keyを使用してください。</p>
-                      </>
-                    )}
-                  </div>
-                </section>
-                <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
-                  <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300">
-                    <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
-                  </div>
-                </section>
-                <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔍 DBプロパティ確認</h3>
-                  <button
-                    onClick={handlePropCheck}
-                    disabled={propCheckLoading}
-                    className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                  >
-                    {propCheckLoading ? '確認中...' : '接続中のDBのプロパティを確認する'}
-                  </button>
-                  {propCheckError && (
-                    <p className="text-xs text-red-500 mt-2">{propCheckError}</p>
-                  )}
-                  {propCheck && (
-                    <div className="mt-3 space-y-3">
-                      {(['medical', 'reference'] as const).map((db) => {
-                        const r = propCheck[db]
-                        if (!r) return null
-                        const allOk = r.missing.length === 0
-                        return (
-                          <div key={db} className={`rounded-xl p-3 text-xs ${allOk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                            <p className={`font-semibold mb-1.5 ${allOk ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {db === 'medical' ? '🚑 Medical DB' : '📖 Reference DB'} — {allOk ? '✅ 全て一致' : '⚠️ 不一致あり'}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {r.found.map((p) => (
-                                <span key={p} className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">✓ {p}</span>
-                              ))}
-                              {r.missing.map((p) => (
-                                <span key={p} className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">✗ {p}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </section>
-                {currentMode === 'algolia' && (
-                  <section>
-                    <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 Search Key動作確認</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      このデバイスのSearch Keyで実際に検索できるか確認します。データが表示されない場合はまずここを確認してください。
-                    </p>
-                    <button
-                      onClick={handleSearchKeyCheck}
-                      disabled={searchKeyCheckLoading}
-                      className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                    >
-                      {searchKeyCheckLoading ? '確認中...' : 'Search Keyを確認する'}
-                    </button>
-                    {searchKeyCheck && (
-                      <div className={`mt-2 rounded-xl p-3 text-xs ${searchKeyCheck.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
-                        {searchKeyCheck.ok ? (
-                          <p>✅ Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p>
-                        ) : (
-                          <>
-                            <p className="font-semibold mb-1">❌ Search Keyが機能していません</p>
-                            <p className="mb-1">エラー: {searchKeyCheck.error}</p>
-                            <p>【対処法】⚙️設定 → 「設定を変更する」から Search API Key を再入力してください。</p>
-                            <p className="mt-1 text-xs opacity-75">Algolia Dashboard → Settings → API Keys → <strong>Search-Only API Key</strong> をコピーしてください（Admin Keyではありません）。</p>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                )}
-                {currentMode === 'algolia' && (
-                  <section>
-                    <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔬 Algoliaインデックス診断</h3>
-                    <button
-                      onClick={handleAlgoliaDebug}
-                      disabled={algoliaDebugLoading}
-                      className="w-full text-sm bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl py-2.5 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
-                    >
-                      {algoliaDebugLoading ? '取得中...' : 'インデックスの状態を確認する'}
-                    </button>
-                    {algoliaDebugError && (
-                      <p className="text-xs text-red-500 mt-2">{algoliaDebugError}</p>
-                    )}
-                    {algoliaDebug && (
-                      <div className="mt-3 space-y-2 text-xs">
-                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                          <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📊 総レコード数: {algoliaDebug.totalHits}件</p>
-                          <p className="text-gray-500 dark:text-gray-400">attributesForFaceting: {algoliaDebug.settings.attributesForFaceting?.join(', ') || '未設定'}</p>
-                        </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
-                          <p className="font-semibold text-blue-700 dark:text-blue-300 mb-1">💡 知識レベルの実際の値</p>
-                          {algoliaDebug.knowledgeLevelValues.length === 0 ? (
-                            <p className="text-red-500">値なし（再同期が必要）</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {algoliaDebug.knowledgeLevelValues.map((v) => (
-                                <span key={v} className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{v}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                          <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📋 サンプルレコード</p>
-                          {algoliaDebug.samples.slice(0, 3).map((s) => (
-                            <div key={s.objectID} className="text-gray-500 dark:text-gray-400 mb-1 border-b border-gray-100 dark:border-gray-700 pb-1">
-                              <p>タイトル: {String(s.title)}</p>
-                              <p>source: {String(s.source)} / level: {String(s.knowledgeLevel || 'なし')}</p>
-                              <p>genre: {JSON.stringify(s.genre)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                )}
-                <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
-                  <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                    <p>設定はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
-                  </div>
-                </section>
-              </div>
-              {/* プレミアム解約案内 — プレミアム加入中のみ表示 */}
+          {/* ── メインメニュー ── */}
+          {section === null && (
+            <div className="space-y-1">
+              {/* プレミアム会員バナー */}
               {(() => {
                 const s = getSettings()
                 const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
                 if (!isPremium) return null
                 return (
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">⭐ プレミアムを解約するには</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まではプレミアムが利用できます。</p>
-                    <a
-                      href="https://billing.stripe.com/p/login/00000000"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
-                    >
-                      Stripeカスタマーポータルで解約する →
-                    </a>
-                  </div>
-                )
-              })()}
-            </div>
-          ) : showResetConfirm ? (
-            <div className="space-y-4">
-              <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-700 dark:text-red-300">
-                <p className="font-bold mb-1">⚠️ 本当にリセットしますか？</p>
-                <p>入力した設定が全て削除されます。再度セットアップが必要になります。</p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowResetConfirm(false)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
-                <button onClick={onReset} className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-red-600 transition-colors">リセットする</button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* プレミアム加入状態バナー（解除ボタンなし） */}
-              {(() => {
-                const s = getSettings()
-                const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
-                if (!isPremium) return null
-                return (
-                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-1">
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-2">
                     <span className="text-2xl">⭐</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
@@ -1672,6 +1561,52 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
                   </div>
                 )
               })()}
+
+              {/* ── 接続設定 ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-2 pb-1">接続設定</p>
+              <button onClick={() => setSection('notion')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">🔗</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">APIキー・DBのURLを変更</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('team')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">🏥</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">部署DB設定</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">チームで共有するNotionDBを接続</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">⭐</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアムDB設定</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">作者提供のナレッジ・参考文献を追加</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('mode-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">🔀</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">モードを変更する</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">シンプル↔パワーモードの切替・APIキーの再設定</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('db-setup-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">📋</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">NotionDBをセットアップする</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">既存DBの接続・テンプレートの複製</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+
+              {/* ── サポート ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
               <a
                 href="https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -1679,44 +1614,393 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
               >
                 <span className="text-xl">📘</span>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップ＆運用ガイド</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">DBの作り方・AIオートフィル設定・クイズの使い方</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">困ったときはこちらを参照</p>
                 </div>
-                <span className="ml-auto text-gray-300 dark:text-gray-600">↗</span>
+                <span className="text-gray-300 dark:text-gray-600">↗</span>
               </a>
-              <button onClick={() => setShowHelp(true)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+              <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="text-xl">📖</span>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・設定のヒント</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・診断ツール</p>
                 </div>
-                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
-              <button onClick={() => { onClose(); onRedoOptions() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">⚙️</span>
+
+              {/* ── 危険ゾーン ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">その他</p>
+              <button onClick={() => setSection('redo-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-left">
+                <span className="text-xl">🔄</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">セットアップをやり直す</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">現在の設定値を保持したまま再設定</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('reset-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
+                <span className="text-xl">🗑</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定を完全に削除する</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">全データを消去してゼロから再設定</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+            </div>
+          )}
+
+          {/* ── Notion・Algolia接続設定 ── */}
+          {section === 'notion' && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400">変更後は「保存」してから再同期してください。</p>
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">オプション設定を変更する</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">部署DB・プレミアムDB・プロパティ名など</p>
+                  <label className={labelCls}>Notion コネクトToken</label>
+                  <input type="password" value={notionForm.notionToken} onChange={(e) => setNotionForm(f => ({ ...f, notionToken: e.target.value }))} placeholder="ntn_xxxxxxxxxxxx" className={inputCls} />
                 </div>
-                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
-              </button>
-              <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">🔑</span>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">全設定を最初からやり直す</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">モード変更・APIキーの入力し直し</p>
+                  <label className={labelCls}>Medical DB（URLまたはID）</label>
+                  <input type="text" value={notionForm.notionMedicalDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionMedicalDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
                 </div>
-                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
+                <div>
+                  <label className={labelCls}>Reference DB（URLまたはID・任意）</label>
+                  <input type="text" value={notionForm.notionReferenceDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                </div>
+                {currentMode === 'algolia' && (
+                  <>
+                    <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                      <label className={labelCls}>Algolia App ID</label>
+                      <input type="text" value={notionForm.algoliaAppId} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAppId: e.target.value }))} placeholder="XXXXXXXXXX" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Algolia Search-Only API Key</label>
+                      <input type="password" value={notionForm.algoliaSearchKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaSearchKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Algolia Admin API Key</label>
+                      <input type="password" value={notionForm.algoliaAdminKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAdminKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>インデックス名</label>
+                      <input type="text" value={notionForm.algoliaIndex} onChange={(e) => setNotionForm(f => ({ ...f, algoliaIndex: e.target.value }))} placeholder="medical_knowledge" className={inputCls} />
+                    </div>
+                  </>
+                )}
+              </div>
+              {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
+              <button
+                onClick={() => saveSection(notionForm)}
+                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                保存する
               </button>
-              <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
-                <button onClick={() => setShowResetConfirm(true)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
-                  <span className="text-xl">🗑</span>
-                  <div>
-                    <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定をリセット</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">全ての設定を削除してセットアップをやり直す</p>
-                  </div>
+            </div>
+          )}
+
+          {/* ── 部署DB設定 ── */}
+          {section === 'team' && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400">部署共有のNotionDBを接続すると、ジャンル・文献タブに「部署」フィルタが表示されます。</p>
+              <div className="space-y-3">
+                <div>
+                  <label className={labelCls}>部署名（表示ラベル）</label>
+                  <input type="text" value={teamForm.teamLabel} onChange={(e) => setTeamForm(f => ({ ...f, teamLabel: e.target.value }))} placeholder="例：ICU、外科チーム、3病棟" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>部署用 コネクトToken</label>
+                  <input type="password" value={teamForm.teamNotionToken} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionToken: e.target.value }))} placeholder="ntn_xxxxxxxxxxxx" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>部署用 Medical DB（URLまたはID）</label>
+                  <input type="text" value={teamForm.teamNotionMedicalDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionMedicalDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  {teamForm.teamNotionMedicalDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
+                </div>
+                <div>
+                  <label className={labelCls}>部署用 Reference DB（URLまたはID・任意）</label>
+                  <input type="text" value={teamForm.teamNotionReferenceDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  {teamForm.teamNotionReferenceDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
+                </div>
+              </div>
+              {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
+              <button
+                onClick={() => saveSection(teamForm)}
+                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                保存する
+              </button>
+              {(teamForm.teamNotionToken || teamForm.teamNotionMedicalDbId) && (
+                <button
+                  onClick={() => {
+                    setTeamForm({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '' })
+                    saveSection({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '' })
+                  }}
+                  className="w-full text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 py-1 transition-colors"
+                >
+                  部署DB接続を解除する
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* ── プレミアムDB設定 ── */}
+          {section === 'subscription' && (
+            <div className="space-y-4">
+              {(() => {
+                const s = getSettings()
+                const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                if (isPremium) {
+                  return (
+                    <div className="space-y-3">
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
+                        <p className="text-sm font-bold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
+                        <p className="text-xs text-green-600 dark:text-green-500 mt-1">プレミアムコンテンツにアクセスできます</p>
+                      </div>
+                      <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">解約するには</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まで利用できます。</p>
+                        <a
+                          href="https://billing.stripe.com/p/login/00000000"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
+                        >
+                          Stripeカスタマーポータルで解約する →
+                        </a>
+                      </div>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                      現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
+                    </p>
+                    <PremiumCheckoutButtonInline />
+                    <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みの方（手動入力）：</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className={labelCls}>Search-Only APIキー</label>
+                          <input type="password" defaultValue={s?.subscriptionSearchKey || ''} onChange={(e) => saveSection({ subscriptionSearchKey: e.target.value })} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>App ID</label>
+                          <input type="text" defaultValue={s?.subscriptionAppId || ''} onChange={(e) => saveSection({ subscriptionAppId: e.target.value })} placeholder="XXXXXXXXXX" className={inputCls} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* ── ヘルプ ── */}
+          {section === 'help' && (
+            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[60vh] overflow-y-auto pr-1">
+              <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
+                <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                  <p><strong>「API token is invalid」</strong></p>
+                  <p>→ コネクトのTokenが間違っています。notion.so/my-integrations で再コピーし「Notion・Algolia接続設定」から更新してください。</p>
+                  <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
+                  <p>→ DBにコネクトが接続されていません。NotionのDBページ右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。</p>
+                  {currentMode === 'algolia' && (
+                    <>
+                      <p className="mt-2"><strong>「Admin API Key エラー」</strong></p>
+                      <p>→ Search API KeyではなくAdmin API Keyを使用してください。</p>
+                    </>
+                  )}
+                </div>
+              </section>
+              <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
+                <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300">
+                  <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
+                </div>
+              </section>
+              <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔍 DBプロパティ確認</h3>
+                <button
+                  onClick={async () => {
+                    const s = getSettings()
+                    if (!s?.notionToken || !s?.notionMedicalDbId) { setPropCheckError('Notion設定が見つかりません'); return }
+                    setPropCheckLoading(true); setPropCheckError(null); setPropCheck(null)
+                    try {
+                      const res = await fetch('/api/notion/check-props', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notionToken: s.notionToken, notionMedicalDbId: s.notionMedicalDbId, notionReferenceDbId: s.notionReferenceDbId || '' }) })
+                      const data = await res.json()
+                      if (data.error) throw new Error(data.error)
+                      setPropCheck(data)
+                    } catch (err) { setPropCheckError(err instanceof Error ? err.message : 'エラーが発生しました') }
+                    finally { setPropCheckLoading(false) }
+                  }}
+                  disabled={propCheckLoading}
+                  className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                >
+                  {propCheckLoading ? '確認中...' : '接続中のDBのプロパティを確認する'}
+                </button>
+                {propCheckError && <p className="text-xs text-red-500 mt-2">{propCheckError}</p>}
+                {propCheck && (
+                  <div className="mt-3 space-y-3">
+                    {(['medical', 'reference'] as const).map((db) => {
+                      const r = propCheck[db]; if (!r) return null
+                      const allOk = r.missing.length === 0
+                      return (
+                        <div key={db} className={`rounded-xl p-3 text-xs ${allOk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                          <p className={`font-semibold mb-1.5 ${allOk ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {db === 'medical' ? '🚑 Medical DB' : '📖 Reference DB'} — {allOk ? '✅ 全て一致' : '⚠️ 不一致あり'}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {r.found.map((p) => <span key={p} className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">✓ {p}</span>)}
+                            {r.missing.map((p) => <span key={p} className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">✗ {p}</span>)}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+              {currentMode === 'algolia' && (
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 Search Key動作確認</h3>
+                  <button
+                    onClick={async () => {
+                      const s = getSettings()
+                      if (!s?.algoliaAppId || !s?.algoliaSearchKey) { setSearchKeyCheck({ ok: false, error: 'App IDまたはSearch Keyが未設定です' }); return }
+                      setSearchKeyCheckLoading(true); setSearchKeyCheck(null)
+                      try {
+                        const res = await fetch('/api/verify-search-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ algoliaAppId: s.algoliaAppId, algoliaSearchKey: s.algoliaSearchKey, algoliaIndex: s.algoliaIndex }) })
+                        const data = await res.json()
+                        setSearchKeyCheck(data.error ? { ok: false, error: data.error } : { ok: true, nbHits: data.nbHits })
+                      } catch (err) { setSearchKeyCheck({ ok: false, error: err instanceof Error ? err.message : 'エラー' }) }
+                      finally { setSearchKeyCheckLoading(false) }
+                    }}
+                    disabled={searchKeyCheckLoading}
+                    className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                  >
+                    {searchKeyCheckLoading ? '確認中...' : 'Search Keyを確認する'}
+                  </button>
+                  {searchKeyCheck && (
+                    <div className={`mt-2 rounded-xl p-3 text-xs ${searchKeyCheck.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
+                      {searchKeyCheck.ok ? <p>✅ Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p> : (
+                        <><p className="font-semibold mb-1">❌ Search Keyが機能していません</p><p className="mb-1">エラー: {searchKeyCheck.error}</p><p>「Notion・Algolia接続設定」からSearch API Keyを再入力してください。</p></>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+              {currentMode === 'algolia' && (
+                <section>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔬 Algoliaインデックス診断</h3>
+                  <button
+                    onClick={async () => {
+                      const s = getSettings()
+                      if (!s?.algoliaAppId || !s?.algoliaAdminKey) { setAlgoliaDebugError('Algolia設定が見つかりません'); return }
+                      setAlgoliaDebugLoading(true); setAlgoliaDebugError(null); setAlgoliaDebug(null)
+                      try {
+                        const res = await fetch('/api/debug-index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ algoliaAppId: s.algoliaAppId, algoliaAdminKey: s.algoliaAdminKey, algoliaIndex: s.algoliaIndex }) })
+                        const data = await res.json()
+                        if (data.error) throw new Error(data.error)
+                        setAlgoliaDebug(data)
+                      } catch (err) { setAlgoliaDebugError(err instanceof Error ? err.message : 'エラーが発生しました') }
+                      finally { setAlgoliaDebugLoading(false) }
+                    }}
+                    disabled={algoliaDebugLoading}
+                    className="w-full text-sm bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl py-2.5 font-medium hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors disabled:opacity-50"
+                  >
+                    {algoliaDebugLoading ? '取得中...' : 'インデックスの状態を確認する'}
+                  </button>
+                  {algoliaDebugError && <p className="text-xs text-red-500 mt-2">{algoliaDebugError}</p>}
+                  {algoliaDebug && (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📊 総レコード数: {algoliaDebug.totalHits}件</p>
+                        <p className="text-gray-500 dark:text-gray-400">attributesForFaceting: {algoliaDebug.settings.attributesForFaceting?.join(', ') || '未設定'}</p>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
+                        <p className="font-semibold text-blue-700 dark:text-blue-300 mb-1">💡 知識レベルの実際の値</p>
+                        {algoliaDebug.knowledgeLevelValues.length === 0 ? <p className="text-red-500">値なし（再同期が必要）</p> : (
+                          <div className="flex flex-wrap gap-1">{algoliaDebug.knowledgeLevelValues.map((v) => <span key={v} className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{v}</span>)}</div>
+                        )}
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📋 サンプルレコード</p>
+                        {algoliaDebug.samples.slice(0, 3).map((s) => (
+                          <div key={s.objectID} className="text-gray-500 dark:text-gray-400 mb-1 border-b border-gray-100 dark:border-gray-700 pb-1">
+                            <p>タイトル: {String(s.title)}</p>
+                            <p>source: {String(s.source)} / level: {String(s.knowledgeLevel || 'なし')}</p>
+                            <p>genre: {JSON.stringify(s.genre)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+              <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
+                <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                  <p>設定はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ── セットアップをやり直す確認 ── */}
+          {section === 'redo-confirm' && (
+            <div className="space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                <p className="font-bold">🔄 セットアップをやり直しますか？</p>
+                <p className="text-xs">現在入力しているAPIキーやDB設定は保持されます。モードの変更や入力し直しができます。</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                <button onClick={() => { onClose(); onRedo() }} className="flex-1 bg-amber-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-amber-600 transition-colors">やり直す</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── 完全削除確認 ── */}
+          {section === 'reset-confirm' && (
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
+                <p className="font-bold">⚠️ 本当に全て削除しますか？</p>
+                <p className="text-xs">入力したAPIキー・DB設定が全て消去されます。元に戻すことはできません。</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                <button onClick={onReset} className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-red-600 transition-colors">削除する</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── モード変更確認 ── */}
+          {section === 'mode-confirm' && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
+                <p className="font-bold">🔀 モードを変更しますか？</p>
+                <p className="text-xs">セットアップ画面の最初に戻ります。現在のAPIキー・DB設定は保持されるので、必要な箇所だけ変更できます。</p>
+                <p className="text-xs">現在: <span className="font-semibold">{currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}</span></p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                <button onClick={() => { onClose(); onRedo() }} className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors">モード選択へ</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── DBセットアップ確認 ── */}
+          {section === 'db-setup-confirm' && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
+                <p className="font-bold">📋 NotionDBをセットアップしますか？</p>
+                <p className="text-xs">DB選択画面に移動します。既存のNotionDBを接続するか、テンプレートを複製して新しくDBを作成できます。</p>
+                <p className="text-xs">現在のAPIキー設定は保持されます。</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
+                <button onClick={() => { onClose(); onRedoFromNotion() }} className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors">DB選択へ</button>
               </div>
             </div>
           )}
@@ -1795,7 +2079,7 @@ export default function Home() {
     setOnboardingDone(done)
   }, [])
 
-  const [setupInitialStep, setSetupInitialStep] = useState<'mode' | 'options'>('mode')
+  const [setupInitialStep, setSetupInitialStep] = useState<'mode' | 'notion' | 'options'>('mode')
 
   const handleReset = () => {
     clearSettings()
@@ -1809,8 +2093,8 @@ export default function Home() {
     setSetupDone(false)
   }
 
-  const handleRedoOptions = () => {
-    setSetupInitialStep('options')
+  const handleRedoFromNotion = () => {
+    setSetupInitialStep('notion')
     setSetupDone(false)
   }
 
@@ -1935,7 +2219,7 @@ export default function Home() {
       onClose={() => setShowSettings(false)}
       onReset={handleReset}
       onRedo={handleRedo}
-      onRedoOptions={handleRedoOptions}
+      onRedoFromNotion={handleRedoFromNotion}
       currentMode={searchMode}
     />
   )

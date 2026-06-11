@@ -732,25 +732,27 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         )}
 
         {/* ステップインジケーター */}
-        <div className="flex items-center justify-center gap-2 mb-8">
+        <div className="flex items-center justify-center mb-8">
           {steps.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                  i < stepIndex
-                    ? 'bg-blue-500 text-white'
-                    : i === stepIndex
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                }`}
-              >
-                {i < stepIndex ? '✓' : i + 1}
+            <div key={s.id} className="flex items-center">
+              <div className="flex flex-col items-center gap-1">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                    i < stepIndex
+                      ? 'bg-blue-500 text-white'
+                      : i === stepIndex
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-900'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                  }`}
+                >
+                  {i < stepIndex ? '✓' : i + 1}
+                </div>
+                <span className={`text-[10px] font-medium leading-none ${i === stepIndex ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                  {s.label}
+                </span>
               </div>
-              <span className={`text-sm font-medium ${i === stepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
-                {s.label}
-              </span>
               {i < steps.length - 1 && (
-                <div className={`w-8 h-px ${i < stepIndex ? 'bg-blue-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
+                <div className={`w-6 h-px mb-3 ${i < stepIndex ? 'bg-blue-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
               )}
             </div>
           ))}
@@ -1476,49 +1478,6 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* プロパティ名マッピング */}
-              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setOpenSection(openSection === 'propmap' ? null : 'propmap')}
-                  className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🔤 プロパティ名のカスタマイズ</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">既存DBのプロパティ名が異なる場合のみ設定</p>
-                  </div>
-                  <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'propmap' ? '▲' : '▼'}</span>
-                </button>
-                {openSection === 'propmap' && (
-                  <div className="p-4 space-y-3">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      空欄の場合はデフォルト名（要約・キーワード・知識レベル・ジャンル）が使われます。
-                    </p>
-                    {[
-                      { field: 'propSummary' as keyof AppSettings, label: '要約プロパティ名', placeholder: '要約', hint: '検索・クイズの答えになります' },
-                      { field: 'propKeywords' as keyof AppSettings, label: 'キーワードプロパティ名', placeholder: 'キーワード', hint: '検索のタグとして使われます' },
-                      { field: 'propKnowledgeLevel' as keyof AppSettings, label: '知識レベルプロパティ名', placeholder: '知識レベル', hint: 'クイズのCQ除外に使われます' },
-                      { field: 'propGenre' as keyof AppSettings, label: 'ジャンルプロパティ名', placeholder: 'ジャンル', hint: 'ジャンル絞り込みに使われます' },
-                    ].map(({ field, label, placeholder, hint }) => (
-                      <div key={field}>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          {label}
-                          <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">（デフォルト: {placeholder}）</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={form[field] as string}
-                          onChange={(e) => update(field, e.target.value)}
-                          placeholder={placeholder}
-                          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                        />
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{hint}</p>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>
