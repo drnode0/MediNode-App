@@ -809,18 +809,13 @@ function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () => void
 }
 
 // マージ済みhitsを表示する検索結果コンポーネント
-function MergedSearchResults({ personalHits, ownerFilter, query, onSearch }: {
+function MergedSearchResults({ personalHits, ownerFilter, query }: {
   personalHits: Hit[]
   ownerFilter: OwnerFilter
   query: string
-  onSearch?: (q: string) => void
 }) {
   const ctx = useSubscriptionHits()
   const subHits = ctx?.hits || []
-
-  useEffect(() => {
-    if (query && onSearch) onSearch(query)
-  }, [query])
 
   const merged = mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter)
 
@@ -905,7 +900,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
       <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
-        <SearchBox />
+        <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} />
         <OwnerFilterTabs
           owner={ownerFilter}
           onChange={setOwnerFilter}
@@ -926,7 +921,6 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           personalHits={personalHits}
           ownerFilter={ownerFilter}
           query={query}
-          onSearch={(q) => { if (q) addHistory(q) }}
         />
       )}
     </>
@@ -1021,22 +1015,11 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     search(q)
   }
 
-  // Enterキーまたはデバウンス完了後（600ms）に履歴保存
-  const handleKeyDown = (e: { key: string }) => {
-    if (e.key === 'Enter' && query.trim()) {
+  // 履歴保存はEnterで検索を確定したときのみ（入力途中の文字列は残さない）
+  const composingRef = useRef(false)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing && query.trim()) {
       addHistory(query.trim())
-    }
-  }
-
-  // デバウンス後に履歴保存（検索完了タイミングに合わせる）
-  const debounceHistoryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handleChangeWithHistory = (q: string) => {
-    handleChange(q)
-    if (debounceHistoryRef.current) clearTimeout(debounceHistoryRef.current)
-    if (q.trim()) {
-      debounceHistoryRef.current = setTimeout(() => {
-        addHistory(q.trim())
-      }, 800)
     }
   }
 
@@ -1046,8 +1029,10 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <input
           type="search"
           value={query}
-          onChange={(e) => handleChangeWithHistory(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => { composingRef.current = true }}
+          onCompositionEnd={() => { composingRef.current = false }}
           placeholder="キーワードで検索..."
           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2"
         />

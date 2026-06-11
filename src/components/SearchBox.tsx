@@ -2,7 +2,7 @@
 import { useSearchBox } from 'react-instantsearch'
 import { useRef, useState } from 'react'
 
-export function SearchBox() {
+export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {}) {
   const { query, refine } = useSearchBox()
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState(query)
@@ -29,6 +29,13 @@ export function SearchBox() {
         onCompositionEnd={(e) => {
           composingRef.current = false
           refine((e.target as HTMLInputElement).value)
+        }}
+        onKeyDown={(e) => {
+          // 日本語変換確定中のEnterは検索確定としない
+          if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing) {
+            const v = inputValue.trim()
+            if (v && onSubmit) onSubmit(v)
+          }
         }}
         placeholder="疾患名・キーワードで検索..."
         className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-blue-500 bg-white shadow-sm"
