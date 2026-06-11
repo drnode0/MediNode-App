@@ -198,6 +198,7 @@ export async function POST(req: NextRequest) {
       teamLabel,
       teamNotionToken,
       teamNotionMedicalDbId,
+      teamNotionReferenceDbId,
     } = body
 
     if (!notionToken || !notionMedicalDbId || !algoliaAppId || !algoliaAdminKey) {
@@ -252,6 +253,10 @@ export async function POST(req: NextRequest) {
     if (teamNotionToken && teamNotionMedicalDbId) {
       const teamNotion = new Client({ auth: teamNotionToken })
       syncedMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+      // 部署用 Reference DB の同期（任意）
+      if (teamNotionReferenceDbId) {
+        syncedReference += await syncReferenceDb(teamNotion, teamNotionReferenceDbId, 'team', teamLabel || '部署', records, resolvedPropMap)
+      }
     }
 
     if (records.length > 0) {
