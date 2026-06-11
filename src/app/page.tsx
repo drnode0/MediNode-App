@@ -2464,7 +2464,10 @@ export default function Home() {
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
         <div className="flex items-center justify-between mb-3">
           <div className="w-16" />
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
+          <div className="flex items-center gap-2">
+            <img src="/icon-192.png" alt="MediNode" className="w-7 h-7 rounded-lg" />
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
+          </div>
           <div className="w-16 flex justify-end">
             <button
               onClick={() => setShowSettings(true)}
