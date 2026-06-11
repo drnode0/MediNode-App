@@ -19,10 +19,23 @@ export async function POST(req: NextRequest) {
     const samples = (browse.hits as Array<Record<string, unknown>>).map((h) => ({
       objectID: h.objectID,
       source: h.source,
+      owner: h.owner,
+      teamLabel: h.teamLabel,
       knowledgeLevel: h.knowledgeLevel,
       genre: h.genre,
       title: (h.title as string)?.slice(0, 30),
     }))
+
+    // owner 別の件数（owner:team が実際にフィルタで取れるか確認用）
+    const ownerCounts: Record<string, number> = {}
+    for (const owner of ['personal', 'team']) {
+      try {
+        const res = await index.search('', { filters: `owner:${owner}`, hitsPerPage: 0 })
+        ownerCounts[owner] = res.nbHits
+      } catch {
+        ownerCounts[owner] = -1
+      }
+    }
 
     // knowledgeLevel の全ユニーク値を取得（facet）
     let knowledgeLevelValues: string[] = []
@@ -57,6 +70,7 @@ export async function POST(req: NextRequest) {
         searchableAttributes: settings.searchableAttributes,
       },
       totalHits: browse.nbHits,
+      ownerCounts,
       knowledgeLevelValues,
       samples,
     })

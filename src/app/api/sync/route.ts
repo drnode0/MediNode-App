@@ -273,12 +273,10 @@ export async function POST(req: NextRequest) {
     const syncedMedical = syncedPersonalMedical + syncedTeamMedical
     const syncedReference = syncedPersonalReference + syncedTeamReference
 
-    if (records.length > 0) {
-      // 古い形式のレコードが残らないよう、同期前にインデックスをクリアしてから保存
-      await index.clearObjects()
-      await index.saveObjects(records)
-    }
-
+    // フィルタ（owner:team 等）が確実に効くよう、レコード保存より先に
+    // attributesForFaceting を設定する。先に保存すると、ファセット未登録の状態で
+    // インデックスされ、owner フィルタが一致しない（=同期件数は出るのに表示されない）
+    // ことがあるため、設定 → 保存の順に統一する。
     await index.setSettings({
       searchableAttributes: [
         'title',
@@ -293,6 +291,12 @@ export async function POST(req: NextRequest) {
       attributesForFaceting: ['filterOnly(owner)', 'filterOnly(teamLabel)', 'filterOnly(source)', 'filterOnly(knowledgeLevel)', 'genre'],
       customRanking: ['desc(lastEdited)'],
     })
+
+    if (records.length > 0) {
+      // 古い形式のレコードが残らないよう、同期前にインデックスをクリアしてから保存
+      await index.clearObjects()
+      await index.saveObjects(records)
+    }
 
     return NextResponse.json({
       success: true,
