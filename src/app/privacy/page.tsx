@@ -140,7 +140,7 @@ export default function PrivacyPage() {
             </h2>
             <p>
               本ポリシーに関するお問い合わせは、
-              <span className="text-gray-400 dark:text-gray-500">[ 連絡先メールアドレスを記入 ]</span>
+              <a href="mailto:drnode0@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">drnode0@gmail.com</a>
               までご連絡ください。
             </p>
           </section>

@@ -9,11 +9,19 @@ export const metadata: Metadata = {
 const rows: { label: string; value: React.ReactNode }[] = [
   {
     label: '販売事業者',
-    value: '[ 事業者名（個人事業主の場合は氏名）を記入 ]',
+    value: 'MediNode',
   },
   {
     label: '運営責任者',
-    value: '[ 運営責任者名を記入 ]',
+    value: (
+      <>
+        請求があれば遅滞なく開示します。
+        <br />
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          ※ ご希望の方は下記お問い合わせ先までご連絡ください。書面または電子メールにて遅滞なく開示いたします。
+        </span>
+      </>
+    ),
   },
   {
     label: '所在地',
@@ -41,7 +49,7 @@ const rows: { label: string; value: React.ReactNode }[] = [
   },
   {
     label: 'お問い合わせ先（メール）',
-    value: '[ 連絡先メールアドレスを記入 ]',
+    value: 'drnode0@gmail.com',
   },
   {
     label: '販売価格',
