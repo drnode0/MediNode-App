@@ -1121,7 +1121,6 @@ type SettingsPanelProps = {
 function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }: SettingsPanelProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [showPremiumCancelConfirm, setShowPremiumCancelConfirm] = useState(false)
   const [propCheck, setPropCheck] = useState<null | {
     medical: { found: string[]; missing: string[] }
     reference?: { found: string[]; missing: string[] }
@@ -1387,52 +1386,23 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
                   </div>
                 </section>
               </div>
-              {/* プレミアム解除 — スクロール領域の外に配置して常に見える */}
+              {/* プレミアム解約案内 — プレミアム加入中のみ表示 */}
               {(() => {
                 const s = getSettings()
                 const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
                 if (!isPremium) return null
-                if (showPremiumCancelConfirm) {
-                  return (
-                    <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl p-4 space-y-3">
-                      <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⚠️ プレミアムをこのデバイスから解除しますか？</p>
-                      <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1.5">
-                        <p>• <strong>このデバイスのみ</strong>プレミアム表示が消えます</p>
-                        <p>• Stripeのサブスクは継続中のため、次回請求日まで有効です</p>
-                        <p>• 解除後も「⭐ プレミアムに登録する」から再認証すれば復活します</p>
-                        <p className="pt-1 font-semibold">課金自体を止める場合はStripeダッシュボードで解約してください</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setShowPremiumCancelConfirm(false)}
-                          className="flex-1 text-xs border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg py-2 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          キャンセル
-                        </button>
-                        <button
-                          onClick={() => {
-                            const current = getSettings()
-                            if (!current) return
-                            saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
-                            onClose()
-                            window.location.reload()
-                          }}
-                          className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg py-2 font-semibold"
-                        >
-                          このデバイスから解除
-                        </button>
-                      </div>
-                    </div>
-                  )
-                }
                 return (
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-2">
-                    <button
-                      onClick={() => setShowPremiumCancelConfirm(true)}
-                      className="text-xs text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500 transition-colors"
+                  <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">⭐ プレミアムを解約するには</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まではプレミアムが利用できます。</p>
+                    <a
+                      href="https://billing.stripe.com/p/login/00000000"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
                     >
-                      このデバイスからプレミアム認証を削除する
-                    </button>
+                      Stripeカスタマーポータルで解約する →
+                    </a>
                   </div>
                 )
               })()}
