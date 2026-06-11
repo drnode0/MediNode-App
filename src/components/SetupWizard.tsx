@@ -76,7 +76,7 @@ function parseErrorMessage(msg: string): string {
     return [
       'コネクト（旧称: Integration）のTokenが無効です。',
       '【対処法】',
-      '① notion.so/my-integrations でTokenのシークレットを再コピー',
+      '① notion.so/my-integrations でTokenの「アクセストークン」を再コピー',
       '② 「ntn_xxx...」または「secret_xxx...」という形式になっているか確認',
       '③ コピー時に前後の空白が混入していないか確認',
       '④「← 戻る」でStep 1に戻り、再入力してください',
@@ -168,23 +168,22 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>
               <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">notion.so/my-integrations</a> を開く（要ログイン）
             </li>
-            <li>「<strong>+ 新規コネクト</strong>」（英語UI: <em>+ New integration</em>）をクリック</li>
+            <li>「<strong>+ 新規コネクト</strong>」をクリック</li>
             <li>
               次の項目を入力:
               <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5 text-gray-500 dark:text-gray-400">
                 <li><strong>名前</strong>: 任意（例: MediNode）</li>
                 <li><strong>関連ワークスペース</strong>: 連携したいワークスペースを選択</li>
-                <li><strong>タイプ</strong>: <strong>内部（Internal）</strong> を選択</li>
               </ul>
             </li>
-            <li>「<strong>保存</strong>」（英語UI: <em>Submit</em>）をクリック</li>
-            <li>作成後のページで「<strong>シークレット</strong>」（英語UI: <em>Internal Integration Secret</em>）の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
+            <li>「<strong>保存</strong>」をクリック</li>
+            <li>作成後のページで「<strong>アクセストークン</strong>」の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
           </ol>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p>💡 <strong>Tokenの形式について</strong></p>
-            <p>・<strong>2024年9月25日以降</strong>に作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">ntn_xxxxx...</code> で始まります</p>
-            <p>・それ以前に作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">secret_xxxxx...</code> で始まります</p>
-            <p>・<strong>どちらの形式でも問題なく動作します</strong>（既存の <code>secret_</code> はそのまま使えます）</p>
+            <p>・新規作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">ntn_xxxxx...</code> で始まります</p>
+            <p>・以前に作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">secret_xxxxx...</code> で始まります</p>
+            <p>・<strong>どちらの形式でも問題なく動作します</strong></p>
           </div>
           <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-2 mt-2 text-xs text-red-700 dark:text-red-300">
             ⚠️ <strong>Tokenは絶対に公開しないでください。</strong>GitHub・SNS・スクリーンショット等に含めないこと。
@@ -856,7 +855,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 />
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 作成後に「シークレット」をコピー
+                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 作成後に「アクセストークン」をコピー
                   </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
