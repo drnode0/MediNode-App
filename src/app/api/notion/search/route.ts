@@ -19,6 +19,10 @@ function extractText(prop: Record<string, unknown>): string {
   if (type === 'number') {
     return String(prop.number ?? '')
   }
+  if (type === 'date') {
+    const start = (prop.date as { start: string } | null)?.start || ''
+    return start ? start.slice(0, 4) : ''
+  }
   return ''
 }
 

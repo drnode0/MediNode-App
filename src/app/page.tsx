@@ -8,7 +8,7 @@ import {
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
-import { isSetupComplete, clearSettings, getSettings, saveSettings } from '@/lib/settings'
+import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
@@ -888,13 +888,13 @@ function useNotionSearch(mode: Tab) {
     }
   }, [settings?.notionToken, settings?.notionMedicalDbId])
 
-  // 新着・クイズ・ジャンルは初回マウント時に自動取得
+  // 新着・クイズ・ジャンルは初回マウント時に自動取得（fetchはsettings変更時に再取得するため依存に含める）
   useEffect(() => {
     if (mode === 'recent') fetch('', { mode: 'recent' })
     if (mode === 'quiz') fetch('', { mode: 'quiz' })
     if (mode === 'browse') fetch('', { mode: 'browse', pageSize: 200 })
     if (mode === 'reference') fetch('', { mode: 'recent' }) // referenceはrecentと共用でフィルタ
-  }, [mode])
+  }, [mode, fetch])
 
   const search = useCallback((keyword: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -1175,7 +1175,7 @@ function NotionBrowseTab() {
   const [genreError, setGenreError] = useState('')
 
   // 初回：ジャンル選択肢をAPIから取得
-  useState(() => {
+  useEffect(() => {
     if (!settings) { setGenresLoading(false); return }
     window.fetch('/api/notion/genres', {
       method: 'POST',
@@ -1192,7 +1192,8 @@ function NotionBrowseTab() {
       })
       .catch(() => setGenresError('取得に失敗しました'))
       .finally(() => setGenresLoading(false))
-  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleGenreSelect = async (genre: string | null) => {
     if (!genre || selectedGenre === genre) {
@@ -1690,7 +1691,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               </div>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
-                onClick={() => saveSection(notionForm)}
+                onClick={() => saveSection({
+                  ...notionForm,
+                  notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
+                  notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
+                })}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
                 保存する
@@ -1724,7 +1729,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               </div>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
-                onClick={() => saveSection(teamForm)}
+                onClick={() => saveSection({
+                  ...teamForm,
+                  teamNotionMedicalDbId: teamForm.teamNotionMedicalDbId ? extractNotionDbId(teamForm.teamNotionMedicalDbId) : '',
+                  teamNotionReferenceDbId: teamForm.teamNotionReferenceDbId ? extractNotionDbId(teamForm.teamNotionReferenceDbId) : '',
+                })}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
                 保存する
