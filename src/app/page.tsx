@@ -150,6 +150,27 @@ function mergeHitsByOwnerFilter(
   return merged
 }
 
+// ジャンル並び替え用：番号付き(01.〜) → 番号なし(あいうえお順) → INBOX最後
+function hybridSort(a: string, b: string): number {
+  if (a === 'INBOX') return 1
+  if (b === 'INBOX') return -1
+  const mA = a.match(/^(\d+)\./)
+  const mB = b.match(/^(\d+)\./)
+  if (mA && mB) {
+    const diff = parseInt(mA[1], 10) - parseInt(mB[1], 10)
+    if (diff !== 0) return diff
+    return a.localeCompare(b, 'ja')
+  }
+  if (mA) return -1
+  if (mB) return 1
+  return a.localeCompare(b, 'ja')
+}
+
+// 番号プレフィックス（01.等）を除いた表示名
+function displayGenreName(g: string): string {
+  return g.replace(/^\d+\./, '')
+}
+
 // ============================================================
 // Algoliaモード用コンポーネント（既存）
 // ============================================================
@@ -1154,144 +1175,117 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   )
 }
 
-// ジャンルグループ定義（GenreBrowse.tsx と同じ定義）
-const NOTION_GENRE_GROUPS = [
-  {
-    label: '🫀 循環・血液',
-    color: 'bg-red-50 border-red-200 text-red-700',
-    activeColor: 'bg-red-600 text-white border-transparent',
-    genres: ['05.循環', '11.血液凝固線溶系', '22.輸液・輸血・水電解質'],
-  },
-  {
-    label: '🫁 呼吸器',
-    color: 'bg-blue-50 border-blue-200 text-blue-700',
-    activeColor: 'bg-blue-600 text-white border-transparent',
-    genres: ['04.呼吸'],
-  },
-  {
-    label: '🧠 神経・精神',
-    color: 'bg-purple-50 border-purple-200 text-purple-700',
-    activeColor: 'bg-purple-600 text-white border-transparent',
-    genres: ['06.中枢神経'],
-  },
-  {
-    label: '🫘 腎・泌尿器',
-    color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
-    activeColor: 'bg-cyan-600 text-white border-transparent',
-    genres: ['07.腎'],
-  },
-  {
-    label: '🫃 消化器',
-    color: 'bg-orange-50 border-orange-200 text-orange-700',
-    activeColor: 'bg-orange-600 text-white border-transparent',
-    genres: ['08.肝・胆道系', '09.膵', '10.消化管・その他腹部'],
-  },
-  {
-    label: '🦠 感染症',
-    color: 'bg-green-50 border-green-200 text-green-700',
-    activeColor: 'bg-green-600 text-white border-transparent',
-    genres: ['13.感染症'],
-  },
-  {
-    label: '⚡ 救急・外傷',
-    color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-    activeColor: 'bg-yellow-600 text-white border-transparent',
-    genres: ['03.救急蘇生', '15.外傷・整形', '16.熱傷', '17.急性中毒', '18.体温異常', '28.災害'],
-  },
-  {
-    label: '💊 薬剤・代謝',
-    color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-    activeColor: 'bg-indigo-600 text-white border-transparent',
-    genres: ['12.代謝内分泌', '27.薬剤', '14.多臓器障害'],
-  },
-  {
-    label: '🍼 特殊患者',
-    color: 'bg-pink-50 border-pink-200 text-pink-700',
-    activeColor: 'bg-pink-600 text-white border-transparent',
-    genres: ['19.妊産婦', '20.小児', '21.移植'],
-  },
-  {
-    label: '🔧 手技・栄養',
-    color: 'bg-gray-50 border-gray-200 text-gray-700',
-    activeColor: 'bg-gray-600 text-white border-transparent',
-    genres: ['23.栄養', '24.画像診断', '26.手技'],
-  },
-  {
-    label: '📚 総論・その他',
-    color: 'bg-slate-50 border-slate-200 text-slate-700',
-    activeColor: 'bg-slate-600 text-white border-transparent',
-    genres: ['01.総論', '02.医療倫理', '25.集中治療医', '29.学会', '30.統計・研究', '31.マイナー'],
-  },
-  {
-    label: '📥 INBOX',
-    color: 'bg-gray-50 border-gray-200 text-gray-500',
-    activeColor: 'bg-gray-500 text-white border-transparent',
-    genres: ['INBOX'],
-  },
-]
-
-const GENRE_BUTTON_COLORS = [
-  { color: 'bg-red-50 border-red-200 text-red-700', activeColor: 'bg-red-600 text-white border-transparent' },
-  { color: 'bg-blue-50 border-blue-200 text-blue-700', activeColor: 'bg-blue-600 text-white border-transparent' },
-  { color: 'bg-purple-50 border-purple-200 text-purple-700', activeColor: 'bg-purple-600 text-white border-transparent' },
-  { color: 'bg-green-50 border-green-200 text-green-700', activeColor: 'bg-green-600 text-white border-transparent' },
-  { color: 'bg-orange-50 border-orange-200 text-orange-700', activeColor: 'bg-orange-600 text-white border-transparent' },
-  { color: 'bg-cyan-50 border-cyan-200 text-cyan-700', activeColor: 'bg-cyan-600 text-white border-transparent' },
-  { color: 'bg-yellow-50 border-yellow-200 text-yellow-700', activeColor: 'bg-yellow-600 text-white border-transparent' },
-  { color: 'bg-indigo-50 border-indigo-200 text-indigo-700', activeColor: 'bg-indigo-600 text-white border-transparent' },
-  { color: 'bg-pink-50 border-pink-200 text-pink-700', activeColor: 'bg-pink-600 text-white border-transparent' },
-  { color: 'bg-teal-50 border-teal-200 text-teal-700', activeColor: 'bg-teal-600 text-white border-transparent' },
-  { color: 'bg-slate-50 border-slate-200 text-slate-700', activeColor: 'bg-slate-600 text-white border-transparent' },
-  { color: 'bg-gray-50 border-gray-200 text-gray-500', activeColor: 'bg-gray-500 text-white border-transparent' },
-]
-
 const GENRE_SHOW_LIMIT = 8
 
-// Notionモード：ジャンル別タブ
+// Notionモード：ジャンル別タブ（パワーモードのGenreBrowseと同等。個人/部署はNotion由来、プレミアムは作者Algolia）
+type GenreFacet = { personal: Record<string, number>; team: Record<string, number>; subscription: Record<string, number> }
+
 function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const settings = getSettings()
-  const [genres, setGenres] = useState<string[]>([])
+  const [facets, setFacets] = useState<GenreFacet>({ personal: {}, team: {}, subscription: {} })
   const [genresLoading, setGenresLoading] = useState(true)
   const [genresError, setGenresError] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
   const [genreRecords, setGenreRecords] = useState<Hit[]>([])
+  const [subGenreHits, setSubGenreHits] = useState<Hit[]>([])
   const [genreLoading, setGenreLoading] = useState(false)
   const [genreError, setGenreError] = useState('')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const subEnabled = hasSubscription
 
-  // ジャンル別はNotion由来の個人＋部署のみ（プレミアムはジャンル横断が困難なため案内のみ）
-  const displayRecords = useMemo(() => {
-    if (ownerFilter === 'personal') return genreRecords.filter((h) => !h.owner || h.owner === 'personal')
-    if (ownerFilter === 'team') return genreRecords.filter((h) => h.owner === 'team')
-    return genreRecords
-  }, [genreRecords, ownerFilter])
-
-  // 初回：ジャンル選択肢をAPIから取得
+  // 初回：個人＋部署の全medicalレコードを取得してジャンル件数を集計、プレミアムはAlgoliaファセットから取得
   useEffect(() => {
     if (!settings) { setGenresLoading(false); return }
-    window.fetch('/api/notion/genres', {
+    let cancelled = false
+    setGenresLoading(true)
+
+    // 個人＋部署（Notion由来）：mode=browse + genre空 で全medicalを取得し集計
+    const notionTask = window.fetch('/api/notion/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         notionToken: settings.notionToken,
         notionMedicalDbId: settings.notionMedicalDbId,
+        teamNotionToken: settings.teamNotionToken || undefined,
+        teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+        mode: 'browse',
+        genre: '',
+        pageSize: 100,
       }),
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data.genres) setGenres(data.genres)
-        else setGenresError(data.error || '取得に失敗しました')
+        const records: Hit[] = Array.isArray(data.records) ? data.records : []
+        const personal: Record<string, number> = {}
+        const team: Record<string, number> = {}
+        for (const rec of records) {
+          let list: string[]
+          if (rec.genreList && rec.genreList.length) list = rec.genreList
+          else if (Array.isArray(rec.genre)) list = rec.genre
+          else if (rec.genre) list = [rec.genre]
+          else list = ['INBOX']
+          const bucket = rec.owner === 'team' ? team : personal
+          for (const g of list) bucket[g] = (bucket[g] || 0) + 1
+        }
+        return { personal, team }
       })
-      .catch(() => setGenresError('取得に失敗しました'))
-      .finally(() => setGenresLoading(false))
+      .catch(() => {
+        setGenresError('取得に失敗しました')
+        return { personal: {} as Record<string, number>, team: {} as Record<string, number> }
+      })
+
+    // プレミアム（作者Algolia）：ファセット取得
+    const subTask: Promise<Record<string, number>> = subEnabled
+      ? createSubscriptionSearchClient()
+          .initIndex(getSubscriptionIndexName())
+          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+          .then((res) => (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {})
+          .catch(() => ({}))
+      : Promise.resolve({})
+
+    Promise.all([notionTask, subTask]).then(([notionRes, subscription]) => {
+      if (cancelled) return
+      setFacets({ personal: notionRes.personal, team: notionRes.team, subscription })
+      setGenresLoading(false)
+    })
+
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ownerFilterに応じたジャンル一覧（hybridSortで並べ替え）
+  const sortedGenres = useMemo(() => {
+    let set: Set<string>
+    if (ownerFilter === 'subscription') set = new Set(Object.keys(facets.subscription))
+    else if (ownerFilter === 'team') set = new Set(Object.keys(facets.team))
+    else if (ownerFilter === 'personal') set = new Set(Object.keys(facets.personal))
+    else set = new Set([
+      ...Object.keys(facets.personal),
+      ...Object.keys(facets.team),
+      ...Object.keys(facets.subscription),
+    ])
+    return Array.from(set).sort(hybridSort)
+  }, [facets, ownerFilter])
+
+  // 選択ジャンルの表示用ヒット（個人/部署=Notion、プレミアム=Algolia）をownerFilterでマージ
+  const displayRecords = useMemo(() => {
+    if (ownerFilter === 'subscription') return subGenreHits
+    if (ownerFilter === 'personal') return genreRecords.filter((h) => !h.owner || h.owner === 'personal')
+    if (ownerFilter === 'team') return genreRecords.filter((h) => h.owner === 'team')
+    // all: 個人/部署 → プレミアム の順（重複除去）
+    const seen = new Set<string>()
+    const merged: Hit[] = []
+    for (const h of genreRecords) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
+    for (const h of subGenreHits) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
+    return merged
+  }, [ownerFilter, genreRecords, subGenreHits])
 
   const handleGenreSelect = async (genre: string | null) => {
     if (!genre || selectedGenre === genre) {
       setSelectedGenre(null)
       setGenreRecords([])
+      setSubGenreHits([])
       return
     }
     setSelectedGenre(genre)
@@ -1299,84 +1293,123 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     setGenreLoading(true)
     setGenreError('')
     setGenreRecords([])
+    setSubGenreHits([])
+
+    // 個人/部署（Notion由来）
+    const notionTask = ownerFilter === 'subscription'
+      ? Promise.resolve([] as Hit[])
+      : window.fetch('/api/notion/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notionToken: settings.notionToken,
+            notionMedicalDbId: settings.notionMedicalDbId,
+            teamNotionToken: settings.teamNotionToken || undefined,
+            teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+            mode: 'browse',
+            genre,
+            pageSize: 100,
+          }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            const records: Hit[] = Array.isArray(data.records) ? data.records : []
+            records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+            return records
+          })
+          .catch(() => { setGenreError('取得に失敗しました'); return [] as Hit[] })
+
+    // プレミアム（作者Algolia）
+    const subTask: Promise<Hit[]> = subEnabled && ownerFilter !== 'personal' && ownerFilter !== 'team'
+      ? createSubscriptionSearchClient()
+          .initIndex(getSubscriptionIndexName())
+          .search('', { filters: `genre:"${genre}"`, hitsPerPage: 50 })
+          .then((res) => {
+            const hits = (res as unknown as { hits: Hit[] }).hits || []
+            return hits.map((h) => ({ ...h, owner: 'subscription' as const }))
+          })
+          .catch(() => [] as Hit[])
+      : Promise.resolve([] as Hit[])
+
     try {
-      const data = await window.fetch('/api/notion/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notionToken: settings.notionToken,
-          notionMedicalDbId: settings.notionMedicalDbId,
-          teamNotionToken: settings.teamNotionToken || undefined,
-          teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
-          mode: 'browse',
-          genre,
-          pageSize: 100,
-        }),
-      }).then((r) => r.json())
-      const records: Hit[] = Array.isArray(data.records) ? data.records : []
-      records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
-      setGenreRecords(records)
-    } catch (err) {
-      console.error('ジャンル取得エラー:', err)
-      setGenreError('取得に失敗しました')
+      const [notionRecords, subHits] = await Promise.all([notionTask, subTask])
+      setGenreRecords(notionRecords)
+      setSubGenreHits(subHits)
     } finally {
       setGenreLoading(false)
     }
   }
 
-  const visibleGenres = showAll ? genres : genres.slice(0, GENRE_SHOW_LIMIT)
+  const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
 
   return (
     <div>
       <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
-        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+        <OwnerFilterTabs owner={ownerFilter} onChange={(v) => { setOwnerFilter(v); setSelectedGenre(null); setGenreRecords([]); setSubGenreHits([]) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
-      {ownerFilter === 'subscription' ? (
-        hasSubscription ? (
-          <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-            <p className="text-sm">プレミアム内容は「検索」「新着」「文献」タブからご覧ください</p>
-          </div>
-        ) : (
-          <SubscriptionPromoPanel />
-        )
+      {ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
       ) : genresLoading ? (
         <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンルを読み込み中...</div>
       ) : genresError ? (
         <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genresError}</div>
-      ) : genres.length === 0 ? (
+      ) : sortedGenres.length === 0 ? (
         <div className="text-center py-8 text-gray-400 dark:text-gray-500"><p className="text-sm">ジャンルが設定されていません</p></div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2 mb-2">
-            {visibleGenres.map((genre, i) => {
-              const c = GENRE_BUTTON_COLORS[i % GENRE_BUTTON_COLORS.length]
+            {visibleGenres.map((genre) => {
+              const personalCount = facets.personal[genre] || 0
+              const teamCount = facets.team[genre] || 0
+              const subCount = facets.subscription[genre] || 0
+              const total = ownerFilter === 'subscription'
+                ? subCount
+                : ownerFilter === 'team'
+                  ? teamCount
+                  : ownerFilter === 'personal'
+                    ? personalCount
+                    : personalCount + teamCount + subCount
+              const hasSub = subCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'team'
+              const isActive = selectedGenre === genre
               return (
                 <button
                   key={genre}
                   onClick={() => handleGenreSelect(genre)}
-                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                    selectedGenre === genre ? c.activeColor + ' shadow-sm' : c.color + ' hover:shadow-sm'
+                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
+                    isActive
+                      ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:shadow-sm hover:border-blue-300'
                   }`}
                 >
-                  {genre}
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{displayGenreName(genre)}</span>
+                    {hasSub && (
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-purple-200' : 'bg-purple-500'}`}
+                        title="プレミアムにもあります"
+                        aria-label="プレミアムにもあります"
+                      />
+                    )}
+                  </span>
+                  <span className={`text-xs shrink-0 ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{total}</span>
                 </button>
               )
             })}
           </div>
-          {genres.length > GENRE_SHOW_LIMIT && (
+          {sortedGenres.length > GENRE_SHOW_LIMIT && (
             <button
               onClick={() => setShowAll((v) => !v)}
               className="w-full text-xs text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 py-2 transition-colors"
             >
-              {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${genres.length - GENRE_SHOW_LIMIT} 件）`}
+              {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${sortedGenres.length - GENRE_SHOW_LIMIT} 件）`}
             </button>
           )}
         </>
       )}
-      {ownerFilter !== 'subscription' && selectedGenre && (
+      {!(ownerFilter === 'subscription' && !hasSubscription) && selectedGenre && (
         <>
           <div className="flex items-center justify-between mb-3 mt-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedGenre}</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{displayGenreName(selectedGenre)}</p>
             <button
               onClick={() => handleGenreSelect(null)}
               className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
@@ -1397,7 +1430,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           )}
         </>
       )}
-      {ownerFilter !== 'subscription' && !selectedGenre && !genresLoading && genres.length > 0 && (
+      {!(ownerFilter === 'subscription' && !hasSubscription) && !selectedGenre && !genresLoading && sortedGenres.length > 0 && (
         <div className="text-center py-6 text-gray-400 dark:text-gray-500">
           <p className="text-sm">ジャンルを選択してください</p>
         </div>
