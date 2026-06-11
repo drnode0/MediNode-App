@@ -126,13 +126,10 @@ export default function TermsPage() {
           </section>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            ← トップに戻る
-          </Link>
+        <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
+          <Link href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</Link>
+          <Link href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</Link>
+          <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">トップに戻る</Link>
         </div>
       </div>
     </div>
