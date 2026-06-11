@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-11（第9セッション・ジャンル別タブのパワーモード同等化＋折りたたみ統一）
+**最終更新**: 2026-06-11（第10セッション・文献タブの絞り込み検索＋件数表示でモード同等化）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -15,9 +15,9 @@ MediNodeという医療知識管理アプリの開発を続けます。
 プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
 まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
 
-前回（第9セッション）でシンプルモードのジャンル別タブをパワーモードと同等化し（番号除去・hybridSort・
-件数バッジ・紫ドット・プレミアム実内容表示）、両モードのジャンル折りたたみ閾値を12に統一しました。
-最新コミット: b1866e7
+前回（第10セッション）でシンプルモードの文献タブに絞り込み検索を追加し、検索/文献タブに件数表示を
+加えてパワーモードと同等化しました。パワー/シンプル両モードの機能差分調査も完了済み（残差は意図的なもののみ）。
+最新コミット: 3d96d1c
 
 今日やりたいこと：（未完了タスクリストを参照）
 ```
@@ -316,6 +316,15 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
     - `page.tsx`: `NotionBrowseTab` のジャンル一覧取得を `useState(()=>{fetch...})` の誤用から `useEffect(()=>{fetch...}, [])` に修正。これによりジャンルタブが正しくロードされるようになった
     - `page.tsx`: `useNotionSearch` の `useEffect` 依存配列に `fetch` を追加。settings変更後にタブを再訪した際も最新設定で再取得される
     - `page.tsx`: `SettingsPanel` の Notion接続設定・部署DB設定保存時に `extractNotionDbId` を適用。URLをペーストしてもIDが正しく保存される
+
+### 第10セッション（2026-06-11）完了作業 — 文献タブ絞り込み検索＋件数表示でモード同等化
+
+42. **パワー/シンプル両モードの機能差分を全タブ実コードで調査** — 検索/新着/クイズ/文献/ジャンルの各タブを実コードで突き合わせ。判明した実差分は2点のみ（下記43で対応）。その他はパリティ確認済み。**重要な訂正**：`SearchResults.tsx`（GenreFilter/LevelFilter/処理時間表示を持つ）は import されているがJSXで未使用。パワーモード検索タブの実体は `MergedSearchResults`（page.tsx:751）で、フィルタも処理時間表示も**両モードとも存在しない**。`SyncPanel`（page.tsx:2466）がパワーモードのみなのは Notion→Algolia 同期用で**意図的**（シンプルモードはNotion直読みのため不要）。
+
+43. **文献タブの絞り込み検索＋件数表示を追加（コミット `3d96d1c`）** — パワーモード `ReferenceTab`（page.tsx:397）には文献内検索の `<SearchBox />` があるがシンプルモード `NotionReferenceTab` には無かった差を解消。
+    - `page.tsx` `NotionReferenceTab`: 絞り込み入力 `query` state を追加。取得済みレコードに対しクライアント側で `title`/`author`/`journal`/`aiKeywords` を部分一致フィルタ（`useMemo`）。stickyヘッダを検索ボックス＋並び替えセレクトの横並びに変更（パワーモードと同レイアウト）。空状態は query有無で「該当なし」/「データなし」を出し分け。`{sorted.length}件` 表示を追加。
+    - `page.tsx` `NotionSearchTab`: 検索結果に `{merged.length}件`（query時のみ）を追加し、パワーモード `MergedSearchResults` の件数表示（page.tsx:793）と同等化。
+    - 検証: `npx tsc --noEmit` クリーン、`npm run build` 16/16ページ成功。
 
 ### 第9セッション（2026-06-11）完了作業 — シンプルモードのジャンル別タブをパワーモード同等化＋折りたたみ統一
 
