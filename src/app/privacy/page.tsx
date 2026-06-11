@@ -146,11 +146,6 @@ export default function PrivacyPage() {
           </section>
         </div>
 
-        <p className="mt-6 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
-          ※ 本ポリシーは一般的な雛形に基づいて作成されています。実際の運用にあたっては、内容の
-          正確性について専門家のご確認をおすすめします。
-        </p>
-
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
           <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
           <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>

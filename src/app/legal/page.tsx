@@ -56,6 +56,10 @@ const rows: { label: string; value: React.ReactNode }[] = [
     value: (
       <>
         各サービスの登録画面に表示する価格に準じます（プレミアム機能：月額 980 円・税込）。
+        <br />
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          ※ 価格は変更する場合があります。最新の価格は登録画面に表示される金額をご確認ください。
+        </span>
       </>
     ),
   },
@@ -126,11 +130,6 @@ export default function LegalPage() {
             ))}
           </dl>
         </div>
-
-        <p className="mt-6 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
-          ※ 本表記は一般的な雛形に基づいて作成されています。実際の運用にあたっては、内容の正確性について
-          専門家（行政書士等）のご確認をおすすめします。
-        </p>
 
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
           <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
