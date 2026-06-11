@@ -330,7 +330,9 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   // 個人側フィルタ: source:reference + ownerFilter
   const refOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
-    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+    : ownerFilter === 'all'
+      ? ''
+      : `owner:${ownerFilter}`
   const refPersonalFilter = refOwnerFilter
     ? `source:reference AND ${refOwnerFilter}`
     : 'source:reference'
@@ -481,11 +483,13 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   const [shuffled, setShuffled] = useState<Hit[]>([])
 
-  const personalFilter = ownerFilter === 'subscription'
+  const quizOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
-    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
-  const quizPersonalFilter = personalFilter
-    ? `source:medical AND ${personalFilter}`
+    : ownerFilter === 'all'
+      ? ''
+      : `owner:${ownerFilter}`
+  const quizPersonalFilter = quizOwnerFilter
+    ? `source:medical AND ${quizOwnerFilter}`
     : 'source:medical'
 
   useEffect(() => {

@@ -12,9 +12,10 @@ import { ResultCard, type Hit } from './ResultCard'
 
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
-// 個人とサブスクのファセットを別々に持つ
+// 個人・部署・サブスクのファセットを別々に持つ
 type FacetData = {
   personal: Record<string, number>
+  team: Record<string, number>
   subscription: Record<string, number>
 }
 
@@ -77,24 +78,35 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
   selectedGenre: string | null
   owner: OwnerFilter
 }) {
-  const [facetData, setFacetData] = useState<FacetData>({ personal: {}, subscription: {} })
+  const [facetData, setFacetData] = useState<FacetData>({ personal: {}, team: {}, subscription: {} })
   const [loading, setLoading] = useState(true)
   const subEnabled = hasSubscriptionConfig()
 
   useEffect(() => {
     let cancelled = false
-    const tasks: Promise<{ source: 'personal' | 'subscription'; facets: Record<string, number> }>[] = []
+    const idx = createSearchClient().initIndex(getIndexName())
+    const tasks: Promise<{ source: 'personal' | 'team' | 'subscription'; facets: Record<string, number> }>[] = []
 
-    // 個人
+    // 個人（owner:personal または ownerなし）
     tasks.push(
-      createSearchClient()
-        .initIndex(getIndexName())
-        .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+      idx
+        .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100, filters: 'owner:personal' })
         .then((res) => {
           const f = (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {}
           return { source: 'personal' as const, facets: f }
         })
         .catch(() => ({ source: 'personal' as const, facets: {} })),
+    )
+
+    // 部署（owner:team）
+    tasks.push(
+      idx
+        .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100, filters: 'owner:team' })
+        .then((res) => {
+          const f = (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {}
+          return { source: 'team' as const, facets: f }
+        })
+        .catch(() => ({ source: 'team' as const, facets: {} })),
     )
 
     // サブスク（設定あれば）
@@ -113,7 +125,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
 
     Promise.all(tasks).then((results) => {
       if (cancelled) return
-      const next: FacetData = { personal: {}, subscription: {} }
+      const next: FacetData = { personal: {}, team: {}, subscription: {} }
       for (const r of results) {
         next[r.source] = r.facets
       }
@@ -129,10 +141,17 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
     let genres: Set<string>
     if (owner === 'subscription') {
       genres = new Set(Object.keys(facetData.subscription))
-    } else if (owner === 'personal' || owner === 'team') {
+    } else if (owner === 'team') {
+      genres = new Set(Object.keys(facetData.team))
+    } else if (owner === 'personal') {
       genres = new Set(Object.keys(facetData.personal))
     } else {
-      genres = new Set([...Object.keys(facetData.personal), ...Object.keys(facetData.subscription)])
+      // all: 個人・部署・サブスク全て
+      genres = new Set([
+        ...Object.keys(facetData.personal),
+        ...Object.keys(facetData.team),
+        ...Object.keys(facetData.subscription),
+      ])
     }
     return Array.from(genres).sort(hybridSort)
   }, [facetData, owner])
@@ -164,8 +183,15 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
     <div className="grid grid-cols-2 gap-2 mb-4">
       {sortedGenres.map((genre) => {
         const personalCount = facetData.personal[genre] || 0
+        const teamCount = facetData.team[genre] || 0
         const subCount = facetData.subscription[genre] || 0
-        const total = owner === 'subscription' ? subCount : owner === 'personal' || owner === 'team' ? personalCount : personalCount + subCount
+        const total = owner === 'subscription'
+          ? subCount
+          : owner === 'team'
+            ? teamCount
+            : owner === 'personal'
+              ? personalCount
+              : personalCount + teamCount + subCount
         const hasSub = subCount > 0 && owner !== 'personal' && owner !== 'team'
         const isActive = selectedGenre === genre
         return (
