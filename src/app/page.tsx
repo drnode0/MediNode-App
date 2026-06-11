@@ -1386,6 +1386,57 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
                     <p>設定はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
                   </div>
                 </section>
+                {/* プレミアム解除（目立たない場所に） */}
+                {(() => {
+                  const s = getSettings()
+                  const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                  if (!isPremium) return null
+                  if (showPremiumCancelConfirm) {
+                    return (
+                      <section>
+                        <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl p-4 space-y-3">
+                          <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⚠️ プレミアムをこのデバイスから解除しますか？</p>
+                          <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1.5">
+                            <p>• <strong>このデバイスのみ</strong>プレミアム表示が消えます</p>
+                            <p>• Stripeのサブスクは継続中のため、次回請求日まで有効です</p>
+                            <p>• 解除後も「⭐ プレミアムに登録する」から再認証すれば復活します</p>
+                            <p className="pt-1 font-semibold">課金自体を止める場合はStripeダッシュボードで解約してください</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowPremiumCancelConfirm(false)}
+                              className="flex-1 text-xs border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg py-2 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                              キャンセル
+                            </button>
+                            <button
+                              onClick={() => {
+                                const current = getSettings()
+                                if (!current) return
+                                saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
+                                onClose()
+                                window.location.reload()
+                              }}
+                              className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg py-2 font-semibold"
+                            >
+                              このデバイスから解除
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    )
+                  }
+                  return (
+                    <section className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={() => setShowPremiumCancelConfirm(true)}
+                        className="text-xs text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500 transition-colors"
+                      >
+                        このデバイスからプレミアム認証を削除する
+                      </button>
+                    </section>
+                  )
+                })()}
               </div>
             </div>
           ) : showResetConfirm ? (
@@ -1401,57 +1452,18 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
             </div>
           ) : (
             <div className="space-y-2">
-              {/* プレミアム加入状態バナー */}
+              {/* プレミアム加入状態バナー（解除ボタンなし） */}
               {(() => {
                 const s = getSettings()
                 const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
                 if (!isPremium) return null
-                if (showPremiumCancelConfirm) {
-                  return (
-                    <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-4 space-y-3 mb-1">
-                      <p className="text-sm font-bold text-amber-700 dark:text-amber-300">⚠️ プレミアムをこのデバイスから解除しますか？</p>
-                      <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
-                        <p>• <strong>このデバイスのみ</strong>プレミアム表示が消えます</p>
-                        <p>• Stripeのサブスクは継続中のため、次回も課金されます</p>
-                        <p>• 解除後も「⭐ プレミアムに登録する」から再認証すれば復活します</p>
-                        <p className="mt-2 font-semibold">課金を止めたい場合はStripeダッシュボードから解約してください</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setShowPremiumCancelConfirm(false)}
-                          className="flex-1 text-xs border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg py-2 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          キャンセル
-                        </button>
-                        <button
-                          onClick={() => {
-                            const current = getSettings()
-                            if (!current) return
-                            saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
-                            onClose()
-                            window.location.reload()
-                          }}
-                          className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg py-2 font-semibold"
-                        >
-                          このデバイスから解除
-                        </button>
-                      </div>
-                    </div>
-                  )
-                }
                 return (
                   <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-1">
                     <span className="text-2xl">⭐</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
-                      <p className="text-xs text-purple-500 dark:text-purple-400 truncate">プレミアムコンテンツにアクセス中</p>
+                      <p className="text-xs text-purple-500 dark:text-purple-400">プレミアムコンテンツにアクセス中</p>
                     </div>
-                    <button
-                      onClick={() => setShowPremiumCancelConfirm(true)}
-                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 shrink-0"
-                    >
-                      解除
-                    </button>
                   </div>
                 )
               })()}
