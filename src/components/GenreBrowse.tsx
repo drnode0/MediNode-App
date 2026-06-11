@@ -12,6 +12,9 @@ import { ResultCard, type Hit } from './ResultCard'
 
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
+// ジャンルボタンの折りたたみ閾値（これを超えたら「すべて表示」で展開）
+const GENRE_SHOW_LIMIT = 12
+
 // 個人・部署・サブスクのファセットを別々に持つ
 type FacetData = {
   personal: Record<string, number>
@@ -80,6 +83,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
 }) {
   const [facetData, setFacetData] = useState<FacetData>({ personal: {}, team: {}, subscription: {} })
   const [loading, setLoading] = useState(true)
+  const [showAll, setShowAll] = useState(false)
   const subEnabled = hasSubscriptionConfig()
 
   useEffect(() => {
@@ -179,9 +183,13 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
     )
   }
 
+  const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
+  const hiddenCount = sortedGenres.length - visibleGenres.length
+
   return (
+    <>
     <div className="grid grid-cols-2 gap-2 mb-4">
-      {sortedGenres.map((genre) => {
+      {visibleGenres.map((genre) => {
         const personalCount = facetData.personal[genre] || 0
         const teamCount = facetData.team[genre] || 0
         const subCount = facetData.subscription[genre] || 0
@@ -223,6 +231,15 @@ function GenreList({ onGenreSelect, selectedGenre, owner }: {
         )
       })}
     </div>
+    {(hiddenCount > 0 || showAll) && sortedGenres.length > GENRE_SHOW_LIMIT && (
+      <button
+        onClick={() => setShowAll((v) => !v)}
+        className="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700 py-2 mb-4"
+      >
+        {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${hiddenCount} 件）`}
+      </button>
+    )}
+    </>
   )
 }
 

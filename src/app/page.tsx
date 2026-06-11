@@ -1175,7 +1175,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   )
 }
 
-const GENRE_SHOW_LIMIT = 8
+const GENRE_SHOW_LIMIT = 12
 
 // Notionモード：ジャンル別タブ（パワーモードのGenreBrowseと同等。個人/部署はNotion由来、プレミアムは作者Algolia）
 type GenreFacet = { personal: Record<string, number>; team: Record<string, number>; subscription: Record<string, number> }
