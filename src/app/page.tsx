@@ -621,24 +621,33 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     { id: 'subscription' as OwnerFilter, label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
   ]
   return (
-    <div className="flex gap-1 mb-2 flex-wrap">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-            owner === o.id
-              ? o.id === 'subscription' && !hasSubscription
-                ? 'bg-purple-500 text-white'
-                : 'bg-blue-600 text-white'
-              : o.inactive
-                ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="mb-2">
+      <div className="flex gap-1 flex-wrap">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+              owner === o.id
+                ? o.id === 'subscription' && !hasSubscription
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-blue-600 text-white'
+                : o.inactive
+                  ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {owner === 'subscription' && hasSubscription && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed mt-1.5">
+          ※ 掲載内容は参考情報です。最新性・正確性を保証するものではありません。臨床判断はご自身の責任で行ってください（
+          <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項</a>
+          ）。
+        </p>
+      )}
     </div>
   )
 }
@@ -741,6 +750,11 @@ function SubscriptionPromoPanel() {
       </button>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
+      </p>
+      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed border-t border-gray-100 dark:border-gray-700 pt-2 mt-1">
+        ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
+        <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
+        をご覧ください。
       </p>
     </div>
   )
@@ -2037,6 +2051,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     <div>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・いつでも解約可能</span></p>
                     </div>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                      ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
+                      <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
+                      をご覧ください。登録手続きに進むことで、これらの内容に同意したものとみなされます。
+                    </p>
                     <PremiumCheckoutButtonInline />
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みの方（手動入力）：</p>
