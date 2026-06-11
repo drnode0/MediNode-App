@@ -76,7 +76,7 @@ function parseErrorMessage(msg: string): string {
     return [
       'コネクト（旧称: Integration）のTokenが無効です。',
       '【対処法】',
-      '① notion.so/my-integrations でTokenの「アクセストークン」を再コピー',
+      '① notion.so/my-integrations → コネクトを開き「OAuth」セクションの「アクセストークン」を再コピー',
       '② 「ntn_xxx...」または「secret_xxx...」という形式になっているか確認',
       '③ コピー時に前後の空白が混入していないか確認',
       '④「← 戻る」でStep 1に戻り、再入力してください',
@@ -173,12 +173,12 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
               次の項目を入力:
               <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5 text-gray-500 dark:text-gray-400">
                 <li><strong>コネクト名</strong>: 任意（例: MediNode）</li>
-                <li><strong>認証方法</strong>: <strong>「ユーザー機能なし」</strong> を選択</li>
+                <li><strong>認証方法</strong>: <strong>「ユーザー機能なし」</strong> を選択（OAuthログイン不要・シンプルなトークン方式になります）</li>
                 <li><strong>インストール可能なワークスペース</strong>: 連携したいワークスペースを選択</li>
               </ul>
             </li>
             <li>「<strong>保存</strong>」をクリック</li>
-            <li>作成後のページで「<strong>アクセストークン</strong>」の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
+            <li>作成後のページの「<strong>OAuth</strong>」セクション（※トークン管理エリアの見出し名）にある「<strong>アクセストークン</strong>」の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
           </ol>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p>💡 <strong>Tokenの形式について</strong></p>
@@ -856,7 +856,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 />
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 作成後に「アクセストークン」をコピー
+                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 作成後の「OAuth」セクション →「アクセストークン」をコピー
                   </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
