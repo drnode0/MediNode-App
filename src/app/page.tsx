@@ -700,6 +700,24 @@ function SubscriptionPromoPanel() {
         <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
       </div>
 
+      {/* こんな方におすすめ */}
+      <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left space-y-2">
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">👩‍⚕️ こんな方におすすめ</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+          救急・集中治療の現場に関わる<strong>すべての職種</strong>へ。
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {['研修医', '救急医', '集中治療医', '看護師', '薬剤師', '臨床工学技士', '理学療法士', '作業療法士', '言語聴覚士', '臨床検査技師'].map((role) => (
+            <span key={role} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-[11px] font-medium">
+              {role}
+            </span>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+          専門や経験を問わず、チーム医療に携わる方の日々の学びと現場の意思決定をサポートします。
+        </p>
+      </div>
+
       {error && (
         <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">{error}</p>
       )}
@@ -2003,6 +2021,15 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                         ツールを切り替えることなく、<strong>あなた自身のNotionデータベース</strong>と<strong>現役医師が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。元の共有Notionページにそのままジャンプして詳細も確認できます。
                       </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">👩‍⚕️ こんな方におすすめ</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['研修医', '救急医', '集中治療医', '看護師', '薬剤師', '臨床工学技士', '理学療法士', '作業療法士', '言語聴覚士', '臨床検査技師'].map((role) => (
+                          <span key={role} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-[11px] font-medium">{role}</span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">救急・集中治療に携わるすべての職種の、日々の学びと現場の意思決定をサポートします。</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・いつでも解約可能</span></p>
