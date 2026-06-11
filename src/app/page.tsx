@@ -874,6 +874,9 @@ function useNotionSearch(mode: Tab) {
           notionToken: settings.notionToken,
           notionMedicalDbId: settings.notionMedicalDbId,
           notionReferenceDbId: settings.notionReferenceDbId || undefined,
+          teamNotionToken: settings.teamNotionToken || undefined,
+          teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+          teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
           keyword,
           ...extra,
         }),
@@ -886,7 +889,7 @@ function useNotionSearch(mode: Tab) {
     } finally {
       setLoading(false)
     }
-  }, [settings?.notionToken, settings?.notionMedicalDbId])
+  }, [settings?.notionToken, settings?.notionMedicalDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId])
 
   // 新着・クイズ・ジャンルは初回マウント時に自動取得（fetchはsettings変更時に再取得するため依存に含める）
   useEffect(() => {
@@ -908,11 +911,27 @@ function useNotionSearch(mode: Tab) {
 }
 
 // Notionモード：検索タブ
-function NotionSearchTab() {
+function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error, search } = useNotionSearch('search')
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
+
+  // プレミアム側にクエリを反映し、source絞りなし
+  useEffect(() => {
+    if (!ctx) return
+    ctx.setQuery(query)
+    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : '')
+    ctx.setSubHitsPerPage(100)
+  }, [query, ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const merged = useMemo(
+    () => mergeHitsByOwnerFilter(records, subHits, ownerFilter),
+    [records, subHits, ownerFilter],
+  )
 
   const handleChange = (q: string) => {
     setQuery(q)
@@ -948,21 +967,24 @@ function NotionSearchTab() {
           onChange={(e) => handleChangeWithHistory(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="キーワードで検索..."
-          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2"
         />
+        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>Notionを検索中...</div>}
       {error && <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
-      {!query && !hasSearched ? (
+      {ownerFilter === 'subscription' && !hasSubscription ? (
+        <SubscriptionPromoPanel />
+      ) : !query && !hasSearched ? (
         <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
-      ) : !loading && records.length === 0 && query ? (
+      ) : !loading && merged.length === 0 && query ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <p className="text-lg">該当なし</p>
           <p className="text-sm mt-1">別のキーワードで試してください</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {records.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+          {merged.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
         </div>
       )}
     </>
@@ -970,9 +992,23 @@ function NotionSearchTab() {
 }
 
 // Notionモード：新着タブ
-function NotionRecentTab() {
+function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error } = useNotionSearch('recent')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
   const now = new Date()
+
+  useEffect(() => {
+    if (!ctx) return
+    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : '')
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const merged = useMemo(
+    () => mergeHitsByOwnerFilter(records, subHits, ownerFilter),
+    [records, subHits, ownerFilter],
+  )
 
   const groups: { label: string; hits: Hit[] }[] = [
     { label: '今日', hits: [] },
@@ -981,7 +1017,7 @@ function NotionRecentTab() {
     { label: 'それ以前', hits: [] },
   ]
 
-  for (const hit of records) {
+  for (const hit of merged) {
     const d = new Date(hit.createdAt || hit.lastEdited)
     const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
     if (diffDays < 1) groups[0].hits.push(hit)
@@ -990,17 +1026,29 @@ function NotionRecentTab() {
     else groups[3].hits.push(hit)
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
-  if (error) return <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div>
-  if (records.length === 0) return (
-    <div className="text-center py-14 px-4">
-      <div className="text-5xl mb-4">📭</div>
-      <p className="text-gray-600 dark:text-gray-300 font-semibold">データがありません</p>
-      <p className="text-sm text-gray-400 mt-1">NotionのDBにデータを追加してください</p>
+  const ownerTabs = (
+    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
 
+  if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+  if (merged.length === 0) return (
+    <>
+      {ownerTabs}
+      <div className="text-center py-14 px-4">
+        <div className="text-5xl mb-4">📭</div>
+        <p className="text-gray-600 dark:text-gray-300 font-semibold">データがありません</p>
+        <p className="text-sm text-gray-400 mt-1">NotionのDBにデータを追加してください</p>
+      </div>
+    </>
+  )
+
   return (
+    <>
+    {ownerTabs}
     <div className="space-y-6">
       {groups.filter((g) => g.hits.length > 0).map((group) => (
         <div key={group.label}>
@@ -1015,42 +1063,78 @@ function NotionRecentTab() {
         </div>
       ))}
     </div>
+    </>
   )
 }
 
 // Notionモード：クイズタブ
-function NotionQuizTab() {
+function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error } = useNotionSearch('quiz')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
   const [shuffled, setShuffled] = useState<Hit[]>([])
 
   useEffect(() => {
-    if (records.length > 0) {
-      const arr = [...records]
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]]
-      }
-      setShuffled(arr.slice(0, 20))
-    }
-  }, [records])
+    if (!ctx) return
+    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : 'source:medical')
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
 
-  if (loading) return <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
-  if (error) return <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div>
-  if (records.length === 0) return (
-    <div className="text-center py-14 px-4">
-      <div className="text-5xl mb-4">🧠</div>
-      <p className="text-gray-600 dark:text-gray-300 font-semibold">クイズがありません</p>
-      <p className="text-sm text-gray-400 mt-1">知識レベルを「💡 ナレッジ」にして要約を入れるとクイズに出題されます</p>
+  const subHits = ctx?.hits || []
+  const merged = useMemo(
+    () => mergeHitsByOwnerFilter(records, subHits, ownerFilter),
+    [records, subHits, ownerFilter],
+  )
+
+  // 個人records はAPI側でクイズ条件済み。サブスクhitsはクライアント側でクイズ条件フィルタ
+  const quizCandidates = useMemo(() => merged.filter((h) => {
+    const summaryText = ((h.aiSummary || '') + (h.summary || '')).trim()
+    const hasSummary = summaryText.length >= 10
+    const lvl = h.knowledgeLevel || ''
+    const isKnowledge = lvl.includes('💡') || lvl.includes('ナレッジ') || lvl.toLowerCase().includes('knowledge')
+    const titleStr = (h.title || '').trim()
+    const titleIsCQ = titleStr.startsWith('❓') || titleStr.includes('CQ：') || titleStr.includes('CQ:')
+    return hasSummary && isKnowledge && !titleIsCQ
+  }), [merged])
+
+  useEffect(() => {
+    const arr = [...quizCandidates]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    setShuffled(arr.slice(0, 20))
+  }, [quizCandidates.length])
+
+  const ownerTabs = (
+    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
 
+  if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+  if (quizCandidates.length === 0) return (
+    <>
+      {ownerTabs}
+      <div className="text-center py-14 px-4">
+        <div className="text-5xl mb-4">🧠</div>
+        <p className="text-gray-600 dark:text-gray-300 font-semibold">クイズがありません</p>
+        <p className="text-sm text-gray-400 mt-1">知識レベルを「💡 ナレッジ」にして要約を入れるとクイズに出題されます</p>
+      </div>
+    </>
+  )
+
   return (
+    <>
+    {ownerTabs}
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
         <button
           onClick={() => {
-            const arr = [...records]
+            const arr = [...quizCandidates]
             for (let i = arr.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
               [arr[i], arr[j]] = [arr[j], arr[i]]
@@ -1066,6 +1150,7 @@ function NotionQuizTab() {
         {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
       </div>
     </div>
+    </>
   )
 }
 
@@ -1163,7 +1248,7 @@ const GENRE_BUTTON_COLORS = [
 const GENRE_SHOW_LIMIT = 8
 
 // Notionモード：ジャンル別タブ
-function NotionBrowseTab() {
+function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const settings = getSettings()
   const [genres, setGenres] = useState<string[]>([])
   const [genresLoading, setGenresLoading] = useState(true)
@@ -1173,6 +1258,14 @@ function NotionBrowseTab() {
   const [genreRecords, setGenreRecords] = useState<Hit[]>([])
   const [genreLoading, setGenreLoading] = useState(false)
   const [genreError, setGenreError] = useState('')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+
+  // ジャンル別はNotion由来の個人＋部署のみ（プレミアムはジャンル横断が困難なため案内のみ）
+  const displayRecords = useMemo(() => {
+    if (ownerFilter === 'personal') return genreRecords.filter((h) => !h.owner || h.owner === 'personal')
+    if (ownerFilter === 'team') return genreRecords.filter((h) => h.owner === 'team')
+    return genreRecords
+  }, [genreRecords, ownerFilter])
 
   // 初回：ジャンル選択肢をAPIから取得
   useEffect(() => {
@@ -1213,6 +1306,8 @@ function NotionBrowseTab() {
         body: JSON.stringify({
           notionToken: settings.notionToken,
           notionMedicalDbId: settings.notionMedicalDbId,
+          teamNotionToken: settings.teamNotionToken || undefined,
+          teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
           mode: 'browse',
           genre,
           pageSize: 100,
@@ -1233,7 +1328,18 @@ function NotionBrowseTab() {
 
   return (
     <div>
-      {genresLoading ? (
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+        <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+      </div>
+      {ownerFilter === 'subscription' ? (
+        hasSubscription ? (
+          <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+            <p className="text-sm">プレミアム内容は「検索」「新着」「文献」タブからご覧ください</p>
+          </div>
+        ) : (
+          <SubscriptionPromoPanel />
+        )
+      ) : genresLoading ? (
         <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンルを読み込み中...</div>
       ) : genresError ? (
         <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genresError}</div>
@@ -1267,7 +1373,7 @@ function NotionBrowseTab() {
           )}
         </>
       )}
-      {selectedGenre && (
+      {ownerFilter !== 'subscription' && selectedGenre && (
         <>
           <div className="flex items-center justify-between mb-3 mt-4">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedGenre}</p>
@@ -1282,16 +1388,16 @@ function NotionBrowseTab() {
             <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
           ) : genreError ? (
             <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genreError}</div>
-          ) : genreRecords.length === 0 ? (
+          ) : displayRecords.length === 0 ? (
             <div className="text-center py-8 text-gray-400"><p>このジャンルにはまだエントリがありません</p></div>
           ) : (
             <div className="space-y-3">
-              {genreRecords.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+              {displayRecords.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
             </div>
           )}
         </>
       )}
-      {!selectedGenre && !genresLoading && genres.length > 0 && (
+      {ownerFilter !== 'subscription' && !selectedGenre && !genresLoading && genres.length > 0 && (
         <div className="text-center py-6 text-gray-400 dark:text-gray-500">
           <p className="text-sm">ジャンルを選択してください</p>
         </div>
@@ -1301,12 +1407,28 @@ function NotionBrowseTab() {
 }
 
 // Notionモード：参考文献タブ
-function NotionReferenceTab() {
+function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error } = useNotionSearch('reference')
-  const refRecords = records.filter((r) => r.source === 'reference')
   const [sort, setSort] = useState<RefSort>('year_desc')
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const ctx = useSubscriptionHits()
 
-  const sorted = [...refRecords].sort((a, b) => {
+  // 個人records は medical+reference 混在。reference のみ抽出
+  const refRecords = records.filter((r) => r.source === 'reference')
+
+  useEffect(() => {
+    if (!ctx) return
+    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : 'source:reference')
+    ctx.setSubHitsPerPage(100)
+  }, [ownerFilter, ctx])
+
+  const subHits = ctx?.hits || []
+  const merged = useMemo(
+    () => mergeHitsByOwnerFilter(refRecords, subHits, ownerFilter),
+    [refRecords, subHits, ownerFilter],
+  )
+
+  const sorted = [...merged].sort((a, b) => {
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
     if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
@@ -1318,12 +1440,9 @@ function NotionReferenceTab() {
     { value: 'lastEdited', label: '更新日順' },
   ]
 
-  if (loading) return <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
-  if (error) return <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div>
-
-  return (
-    <>
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4 flex justify-end">
+  const ownerTabs = (
+    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="flex justify-end mb-2">
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as RefSort)}
@@ -1332,6 +1451,17 @@ function NotionReferenceTab() {
           {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
+      <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+    </div>
+  )
+
+  if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+
+  return (
+    <>
+      {ownerTabs}
       {sorted.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p>参考文献DBが設定されていないか、データがありません</p>
@@ -2236,18 +2366,20 @@ export default function Home() {
   // ========== Notionモード ==========
   if (searchMode === 'notion') {
     return (
+      <SubscriptionSearchProvider enableBridge={true}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
-          {tab === 'search' && <NotionSearchTab />}
-          {tab === 'recent' && <NotionRecentTab />}
-          {tab === 'browse' && <NotionBrowseTab />}
-          {tab === 'reference' && <NotionReferenceTab />}
-          {tab === 'quiz' && <NotionQuizTab />}
+          {tab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
         </div>
         {settingsModal}
       </div>
+      </SubscriptionSearchProvider>
     )
   }
 
