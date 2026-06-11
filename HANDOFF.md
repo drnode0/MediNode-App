@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-10（第5セッション・Stripe課金フロー実装）
+**最終更新**: 2026-06-11（第7セッション・シンプルモード動作修正）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -15,12 +15,11 @@ MediNodeという医療知識管理アプリの開発を続けます。
 プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
 まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
 
-前回（第5セッション）でStripe月額サブスク課金フローの実装・デプロイ・
-Vercel環境変数設定・GitHub自動デプロイ接続まで完了しています。
+前回（第7セッション）でシンプルモードの動作修正（NotionBrowseTab useEffect修正・
+date型year抽出・useNotionSearch deps修正・SettingsPanel extractNotionDbId適用）まで完了しています。
+最新コミット: a7bc06f
 
-今日やりたいこと：
-- （ここに今日のタスクを書く。例：「Stripe決済フローをテストカードで実機確認したい」
-   または「有料noteの本文ドラフトを書きたい」など）
+今日やりたいこと：（未完了タスクリストを参照）
 ```
 
 **デプロイの仕組み（第5セッションで確立）**: `git push origin main` すると
@@ -310,6 +309,24 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
 29. **lib/algolia.ts のサブスク設定をハードコードに変更** — `PREMIUM_INDEX_NAME = 'Medical Knowledge_DB（サブスク用）'` を固定。インデックス名は作者管理なのでコードに直書き（変更時はここを書き換えて再デプロイ）
 30. **GenreBrowse.tsx にソース切替トグル追加** — サブスク設定ありのとき「全て/個人/プレミアム」を切り替え。ジャンルに紫ドットでプレミアム該当を表示
 
+### 第7セッション（2026-06-11）完了作業
+
+38. **シンプルモード動作修正（コミット `a7bc06f`）** — 以下4点を修正：
+    - `search/route.ts`: `extractText` に `date` 型対応を追加（参考文献の「発行年」が `date` 型の場合に年だけ正しく抽出できていなかった）
+    - `page.tsx`: `NotionBrowseTab` のジャンル一覧取得を `useState(()=>{fetch...})` の誤用から `useEffect(()=>{fetch...}, [])` に修正。これによりジャンルタブが正しくロードされるようになった
+    - `page.tsx`: `useNotionSearch` の `useEffect` 依存配列に `fetch` を追加。settings変更後にタブを再訪した際も最新設定で再取得される
+    - `page.tsx`: `SettingsPanel` の Notion接続設定・部署DB設定保存時に `extractNotionDbId` を適用。URLをペーストしてもIDが正しく保存される
+
+### 第6セッション（2026-06-11）完了作業
+
+31. **同期APIの詳細内訳追加** — `sync/route.ts` に per-source カウンター（personalMedical/personalReference/teamMedical/teamReference）を追加。部署用DB同期エラーは個別 try/catch で warnings[] に格納し部分成功扱いに。
+32. **SyncPanel.tsx の表示改善** — 同期結果に詳細内訳を表示。warnings があれば amber 色の警告ボックス表示。
+33. **SettingsPanel 全面刷新（page.tsx）** — Section型でセクション別直接編集UI（`null | 'notion' | 'team' | 'subscription' | 'help' | 'redo-confirm' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'`）に変更。接続設定メニューに「🔀 モードを変更する」「📋 NotionDBをセットアップする」を追加。propMap設定を UI から削除。
+34. **SetupWizard オプションステップから propmap 削除** — プロパティ名カスタマイズ機能は機能として非採用。オプションステップの `openSection` state は `null | 'team' | 'subscription'` のみに。
+35. **SetupWizard ステップインジケーター修正** — 5ステップ（パワーモード）でモバイル幅に収まらない問題を修正。円を上・ラベルを下（flex-col）に変更。w-7 h-7 / text-[10px] / connector w-6 に縮小。
+36. **SetupWizard Notionコネクト手順をNotionの現UIに合わせて修正** — フィールド順（コネクト名→認証方法→インストール可能なワークスペース）。「認証方法」選択肢を正確に **「アクセストークン」** に修正（旧「ユーザー機能なし」は誤りだった）。「OAuth」セクション表記を削除してすっきりさせた。
+37. **Notion運用ガイドページ更新** — `378fd756737081a2bc23f1acb5f3a4bc` を現在の機能に合わせて全面書き換え。モード選択・iOS PWA注意・新SettingsPanel対応・変更ログ追加。
+
 ---
 
 ## 未完了タスク（次セッションで対応が必要）
@@ -507,12 +524,23 @@ CQ・ナレッジ・まとめ 共通：
 
 ```bash
 cd /Users/tatsukinonaka/medical-search-public
-npx vercel deploy --prod
+git add src/...（変更ファイル）
+git commit -m "fix/feat: 説明"
+git push origin main
+# → Vercel が main ブランチを自動デプロイ（手動デプロイ不要）
 ```
 
 型チェック:
 ```bash
+cd /Users/tatsukinonaka/medical-search-public
 npx tsc --noEmit
+```
+
+ローカル開発:
+```bash
+cd /Users/tatsukinonaka/medical-search-public
+npm run dev
+# → http://localhost:3000
 ```
 
 ---
