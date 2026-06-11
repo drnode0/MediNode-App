@@ -1111,9 +1111,10 @@ type SettingsPanelProps = {
   onClose: () => void
   onReset: () => void
   onRedo: () => void
+  onRedoOptions: () => void
   currentMode: string
 }
-function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelProps) {
+function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }: SettingsPanelProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [propCheck, setPropCheck] = useState<null | {
@@ -1395,6 +1396,35 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
             </div>
           ) : (
             <div className="space-y-2">
+              {/* プレミアム加入状態バナー */}
+              {(() => {
+                const s = getSettings()
+                const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                if (isPremium) {
+                  return (
+                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-1">
+                      <span className="text-2xl">⭐</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
+                        <p className="text-xs text-purple-500 dark:text-purple-400 truncate">プレミアムコンテンツにアクセス中</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const current = getSettings()
+                          if (!current) return
+                          saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
+                          onClose()
+                          window.location.reload()
+                        }}
+                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 shrink-0"
+                      >
+                        解除
+                      </button>
+                    </div>
+                  )
+                }
+                return null
+              })()}
               <a
                 href="https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -1416,10 +1446,18 @@ function SettingsPanel({ onClose, onReset, onRedo, currentMode }: SettingsPanelP
                 </div>
                 <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
               </button>
+              <button onClick={() => { onClose(); onRedoOptions() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">⚙️</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">オプション設定を変更する</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">部署DB・プレミアムDB・プロパティ名など</p>
+                </div>
+                <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
+              </button>
               <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="text-xl">🔑</span>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">設定を変更する</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">全設定を最初からやり直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">モード変更・APIキーの入力し直し</p>
                 </div>
                 <span className="ml-auto text-gray-300 dark:text-gray-600">›</span>
@@ -1510,13 +1548,22 @@ export default function Home() {
     setOnboardingDone(done)
   }, [])
 
+  const [setupInitialStep, setSetupInitialStep] = useState<'mode' | 'options'>('mode')
+
   const handleReset = () => {
     clearSettings()
     setSetupDone(false)
     setShowSettings(false)
+    setSetupInitialStep('mode')
   }
 
   const handleRedo = () => {
+    setSetupInitialStep('mode')
+    setSetupDone(false)
+  }
+
+  const handleRedoOptions = () => {
+    setSetupInitialStep('options')
     setSetupDone(false)
   }
 
@@ -1585,7 +1632,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false) }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('mode') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
   }
 
   const settings = getSettings()
@@ -1641,6 +1688,7 @@ export default function Home() {
       onClose={() => setShowSettings(false)}
       onReset={handleReset}
       onRedo={handleRedo}
+      onRedoOptions={handleRedoOptions}
       currentMode={searchMode}
     />
   )

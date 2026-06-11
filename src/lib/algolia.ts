@@ -38,7 +38,8 @@ function getSubscriptionConfig() {
   return {
     appId: settings?.subscriptionAppId || '',
     searchKey: settings?.subscriptionSearchKey || '',
-    index: PREMIUM_INDEX_NAME,
+    // verifyAPIが返したインデックス名をlocalStorageから使う。未設定ならハードコードにフォールバック
+    index: settings?.subscriptionIndex || PREMIUM_INDEX_NAME,
   }
 }
 

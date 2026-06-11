@@ -9,6 +9,7 @@ type NotionSetupMode = 'choose' | 'after-template' | 'existing'
 type Props = {
   onComplete: () => void
   onShowOnboarding?: () => void
+  initialStep?: Step
 }
 
 // Stripe Checkout へのリダイレクトボタン（SetupWizard内で使用）
@@ -418,11 +419,12 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
   },
 }
 
-export function SetupWizard({ onComplete, onShowOnboarding }: Props) {
-  const [step, setStep] = useState<Step>('mode')
+export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
+  const [step, setStep] = useState<Step>(initialStep || 'mode')
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
-  const [openSection, setOpenSection] = useState<string | null>(null)
+  // optionsステップに直行した場合はプレミアムセクションを自動展開
+  const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
     searchMode: 'algolia',
     notionToken: '',
@@ -1391,12 +1393,14 @@ export function SetupWizard({ onComplete, onShowOnboarding }: Props) {
           {step === 'options' && (
             <div className="space-y-5">
               <div>
-                <button
-                  onClick={() => setStep(form.searchMode === 'algolia' ? 'sync' : 'notion')}
-                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
-                >
-                  ← 戻る
-                </button>
+                {initialStep !== 'options' && (
+                  <button
+                    onClick={() => setStep(form.searchMode === 'algolia' ? 'sync' : 'notion')}
+                    className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                  >
+                    ← 戻る
+                  </button>
+                )}
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">オプション設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   ほとんどの方はスキップしてOKです。後から設定画面で変更できます。
