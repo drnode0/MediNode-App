@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-11（第7セッション・シンプルモード動作修正）
+**最終更新**: 2026-06-11（第8セッション・シンプルモードに所有者フィルタタブ追加）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -15,9 +15,9 @@ MediNodeという医療知識管理アプリの開発を続けます。
 プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
 まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
 
-前回（第7セッション）でシンプルモードの動作修正（NotionBrowseTab useEffect修正・
-date型year抽出・useNotionSearch deps修正・SettingsPanel extractNotionDbId適用）まで完了しています。
-最新コミット: a7bc06f
+前回（第8セッション）でシンプルモードに所有者フィルタタブ（全て/個人/部署/⭐プレミアム）を
+追加完了しています（パワーモードと同じ仕組み・Algolia非経由で個人/部署はNotion由来）。
+最新コミット: af6af9a
 
 今日やりたいこと：（未完了タスクリストを参照）
 ```
@@ -316,6 +316,15 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
     - `page.tsx`: `NotionBrowseTab` のジャンル一覧取得を `useState(()=>{fetch...})` の誤用から `useEffect(()=>{fetch...}, [])` に修正。これによりジャンルタブが正しくロードされるようになった
     - `page.tsx`: `useNotionSearch` の `useEffect` 依存配列に `fetch` を追加。settings変更後にタブを再訪した際も最新設定で再取得される
     - `page.tsx`: `SettingsPanel` の Notion接続設定・部署DB設定保存時に `extractNotionDbId` を適用。URLをペーストしてもIDが正しく保存される
+
+### 第8セッション（2026-06-11）完了作業 — シンプルモードに所有者フィルタタブ追加
+
+39. **シンプルモードに所有者フィルタタブ（全て/個人/部署/⭐プレミアム）を追加（コミット `af6af9a`）** — パワーモードと同様の所有者切替UIをシンプルモード（Notion直接検索）の全タブに展開。Algoliaを介さず個人/部署はNotion API由来、プレミアムのみパワーモードと同じ `SubscriptionSearchProvider` 機構を流用（作者のAlgoliaサブスクDB）。
+    - `api/notion/search/route.ts`: `NotionRecord.owner` を `'personal' | 'team'` に変更。`queryDb` に `owner` 引数追加（`objectID` は `${owner}_${page.id}`）。クイズ用 `fetchQuizRecords(notion, dbId, owner)`・ジャンル別 `fetchBrowseRecords(notion, dbId, genre, pageSize, owner, cursor)` をヘルパー化。POST body に `teamNotionToken`/`teamNotionMedicalDbId`/`teamNotionReferenceDbId` を追加し、`hasTeam` 時は `teamNotion` クライアントを生成。recent/search/quiz/browse の各モードで個人＋部署DBを問い合わせてマージ。
+    - `page.tsx` `useNotionSearch`: fetch body に team 設定3項目を追加。useCallback 依存配列に team 設定を追加。
+    - `page.tsx` 各Notionタブ（NotionSearchTab/NotionRecentTab/NotionQuizTab/NotionBrowseTab/NotionReferenceTab）に `{hasTeam, hasSubscription}` props を追加。既存の `OwnerFilterTabs`・`mergeHitsByOwnerFilter`・`SubscriptionPromoPanel`・`useSubscriptionHits` を再利用。`ownerFilter` 選択が personal/team のときはサブスクヒットを `owner:__none__` で無効化、subscription のときはタブ毎の source（quiz→`source:medical`、reference→`source:reference`）で絞る。browse タブはジャンル×サブスクの二重フィルタが複雑なため、プレミアム選択時は `SubscriptionPromoPanel`/案内表示の最小対応。
+    - `page.tsx` シンプルモードのルーティングを `<SubscriptionSearchProvider enableBridge={true}>` でラップ（個人hitsはNotion由来のため個人用 `<InstantSearch>` は不要）。
+    - 検証: `npx tsc --noEmit` クリーン、`npm run build` 16/16ページ成功。
 
 ### 第6セッション（2026-06-11）完了作業
 
