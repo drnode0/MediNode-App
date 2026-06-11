@@ -1004,9 +1004,12 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           <p className="text-sm mt-1">別のキーワードで試してください</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {merged.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
-        </div>
+        <>
+          {query && <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>}
+          <div className="space-y-3">
+            {merged.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+          </div>
+        </>
       )}
     </>
   )
@@ -1444,6 +1447,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   const { records, loading, error } = useNotionSearch('reference')
   const [sort, setSort] = useState<RefSort>('year_desc')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const [query, setQuery] = useState('')
   const ctx = useSubscriptionHits()
 
   // 個人records は medical+reference 混在。reference のみ抽出
@@ -1461,7 +1465,18 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     [refRecords, subHits, ownerFilter],
   )
 
-  const sorted = [...merged].sort((a, b) => {
+  // タイトル・著者・ジャーナル・キーワードで絞り込み（取得済みレコードに対するクライアント側フィルタ）
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return merged
+    return merged.filter((h) =>
+      [h.title, h.author, h.journal, h.aiKeywords]
+        .filter(Boolean)
+        .some((f) => (f as string).toLowerCase().includes(q)),
+    )
+  }, [merged, query])
+
+  const sorted = [...filtered].sort((a, b) => {
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
     if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
@@ -1475,11 +1490,18 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
   const ownerTabs = (
     <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
-      <div className="flex justify-end mb-2">
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="文献を絞り込み..."
+          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as RefSort)}
-          className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+          className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0"
         >
           {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -1497,12 +1519,17 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
       {ownerTabs}
       {sorted.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <p>参考文献DBが設定されていないか、データがありません</p>
+          {query.trim()
+            ? <><p className="text-lg">該当なし</p><p className="text-sm mt-1">別のキーワードで試してください</p></>
+            : <p>参考文献DBが設定されていないか、データがありません</p>}
         </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
-        </div>
+        <>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
+          <div className="space-y-3">
+            {sorted.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+          </div>
+        </>
       )}
     </>
   )
