@@ -355,23 +355,27 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   hasTeam: boolean
   hasSubscription: boolean
 }) {
-  const options: { id: OwnerFilter; label: string }[] = [
+  // 部署タブ・プレミアムタブは常に表示（未接続は薄くグレーアウト）
+  const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    ...(hasTeam ? [{ id: 'team' as OwnerFilter, label: '部署' }] : []),
-    ...(hasSubscription ? [{ id: 'subscription' as OwnerFilter, label: 'プレミアム' }] : []),
+    ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: '部署', inactive: !hasTeam }] : []),
+    { id: 'subscription' as OwnerFilter, label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
   ]
-  if (options.length <= 2) return null
   return (
-    <div className="flex gap-1 mb-2">
+    <div className="flex gap-1 mb-2 flex-wrap">
       {options.map((o) => (
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
           className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
             owner === o.id
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              ? o.id === 'subscription' && !hasSubscription
+                ? 'bg-purple-500 text-white'
+                : 'bg-blue-600 text-white'
+              : o.inactive
+                ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
           {o.label}
@@ -587,7 +591,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           owner={ownerFilter}
           onChange={setOwnerFilter}
           hasTeam={hasTeam}
-          hasSubscription={true /* 常にタブ表示。未設定なら販売パネルへ誘導 */}
+          hasSubscription={hasSubscription}
         />
       </div>
       {!query && !hasSearched ? (
@@ -1117,6 +1121,7 @@ type SettingsPanelProps = {
 function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }: SettingsPanelProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showPremiumCancelConfirm, setShowPremiumCancelConfirm] = useState(false)
   const [propCheck, setPropCheck] = useState<null | {
     medical: { found: string[]; missing: string[] }
     reference?: { found: string[]; missing: string[] }
@@ -1400,30 +1405,55 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoOptions, currentMode }:
               {(() => {
                 const s = getSettings()
                 const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
-                if (isPremium) {
+                if (!isPremium) return null
+                if (showPremiumCancelConfirm) {
                   return (
-                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-1">
-                      <span className="text-2xl">⭐</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
-                        <p className="text-xs text-purple-500 dark:text-purple-400 truncate">プレミアムコンテンツにアクセス中</p>
+                    <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-4 space-y-3 mb-1">
+                      <p className="text-sm font-bold text-amber-700 dark:text-amber-300">⚠️ プレミアムをこのデバイスから解除しますか？</p>
+                      <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
+                        <p>• <strong>このデバイスのみ</strong>プレミアム表示が消えます</p>
+                        <p>• Stripeのサブスクは継続中のため、次回も課金されます</p>
+                        <p>• 解除後も「⭐ プレミアムに登録する」から再認証すれば復活します</p>
+                        <p className="mt-2 font-semibold">課金を止めたい場合はStripeダッシュボードから解約してください</p>
                       </div>
-                      <button
-                        onClick={() => {
-                          const current = getSettings()
-                          if (!current) return
-                          saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
-                          onClose()
-                          window.location.reload()
-                        }}
-                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 shrink-0"
-                      >
-                        解除
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowPremiumCancelConfirm(false)}
+                          className="flex-1 text-xs border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg py-2 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          キャンセル
+                        </button>
+                        <button
+                          onClick={() => {
+                            const current = getSettings()
+                            if (!current) return
+                            saveSettings({ ...current, subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '' })
+                            onClose()
+                            window.location.reload()
+                          }}
+                          className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded-lg py-2 font-semibold"
+                        >
+                          このデバイスから解除
+                        </button>
+                      </div>
                     </div>
                   )
                 }
-                return null
+                return (
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-1">
+                    <span className="text-2xl">⭐</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
+                      <p className="text-xs text-purple-500 dark:text-purple-400 truncate">プレミアムコンテンツにアクセス中</p>
+                    </div>
+                    <button
+                      onClick={() => setShowPremiumCancelConfirm(true)}
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 shrink-0"
+                    >
+                      解除
+                    </button>
+                  </div>
+                )
               })()}
               <a
                 href="https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc"
