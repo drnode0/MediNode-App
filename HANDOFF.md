@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-11（第8セッション・シンプルモードに所有者フィルタタブ追加）
+**最終更新**: 2026-06-11（第9セッション・ジャンル別タブのパワーモード同等化＋折りたたみ統一）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -15,9 +15,9 @@ MediNodeという医療知識管理アプリの開発を続けます。
 プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
 まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
 
-前回（第8セッション）でシンプルモードに所有者フィルタタブ（全て/個人/部署/⭐プレミアム）を
-追加完了しています（パワーモードと同じ仕組み・Algolia非経由で個人/部署はNotion由来）。
-最新コミット: af6af9a
+前回（第9セッション）でシンプルモードのジャンル別タブをパワーモードと同等化し（番号除去・hybridSort・
+件数バッジ・紫ドット・プレミアム実内容表示）、両モードのジャンル折りたたみ閾値を12に統一しました。
+最新コミット: b1866e7
 
 今日やりたいこと：（未完了タスクリストを参照）
 ```
@@ -316,6 +316,18 @@ SyncPanel（再同期UI）は `SyncPanel.tsx` コンポーネントで、設定�
     - `page.tsx`: `NotionBrowseTab` のジャンル一覧取得を `useState(()=>{fetch...})` の誤用から `useEffect(()=>{fetch...}, [])` に修正。これによりジャンルタブが正しくロードされるようになった
     - `page.tsx`: `useNotionSearch` の `useEffect` 依存配列に `fetch` を追加。settings変更後にタブを再訪した際も最新設定で再取得される
     - `page.tsx`: `SettingsPanel` の Notion接続設定・部署DB設定保存時に `extractNotionDbId` を適用。URLをペーストしてもIDが正しく保存される
+
+### 第9セッション（2026-06-11）完了作業 — シンプルモードのジャンル別タブをパワーモード同等化＋折りたたみ統一
+
+40. **シンプルモードのジャンル別タブ（`NotionBrowseTab`）をパワーモードの `GenreBrowse` と同等に（コミット `82c1375`）** — ユーザー要望「ジャンルの箇所がパワーモードと違うので全て揃える」に対応。差分5点を解消：①番号プレフィックス（`01.`等）を `displayGenreName` で除去して表示、②`hybridSort`（番号付き→あいうえお順→INBOX最後）で並び替え、③各ジャンルに件数バッジ、④プレミアムにも存在するジャンルに紫ドット、⑤プレミアムタブで実際の作者Algoliaジャンル内容を表示（従来の案内のみから変更）。
+    - `page.tsx`: `hybridSort`・`displayGenreName` ヘルパーを追加（GenreBrowse.tsx と同一実装・別ファイルのためコピー）。未使用の `NOTION_GENRE_GROUPS`・`GENRE_BUTTON_COLORS` を削除。
+    - `page.tsx` `NotionBrowseTab` を全面書き換え。`type GenreFacet = { personal/team/subscription: Record<string,number> }`。全medicalレコード（mode=browse, genre=''）をNotionから取得してジャンル件数を個人/部署別に集計。サブスクは作者Algoliaのファセット（`search('', { facets:['genre'], hitsPerPage:0 })`）。`handleGenreSelect` はNotion（個人/部署）＋Algolia（サブスク）を `Promise.all` で並列取得。
+    - レコードのジャンル抽出は `genreList`／`Array.isArray(genre)`／`genre` の順に分岐（`rec.genre` が `string | string[]` のため）。
+
+41. **ジャンル折りたたみ閾値を12に統一し、パワーモードにも折りたたみを追加（コミット `b1866e7`）** — ユーザー判断「残す＋閾値12に上げる」「パワーモードにも折りたたみを追加」に対応。
+    - `page.tsx`: `GENRE_SHOW_LIMIT` を 8→12 に変更。
+    - `GenreBrowse.tsx`（パワーモード）: 従来は折りたたみ無し（全ジャンル常時表示）だったため、シンプルモードと同じ折りたたみ機構を追加。`GENRE_SHOW_LIMIT = 12` 定数、`GenreList` に `showAll` state、`visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, 12)`、トグルボタン（`▼ すべて表示（残り N 件）` / `▲ 折りたたむ`）。グリッドとボタンを Fragment でラップ。
+    - 検証: `npx tsc --noEmit` クリーン、`npm run build` 16/16ページ成功。
 
 ### 第8セッション（2026-06-11）完了作業 — シンプルモードに所有者フィルタタブ追加
 
