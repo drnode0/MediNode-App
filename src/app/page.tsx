@@ -680,21 +680,44 @@ function SubscriptionPromoPanel() {
           医療ナレッジ＋参考文献を閲覧できます
         </p>
       </div>
+
+      {/* 最大の強み：串刺し検索 */}
+      <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-4 text-left space-y-2">
+        <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🔍 あなたのNotionと、医師のナレッジを“串刺し検索”</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+          ツールを切り替える必要はもうありません。<strong>あなた自身のNotionデータベース</strong>と
+          <strong>現役医師が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。
+          自分のメモも、専門医の知見も、同じ画面で一度に引けます。
+        </p>
+      </div>
+
       <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
-        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-2">✨ 含まれるコンテンツ</p>
+        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-2">✨ 含まれるコンテンツ・できること</p>
+        <p>• あなたのNotion＋医師のナレッジを<strong>横断検索</strong></p>
         <p>• 救急・集中治療領域の臨床ナレッジ</p>
         <p>• エビデンスに基づく参考文献</p>
-        <p>• 現役医師による定期アップデート</p>
+        <p>• 現役医師による定期アップデート（常に最新）</p>
+        <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
       </div>
+
       {error && (
         <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">{error}</p>
       )}
+
+      {/* 価格 */}
+      <div className="space-y-0.5">
+        <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+          月額 ¥980<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">いつでも解約できます</p>
+      </div>
+
       <button
         onClick={handleCheckout}
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 月額¥980で登録する →'}
       </button>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
@@ -1975,6 +1998,15 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                       現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
                     </p>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-1.5">
+                      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🔍 あなたのNotionと医師のナレッジを串刺し検索</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                        ツールを切り替えることなく、<strong>あなた自身のNotionデータベース</strong>と<strong>現役医師が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。元の共有Notionページにそのままジャンプして詳細も確認できます。
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・いつでも解約可能</span></p>
+                    </div>
                     <PremiumCheckoutButtonInline />
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みの方（手動入力）：</p>
