@@ -38,8 +38,11 @@ function getSubscriptionConfig() {
   return {
     appId: settings?.subscriptionAppId || '',
     searchKey: settings?.subscriptionSearchKey || '',
-    // verifyAPIが返したインデックス名をlocalStorageから使う。未設定ならハードコードにフォールバック
-    index: settings?.subscriptionIndex || PREMIUM_INDEX_NAME,
+    // プレミアムインデックスは作者が固定管理するため、常にハードコード名を使う。
+    // 過去に localStorage（subscriptionIndex）へ古いインデックス名（例: subscription_medical）が
+    // 保存されていると、同期先と検索先がズレて「データがありません」になる。これを防ぐため
+    // localStorage の値には依存させず、検索先を PREMIUM_INDEX_NAME に固定する。
+    index: PREMIUM_INDEX_NAME,
   }
 }
 
