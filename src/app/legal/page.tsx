@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const rows: { label: string; value: React.ReactNode }[] = [
   {
     label: '販売事業者',
-    value: 'MediNode',
+    value: 'Dr.Node（MediNode 運営）',
   },
   {
     label: '運営責任者',
