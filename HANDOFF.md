@@ -1,6 +1,6 @@
 # MediNode 開発引き継ぎ帳
 
-**最終更新**: 2026-06-11（第11セッション・免責/利用規約＋特商法表記/プライバシーポリシー新設・ヘッダーアイコン）
+**最終更新**: 2026-06-11（第12セッション・プレミアム表示バグ修正＝Algolia AppID不一致の解消）
 **プロジェクトパス**: `/Users/tatsukinonaka/medical-search-public`
 **デプロイ先**: https://medical-search-public.vercel.app
 **Vercelプロジェクト**: `tnonaka1101-stacks-projects/medical-search-public`
@@ -15,7 +15,21 @@ MediNodeという医療知識管理アプリの開発を続けます。
 プロジェクトパスは /Users/tatsukinonaka/medical-search-public です。
 まず HANDOFF.md を読んで全体の背景・現状・未完了タスクを把握してください。
 
-前回（第11セッション）でプレミアム会員の訴求を強化しました。プロモパネル（SubscriptionPromoPanel）と
+前回（第12セッション）でプレミアム（サブスク）タブが「データがありません」になるバグを解消しました。
+真因は Algolia の AppID 不一致：同期データの書き込み先（Vercel環境変数 SUBSCRIPTION_ALGOLIA_APP_ID）が
+REE9S1UZRE だったのに対し、アプリの検索先（localStorage subscriptionAppId）が RLEJRK2LVQ
+（medinode-subscription アカウント）で、別アカウントを検索していたため 404（Index does not exist）。
+方針：プレミアム用は RLEJRK2LVQ（medinode-subscription）に統一。Vercelの SUBSCRIPTION_ALGOLIA_APP_ID／
+SUBSCRIPTION_ALGOLIA_ADMIN_KEY／SUBSCRIPTION_ALGOLIA_SEARCH_KEY を RLEJRK2LVQ の値に変更し Redeploy →
+sync API 再実行（?secret=medinode-sync-2026）→ プレミアムタブで表示確認OK。
+併せて、検索インデックス名のブレ対策として lib/algolia.ts の getSubscriptionConfig() を
+localStorage の subscriptionIndex に依存させず PREMIUM_INDEX_NAME='Medical Knowledge_DB（サブスク用）'
+にハードコード固定（8d3eb07）。書き込み（sync）・配布（premium/verify）・検索（lib/algolia.ts）の3か所で
+このインデックス名を一致させること。診断には /api/verify-search-key とブラウザからの Algolia REST 直叩き
+（https://<AppID>-dsn.algolia.net/1/indexes/<encoded index>/query）が有効だった。
+最新コミット: 8d3eb07
+
+【第11セッション】プレミアム会員の訴求を強化しました。プロモパネル（SubscriptionPromoPanel）と
 設定のプレミアム登録画面の両方に、「自分のNotion DBと医師の公開ナレッジをツール切替なしで串刺し（横断）検索
 できる」という最大の強み、共有Notionページへのジャンプ、月額¥980（税込）・いつでも解約可能を明記しました。
 さらに「こんな方におすすめ」職種タグを拡充し、医師は「医師（救急・集中治療に関わる全科）」1タグに集約、
@@ -29,7 +43,7 @@ MediNodeという医療知識管理アプリの開発を続けます。
 ※法務文書はすべて一般的な雛形。/legal は事業者名・連絡先メールが [ ] プレースホルダのまま（公開前に要差し替え）、
 住所・電話は「請求があれば遅滞なく開示」方式。/privacy のお問い合わせ先メールも未記入。
 最終的には専門家（行政書士・弁護士等）の確認を推奨する旨をユーザーに伝え済み。
-最新コミット: 0faa2fb
+（第11セッション時点コミット: 0faa2fb）
 
 今日やりたいこと：（未完了タスクリストを参照）
 ```
