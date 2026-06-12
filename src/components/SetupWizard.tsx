@@ -16,6 +16,16 @@ type Props = {
 function PremiumCheckoutButton() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Secret Key が sk_test_ のときだけテスト決済バナーを表示。ライブ化すると自動で消える。
+  const [testMode, setTestMode] = useState(false)
+  useEffect(() => {
+    let active = true
+    fetch('/api/premium/checkout')
+      .then((r) => r.json())
+      .then((d) => { if (active) setTestMode(!!d.testMode) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const handleCheckout = async () => {
     setLoading(true)
@@ -41,6 +51,15 @@ function PremiumCheckoutButton() {
 
   return (
     <div className="space-y-2">
+      {testMode && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-left">
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-300">🧪 これはテスト決済です</p>
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed mt-0.5">
+            現在は体験用のテストモードのため、<strong>実際の課金は発生しません</strong>。
+            決済画面ではテストカード番号「4242 4242 4242 4242」（有効期限は任意の未来日付・CVCは任意の3桁）をご利用ください。
+          </p>
+        </div>
+      )}
       <button
         type="button"
         onClick={handleCheckout}
