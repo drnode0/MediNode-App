@@ -22,6 +22,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
+      <head>
+        {/* 初期画面（Onboarding/SetupWizard/ヘッダー）のアプリアイコンを先読みして初回表示を高速化 */}
+        <link rel="preload" as="image" href="/icon-512.png" />
+        <link rel="preload" as="image" href="/icon-192.png" />
+      </head>
       <body className="bg-gray-50 min-h-screen">{children}</body>
     </html>
   )
