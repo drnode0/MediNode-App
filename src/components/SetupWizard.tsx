@@ -675,7 +675,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         {/* ヘッダー */}
         <div className="relative text-center mb-8">
           <div className="mb-3">
-            <img src="/icon.png" alt="MediNode" className="w-16 h-16 mx-auto rounded-2xl" />
+            <img src="/icon-512.png" alt="MediNode" width={64} height={64} className="w-16 h-16 mx-auto rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MediNode</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>

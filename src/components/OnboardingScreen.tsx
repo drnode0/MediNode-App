@@ -14,7 +14,7 @@ const PAGES = [
     description: 'Notionの医療知識を、スマホから即座に検索・復習。\n知識と現場をつなぐ、自分だけのナレッジベース。',
     illustration: (
       <div className="flex items-center justify-center w-full h-full">
-        <img src="/icon.png" alt="MediNode" className="w-40 h-40 rounded-3xl shadow-lg" />
+        <img src="/icon-512.png" alt="MediNode" width={160} height={160} className="w-40 h-40 rounded-3xl shadow-lg" />
       </div>
     ),
     features: null,
