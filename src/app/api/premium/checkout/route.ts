@@ -25,7 +25,9 @@ export async function GET() {
   const priceId = process.env.STRIPE_PRICE_ID || ''
   const enabled = !!(stripeKey && priceId)
   const testMode = stripeKey.startsWith('sk_test_')
-  return NextResponse.json({ enabled, testMode })
+  // 解約用 Stripe カスタマーポータルのログインURL。未設定ならフロントはメール問い合わせにフォールバック。
+  const portalUrl = process.env.STRIPE_PORTAL_URL || ''
+  return NextResponse.json({ enabled, testMode, portalUrl })
 }
 
 export async function POST(req: NextRequest) {

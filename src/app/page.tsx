@@ -1591,16 +1591,53 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 // 決済環境の状態（テストモードか）を取得する共通フック。
 // Stripe Secret Key が sk_test_ のときだけ testMode=true。ライブ化すると自動で false。
 function usePremiumPaymentMode() {
-  const [mode, setMode] = useState<{ enabled: boolean; testMode: boolean } | null>(null)
+  const [mode, setMode] = useState<{ enabled: boolean; testMode: boolean; portalUrl: string } | null>(null)
   useEffect(() => {
     let active = true
     fetch('/api/premium/checkout')
       .then((r) => r.json())
-      .then((d) => { if (active) setMode({ enabled: !!d.enabled, testMode: !!d.testMode }) })
+      .then((d) => { if (active) setMode({ enabled: !!d.enabled, testMode: !!d.testMode, portalUrl: typeof d.portalUrl === 'string' ? d.portalUrl : '' }) })
       .catch(() => { if (active) setMode(null) })
     return () => { active = false }
   }, [])
   return mode
+}
+
+// 登録済みユーザー向けの解約案内。
+// STRIPE_PORTAL_URL があれば Stripe カスタマーポータルへのリンク、
+// なければメール問い合わせにフォールバックする（壊れたリンクを出さない）。
+function PremiumCancelInfo() {
+  const mode = usePremiumPaymentMode()
+  const portalUrl = mode?.portalUrl || ''
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">解約するには</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まで利用できます。</p>
+      {portalUrl ? (
+        <a
+          href={portalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
+        >
+          Stripeカスタマーポータルで解約する →
+        </a>
+      ) : (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          解約をご希望の場合は{' '}
+          <a href="mailto:drnode0@gmail.com?subject=プレミアム解約のご依頼" className="text-blue-500 hover:text-blue-700 dark:text-blue-400 underline">
+            drnode0@gmail.com
+          </a>{' '}
+          までご連絡ください。
+        </p>
+      )}
+      {mode?.testMode && (
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+          🧪 体験用のテストモードです。実際の課金・解約は発生しません。
+        </p>
+      )}
+    </div>
+  )
 }
 
 // テスト決済中であることをモニター向けに明示するバナー。
@@ -2034,18 +2071,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                         <p className="text-sm font-bold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
                         <p className="text-xs text-green-600 dark:text-green-500 mt-1">プレミアムコンテンツにアクセスできます</p>
                       </div>
-                      <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">解約するには</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まで利用できます。</p>
-                        <a
-                          href="https://billing.stripe.com/p/login/00000000"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
-                        >
-                          Stripeカスタマーポータルで解約する →
-                        </a>
-                      </div>
+                      <PremiumCancelInfo />
                     </div>
                   )
                 }
