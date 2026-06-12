@@ -12,6 +12,22 @@ import Stripe from 'stripe'
  *   - STRIPE_PRICE_ID    ... Stripeで作成した月額プランのPrice ID (price_...)
  *   - NEXT_PUBLIC_APP_URL ... アプリのURL (例: https://your-app.vercel.app)
  */
+/**
+ * 決済環境の状態を返す（フロントでテスト決済バッジ等を出すため）。
+ * GET /api/premium/checkout
+ * Body なし。
+ *   - enabled  ... Stripe設定（Secret Key + Price ID）が揃っているか
+ *   - testMode ... Secret Key が sk_test_ で始まる（テストモード）か。
+ *                  ライブ化（sk_live_）すると自動的に false になり、テスト表記が消える。
+ */
+export async function GET() {
+  const stripeKey = process.env.STRIPE_SECRET_KEY || ''
+  const priceId = process.env.STRIPE_PRICE_ID || ''
+  const enabled = !!(stripeKey && priceId)
+  const testMode = stripeKey.startsWith('sk_test_')
+  return NextResponse.json({ enabled, testMode })
+}
+
 export async function POST(req: NextRequest) {
   const stripeKey = process.env.STRIPE_SECRET_KEY
   const priceId = process.env.STRIPE_PRICE_ID

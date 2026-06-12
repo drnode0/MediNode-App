@@ -656,6 +656,7 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
 function SubscriptionPromoPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const mode = usePremiumPaymentMode()
 
   const handleCheckout = async () => {
     setLoading(true)
@@ -740,6 +741,8 @@ function SubscriptionPromoPanel() {
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500">いつでも解約できます</p>
       </div>
+
+      {mode?.testMode && <div className="text-left"><TestModeNotice /></div>}
 
       <button
         onClick={handleCheckout}
@@ -1585,11 +1588,41 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 // 設定パネル
 // ============================================================
 
+// 決済環境の状態（テストモードか）を取得する共通フック。
+// Stripe Secret Key が sk_test_ のときだけ testMode=true。ライブ化すると自動で false。
+function usePremiumPaymentMode() {
+  const [mode, setMode] = useState<{ enabled: boolean; testMode: boolean } | null>(null)
+  useEffect(() => {
+    let active = true
+    fetch('/api/premium/checkout')
+      .then((r) => r.json())
+      .then((d) => { if (active) setMode({ enabled: !!d.enabled, testMode: !!d.testMode }) })
+      .catch(() => { if (active) setMode(null) })
+    return () => { active = false }
+  }, [])
+  return mode
+}
+
+// テスト決済中であることをモニター向けに明示するバナー。
+function TestModeNotice() {
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
+      <p className="text-xs font-bold text-amber-700 dark:text-amber-300">🧪 これはテスト決済です</p>
+      <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed mt-0.5">
+        現在は体験用のテストモードのため、<strong>実際の課金は発生しません</strong>。
+        決済画面ではテストカード番号「4242 4242 4242 4242」（有効期限は任意の未来日付・CVCは任意の3桁）をご利用ください。
+      </p>
+    </div>
+  )
+}
+
 function PremiumCheckoutButtonInline() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const mode = usePremiumPaymentMode()
   return (
     <div className="space-y-2">
+      {mode?.testMode && <TestModeNotice />}
       <button
         onClick={async () => {
           setLoading(true); setError('')
