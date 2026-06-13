@@ -456,6 +456,9 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const ctx = useSubscriptionHits()
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
+  // 部署(team)はAlgoliaに無いためNotionから直読み（文献のみ採用）
+  const { teamHits: teamAll } = useTeamNotionHits('reference', hasTeam)
+  const teamHits = useMemo(() => teamAll.filter((h) => h.source === 'reference'), [teamAll])
 
   const sortOptions: { value: RefSort; label: string }[] = [
     { value: 'year_desc', label: '年 (新しい順)' },
@@ -485,16 +488,23 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   }, [ownerFilter, ctx])
 
   const subHits = ctx?.hits || []
+  const personalAndTeam = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Hit[] = []
+    for (const h of personalHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    for (const h of teamHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    return out
+  }, [personalHits, teamHits])
   const mergedHits = useMemo(() => {
     if (ownerFilter === 'subscription') return subHits
-    if (ownerFilter === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
-    if (ownerFilter === 'team') return personalHits.filter((h) => h.owner === 'team')
+    if (ownerFilter === 'personal') return personalAndTeam.filter((h) => !h.owner || h.owner === 'personal')
+    if (ownerFilter === 'team') return personalAndTeam.filter((h) => h.owner === 'team')
     const seen = new Set<string>()
     const merged: Hit[] = []
-    for (const h of personalHits) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
+    for (const h of personalAndTeam) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
     for (const h of subHits) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
     return merged
-  }, [ownerFilter, personalHits, subHits])
+  }, [ownerFilter, personalAndTeam, subHits])
 
   const sorted = [...mergedHits].sort((a, b) => {
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
@@ -545,6 +555,8 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const ctx = useSubscriptionHits()
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
+  // 部署(team)はAlgoliaに無いためNotionから直読み
+  const { teamHits } = useTeamNotionHits('recent', hasTeam)
 
   const personalFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
@@ -561,7 +573,14 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   }, [ownerFilter, ctx])
 
   const subHits = ctx?.hits || []
-  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter), [ownerFilter, personalHits, subHits])
+  const personalAndTeam = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Hit[] = []
+    for (const h of personalHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    for (const h of teamHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    return out
+  }, [personalHits, teamHits])
+  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalAndTeam, subHits, ownerFilter), [ownerFilter, personalAndTeam, subHits])
   const now = new Date()
   const groups: { label: string; hits: Hit[] }[] = [
     { label: '今日', hits: [] },
@@ -619,6 +638,8 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   const [shuffled, setShuffled] = useState<Hit[]>([])
   const [genreFilter, setGenreFilter] = useState<string[]>(loadQuizGenreFilter)
+  // 部署(team)はAlgoliaに無いためNotionから直読み
+  const { teamHits } = useTeamNotionHits('quiz', hasTeam)
 
   const quizOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
@@ -640,7 +661,15 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
   }, [ownerFilter, ctx])
 
   const subHits = ctx?.hits || []
-  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalHits, subHits, ownerFilter), [ownerFilter, personalHits, subHits])
+  // Algolia由来の個人hits + Notion由来の部署hits を結合（objectIDで重複排除）
+  const personalAndTeam = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Hit[] = []
+    for (const h of personalHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    for (const h of teamHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    return out
+  }, [personalHits, teamHits])
+  const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalAndTeam, subHits, ownerFilter), [ownerFilter, personalAndTeam, subHits])
 
   const quizCandidates = useMemo(() => mergedHits.filter((h) => {
     const summaryText = ((h.aiSummary || '') + (h.summary || '')).trim()
@@ -1015,6 +1044,22 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   const ctx = useSubscriptionHits()
+  // 部署(team)はAlgoliaに無いためNotionから直読み（キーワードに追従）
+  const { teamHits, searchTeam } = useTeamNotionHits('search', hasTeam)
+
+  // Algolia検索クエリに合わせて部署もNotion検索
+  useEffect(() => {
+    searchTeam(query)
+  }, [query, searchTeam])
+
+  // Algolia個人hits + Notion部署hits を結合（objectIDで重複排除）
+  const personalAndTeam = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Hit[] = []
+    for (const h of personalHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    for (const h of teamHits) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+    return out
+  }, [personalHits, teamHits])
 
   const handleSelect = (q: string) => {
     refine(q)
@@ -1061,7 +1106,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
         <SubscriptionPromoPanel />
       ) : (
         <MergedSearchResults
-          personalHits={personalHits}
+          personalHits={personalAndTeam}
           ownerFilter={ownerFilter}
           query={query}
         />
@@ -1080,9 +1125,12 @@ function useNotionSearch(mode: Tab) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 最新リクエストのみ反映するための世代カウンタ（古いレスポンスの上書きを防ぐ）
+  const reqIdRef = useRef(0)
 
   const fetch = useCallback(async (keyword = '', extra: Record<string, unknown> = {}) => {
     if (!settings) return
+    const reqId = ++reqIdRef.current
     setLoading(true)
     setError('')
     try {
@@ -1101,12 +1149,14 @@ function useNotionSearch(mode: Tab) {
         }),
       })
       const data = await res.json()
+      // このレスポンスが最新リクエストでなければ破棄（race condition対策）
+      if (reqId !== reqIdRef.current) return
       if (!res.ok) throw new Error(data.error || '検索に失敗しました')
       setRecords(data.records as Hit[])
     } catch (err) {
-      setError(err instanceof Error ? err.message : '検索エラー')
+      if (reqId === reqIdRef.current) setError(err instanceof Error ? err.message : '検索エラー')
     } finally {
-      setLoading(false)
+      if (reqId === reqIdRef.current) setLoading(false)
     }
   }, [settings?.notionToken, settings?.notionMedicalDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId])
 
@@ -1120,13 +1170,95 @@ function useNotionSearch(mode: Tab) {
 
   const search = useCallback((keyword: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!keyword.trim()) { setRecords([]); return }
+    if (!keyword.trim()) {
+      // 入力クリア時は進行中レスポンスを無効化して即空に
+      reqIdRef.current++
+      setRecords([])
+      return
+    }
     debounceRef.current = setTimeout(() => {
       fetch(keyword, { mode: 'search' })
     }, 600)
   }, [fetch])
 
   return { records, loading, error, search, refetch: fetch }
+}
+
+// ============================================================
+// パワーモード用：部署(team)データをNotionから直接取得するフック
+// ------------------------------------------------------------
+// 部署DBはAlgoliaで管理しない方針のため、パワーモードでも部署分だけは
+// /api/notion/search からNotion直読みする。返却recordsのうち owner==='team'
+// だけを採用（個人/サブスクはAlgolia側で取得するため破棄）。
+// ============================================================
+function useTeamNotionHits(mode: Tab, enabled: boolean) {
+  const settings = getSettings()
+  const [teamHits, setTeamHits] = useState<Hit[]>([])
+  const [loading, setLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 最新リクエストのみ反映するための世代カウンタ（古いレスポンスの上書きを防ぐ）
+  const reqIdRef = useRef(0)
+
+  const fetchTeam = useCallback(async (keyword = '', extra: Record<string, unknown> = {}) => {
+    if (!settings) return
+    if (!settings.teamNotionToken || !settings.teamNotionMedicalDbId) { setTeamHits([]); return }
+    const reqId = ++reqIdRef.current
+    setLoading(true)
+    try {
+      const res = await window.fetch('/api/notion/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // 部署DBのみを取得（teamOnly）。primaryは必須項目なので部署クレデンシャルを流用するが、
+          // teamOnly=true によりサーバは個人(primary)側をクエリせず、部署DBの二重クエリを避ける。
+          notionToken: settings.teamNotionToken,
+          notionMedicalDbId: settings.teamNotionMedicalDbId,
+          teamNotionToken: settings.teamNotionToken,
+          teamNotionMedicalDbId: settings.teamNotionMedicalDbId,
+          teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+          teamOnly: true,
+          keyword,
+          ...extra,
+        }),
+      })
+      const data = await res.json()
+      // このレスポンスが最新リクエストでなければ破棄（race condition対策）
+      if (reqId !== reqIdRef.current) return
+      if (!res.ok) { setTeamHits([]); return }
+      const all = (data.records as Hit[]) || []
+      setTeamHits(all.filter((h) => h.owner === 'team'))
+    } catch {
+      if (reqId === reqIdRef.current) setTeamHits([])
+    } finally {
+      if (reqId === reqIdRef.current) setLoading(false)
+    }
+  }, [settings?.teamNotionToken, settings?.teamNotionMedicalDbId, settings?.teamNotionReferenceDbId])
+
+  // 検索以外は初回マウント時に自動取得
+  useEffect(() => {
+    if (!enabled) { setTeamHits([]); return }
+    if (mode === 'recent') fetchTeam('', { mode: 'recent' })
+    if (mode === 'reference') fetchTeam('', { mode: 'recent' })
+    if (mode === 'quiz') fetchTeam('', { mode: 'quiz' })
+    if (mode === 'browse') fetchTeam('', { mode: 'browse', pageSize: 200 })
+  }, [mode, enabled, fetchTeam])
+
+  // 検索タブ用：キーワードでデバウンス検索
+  const searchTeam = useCallback((keyword: string) => {
+    if (!enabled) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!keyword.trim()) {
+      // 入力クリア時は進行中レスポンスを無効化して即空に
+      reqIdRef.current++
+      setTeamHits([])
+      return
+    }
+    debounceRef.current = setTimeout(() => {
+      fetchTeam(keyword, { mode: 'search' })
+    }, 600)
+  }, [fetchTeam, enabled])
+
+  return { teamHits, loading, searchTeam }
 }
 
 // Notionモード：検索タブ
