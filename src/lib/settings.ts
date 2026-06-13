@@ -27,6 +27,9 @@ export type AppSettings = {
   subscriptionSearchKey: string
   subscriptionAppId: string
   subscriptionIndex: string
+  // 無料トライアル（クーポンコード経由・カード不要）の有効期限（ISO文字列）。
+  // この日時を過ぎたらプレミアムを無効化する。Stripe正式登録の場合は空のまま。
+  subscriptionTrialEndsAt?: string
 
   // プロパティ名マッピング（任意）
   propSummary: string       // デフォルト: 要約

@@ -59,7 +59,18 @@ export async function POST(req: NextRequest) {
       locale: 'ja',
       subscription_data: {
         metadata: { source: 'medinode' },
+        // 最初の14日間は無料トライアル。トライアル中も subscription.status は 'trialing' となり、
+        // /api/premium/verify が 'trialing' を許可しているためプレミアムが利用できる。
+        // 14日経過後に登録カードへ自動課金される（解約しなければ継続）。
+        trial_period_days: 14,
+        // トライアル終了時に有効な支払い方法が無ければサブスクをキャンセル（請求漏れ・未払い放置を防ぐ）。
+        // Stripe ダッシュボード側でトライアル終了前のリマインドメールをONにしておくこと。
+        trial_settings: {
+          end_behavior: { missing_payment_method: 'cancel' },
+        },
       },
+      // トライアル登録時もカード情報を必須にする（14日後の自動課金に必要）。
+      payment_method_collection: 'always',
     })
 
     return NextResponse.json({ url: session.url })

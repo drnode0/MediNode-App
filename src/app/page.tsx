@@ -910,10 +910,13 @@ function SubscriptionPromoPanel() {
 
       {/* 価格 */}
       <div className="space-y-0.5">
+        <p className="inline-block text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2.5 py-0.5 mb-1">
+          🎁 最初の2週間は無料
+        </p>
         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
           月額 ¥980<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
         </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500">いつでも解約できます</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">14日間の無料トライアル後に課金開始・いつでも解約できます</p>
       </div>
 
       {mode?.testMode && <div className="text-left"><TestModeNotice /></div>}
@@ -923,8 +926,11 @@ function SubscriptionPromoPanel() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 月額¥980で登録する →'}
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 2週間無料で試す →'}
       </button>
+      <p className="text-[11px] text-gray-400 dark:text-gray-500">
+        14日間は無料。トライアル終了後に月額¥980（税込）が課金されます。いつでも解約できます。
+      </p>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
       </p>
@@ -1921,19 +1927,48 @@ function usePremiumPaymentMode() {
 function PremiumCancelInfo() {
   const mode = usePremiumPaymentMode()
   const portalUrl = mode?.portalUrl || ''
+  // 衝動的な解約を防ぐため、ボタン → 確認ダイアログ（ワンクッション）→ ポータル の順にする。
+  const [confirming, setConfirming] = useState(false)
   return (
     <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400">解約するには</p>
       <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まで利用できます。</p>
       {portalUrl ? (
-        <a
-          href={portalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 underline"
-        >
-          Stripeカスタマーポータルで解約する →
-        </a>
+        !confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="inline-block text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 underline"
+          >
+            解約手続きへ進む
+          </button>
+        ) : (
+          <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-200">本当に解約しますか？</p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              解約すると、現役集中治療医が更新するプレミアムのナレッジ・参考文献が
+              <strong>次回請求日以降は閲覧できなくなります</strong>。
+              次回請求日までは引き続きご利用いただけます。
+            </p>
+            <div className="flex items-center gap-2 pt-0.5">
+              <a
+                href={portalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-red-500 hover:text-red-600 dark:text-red-400 underline"
+              >
+                解約手続きを続ける（Stripe） →
+              </a>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                やめる
+              </button>
+            </div>
+          </div>
+        )
       ) : (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           解約をご希望の場合は{' '}
@@ -1948,6 +1983,82 @@ function PremiumCancelInfo() {
           🧪 体験用のテストモードです。実際の課金・解約は発生しません。
         </p>
       )}
+    </div>
+  )
+}
+
+// note等に記載したクーポンコードを入力して、カード不要でトライアルを開始するUI。
+// サーバー(/api/premium/trial)がコードを検証し、正しければ Search-Only キーと期限を返す。
+function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleRedeem = async () => {
+    if (!code.trim()) { setError('コードを入力してください'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/premium/trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok || !data.algolia) {
+        setError(data.error || 'コードを確認できませんでした')
+        return
+      }
+      // 既存設定にトライアルのキー＋期限を書き込む（決済フローと同じ書き込み方）。
+      const defaultSettings = {
+        searchMode: 'algolia' as const,
+        notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
+        algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
+        teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '',
+        subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
+        propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+      }
+      const current = getSettings() || defaultSettings
+      saveSettings({
+        ...current,
+        subscriptionAppId: data.algolia.appId,
+        subscriptionSearchKey: data.algolia.searchKey,
+        subscriptionIndex: data.algolia.index,
+        subscriptionTrialEndsAt: data.trialEndsAt,
+      })
+      if (onActivated) onActivated()
+      setTimeout(() => window.location.reload(), 1200)
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
+      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
+      <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+        note記事に記載のコードを入力すると、<strong>カード登録なし</strong>で一定期間プレミアムをお試しいただけます。
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="トライアルコード"
+          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+        />
+        <button
+          type="button"
+          onClick={handleRedeem}
+          disabled={loading}
+          className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+        >
+          {loading ? '確認中...' : '無料で試す'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
 }
@@ -2375,20 +2486,45 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             <div className="space-y-4">
               {(() => {
                 const s = getSettings()
-                const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                const hasKeys = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                // トライアル期限の判定
+                const trialEndsAt = s?.subscriptionTrialEndsAt
+                const trialEnd = trialEndsAt ? new Date(trialEndsAt).getTime() : null
+                const trialExpired = trialEnd != null && !Number.isNaN(trialEnd) && Date.now() > trialEnd
+                const isTrial = trialEnd != null && !Number.isNaN(trialEnd) && !trialExpired
+                const daysLeft = isTrial ? Math.ceil((trialEnd! - Date.now()) / (24 * 60 * 60 * 1000)) : 0
+                // 期限切れトライアルはプレミアム無効として未登録画面（＝継続登録の誘導）を出す
+                const isPremium = hasKeys && !trialExpired
                 if (isPremium) {
                   return (
                     <div className="space-y-3">
-                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
-                        <p className="text-sm font-bold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
-                        <p className="text-xs text-green-600 dark:text-green-500 mt-1">プレミアムコンテンツにアクセスできます</p>
-                      </div>
-                      <PremiumCancelInfo />
+                      {isTrial ? (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
+                          <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額¥980）へお進みください。</p>
+                          <div className="pt-2"><PremiumCheckoutButtonInline /></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
+                            <p className="text-sm font-bold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
+                            <p className="text-xs text-green-600 dark:text-green-500 mt-1">プレミアムコンテンツにアクセスできます</p>
+                          </div>
+                          <PremiumCancelInfo />
+                        </>
+                      )}
                     </div>
                   )
                 }
                 return (
                   <div className="space-y-3">
+                    {trialExpired && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-center space-y-0.5">
+                        <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⏰ 無料トライアルが終了しました</p>
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額¥980）へお進みください。</p>
+                      </div>
+                    )}
                     <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                       現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
                     </p>
@@ -2408,14 +2544,18 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       </div>
                       <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">同じ患者を支えるチームみんなが同じ知識を共有でき、それぞれの日々の学びと現場の意思決定をサポートします。</p>
                     </div>
-                    <div>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・いつでも解約可能</span></p>
+                    <div className="space-y-0.5">
+                      <p className="inline-block text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5">🎁 最初の2週間は無料</p>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・14日間の無料トライアル後に課金開始・いつでも解約可能</span></p>
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                       ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
                       <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
                       をご覧ください。登録手続きに進むことで、これらの内容に同意したものとみなされます。
                     </p>
+                    {/* note購入者向け: コード入力でカード不要トライアル */}
+                    <PremiumTrialRedeem />
+                    <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">― または ―</p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
                       <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
@@ -2711,6 +2851,8 @@ export default function Home() {
             subscriptionAppId: data.algolia.appId,
             subscriptionSearchKey: data.algolia.searchKey,
             subscriptionIndex: data.algolia.index,
+            // Stripe正式登録なのでトライアル期限はクリア（無期限の正規会員に昇格）。
+            subscriptionTrialEndsAt: '',
           })
           setPremiumMessage({ type: 'success', text: 'プレミアム登録が完了しました！プレミアムコンテンツにアクセスできるようになりました。' })
           // ページをリロードして新しい設定を反映
