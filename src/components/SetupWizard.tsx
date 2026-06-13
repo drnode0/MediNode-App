@@ -73,6 +73,74 @@ function PremiumCheckoutButton() {
   )
 }
 
+// note等に記載したクーポンコードを入力して、カード不要でトライアルを開始するUI（SetupWizard内で使用）。
+// 設定画面側の PremiumTrialRedeem と同じ /api/premium/trial を使う。導線を揃えて混乱を防ぐ。
+function PremiumTrialRedeemButton({ onActivated }: { onActivated?: () => void }) {
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleRedeem = async () => {
+    if (!code.trim()) { setError('コードを入力してください'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/premium/trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok || !data.algolia) {
+        setError(data.error || 'コードを確認できませんでした')
+        return
+      }
+      const current = getSettings()
+      if (current) {
+        saveSettings({
+          ...current,
+          subscriptionAppId: data.algolia.appId,
+          subscriptionSearchKey: data.algolia.searchKey,
+          subscriptionIndex: data.algolia.index,
+          subscriptionTrialEndsAt: data.trialEndsAt,
+        })
+      }
+      if (onActivated) onActivated()
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
+      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
+      <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+        note記事に記載のコードを入力すると、<strong>カード登録なし</strong>で一定期間プレミアムをお試しいただけます。
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="トライアルコード"
+          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+        />
+        <button
+          type="button"
+          onClick={handleRedeem}
+          disabled={loading}
+          className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+        >
+          {loading ? '確認中...' : '無料で試す'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  )
+}
+
 function parseErrorMessage(msg: string): string {
   // Algolia側のエラー（プレフィックスで明示）
   if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
@@ -1538,6 +1606,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <strong>最初の2週間は無料</strong>、トライアル終了後に月額¥980（税込）が課金されます（いつでも解約可）。
                           登録後、このページに自動で戻りアクセスが有効になります。
                         </p>
+                        {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも反映して即「登録済み」表示にする */}
+                        <PremiumTrialRedeemButton onActivated={() => {
+                          const s = getSettings()
+                          if (s) {
+                            update('subscriptionAppId', s.subscriptionAppId)
+                            update('subscriptionSearchKey', s.subscriptionSearchKey)
+                          }
+                        }} />
+                        <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">― または ―</p>
                         <PremiumCheckoutButton />
                         <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みで認証キーをお持ちの方（手動入力）：</p>
