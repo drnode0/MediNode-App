@@ -782,11 +782,16 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   hasTeam: boolean
   hasSubscription: boolean
 }) {
+  // 部署名（例: 救急）が設定されていればそれを表示。未設定なら「部署」。
+  // 全タブ共通のコンポーネントなので、ここで設定から直接読むことで
+  // 呼び出し元ごとの渡し忘れ（再発の温床）を防ぐ。
+  const teamLabel = getSettings()?.teamLabel || ''
+  const teamTabLabel = teamLabel.trim() ? teamLabel.trim() : '部署'
   // 部署タブ・プレミアムタブは常に表示（未接続は薄くグレーアウト）
   const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: '部署', inactive: !hasTeam }] : []),
+    ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: !hasTeam }] : []),
     { id: 'subscription' as OwnerFilter, label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
   ]
   return (
@@ -1144,6 +1149,7 @@ function useNotionSearch(mode: Tab) {
           teamNotionToken: settings.teamNotionToken || undefined,
           teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
           teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+          teamLabel: settings.teamLabel || undefined,
           keyword,
           ...extra,
         }),
@@ -1216,6 +1222,7 @@ function useTeamNotionHits(mode: Tab, enabled: boolean) {
           teamNotionToken: settings.teamNotionToken,
           teamNotionMedicalDbId: settings.teamNotionMedicalDbId,
           teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+          teamLabel: settings.teamLabel || undefined,
           teamOnly: true,
           keyword,
           ...extra,
@@ -1556,8 +1563,12 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       body: JSON.stringify({
         notionToken: settings.notionToken,
         notionMedicalDbId: settings.notionMedicalDbId,
+        // 参考文献のジャンルもボタン一覧に集計するため Reference DB も渡す。
+        notionReferenceDbId: settings.notionReferenceDbId || undefined,
         teamNotionToken: settings.teamNotionToken || undefined,
         teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+        teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+        teamLabel: settings.teamLabel || undefined,
         mode: 'browse',
         genre: '',
         pageSize: 100,
@@ -1653,8 +1664,12 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           body: JSON.stringify({
             notionToken: settings.notionToken,
             notionMedicalDbId: settings.notionMedicalDbId,
+            // 参考文献もジャンルタブに表示するため Reference DB も渡す。
+            notionReferenceDbId: settings.notionReferenceDbId || undefined,
             teamNotionToken: settings.teamNotionToken || undefined,
             teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+            teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+            teamLabel: settings.teamLabel || undefined,
             mode: 'browse',
             genre,
             pageSize: 100,
@@ -2446,8 +2461,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               </section>
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
-                <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300">
+                <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300 space-y-1.5">
                   <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
+                  <p>💡 ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                 </div>
               </section>
               <section>

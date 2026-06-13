@@ -19,9 +19,17 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
   const [teamHits, setTeamHits] = useState<Hit[]>([])
   const [loading, setLoading] = useState(false)
 
+  // 設定値を依存配列に入れて、設定変更（部署Reference DB追加など）後に
+  // 再マウントしなくても再取得されるようにする。空依存だと設定追加が反映されず
+  // 「部署DBを直したのにジャンルに反映されない」再発の温床になるため。
+  const settings = getSettings()
+  const teamToken = settings?.teamNotionToken || ''
+  const teamMedicalDbId = settings?.teamNotionMedicalDbId || ''
+  const teamReferenceDbId = settings?.teamNotionReferenceDbId || ''
+  const teamLabel = settings?.teamLabel || ''
+
   useEffect(() => {
-    const settings = getSettings()
-    if (!settings?.teamNotionToken || !settings?.teamNotionMedicalDbId) {
+    if (!teamToken || !teamMedicalDbId) {
       setTeamHits([])
       return
     }
@@ -32,10 +40,14 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         // 部署DBのみ取得（teamOnly）。二重クエリを避ける。
-        notionToken: settings.teamNotionToken,
-        notionMedicalDbId: settings.teamNotionMedicalDbId,
-        teamNotionToken: settings.teamNotionToken,
-        teamNotionMedicalDbId: settings.teamNotionMedicalDbId,
+        notionToken: teamToken,
+        notionMedicalDbId: teamMedicalDbId,
+        teamNotionToken: teamToken,
+        teamNotionMedicalDbId: teamMedicalDbId,
+        // 参考文献もジャンルタブに表示するため部署Reference DBも渡す。
+        teamNotionReferenceDbId: teamReferenceDbId || undefined,
+        // 部署バッジに部署名（例: 救急）を表示するため渡す。
+        teamLabel: teamLabel || undefined,
         teamOnly: true,
         mode: 'browse',
         pageSize: 200,
@@ -54,7 +66,7 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [teamToken, teamMedicalDbId, teamReferenceDbId, teamLabel])
 
   return { teamHits, loading }
 }
@@ -105,10 +117,12 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   hasTeam: boolean
   hasSubscription: boolean
 }) {
+  // 部署名（例: 救急）が設定されていればそれを表示。未設定なら「部署」。
+  const teamLabel = getSettings()?.teamLabel || ''
   const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    { id: 'team', label: '部署', inactive: !hasTeam },
+    { id: 'team', label: teamLabel.trim() ? teamLabel.trim() : '部署', inactive: !hasTeam },
     { id: 'subscription', label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
   ]
   return (

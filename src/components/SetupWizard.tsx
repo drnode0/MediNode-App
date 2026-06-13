@@ -1131,6 +1131,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
                         <p>⚠️ <strong>名前が異なると</strong>同期・検索が正しく動作しません（例: 「要約」を「サマリー」に変えるとNG）</p>
                         <p>✅ 上記以外のプロパティは自由に追加・変更できます</p>
+                        <p>💡 ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                       </div>
                     </div>
                   </div>
