@@ -279,6 +279,9 @@ export async function POST(req: NextRequest) {
       genre = '',
       cursor,
       pageSize = 50,
+      // teamOnly=true の時は個人(primary)DBをクエリせず、部署DBのみ取得する。
+      // パワーモードで部署のみNotion直読みする際に、部署DBの二重クエリを避けるため。
+      teamOnly = false,
     } = await req.json()
 
     if (!notionToken || !notionMedicalDbId) {
@@ -293,11 +296,13 @@ export async function POST(req: NextRequest) {
 
     if (mode === 'recent') {
       // 新着：最新50件（keyword不要）
-      const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', '', 50)
-      records.push(...medRecords)
-      if (notionReferenceDbId) {
-        const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', '', 20)
-        records.push(...refRecords)
+      if (!teamOnly) {
+        const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', '', 50)
+        records.push(...medRecords)
+        if (notionReferenceDbId) {
+          const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', '', 20)
+          records.push(...refRecords)
+        }
       }
       // 部署DB
       if (teamNotion && teamNotionMedicalDbId) {
@@ -312,16 +317,20 @@ export async function POST(req: NextRequest) {
       records.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
     } else if (mode === 'quiz') {
       // クイズ：知識レベルが「ナレッジ系」かつ要約ありのもの
-      const personalQuiz = await fetchQuizRecords(notion, notionMedicalDbId, 'personal')
-      records.push(...personalQuiz)
+      if (!teamOnly) {
+        const personalQuiz = await fetchQuizRecords(notion, notionMedicalDbId, 'personal')
+        records.push(...personalQuiz)
+      }
       if (teamNotion && teamNotionMedicalDbId) {
         const teamQuiz = await fetchQuizRecords(teamNotion, teamNotionMedicalDbId, 'team')
         records.push(...teamQuiz)
       }
     } else if (mode === 'browse') {
       // ジャンル別：genreで絞り込み（multi_select: contains を使用）
-      const personalBrowse = await fetchBrowseRecords(notion, notionMedicalDbId, genre, pageSize, 'personal', cursor)
-      records.push(...personalBrowse)
+      if (!teamOnly) {
+        const personalBrowse = await fetchBrowseRecords(notion, notionMedicalDbId, genre, pageSize, 'personal', cursor)
+        records.push(...personalBrowse)
+      }
       if (teamNotion && teamNotionMedicalDbId) {
         const teamBrowse = await fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team')
         records.push(...teamBrowse)
@@ -329,11 +338,13 @@ export async function POST(req: NextRequest) {
     } else {
       // 通常検索（keyword必須）
       if (keyword.trim()) {
-        const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', keyword, pageSize, cursor)
-        records.push(...medRecords)
-        if (notionReferenceDbId) {
-          const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', keyword, 20)
-          records.push(...refRecords)
+        if (!teamOnly) {
+          const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', keyword, pageSize, cursor)
+          records.push(...medRecords)
+          if (notionReferenceDbId) {
+            const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', keyword, 20)
+            records.push(...refRecords)
+          }
         }
         // 部署DB
         if (teamNotion && teamNotionMedicalDbId) {
