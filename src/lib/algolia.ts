@@ -46,8 +46,21 @@ function getSubscriptionConfig() {
   }
 }
 
+// トライアル（クーポンコード経由）の期限が切れていないかを判定する。
+// Stripe正式登録の場合は subscriptionTrialEndsAt が空なので常に有効。
+export function isSubscriptionTrialExpired(): boolean {
+  const settings = getSettings()
+  const endsAt = settings?.subscriptionTrialEndsAt
+  if (!endsAt) return false // 期限指定なし（Stripe正式登録 or 未設定）= 期限切れ扱いしない
+  const end = new Date(endsAt).getTime()
+  if (Number.isNaN(end)) return false
+  return Date.now() > end
+}
+
 export function hasSubscriptionConfig(): boolean {
   const { appId, searchKey } = getSubscriptionConfig()
+  // キーが揃っていても、トライアル期限を過ぎていたらプレミアム無効とみなす。
+  if (isSubscriptionTrialExpired()) return false
   return !!(appId && searchKey)
 }
 

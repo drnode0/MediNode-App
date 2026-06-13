@@ -66,7 +66,7 @@ function PremiumCheckoutButton() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 2週間無料で試す →'}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -1535,7 +1535,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <div className="space-y-3">
                         <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                           現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
-                          購入後、このページに自動で戻りアクセスが有効になります。
+                          <strong>最初の2週間は無料</strong>、トライアル終了後に月額¥980（税込）が課金されます（いつでも解約可）。
+                          登録後、このページに自動で戻りアクセスが有効になります。
                         </p>
                         <PremiumCheckoutButton />
                         <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
