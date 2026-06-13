@@ -153,6 +153,7 @@ async function syncReferenceDb(
 ): Promise<number> {
   const summaryKey = propMap.summary || '要約'
   const keywordsKey = propMap.keywords || 'キーワード'
+  const genreKey = propMap.genre || 'ジャンル'
 
   let count = 0
   let cursor: string | undefined = undefined
@@ -175,6 +176,10 @@ async function syncReferenceDb(
         owner,
         teamLabel: owner === 'team' ? teamLabel : '',
         title,
+        // 参考文献にもジャンルがあるため、ジャンルタブで医療知識と横断表示できるよう同期する。
+        // Reference DB にジャンルが無い場合は空配列になる。
+        genre: extractList(getProp(props, genreKey, 'ジャンル')),
+        detailGenre: extractText(props['詳細ジャンル'] || {}),
         author: extractText(props['著者'] || {}),
         journal: extractText(props['ジャーナル名'] || {}),
         year: extractYearText(props['発行年'] || {}),

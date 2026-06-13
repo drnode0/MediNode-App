@@ -50,6 +50,7 @@ type NotionRecord = {
   objectID: string
   source: 'medical' | 'reference'
   owner: 'personal' | 'team'
+  teamLabel?: string
   title: string
   genre: string
   genreList: string[]
@@ -211,12 +212,15 @@ async function fetchQuizRecords(
 }
 
 // ジャンル別取得（multi_select: contains）
+// source で Medical / Reference を切り替える。Reference DB にもジャンルがあるため、
+// ジャンルタブで医療知識と参考文献を横断表示できるよう両方を取得対象にする。
 async function fetchBrowseRecords(
   notion: Client,
   dbId: string,
   genre: string,
   pageSize: number,
   owner: 'personal' | 'team',
+  source: 'medical' | 'reference' = 'medical',
   cursor?: string,
 ): Promise<NotionRecord[]> {
   // ジャンルの型（multi_select / select）の差異でサーバー側フィルタが失敗すると
@@ -240,23 +244,46 @@ async function fetchBrowseRecords(
       const genreList = extractList(props['ジャンル'] || {})
       // genre指定時はそのジャンルを含むレコードのみ（型に依存しないJSフィルタ）
       if (genre && !genreList.includes(genre)) continue
-      records.push({
-        objectID: `${owner}_${page.id}`,
-        source: 'medical',
-        owner,
-        title,
-        genre: genreList[0] || '',
-        genreList,
-        detailGenre: extractText(props['詳細ジャンル'] || {}),
-        tags: extractText(props['タグ'] || {}),
-        knowledgeLevel: extractText(props['知識レベル'] || {}),
-        aiSummary: extractText(props['要約'] || {}),
-        aiKeywords: extractText(props['キーワード'] || {}),
-        author: '', journal: '', year: '', evidenceLevel: '',
-        lastEdited: (p.last_edited_time as string) || '',
-        createdAt: (p.created_time as string) || '',
-        notionUrl: (p.url as string) || '',
-      })
+      if (source === 'medical') {
+        records.push({
+          objectID: `${owner}_${page.id}`,
+          source: 'medical',
+          owner,
+          title,
+          genre: genreList[0] || '',
+          genreList,
+          detailGenre: extractText(props['詳細ジャンル'] || {}),
+          tags: extractText(props['タグ'] || {}),
+          knowledgeLevel: extractText(props['知識レベル'] || {}),
+          aiSummary: extractText(props['要約'] || {}),
+          aiKeywords: extractText(props['キーワード'] || {}),
+          author: '', journal: '', year: '', evidenceLevel: '',
+          lastEdited: (p.last_edited_time as string) || '',
+          createdAt: (p.created_time as string) || '',
+          notionUrl: (p.url as string) || '',
+        })
+      } else {
+        records.push({
+          objectID: `${owner}_${page.id}`,
+          source: 'reference',
+          owner,
+          title,
+          genre: genreList[0] || '',
+          genreList,
+          detailGenre: '',
+          tags: '',
+          knowledgeLevel: '',
+          aiSummary: extractText(props['要約'] || {}),
+          aiKeywords: extractText(props['キーワード'] || {}),
+          author: extractText(props['著者'] || {}),
+          journal: extractText(props['ジャーナル名'] || {}),
+          year: extractText(props['発行年'] || {}),
+          evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+          lastEdited: (p.last_edited_time as string) || '',
+          createdAt: (p.created_time as string) || '',
+          notionUrl: (p.url as string) || '',
+        })
+      }
       if (records.length >= pageSize) break
     }
     if (records.length >= pageSize) break
@@ -274,6 +301,8 @@ export async function POST(req: NextRequest) {
       teamNotionToken,
       teamNotionMedicalDbId,
       teamNotionReferenceDbId,
+      // 部署バッジに表示する部署名（例: 救急）。未指定時は「部署」をフォールバック。
+      teamLabel = '',
       keyword = '',
       mode = 'search', // 'search' | 'recent' | 'quiz' | 'browse'
       genre = '',
@@ -327,13 +356,22 @@ export async function POST(req: NextRequest) {
       }
     } else if (mode === 'browse') {
       // ジャンル別：genreで絞り込み（multi_select: contains を使用）
+      // Medical / Reference の両DBから取得し、ジャンルタブで横断表示する。
       if (!teamOnly) {
-        const personalBrowse = await fetchBrowseRecords(notion, notionMedicalDbId, genre, pageSize, 'personal', cursor)
+        const personalBrowse = await fetchBrowseRecords(notion, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor)
         records.push(...personalBrowse)
+        if (notionReferenceDbId) {
+          const personalRefBrowse = await fetchBrowseRecords(notion, notionReferenceDbId, genre, pageSize, 'personal', 'reference')
+          records.push(...personalRefBrowse)
+        }
       }
       if (teamNotion && teamNotionMedicalDbId) {
-        const teamBrowse = await fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team')
+        const teamBrowse = await fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team', 'medical')
         records.push(...teamBrowse)
+        if (teamNotionReferenceDbId) {
+          const teamRefBrowse = await fetchBrowseRecords(teamNotion, teamNotionReferenceDbId, genre, pageSize, 'team', 'reference')
+          records.push(...teamRefBrowse)
+        }
       }
     } else {
       // 通常検索（keyword必須）
@@ -356,6 +394,13 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    }
+
+    // 部署バッジに部署名（例: 救急）を表示するため、team レコードに teamLabel を一括付与する。
+    // 各 fetch 関数ごとに付け忘れると再発するため、ここで一元的に注入する。
+    const resolvedTeamLabel = (typeof teamLabel === 'string' && teamLabel.trim()) ? teamLabel.trim() : '部署'
+    for (const r of records) {
+      if (r.owner === 'team') r.teamLabel = resolvedTeamLabel
     }
 
     return NextResponse.json({ records, total: records.length })
