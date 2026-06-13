@@ -102,6 +102,12 @@ export function SyncPanel() {
       setWarnings(data.warnings || [])
       saveLastSynced()
       setLastSynced(new Date().toISOString())
+      // PWA（スマホ）ではブラウザの手動リロードがしづらく、同期しても
+      // 画面上のAlgolia検索結果が古いままになる。成功表示を見せた後に
+      // 自動で再読込し、最新データを確実に反映する。
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     } catch {
       setError('ネットワークエラーが発生しました。接続を確認して再度お試しください。')
     } finally {
@@ -147,6 +153,10 @@ export function SyncPanel() {
                     部署: 知識{result.detail.teamMedical}件 / 文献{result.detail.teamReference}件
                   </p>
                 )}
+                <p className="text-xs mt-2 text-green-600 dark:text-green-500 flex items-center justify-center gap-1">
+                  <span className="animate-spin inline-block">⟳</span>
+                  まもなく最新データに更新されます…
+                </p>
               </div>
               {warnings.length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-400">
