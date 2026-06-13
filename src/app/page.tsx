@@ -172,6 +172,121 @@ function displayGenreName(g: string): string {
 }
 
 // ============================================================
+// クイズ用ジャンルフィルター（両モード共通）
+// ============================================================
+
+// ジャンルチップの初期表示件数（ジャンルタブと共用）
+const GENRE_SHOW_LIMIT = 12
+
+// Hit からジャンル配列を正規化して取り出す（genreList → genre(配列) → genre(単体)）
+function getHitGenres(h: Hit): string[] {
+  let list: string[] = []
+  if (h.genreList && h.genreList.length) list = h.genreList
+  else if (Array.isArray(h.genre)) list = h.genre
+  else if (h.genre) list = [h.genre]
+  return Array.from(new Set(list.map((g) => g.trim()).filter(Boolean)))
+}
+
+// クイズ候補からジャンル一覧を集計（hybridSort 済み）
+function collectQuizGenres(candidates: Hit[]): string[] {
+  const set = new Set<string>()
+  for (const h of candidates) for (const g of getHitGenres(h)) set.add(g)
+  return Array.from(set).sort(hybridSort)
+}
+
+// 選択ジャンル（OR）でクイズ候補を絞り込む。空配列なら全件。
+function filterByGenres(candidates: Hit[], selected: string[]): Hit[] {
+  if (selected.length === 0) return candidates
+  const sel = new Set(selected)
+  return candidates.filter((h) => getHitGenres(h).some((g) => sel.has(g)))
+}
+
+// クイズのジャンルフィルター選択状態の永続化（AppSettingsとは独立）
+const QUIZ_GENRE_FILTER_KEY = 'medinode_quiz_genre_filter_v1'
+
+function loadQuizGenreFilter(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(QUIZ_GENRE_FILTER_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((g): g is string => typeof g === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function saveQuizGenreFilter(genres: string[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(QUIZ_GENRE_FILTER_KEY, JSON.stringify(genres))
+  } catch {
+    /* localStorage 不可環境では無視 */
+  }
+}
+
+// クイズのジャンル絞り込みチップUI（両モード共用）
+function QuizGenreFilter({
+  allGenres,
+  selected,
+  onChange,
+}: {
+  allGenres: string[]
+  selected: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [showAll, setShowAll] = useState(false)
+  // 候補が0〜1ジャンルしかなければ絞り込む意味がないので非表示
+  if (allGenres.length <= 1) return null
+
+  const toggle = (g: string) => {
+    onChange(selected.includes(g) ? selected.filter((x) => x !== g) : [...selected, g])
+  }
+  const visible = showAll ? allGenres : allGenres.slice(0, GENRE_SHOW_LIMIT)
+
+  return (
+    <div className="mb-3">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onChange([])}
+          className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+            selected.length === 0
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+          }`}
+        >
+          すべて
+        </button>
+        {visible.map((g) => {
+          const isActive = selected.includes(g)
+          return (
+            <button
+              key={g}
+              onClick={() => toggle(g)}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                isActive
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              {displayGenreName(g)}
+            </button>
+          )
+        })}
+      </div>
+      {allGenres.length > GENRE_SHOW_LIMIT && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 mt-1.5"
+        >
+          {showAll ? '▲ 折りたたむ' : `▼ すべてのジャンル（残り ${allGenres.length - GENRE_SHOW_LIMIT} 件）`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // Algoliaモード用コンポーネント（既存）
 // ============================================================
 
@@ -503,6 +618,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
   const ctx = useSubscriptionHits()
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   const [shuffled, setShuffled] = useState<Hit[]>([])
+  const [genreFilter, setGenreFilter] = useState<string[]>(loadQuizGenreFilter)
 
   const quizOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
@@ -536,14 +652,29 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
     return hasSummary && isKnowledge && !titleIsCQ
   }), [mergedHits])
 
-  useEffect(() => {
-    const arr = [...quizCandidates]
+  // クイズ候補から選べるジャンル一覧（ownerFilterに追従）
+  const availableGenres = useMemo(() => collectQuizGenres(quizCandidates), [quizCandidates])
+  // 選択ジャンル（OR）で絞り込んだ出題候補
+  const filteredCandidates = useMemo(() => filterByGenres(quizCandidates, genreFilter), [quizCandidates, genreFilter])
+
+  const updateGenreFilter = (next: string[]) => {
+    setGenreFilter(next)
+    saveQuizGenreFilter(next)
+  }
+
+  const reshuffle = (source: Hit[]) => {
+    const arr = [...source]
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]]
     }
     setShuffled(arr.slice(0, 20))
-  }, [quizCandidates.length])
+  }
+
+  useEffect(() => {
+    reshuffle(filteredCandidates)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredCandidates.length, genreFilter.join('|')])
 
   const hasAnyKnowledgeLevel = mergedHits.some((h) => h.knowledgeLevel && h.knowledgeLevel.trim())
 
@@ -576,27 +707,36 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
           )}
         </div>
       ) : (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
-            <button
-              onClick={() => {
-                const arr = [...quizCandidates]
-                for (let i = arr.length - 1; i > 0; i--) {
-                  const j = Math.floor(Math.random() * (i + 1));
-                  [arr[i], arr[j]] = [arr[j], arr[i]]
-                }
-                setShuffled(arr.slice(0, 20))
-              }}
-              className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-            >
-              シャッフル
-            </button>
-          </div>
-          <div className="space-y-3">
-            {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
-          </div>
-        </div>
+        <>
+          <QuizGenreFilter allGenres={availableGenres} selected={genreFilter} onChange={updateGenreFilter} />
+          {filteredCandidates.length === 0 ? (
+            <div className="text-center py-12 px-4 space-y-3">
+              <div className="text-4xl">🔍</div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
+              <button
+                onClick={() => updateGenreFilter([])}
+                className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800 rounded-full px-3 py-1"
+              >
+                ジャンルフィルターを解除
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
+                <button
+                  onClick={() => reshuffle(filteredCandidates)}
+                  className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                >
+                  シャッフル
+                </button>
+              </div>
+              <div className="space-y-3">
+                {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </>
   )
@@ -1146,6 +1286,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const ctx = useSubscriptionHits()
   const [shuffled, setShuffled] = useState<Hit[]>([])
+  const [genreFilter, setGenreFilter] = useState<string[]>(loadQuizGenreFilter)
 
   useEffect(() => {
     if (!ctx) return
@@ -1170,19 +1311,38 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
     return hasSummary && isKnowledge && !titleIsCQ
   }), [merged])
 
-  useEffect(() => {
-    const arr = [...quizCandidates]
+  // クイズ候補から選べるジャンル一覧（ownerFilterに追従）
+  const availableGenres = useMemo(() => collectQuizGenres(quizCandidates), [quizCandidates])
+  // 選択ジャンル（OR）で絞り込んだ出題候補
+  const filteredCandidates = useMemo(() => filterByGenres(quizCandidates, genreFilter), [quizCandidates, genreFilter])
+
+  const updateGenreFilter = (next: string[]) => {
+    setGenreFilter(next)
+    saveQuizGenreFilter(next)
+  }
+
+  const reshuffle = (source: Hit[]) => {
+    const arr = [...source]
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]]
     }
     setShuffled(arr.slice(0, 20))
-  }, [quizCandidates.length])
+  }
+
+  useEffect(() => {
+    reshuffle(filteredCandidates)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredCandidates.length, genreFilter.join('|')])
 
   const ownerTabs = (
     <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
+  )
+
+  const genreChips = (
+    <QuizGenreFilter allGenres={availableGenres} selected={genreFilter} onChange={updateGenreFilter} />
   )
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
@@ -1202,18 +1362,24 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   return (
     <>
     {ownerTabs}
+    {genreChips}
+    {filteredCandidates.length === 0 ? (
+      <div className="text-center py-12 px-4 space-y-3">
+        <div className="text-4xl">🔍</div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
+        <button
+          onClick={() => updateGenreFilter([])}
+          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800 rounded-full px-3 py-1"
+        >
+          ジャンルフィルターを解除
+        </button>
+      </div>
+    ) : (
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
         <button
-          onClick={() => {
-            const arr = [...quizCandidates]
-            for (let i = arr.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [arr[i], arr[j]] = [arr[j], arr[i]]
-            }
-            setShuffled(arr.slice(0, 20))
-          }}
+          onClick={() => reshuffle(filteredCandidates)}
           className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium"
         >
           シャッフル
@@ -1223,11 +1389,10 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
         {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
       </div>
     </div>
+    )}
     </>
   )
 }
-
-const GENRE_SHOW_LIMIT = 12
 
 // Notionモード：ジャンル別タブ（パワーモードのGenreBrowseと同等。個人/部署はNotion由来、プレミアムは作者Algolia）
 type GenreFacet = { personal: Record<string, number>; team: Record<string, number>; subscription: Record<string, number> }

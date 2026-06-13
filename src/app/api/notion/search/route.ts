@@ -13,6 +13,9 @@ function extractText(prop: Record<string, unknown>): string {
   if (type === 'select') {
     return (prop.select as { name: string } | null)?.name || ''
   }
+  if (type === 'status') {
+    return (prop.status as { name: string } | null)?.name || ''
+  }
   if (type === 'multi_select') {
     return ((prop.multi_select as Array<{ name: string }>) || []).map((t) => t.name).join(', ')
   }
@@ -34,6 +37,10 @@ function extractList(prop: Record<string, unknown>): string[] {
   }
   if (type === 'select') {
     const name = (prop.select as { name: string } | null)?.name
+    return name ? [name] : []
+  }
+  if (type === 'status') {
+    const name = (prop.status as { name: string } | null)?.name
     return name ? [name] : []
   }
   return []
@@ -154,63 +161,52 @@ async function fetchQuizRecords(
   dbId: string,
   owner: 'personal' | 'team',
 ): Promise<NotionRecord[]> {
-  const quizLevelOptions = ['💡 ナレッジ', '💡ナレッジ', 'ナレッジ']
-  let res
-  try {
-    res = await notion.databases.query({
-      database_id: dbId,
-      filter: {
-        and: [
-          {
-            or: quizLevelOptions.map((opt) => ({
-              property: '知識レベル',
-              select: { equals: opt },
-            })),
-          },
-          {
-            property: '要約',
-            rich_text: { is_not_empty: true },
-          },
-        ],
-      },
-      page_size: 100,
-    })
-  } catch {
-    res = await notion.databases.query({
-      database_id: dbId,
-      page_size: 100,
-    })
-  }
+  // 知識レベルの型（select / status / multi_select）やプロパティ名の差異で
+  // サーバー側フィルタが失敗・空振りすると、部署DBでクイズが0件になる。
+  // そのため全件をページネーションで取得し、型非依存の extractText/extractList で
+  // クライアントと同じ条件をJS側で判定する（型に依存しない堅牢版）。
   const records: NotionRecord[] = []
-  for (const page of res.results) {
-    if (page.object !== 'page') continue
-    const p = page as Record<string, unknown>
-    const props = p.properties as Record<string, Record<string, unknown>>
-    const title = extractText(props['名前'] || {})
-    if (!title) continue
-    const knowledgeLevel = extractText(props['知識レベル'] || {})
-    const aiSummary = extractText(props['要約'] || {})
-    const isQuizLevel = knowledgeLevel.includes('ナレッジ') && !knowledgeLevel.includes('クリニカルクエスチョン')
-    if (!isQuizLevel || !aiSummary) continue
-    const genreList = extractList(props['ジャンル'] || {})
-    records.push({
-      objectID: `${owner}_${page.id}`,
-      source: 'medical',
-      owner,
-      title,
-      genre: genreList[0] || '',
-      genreList,
-      detailGenre: extractText(props['詳細ジャンル'] || {}),
-      tags: extractText(props['タグ'] || {}),
-      knowledgeLevel,
-      aiSummary,
-      aiKeywords: extractText(props['キーワード'] || {}),
-      author: '', journal: '', year: '', evidenceLevel: '',
-      lastEdited: (p.last_edited_time as string) || '',
-      createdAt: (p.created_time as string) || '',
-      notionUrl: (p.url as string) || '',
+  let cursor: string | undefined = undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: dbId,
+      page_size: 100,
+      start_cursor: cursor,
     })
-  }
+    for (const page of res.results) {
+      if (page.object !== 'page') continue
+      const p = page as Record<string, unknown>
+      const props = p.properties as Record<string, Record<string, unknown>>
+      const title = extractText(props['名前'] || {})
+      if (!title) continue
+      const knowledgeLevel = extractText(props['知識レベル'] || {})
+      const aiSummary = extractText(props['要約'] || {})
+      // 知識レベル＝ナレッジ系（CQ・まとめは除外）。絵文字やスペースの有無を吸収するため
+      // 「ナレッジ」を含むかで判定（クリニカルクエスチョン＝CQは除外）。
+      const isQuizLevel =
+        knowledgeLevel.includes('ナレッジ') && !knowledgeLevel.includes('クリニカルクエスチョン')
+      if (!isQuizLevel || !aiSummary) continue
+      const genreList = extractList(props['ジャンル'] || {})
+      records.push({
+        objectID: `${owner}_${page.id}`,
+        source: 'medical',
+        owner,
+        title,
+        genre: genreList[0] || '',
+        genreList,
+        detailGenre: extractText(props['詳細ジャンル'] || {}),
+        tags: extractText(props['タグ'] || {}),
+        knowledgeLevel,
+        aiSummary,
+        aiKeywords: extractText(props['キーワード'] || {}),
+        author: '', journal: '', year: '', evidenceLevel: '',
+        lastEdited: (p.last_edited_time as string) || '',
+        createdAt: (p.created_time as string) || '',
+        notionUrl: (p.url as string) || '',
+      })
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
   return records
 }
 
@@ -223,42 +219,49 @@ async function fetchBrowseRecords(
   owner: 'personal' | 'team',
   cursor?: string,
 ): Promise<NotionRecord[]> {
-  const filter = genre
-    ? { property: 'ジャンル', multi_select: { contains: genre } }
-    : undefined
-  const res = await notion.databases.query({
-    database_id: dbId,
-    filter: filter as Parameters<typeof notion.databases.query>[0]['filter'],
-    sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
-    page_size: pageSize,
-    start_cursor: cursor,
-  })
+  // ジャンルの型（multi_select / select）の差異でサーバー側フィルタが失敗すると
+  // 部署DBでジャンルが取れず（空→INBOX扱い）、ジャンルタブが説明文にフォールバックする。
+  // そのため型固有フィルタは使わず、全件取得してから genreList でJS側で絞り込む。
   const records: NotionRecord[] = []
-  for (const page of res.results) {
-    if (page.object !== 'page') continue
-    const p = page as Record<string, unknown>
-    const props = p.properties as Record<string, Record<string, unknown>>
-    const title = extractText(props['名前'] || {})
-    if (!title) continue
-    const genreList = extractList(props['ジャンル'] || {})
-    records.push({
-      objectID: `${owner}_${page.id}`,
-      source: 'medical',
-      owner,
-      title,
-      genre: genreList[0] || '',
-      genreList,
-      detailGenre: extractText(props['詳細ジャンル'] || {}),
-      tags: extractText(props['タグ'] || {}),
-      knowledgeLevel: extractText(props['知識レベル'] || {}),
-      aiSummary: extractText(props['要約'] || {}),
-      aiKeywords: extractText(props['キーワード'] || {}),
-      author: '', journal: '', year: '', evidenceLevel: '',
-      lastEdited: (p.last_edited_time as string) || '',
-      createdAt: (p.created_time as string) || '',
-      notionUrl: (p.url as string) || '',
+  let pageCursor: string | undefined = cursor
+  do {
+    const res = await notion.databases.query({
+      database_id: dbId,
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
+      page_size: 100,
+      start_cursor: pageCursor,
     })
-  }
+    for (const page of res.results) {
+      if (page.object !== 'page') continue
+      const p = page as Record<string, unknown>
+      const props = p.properties as Record<string, Record<string, unknown>>
+      const title = extractText(props['名前'] || {})
+      if (!title) continue
+      const genreList = extractList(props['ジャンル'] || {})
+      // genre指定時はそのジャンルを含むレコードのみ（型に依存しないJSフィルタ）
+      if (genre && !genreList.includes(genre)) continue
+      records.push({
+        objectID: `${owner}_${page.id}`,
+        source: 'medical',
+        owner,
+        title,
+        genre: genreList[0] || '',
+        genreList,
+        detailGenre: extractText(props['詳細ジャンル'] || {}),
+        tags: extractText(props['タグ'] || {}),
+        knowledgeLevel: extractText(props['知識レベル'] || {}),
+        aiSummary: extractText(props['要約'] || {}),
+        aiKeywords: extractText(props['キーワード'] || {}),
+        author: '', journal: '', year: '', evidenceLevel: '',
+        lastEdited: (p.last_edited_time as string) || '',
+        createdAt: (p.created_time as string) || '',
+        notionUrl: (p.url as string) || '',
+      })
+      if (records.length >= pageSize) break
+    }
+    if (records.length >= pageSize) break
+    pageCursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (pageCursor)
   return records
 }
 
