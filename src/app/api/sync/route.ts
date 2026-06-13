@@ -24,6 +24,15 @@ function extractList(prop: Record<string, unknown>): string[] {
   if (type === 'multi_select') {
     return ((prop.multi_select as Array<{ name: string }>) || []).map((t) => t.name)
   }
+  // 部署DBなどでジャンルが select / status 型のケースにも対応（単一値を1要素の配列で返す）
+  if (type === 'select') {
+    const name = (prop.select as { name: string } | null)?.name
+    return name ? [name] : []
+  }
+  if (type === 'status') {
+    const name = (prop.status as { name: string } | null)?.name
+    return name ? [name] : []
+  }
   return []
 }
 
@@ -38,6 +47,9 @@ function extractText(prop: Record<string, unknown>): string {
   }
   if (type === 'select') {
     return (prop.select as { name: string } | null)?.name || ''
+  }
+  if (type === 'status') {
+    return (prop.status as { name: string } | null)?.name || ''
   }
   if (type === 'multi_select') {
     return ((prop.multi_select as Array<{ name: string }>) || []).map((t) => t.name).join(', ')
