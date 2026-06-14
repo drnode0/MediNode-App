@@ -135,9 +135,9 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
   if (!applied && hasUsedTrial()) {
     return (
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
-        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 無料トライアルは利用済みです</p>
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末では無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
         </p>
       </div>
     )
@@ -1647,7 +1647,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong>🎁 最初の2週間は無料</strong>。下のトライアルコードならカード登録なしでお試しでき、期間終了後も勝手に課金されません。継続したい方は有料登録（月額¥980・いつでも解約可）へ。
+                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・7日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の14日間無料</strong>・月額¥980・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で

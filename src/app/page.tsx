@@ -1996,9 +1996,9 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
   if (hasUsedTrial()) {
     return (
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
-        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 無料トライアルは利用済みです</p>
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末では無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
         </p>
       </div>
     )
