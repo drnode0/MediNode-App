@@ -10,6 +10,17 @@ const PREMIUM_ROLES = [
   '理学療法士', '作業療法士', '言語聴覚士', '救急救命士',
 ]
 
+// 多職種・若手が現場でふと抱く“ちょっとした疑問”の例。
+// 専門的すぎず共感を生む粒度で、看護師・研修医・薬剤師・管理栄養士・PT・ST など幅広く刺さる構成。
+const PREMIUM_SAMPLE_CQS = [
+  'カフ血圧とAライン血圧、どっちを信じる？乖離する理由は？',
+  '尿量が減ってきた…まず何を確認する？',
+  '人工呼吸器を付けたまま歩いて大丈夫？離床の中止基準は？',
+  'ムセがある患者、いつ「食べていい / だめ」を判断する？',
+  'ノルアドって何の薬？なぜ末梢から入れちゃダメ？',
+  '経腸栄養はいつ始める？下痢したらどうする？',
+]
+
 export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean }) {
   return (
     <div className="space-y-3">
@@ -42,6 +53,22 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
         <p>• エビデンスに基づく参考文献</p>
         <p>• 現役集中治療専門医による定期アップデート（常に最新）</p>
         <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
+      </div>
+
+      {/* こんな疑問に答えます（多職種・若手向けのCQ例） */}
+      <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-3 text-left space-y-2">
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">💡 例えば、こんな“ちょっとした疑問”に答えます</p>
+        <div className="space-y-1.5">
+          {PREMIUM_SAMPLE_CQS.map((cq) => (
+            <p key={cq} className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed flex gap-1.5">
+              <span className="shrink-0">❓</span>
+              <span>{cq}</span>
+            </p>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+          現場でふと浮かぶ疑問を、<strong>エビデンスをもとに専門医がナレッジ化</strong>しています。
+        </p>
       </div>
 
       {/* こんな方におすすめ */}
