@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import type React from 'react'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
+import { PremiumValueProps } from './PremiumValueProps'
 
 type Step = 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'after-template' | 'existing'
@@ -1627,12 +1628,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         </button>
                       </div>
                     ) : (
-                      /* 未登録: 購入ボタン */
+                      /* 未登録: 訴求＋購入ボタン */
                       <div className="space-y-3">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                          現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
-                          <strong>最初の2週間は無料</strong>、トライアル終了後に月額¥980（税込）が課金されます（いつでも解約可）。
-                          登録後、このページに自動で戻りアクセスが有効になります。
+                        {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
+                        <PremiumValueProps />
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
+                          <strong>🎁 最初の2週間は無料</strong>。下のトライアルコードならカード登録なしでお試しでき、期間終了後も勝手に課金されません。継続したい方は有料登録（月額¥980・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で

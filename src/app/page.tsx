@@ -18,6 +18,7 @@ import { GenreBrowse } from '@/components/GenreBrowse'
 import { SetupWizard } from '@/components/SetupWizard'
 import { SyncPanel } from '@/components/SyncPanel'
 import { OnboardingScreen } from '@/components/OnboardingScreen'
+import { PremiumValueProps } from '@/components/PremiumValueProps'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -856,53 +857,7 @@ function SubscriptionPromoPanel() {
 
   return (
     <div className="mt-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl p-6 text-center space-y-4">
-      <div className="text-5xl">⭐</div>
-      <div>
-        <p className="text-lg font-bold text-purple-700 dark:text-purple-300">プレミアム会員限定コンテンツ</p>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 leading-relaxed">
-          現役集中治療医が定期的に更新する<br />
-          医療ナレッジ＋参考文献を閲覧できます
-        </p>
-      </div>
-
-      {/* 最大の強み：串刺し検索 */}
-      <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-4 text-left space-y-2">
-        <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🔍 あなたのNotionと、専門医のナレッジを“串刺し検索”</p>
-        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-          ツールを切り替える必要はもうありません。<strong>あなた自身のNotionデータベース</strong>と
-          <strong>現役集中治療専門医が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。
-          自分のメモも、専門医の知見も、同じ画面で一度に引けます。
-        </p>
-      </div>
-
-      <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
-        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-2">✨ 含まれるコンテンツ・できること</p>
-        <p>• あなたのNotion＋専門医のナレッジを<strong>横断検索</strong></p>
-        <p>• 救急・集中治療領域の臨床ナレッジ</p>
-        <p>• エビデンスに基づく参考文献</p>
-        <p>• 現役集中治療専門医による定期アップデート（常に最新）</p>
-        <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
-      </div>
-
-      {/* こんな方におすすめ */}
-      <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-4 text-left space-y-2">
-        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">👩‍⚕️ こんな方におすすめ</p>
-        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-          救急・集中治療は、<strong>多くの診療科と多職種が連携するチーム医療</strong>。
-          職種や専門の垣根を越えて、現場に関わるすべての方へ。
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {['医学生', '研修医', '医師（救急・集中治療に関わる全科）', '看護師', '薬剤師', '管理栄養士', '臨床工学技士', '診療放射線技師', '臨床検査技師', '理学療法士', '作業療法士', '言語聴覚士', '救急救命士'].map((role) => (
-            <span key={role} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-[11px] font-medium">
-              {role}
-            </span>
-          ))}
-        </div>
-        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-          専門や経験を問わず、同じ患者を支えるチームみんなが<strong>同じ知識</strong>を共有できる。
-          それぞれの日々の学びと、現場の意思決定をサポートします。
-        </p>
-      </div>
+      <PremiumValueProps />
 
       {error && (
         <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg px-3 py-2">{error}</p>
@@ -2526,25 +2481,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額¥980）へお進みください。</p>
                       </div>
                     )}
-                    <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                      現役集中治療医が定期的に更新する医療ナレッジ＋参考文献を閲覧できます。
-                    </p>
-                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-1.5">
-                      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🔍 あなたのNotionと専門医のナレッジを串刺し検索</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                        ツールを切り替えることなく、<strong>あなた自身のNotionデータベース</strong>と<strong>現役集中治療専門医が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。元の共有Notionページにそのままジャンプして詳細も確認できます。
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">👩‍⚕️ こんな方におすすめ</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">救急・集中治療は<strong>多くの診療科と多職種が連携するチーム医療</strong>。職種や専門の垣根を越えて、現場に関わるすべての方へ。</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {['医学生', '研修医', '医師（救急・集中治療に関わる全科）', '看護師', '薬剤師', '管理栄養士', '臨床工学技士', '診療放射線技師', '臨床検査技師', '理学療法士', '作業療法士', '言語聴覚士', '救急救命士'].map((role) => (
-                          <span key={role} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-[11px] font-medium">{role}</span>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">同じ患者を支えるチームみんなが同じ知識を共有でき、それぞれの日々の学びと現場の意思決定をサポートします。</p>
-                    </div>
+                    {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
+                    <PremiumValueProps showHeader={false} />
                     <div className="space-y-0.5">
                       <p className="inline-block text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5">🎁 最初の2週間は無料</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・14日間の無料トライアル後に課金開始・いつでも解約可能</span></p>
