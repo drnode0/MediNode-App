@@ -1616,34 +1616,6 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         }} />
                         <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">― または ―</p>
                         <PremiumCheckoutButton />
-                        <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みで認証キーをお持ちの方（手動入力）：</p>
-                          <div className="space-y-2">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                Search-Only APIキー
-                              </label>
-                              <PasswordInput
-                                field="subscriptionSearchKey"
-                                value={form.subscriptionSearchKey}
-                                onChange={(e) => update('subscriptionSearchKey', e.target.value)}
-                                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                App ID
-                              </label>
-                              <input
-                                type="text"
-                                value={form.subscriptionAppId}
-                                onChange={(e) => update('subscriptionAppId', e.target.value)}
-                                placeholder="XXXXXXXXXX"
-                                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                              />
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     )}
                   </div>

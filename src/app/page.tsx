@@ -2562,19 +2562,6 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
                       <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
                     </p>
-                    <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">既に購入済みの方（手動入力）：</p>
-                      <div className="space-y-2">
-                        <div>
-                          <label className={labelCls}>Search-Only APIキー</label>
-                          <input type="password" defaultValue={s?.subscriptionSearchKey || ''} onChange={(e) => saveSection({ subscriptionSearchKey: e.target.value })} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>App ID</label>
-                          <input type="text" defaultValue={s?.subscriptionAppId || ''} onChange={(e) => saveSection({ subscriptionAppId: e.target.value })} placeholder="XXXXXXXXXX" className={inputCls} />
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 )
               })()}
