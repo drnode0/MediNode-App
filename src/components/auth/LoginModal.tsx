@@ -17,9 +17,8 @@ type Props = {
 }
 
 // 6桁コード（OTP）入力UIの有効/無効。
-// Supabaseの無料メールではテンプレートにコードを差し込めないため、現状は false。
-// 外部SMTP（Resend等）を接続し、メールテンプレートに {{ .Token }} を入れたら true に戻す。
-const OTP_ENABLED = false
+// Resend(SMTP)接続済み＋メールテンプレートに {{ .Token }} を追加したため有効化。
+const OTP_ENABLED = true
 
 export function LoginModal({ onClose, onSuccess, reason }: Props) {
   const [email, setEmail] = useState('')
