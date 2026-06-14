@@ -11,14 +11,27 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
+  // Supabaseが直接エラーを付けてくるケース（リンク期限切れ等）。
+  const incomingError = searchParams.get('error_description') || searchParams.get('error')
+  if (incomingError) {
+    return NextResponse.redirect(
+      `${origin}/?auth_error=${encodeURIComponent(incomingError)}`,
+    )
+  }
+
   if (token_hash && type) {
     const supabase = await createClient()
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    // 失敗の原因をURLに載せて切り分けできるようにする。
+    console.error('auth/confirm verifyOtp error:', error.message)
+    return NextResponse.redirect(
+      `${origin}/?auth_error=${encodeURIComponent(error.message)}`,
+    )
   }
 
-  // 失敗時はエラー表示用にクエリを付けてトップへ。
-  return NextResponse.redirect(`${origin}/?auth_error=1`)
+  // token_hash / type が無い＝テンプレートのリンク形式が想定外。
+  return NextResponse.redirect(`${origin}/?auth_error=missing_token_hash`)
 }
