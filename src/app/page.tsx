@@ -2323,7 +2323,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── サポート ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
               <a
-                href="https://app.notion.com/p/378fd756737081a2bc23f1acb5f3a4bc"
+                href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
