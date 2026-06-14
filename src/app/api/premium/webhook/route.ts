@@ -43,26 +43,89 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 })
   }
 
-  // イベント処理（Phase 1: ログのみ）
-  switch (event.type) {
-    case 'customer.subscription.deleted':
-      console.log('サブスク解約:', event.data.object.id)
-      // Phase 2: ここでDBのステータスをcanceledに更新
-      break
+  // イベント処理（Phase 2: Supabaseの契約状態を同期）
+  // Supabase未設定の環境ではDB書き込みをスキップして 200 を返す（決済自体は動かす）。
+  const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
 
-    case 'customer.subscription.updated':
-      console.log('サブスク更新:', event.data.object.id, event.data.object.status)
-      // Phase 2: ここでDBのステータスを同期
-      break
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        // 初回の契約成立。client_reference_id / metadata.user_id からアカウントに紐付ける。
+        const session = event.data.object as Stripe.Checkout.Session
+        const userId =
+          session.client_reference_id ||
+          (session.metadata && session.metadata.user_id) ||
+          undefined
+        const customerId = typeof session.customer === 'string' ? session.customer : undefined
+        const subscriptionId =
+          typeof session.subscription === 'string' ? session.subscription : undefined
 
-    case 'invoice.payment_failed':
-      console.log('支払い失敗: invoice.payment_failed received')
-      // Phase 2: ここでDBのステータスをpast_dueに更新 + ユーザー通知
-      break
+        if (supabaseReady && userId) {
+          const { upsertSubscriptionByUserId } = await import('@/lib/supabase/subscriptions')
+          // この時点のサブスク状態を取得（trialing/active を反映）。
+          let status: string | null = 'active'
+          let periodEnd: string | null = null
+          if (subscriptionId) {
+            const stripe = new Stripe(stripeKey)
+            const sub = await stripe.subscriptions.retrieve(subscriptionId)
+            status = sub.status
+            periodEnd = sub.items.data[0]?.current_period_end
+              ? new Date(sub.items.data[0].current_period_end * 1000).toISOString()
+              : null
+          }
+          await upsertSubscriptionByUserId({
+            user_id: userId,
+            stripe_customer_id: customerId ?? null,
+            stripe_subscription_id: subscriptionId ?? null,
+            status,
+            current_period_end: periodEnd,
+            trial_ends_at: null, // Stripe正式登録は無期限（コード式トライアルの期限は使わない）
+            plan: 'premium',
+          })
+        }
+        break
+      }
 
-    default:
-      // その他のイベントは無視
-      break
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as Stripe.Subscription
+        const customerId = typeof sub.customer === 'string' ? sub.customer : null
+        const periodEnd = sub.items.data[0]?.current_period_end
+          ? new Date(sub.items.data[0].current_period_end * 1000).toISOString()
+          : null
+        if (supabaseReady && customerId) {
+          const { updateStatusByCustomer } = await import('@/lib/supabase/subscriptions')
+          await updateStatusByCustomer(customerId, sub.status, periodEnd)
+        }
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object as Stripe.Subscription
+        const customerId = typeof sub.customer === 'string' ? sub.customer : null
+        if (supabaseReady && customerId) {
+          const { updateStatusByCustomer } = await import('@/lib/supabase/subscriptions')
+          await updateStatusByCustomer(customerId, 'canceled')
+        }
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice
+        const customerId = typeof invoice.customer === 'string' ? invoice.customer : null
+        if (supabaseReady && customerId) {
+          const { updateStatusByCustomer } = await import('@/lib/supabase/subscriptions')
+          await updateStatusByCustomer(customerId, 'past_due')
+        }
+        break
+      }
+
+      default:
+        break
+    }
+  } catch (err) {
+    // DB同期に失敗しても 200 を返すと Stripe が再送してくれる。ログだけ残す。
+    console.error('Webhook処理エラー:', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'webhook処理に失敗しました' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true })

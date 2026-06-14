@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/components/auth/AuthProvider'
+import { PremiumSync } from '@/components/auth/PremiumSync'
 
 export const metadata: Metadata = {
   title: 'MediNode',
@@ -27,7 +29,12 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/icon-512.png" />
         <link rel="preload" as="image" href="/icon-192.png" />
       </head>
-      <body className="bg-gray-50 min-h-screen">{children}</body>
+      <body className="bg-gray-50 min-h-screen">
+        <AuthProvider>
+          <PremiumSync />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   )
 }
