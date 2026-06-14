@@ -16,6 +16,14 @@ export async function proxy(request: NextRequest) {
   // 環境変数が無い場合は何もしない（ローカルで未設定でもアプリが落ちないように）。
   if (!url || !anonKey) return response
 
+  // 高速化: セッションCookieが無い（＝未ログイン）リクエストでは、更新するものが無いので
+  // Supabase認証サーバーへの問い合わせ（getUser）を丸ごとスキップする。
+  // モニター期間中は未ログインの初回アクセスが大半なので、初回表示の遅延を大きく減らせる。
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith('sb-') && c.name.includes('-auth-token'))
+  if (!hasAuthCookie) return response
+
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
@@ -39,7 +47,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // 静的アセット・画像・APIの一部を除く全パスで実行。
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // 静的アセット・画像・API・認証コールバックを除く「ページ表示」リクエストでのみ実行。
+    // API（/api/*）は各自で認証を処理するため、ここでのセッション更新は不要（無駄な往復を避ける）。
+    '/((?!_next/static|_next/image|api|auth/confirm|favicon.ico|manifest.json|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
