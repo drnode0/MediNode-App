@@ -2688,9 +2688,20 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </section>
               )}
               <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 ログインとは（プレミアムの引き継ぎ）</h3>
+                <div className="text-xs bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 space-y-1.5 text-gray-700 dark:text-gray-300">
+                  <p><span className="font-semibold">ログインは、プレミアム契約をあなたのアカウントに紐づけて、スマホ・PCなど複数の端末で同じプレミアムを使えるようにするためのものです。</span></p>
+                  <p>・メールアドレスだけでログインできます（パスワード不要）。届いたメールのリンクをタップするか、6桁コードを入力するだけ。</p>
+                  <p>・検索など基本機能は、ログインしなくても今まで通り使えます（ログインは必須ではありません）。</p>
+                  <p>・集めるのはメールアドレスのみで、あなたのNotionの中身を運営が見ることはありません。</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">※ セキュリティ上、メール受信箱を開ける人＝本人とみなされます。共有のPCでメールを開いたままにしないでください。</p>
+                </div>
+              </section>
+              <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
-                <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                  <p>設定はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
+                <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1.5">
+                  <p>Notionの接続設定（トークン等）はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
+                  <p>プレミアム契約については、<span className="font-semibold">ログインすると端末をまたいで引き継げます</span>（上の「ログインとは」を参照）。</p>
                 </div>
               </section>
               <section>
