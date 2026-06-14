@@ -1012,7 +1012,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       }
                       setError('')
                       // テンプレートを新タブで開きつつ、次のステップへ案内
-                      window.open('https://app.notion.com/p/MediNode-DB-37afd756737080ba8035f2cdb33af355', '_blank')
+                      // Notionマーケットプレイス公開版のテンプレートDB
+                      window.open('https://www.notion.com/ja/templates/medinode-db', '_blank')
                       setNotionSetupMode('after-template')
                     }}
                     className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
