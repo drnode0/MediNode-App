@@ -1699,6 +1699,9 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                     ? personalCount
                     : personalCount + teamCount + subCount
               const hasSub = subCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'team'
+              // 部署（チーム）にもこのジャンルがある場合の緑ドット。
+              // 個人のみ／プレミアムのみ表示中は出さない（プレミアムの紫ドットと同じ思想）。
+              const hasTeamDot = teamCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'subscription'
               const isActive = selectedGenre === genre
               return (
                 <button
@@ -1712,6 +1715,13 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className="truncate">{displayGenreName(genre)}</span>
+                    {hasTeamDot && (
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-green-200' : 'bg-green-500'}`}
+                        title="部署にもあります"
+                        aria-label="部署にもあります"
+                      />
+                    )}
                     {hasSub && (
                       <span
                         className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-purple-200' : 'bg-purple-500'}`}
