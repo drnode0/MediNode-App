@@ -47,18 +47,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
     const email = typeof body.email === 'string' ? body.email : undefined
+    // ログイン中ユーザーのID（契約をアカウントに紐付けるため）。未ログインなら undefined。
+    const userId = typeof body.userId === 'string' && body.userId ? body.userId : undefined
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       ...(email ? { customer_email: email } : {}),
+      // ログイン中なら user_id を session に紐付け（webhook/verify でアカウントに結びつける）。
+      ...(userId ? { client_reference_id: userId } : {}),
       // 成功時: ?session_id={CHECKOUT_SESSION_ID} を付けてリダイレクト
       success_url: `${appUrl}/?premium_session={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/`,
       locale: 'ja',
       subscription_data: {
-        metadata: { source: 'medinode' },
+        metadata: { source: 'medinode', ...(userId ? { user_id: userId } : {}) },
         // 最初の14日間は無料トライアル。トライアル中も subscription.status は 'trialing' となり、
         // /api/premium/verify が 'trialing' を許可しているためプレミアムが利用できる。
         // 14日経過後に登録カードへ自動課金される（解約しなければ継続）。

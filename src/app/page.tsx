@@ -19,6 +19,8 @@ import { SetupWizard } from '@/components/SetupWizard'
 import { SyncPanel } from '@/components/SyncPanel'
 import { OnboardingScreen } from '@/components/OnboardingScreen'
 import { PremiumValueProps } from '@/components/PremiumValueProps'
+import { AccountButton } from '@/components/auth/AccountButton'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -832,6 +834,7 @@ function SubscriptionPromoPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const mode = usePremiumPaymentMode()
+  const { user } = useAuth()
 
   const handleCheckout = async () => {
     setLoading(true)
@@ -840,7 +843,8 @@ function SubscriptionPromoPanel() {
       const res = await fetch('/api/premium/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        // ログイン中なら user_id を渡して契約をアカウントに紐付ける（端末またぎ解決）。
+        body: JSON.stringify({ userId: user?.id }),
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
@@ -2050,6 +2054,7 @@ function PremiumCheckoutButtonInline() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const mode = usePremiumPaymentMode()
+  const { user } = useAuth()
   return (
     <div className="space-y-2">
       {mode?.testMode && <TestModeNotice />}
@@ -2057,7 +2062,7 @@ function PremiumCheckoutButtonInline() {
         onClick={async () => {
           setLoading(true); setError('')
           try {
-            const res = await fetch('/api/premium/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+            const res = await fetch('/api/premium/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?.id }) })
             const data = await res.json()
             if (!res.ok || !data.url) { setError(data.error || '購入ページを開けませんでした'); return }
             window.location.href = data.url
@@ -2937,7 +2942,9 @@ export default function Home() {
     <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
         <div className="flex items-center justify-between mb-3">
-          <div className="w-16" />
+          <div className="w-16 flex items-center">
+            <AccountButton />
+          </div>
           <div className="flex items-center gap-2">
             <img src="/icon-192.png" alt="MediNode" className="w-7 h-7 rounded-lg" />
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>

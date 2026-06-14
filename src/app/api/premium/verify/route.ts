@@ -62,11 +62,42 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 契約をアカウントに紐付けてサーバー保存（端末またぎ解決の要）。
+    // session の client_reference_id / metadata.user_id にログイン中ユーザーIDが入っている。
+    const userId =
+      session.client_reference_id ||
+      (session.metadata && session.metadata.user_id) ||
+      undefined
+    const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (supabaseReady && userId) {
+      try {
+        const { upsertSubscriptionByUserId } = await import('@/lib/supabase/subscriptions')
+        const customerId = typeof session.customer === 'string' ? session.customer : null
+        const periodEnd = subscription.items.data[0]?.current_period_end
+          ? new Date(subscription.items.data[0].current_period_end * 1000).toISOString()
+          : null
+        await upsertSubscriptionByUserId({
+          user_id: userId,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscription.id,
+          status: subscription.status,
+          current_period_end: periodEnd,
+          trial_ends_at: null,
+          plan: 'premium',
+        })
+      } catch (e) {
+        // DB保存に失敗してもキー配布は継続（webhookが後で同期する）。
+        console.error('verify: subscriptions保存失敗', e instanceof Error ? e.message : e)
+      }
+    }
+
     // アクティブ確認済み → Algoliaキーを返す
     return NextResponse.json({
       ok: true,
       subscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
+      // ログイン＆DB保存できたか（フロントが「端末間で引き継ぎ可能」を表示する用）。
+      linkedToAccount: !!(supabaseReady && userId),
       algolia: {
         appId: algoliaAppId,
         searchKey: algoliaSearchKey,
