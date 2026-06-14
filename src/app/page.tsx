@@ -2037,9 +2037,10 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
 
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
-      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
+      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方（カード登録不要）</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事に記載のコードを入力すると、<strong>カード登録なし</strong>で一定期間プレミアムをお試しいただけます。
+        note記事に記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。気に入った場合のみ、下の有料登録で継続できます。
       </p>
       <div className="flex gap-2">
         <input
@@ -2555,7 +2556,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     </p>
                     {/* note購入者向け: コード入力でカード不要トライアル */}
                     <PremiumTrialRedeem />
-                    <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">― または ―</p>
+                    <div className="flex items-center gap-2 py-1">
+                      <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500">そのまま続けたい方は</p>
+                      <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                      <strong>💳 有料登録（月額¥980）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
+                    </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
                       <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
@@ -2571,6 +2579,17 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {/* ── ヘルプ ── */}
           {section === 'help' && (
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[60vh] overflow-y-auto pr-1">
+              <section>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2">⭐ プレミアムとは？</h3>
+                <div className="text-xs bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 text-gray-700 dark:text-gray-300 space-y-1.5 leading-relaxed">
+                  <p><strong>現役集中治療医が定期的に更新する医療ナレッジ＋参考文献</strong>を、あなた自身のNotionと同じ検索ボックスで横断検索できる機能です。</p>
+                  <p>🔍 ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
+                  <p className="pt-1"><strong>試し方は2通り：</strong></p>
+                  <p>🎁 <strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
+                  <p>💳 <strong>有料登録（月額¥980）</strong>… 最初の14日は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
+                  <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → ⭐ プレミアムDB設定」から行えます。</p>
+                </div>
+              </section>
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
                 <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">

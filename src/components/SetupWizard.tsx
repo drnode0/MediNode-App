@@ -75,10 +75,14 @@ function PremiumCheckoutButton() {
 
 // note等に記載したクーポンコードを入力して、カード不要でトライアルを開始するUI（SetupWizard内で使用）。
 // 設定画面側の PremiumTrialRedeem と同じ /api/premium/trial を使う。導線を揃えて混乱を防ぐ。
-function PremiumTrialRedeemButton({ onActivated }: { onActivated?: () => void }) {
+// 成功時はトライアルキーを保存し、その値を onApplied で親に渡して form を確実に更新する
+// （その後の「検索開始」での form 上書きでキーが消えないようにするため）。
+function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId: string; searchKey: string; index: string; trialEndsAt: string }) => void }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [trialDays, setTrialDays] = useState(0)
+  const [applied, setApplied] = useState(false)
 
   const handleRedeem = async () => {
     if (!code.trim()) { setError('コードを入力してください'); return }
@@ -95,6 +99,7 @@ function PremiumTrialRedeemButton({ onActivated }: { onActivated?: () => void })
         setError(data.error || 'コードを確認できませんでした')
         return
       }
+      // localStorage に保存
       const current = getSettings()
       if (current) {
         saveSettings({
@@ -105,7 +110,17 @@ function PremiumTrialRedeemButton({ onActivated }: { onActivated?: () => void })
           subscriptionTrialEndsAt: data.trialEndsAt,
         })
       }
-      if (onActivated) onActivated()
+      // 親（SetupWizard）の form にも反映して、後続の saveSettings(form) で上書きされないようにする
+      if (onApplied) {
+        onApplied({
+          appId: data.algolia.appId,
+          searchKey: data.algolia.searchKey,
+          index: data.algolia.index,
+          trialEndsAt: data.trialEndsAt,
+        })
+      }
+      setTrialDays(data.trialDays || 14)
+      setApplied(true)
     } catch {
       setError('ネットワークエラーが発生しました')
     } finally {
@@ -113,11 +128,24 @@ function PremiumTrialRedeemButton({ onActivated }: { onActivated?: () => void })
     }
   }
 
+  // 適用済み: 成功表示
+  if (applied) {
+    return (
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-3 space-y-1">
+        <p className="text-xs font-bold text-green-700 dark:text-green-400">🎁 無料トライアルを開始しました！（{trialDays}日間）</p>
+        <p className="text-[11px] text-green-600 dark:text-green-500 leading-relaxed">
+          プレミアムコンテンツにアクセスできます。下の「設定を保存して検索を開始する」で完了してください。
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事に記載のコードを入力すると、<strong>カード登録なし</strong>で一定期間プレミアムをお試しいただけます。
+        note記事に記載のコードを入力すると、<strong>カード登録なし・{14}日間</strong>プレミアムをお試しいただけます。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録へお進みください。
       </p>
       <div className="flex gap-2">
         <input
@@ -1606,15 +1634,30 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <strong>最初の2週間は無料</strong>、トライアル終了後に月額¥980（税込）が課金されます（いつでも解約可）。
                           登録後、このページに自動で戻りアクセスが有効になります。
                         </p>
-                        {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも反映して即「登録済み」表示にする */}
-                        <PremiumTrialRedeemButton onActivated={() => {
-                          const s = getSettings()
-                          if (s) {
-                            update('subscriptionAppId', s.subscriptionAppId)
-                            update('subscriptionSearchKey', s.subscriptionSearchKey)
-                          }
+                        {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
+                            後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
+                            最後の1つしか反映されないため、setForm でまとめて更新する） */}
+                        <PremiumTrialRedeemButton onApplied={(algolia) => {
+                          setForm((prev) => {
+                            const next = {
+                              ...prev,
+                              subscriptionAppId: algolia.appId,
+                              subscriptionSearchKey: algolia.searchKey,
+                              subscriptionIndex: algolia.index,
+                              subscriptionTrialEndsAt: algolia.trialEndsAt,
+                            }
+                            saveDraft(next)
+                            return next
+                          })
                         }} />
-                        <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">― または ―</p>
+                        <div className="flex items-center gap-2 py-1">
+                          <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500">そのまま続けたい方は</p>
+                          <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                          <strong>💳 有料登録（月額¥980）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
+                        </p>
                         <PremiumCheckoutButton />
                       </div>
                     )}
