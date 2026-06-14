@@ -41,6 +41,22 @@ export type AppSettings = {
 const STORAGE_KEY = 'medical_search_settings'
 const DRAFT_KEY = 'medical_search_setup_draft'
 const LAST_SYNCED_KEY = 'medical_search_last_synced'
+// この端末でトライアルコードを使用済みかを記録するキー。
+// 期限切れ後に同じ端末で再度コードを使う“実質無限トライアル”をカジュアルに防ぐための軽量対策。
+// 注意: 別ブラウザ・シークレット・別端末・localStorage削除では回避可能（厳密対策はサーバー側のメール登録制が必要）。
+const TRIAL_USED_KEY = 'medical_search_trial_used'
+
+// トライアルコードを使ったことを記録する。
+export function markTrialUsed(): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(TRIAL_USED_KEY, new Date().toISOString())
+}
+
+// この端末で過去にトライアルコードを使ったことがあるか。
+export function hasUsedTrial(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!localStorage.getItem(TRIAL_USED_KEY)
+}
 
 export function getSettings(): AppSettings | null {
   if (typeof window === 'undefined') return null

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, type AppSettings } from '@/lib/settings'
+import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
 
 type Step = 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
@@ -120,13 +120,27 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
           trialEndsAt: data.trialEndsAt,
         })
       }
-      setTrialDays(data.trialDays || 14)
+      // この端末でトライアルを使ったことを記録（期限切れ後の再入力をカジュアルに防ぐ）
+      markTrialUsed()
+      setTrialDays(data.trialDays || 7)
       setApplied(true)
     } catch {
       setError('ネットワークエラーが発生しました')
     } finally {
       setLoading(false)
     }
+  }
+
+  // この端末で既にトライアル利用済みなら、コード入力欄を出さず有料登録へ誘導
+  if (!applied && hasUsedTrial()) {
+    return (
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 無料トライアルは利用済みです</p>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+          この端末では無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
+        </p>
+      </div>
+    )
   }
 
   // 適用済み: 成功表示
@@ -145,8 +159,8 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事に記載のコードを入力すると、<strong>カード登録なし・{14}日間</strong>プレミアムをお試しいただけます。
-        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録へお進みください。
+        note記事に記載のコードを入力すると、<strong>カード登録なし・7日間</strong>プレミアムをお試しいただけます。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（14日間無料）へお進みください。
       </p>
       <div className="flex gap-2">
         <input
