@@ -5,7 +5,8 @@
 // フォールバック: 同じメールに届く6桁コードを入力（リンクが別ブラウザで開く問題への対策）。
 // これにより「使えない人」を限りなくゼロにする。
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 
 type Props = {
@@ -15,6 +16,11 @@ type Props = {
   reason?: string
 }
 
+// 6桁コード（OTP）入力UIの有効/無効。
+// Supabaseの無料メールではテンプレートにコードを差し込めないため、現状は false。
+// 外部SMTP（Resend等）を接続し、メールテンプレートに {{ .Token }} を入れたら true に戻す。
+const OTP_ENABLED = false
+
 export function LoginModal({ onClose, onSuccess, reason }: Props) {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -22,6 +28,18 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  // ポータル描画用のマウント判定（SSR時は document が無いため）。
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    // モーダル表示中は背景スクロールをロック（重さ・ズレ対策）。
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 
@@ -46,7 +64,11 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
       })
       if (error) throw error
       setPhase('sent')
-      setInfo('メールを送信しました。届いたリンクをタップするか、メール内の6桁コードを入力してください。')
+      setInfo(
+        OTP_ENABLED
+          ? 'メールを送信しました。届いたリンクをタップするか、メール内の6桁コードを入力してください。'
+          : 'ログイン用メールを送信しました。',
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'メール送信に失敗しました')
     } finally {
@@ -79,9 +101,17 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl space-y-4">
+  if (!mounted) return null
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h2>
@@ -130,28 +160,42 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
             <div className="rounded-lg bg-blue-50 dark:bg-blue-900/30 p-3 text-xs text-blue-700 dark:text-blue-300">
               {info}
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                6桁コード（リンクが開けないとき）
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="123456"
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-center text-lg tracking-[0.4em] text-gray-900 dark:text-gray-100"
-              />
+
+            <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              📩 <span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
+              メール内の「ログイン」リンクをタップすると、この画面に戻ってログインが完了します。
+              <br />
+              <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。</span>
             </div>
-            <button
-              onClick={verifyCode}
-              disabled={loading || code.length !== 6}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? '確認中...' : 'コードでログイン'}
-            </button>
+
+            {/* 6桁コード入力（SMTP接続後に OTP_ENABLED=true で復活） */}
+            {OTP_ENABLED && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    6桁コード（リンクが開けないとき）
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-center text-lg tracking-[0.4em] text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <button
+                  onClick={verifyCode}
+                  disabled={loading || code.length !== 6}
+                  className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? '確認中...' : 'コードでログイン'}
+                </button>
+              </>
+            )}
+
             <button
               onClick={sendLink}
               disabled={loading}
@@ -170,4 +214,8 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
       </div>
     </div>
   )
+
+  // body直下にポータルで描画し、sticky header や transform 祖先による
+  // position:fixed のズレ・干渉を回避する。
+  return createPortal(modal, document.body)
 }
