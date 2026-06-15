@@ -2859,17 +2859,17 @@ export default function Home() {
     setOnboardingDone(done)
   }, [])
 
-  const [setupInitialStep, setSetupInitialStep] = useState<'mode' | 'notion' | 'options'>('mode')
+  const [setupInitialStep, setSetupInitialStep] = useState<'start' | 'mode' | 'notion' | 'options'>('start')
 
   const handleReset = () => {
     clearSettings()
     setSetupDone(false)
     setShowSettings(false)
-    setSetupInitialStep('mode')
+    setSetupInitialStep('start')
   }
 
   const handleRedo = () => {
-    setSetupInitialStep('mode')
+    setSetupInitialStep('start')
     setSetupDone(false)
   }
 
@@ -2943,7 +2943,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('mode') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('start') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
   }
 
   const settings = getSettings()
