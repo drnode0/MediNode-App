@@ -137,7 +137,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の14日間無料）へお進みください。
         </p>
       </div>
     )
@@ -271,7 +271,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⚡ パワーモードとは？</p>
-          <p className="text-xs text-gray-600 dark:text-gray-300">Algoliaという高速検索エンジンを使います。検索は0.1秒以下で完了し、日本語の部分一致も得意です。ただしAlgoliaのアカウント作成（無料）とデータの同期が必要です。</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Algoliaという高速検索エンジンを使います。検索は0.1秒以下で完了し、日本語の部分一致も得意です。ただしAlgoliaのアカウント作成（無料）が必要で、<strong>Notionの記事を更新するたびに再同期</strong>すると最新内容が検索に反映されます。</p>
         </section>
       </div>
     ),
@@ -946,7 +946,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </div>
                 <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
                   Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<br />
-                  Algoliaアカウント（無料）と初回同期が必要ですが、毎日の検索ならこちらが圧倒的に快適です。
+                  Algoliaアカウント（無料）が必要です。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日の検索ならこちらが圧倒的に快適です。
                 </p>
               </button>
 
@@ -1657,7 +1657,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・7日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の14日間無料</strong>・月額¥980・いつでも解約可）へ。
+                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・7日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の14日間無料</strong>・月額・価格は準備中・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -1681,7 +1681,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                          <strong>💳 有料登録（月額¥980）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
+                          <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
                         </p>
                         <PremiumCheckoutButton />
                       </div>

@@ -119,17 +119,17 @@ export function SyncPanel() {
     <div className="border-t border-gray-100 dark:border-gray-700 mt-1">
       <button
         onClick={() => { setOpen((v) => !v); setResult(null); setError('') }}
-        className="w-full flex items-center justify-between px-4 py-2 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors"
       >
         <span className="flex items-center gap-2">
           <span>🔄 データを再同期する</span>
           {lastSynced && !open && (
-            <span className="text-gray-300 dark:text-gray-600">
+            <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
               最終同期: {formatLastSynced(lastSynced)}
             </span>
           )}
         </span>
-        <span>{open ? '▲' : '▼'}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
