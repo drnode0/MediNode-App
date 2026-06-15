@@ -454,16 +454,17 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
 
         <section className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 space-y-2 text-xs">
+          <p className="text-gray-500 dark:text-gray-400">キーは3つ。<strong>②と③は名前が似ていますが別物</strong>です。両方コピーします。</p>
           <div>
             <p className="font-semibold text-gray-700 dark:text-gray-200">① Application ID</p>
             <p className="text-gray-500 dark:text-gray-400">アプリの識別子（10文字程度の大文字英数字）。公開されても問題ない値です</p>
           </div>
           <div>
-            <p className="font-semibold text-gray-700 dark:text-gray-200">② Search-Only API Key</p>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">② Search-Only API Key <span className="font-normal text-gray-400">＝検索用</span></p>
             <p className="text-gray-500 dark:text-gray-400">検索専用キー（読み取りのみ）。ブラウザに置いても安全な公開用キー</p>
           </div>
           <div>
-            <p className="font-semibold text-gray-700 dark:text-gray-200">③ Admin API Key ⚠️</p>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">③ Admin API Key ⚠️ <span className="font-normal text-gray-400">＝同期用</span></p>
             <p className="text-gray-500 dark:text-gray-400">同期・書き込みに使う管理者キー。<strong>「🔒（鍵アイコン）」をクリックして表示</strong>してからコピーします。<strong className="text-red-500">Search KeyではなくAdmin Keyの方</strong>を入力してください</p>
           </div>
         </section>
@@ -987,6 +988,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    💡 共有DBを職場のメンバーに使ってもらう場合は、代表者がここでTokenを取得し、対象DBに「コネクトを追加」したうえで、Token とDBのURLを渡せばOK。受け取った人はゲストでも、下の「部署用DB」に貼り付けるだけで使えます。
                   </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
@@ -1579,6 +1583,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         onChange={(e) => update('teamNotionToken', e.target.value)}
                         placeholder="ntn_xxxxxxxxxxxx"
                       />
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        代表者からもらった Token とDBのURLを貼り付けるだけでOK（自分で作る必要はありません）。
+                      </p>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
