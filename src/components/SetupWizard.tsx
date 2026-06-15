@@ -277,7 +277,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <p className="text-xs text-gray-600 dark:text-gray-300">職場で共有しているNotionDBを検索します。代表者からもらったTokenとDBのURLを使います（自分でNotionを持っていなくてもOK）。</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ 専門医の知識をのぞく（プレミアム）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ 専門医の知識を使う（プレミアム）</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">作者（専門医）が配信する医療ナレッジを検索します。自分のNotionやAlgoliaの設定は不要で、すぐ使い始められます。</p>
         </section>
         <p className="text-xs text-gray-500 dark:text-gray-400">複数を選んでもOK。あとから「設定」でいつでも追加できます。</p>
@@ -970,7 +970,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               {([
                 { key: 'personal' as const, icon: '🧑', title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
                 { key: 'team' as const, icon: '🏥', title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
-                { key: 'premium' as const, icon: '⭐', title: '専門医の知識をのぞく', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
+                { key: 'premium' as const, icon: '⭐', title: '専門医の知識を使う', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
               ]).map((opt) => {
                 const selected = targets[opt.key]
                 return (
