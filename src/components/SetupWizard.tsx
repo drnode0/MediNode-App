@@ -844,6 +844,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const steps = allSteps
   const stepIndex = steps.findIndex((s) => s.id === step)
 
+  // 動的に構築した steps の「1つ前」に戻る。経路（個人/部署/プレミアム）に
+  // よってステップ構成が変わるため、固定の遷移先ではなく steps 配列基準で戻す。
+  const goPrevStep = () => {
+    setError('')
+    if (stepIndex > 0) setStep(steps[stepIndex - 1].id)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
       <div className="w-full max-w-lg">
@@ -1017,6 +1024,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {step === 'mode' && (
             <div className="space-y-5">
               <div>
+                <button
+                  onClick={goPrevStep}
+                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                >
+                  ← 戻る
+                </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">接続モードを選択</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   検索エンジンをどう使いますか？あとから変更もできます。
@@ -1068,7 +1081,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             <div className="space-y-5">
               <div>
                 <button
-                  onClick={() => setStep('mode')}
+                  onClick={goPrevStep}
                   className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
                 >
                   ← 戻る
@@ -1512,7 +1525,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setStep('notion'); setError('') }}
+                  onClick={goPrevStep}
                   className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   ← 戻る
@@ -1586,7 +1599,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { setStep('algolia'); setError(''); setTestResult(null) }}
+                      onClick={() => { setTestResult(null); goPrevStep() }}
                       disabled={syncing}
                       className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
@@ -1639,9 +1652,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {step === 'options' && (
             <div className="space-y-5">
               <div>
-                {initialStep !== 'options' && (
+                {initialStep !== 'options' && stepIndex > 0 && (
                   <button
-                    onClick={() => setStep(form.searchMode === 'algolia' ? 'sync' : 'notion')}
+                    onClick={goPrevStep}
                     className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
                   >
                     ← 戻る
