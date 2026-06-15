@@ -874,15 +874,26 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               使い方
             </button>
           )}
-          {/* ヘルプボタン */}
-          <button
-            onClick={() => setShowHelp(true)}
-            className="absolute top-0 right-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 ring-1 ring-blue-200 dark:ring-blue-700 transition-colors text-xs font-semibold"
-            title="このステップの詳しい説明を見る"
-          >
-            <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">?</span>
-            ヘルプ
-          </button>
+          {/* ガイド・ヘルプボタン（右上） */}
+          <div className="absolute top-0 right-0 flex items-center gap-1.5">
+            <a
+              href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-gray-200 dark:ring-gray-700 transition-colors text-xs font-semibold"
+              title="詳しい説明書（ガイド）を別タブで開く"
+            >
+              📘 ガイド
+            </a>
+            <button
+              onClick={() => setShowHelp(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 ring-1 ring-blue-200 dark:ring-blue-700 transition-colors text-xs font-semibold"
+              title="このステップの詳しい説明を見る"
+            >
+              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">?</span>
+              ヘルプ
+            </button>
+          </div>
         </div>
 
         {/* ヘルプパネル（オーバーレイ） */}
