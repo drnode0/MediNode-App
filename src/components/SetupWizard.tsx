@@ -990,7 +990,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    💡 共有DBを職場のメンバーに使ってもらう場合は、代表者がここでTokenを取得し、対象DBに「コネクトを追加」したうえで、Token とDBのURLを渡せばOK。受け取った人はゲストでも、下の「部署用DB」に貼り付けるだけで使えます。
+                    💡 ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
                   </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
@@ -1583,9 +1583,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         onChange={(e) => update('teamNotionToken', e.target.value)}
                         placeholder="ntn_xxxxxxxxxxxx"
                       />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        代表者からもらった Token とDBのURLを貼り付けるだけでOK（自分で作る必要はありません）。
-                      </p>
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 space-y-1">
+                        <p>・<strong>受け取る人</strong>：代表者からもらった Token とDBのURLを貼るだけでOK（自分で作る必要はありません）。</p>
+                        <p>・<strong>代表者の方</strong>：共有用に<strong>個人用とは別のToken</strong>を新しく作り、部署DBにだけ「コネクトを追加」してから配ってください。</p>
+                        <p className="text-amber-600 dark:text-amber-400">⚠️ このTokenはメンバーに渡るため、つながっているDBが全員に見えます。個人用Tokenは共有せず、共有用Tokenは部署DB以外につながないでください。</p>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
