@@ -4,8 +4,11 @@ import type React from 'react'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
 
-type Step = 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
+type Step = 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'after-template' | 'existing'
+
+// セットアップ開始時に「何から始めるか」を選ぶ。1つ以上選べばOK。
+type SetupTargets = { personal: boolean; team: boolean; premium: boolean }
 
 type Props = {
   onComplete: () => void
@@ -261,6 +264,26 @@ function parseErrorMessage(msg: string): string {
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
+  start: {
+    title: '何から始める？のヘルプ',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🧑 自分の知識を使う（個人のNotion）</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">あなた自身のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🏥 みんなの知識を使う（部署の共有DB）</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">職場で共有しているNotionDBを検索します。代表者からもらったTokenとDBのURLを使います（自分でNotionを持っていなくてもOK）。</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ 専門医の知識をのぞく（プレミアム）</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">作者（専門医）が配信する医療ナレッジを検索します。自分のNotionやAlgoliaの設定は不要で、すぐ使い始められます。</p>
+        </section>
+        <p className="text-xs text-gray-500 dark:text-gray-400">複数を選んでもOK。あとから「設定」でいつでも追加できます。</p>
+      </div>
+    ),
+  },
   mode: {
     title: '接続モードのヘルプ',
     content: (
@@ -551,7 +574,9 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 }
 
 export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
-  const [step, setStep] = useState<Step>(initialStep || 'mode')
+  const [step, setStep] = useState<Step>(initialStep || 'start')
+  // 「何から始めるか」の選択。初期値は個人のみ（従来挙動に近い）。start画面で更新。
+  const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
   // optionsステップに直行した場合はプレミアムセクションを自動展開
@@ -596,6 +621,17 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       setForm((prev) => ({ ...prev, ...draft }))
     }
   }, [])
+
+  // optionsステップ到達時、選んだ対象（部署/プレミアム）のセクションを自動展開する。
+  useEffect(() => {
+    if (step !== 'options') return
+    setOpenSection((cur) => {
+      if (cur) return cur
+      if (targets.team) return 'team'
+      if (targets.premium) return 'subscription'
+      return cur
+    })
+  }, [step, targets.team, targets.premium])
 
   const update = (key: keyof AppSettings, value: string) => {
     const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'teamNotionMedicalDbId', 'teamNotionReferenceDbId']
@@ -783,20 +819,28 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     }
   }
 
-  // モードに応じてステップ表示を切り替え
-  const allSteps: { id: Step; label: string }[] = form.searchMode === 'notion'
-    ? [
-        { id: 'mode', label: 'モード' },
-        { id: 'notion', label: 'Notion' },
-        { id: 'options', label: 'オプション' },
-      ]
-    : [
-        { id: 'mode', label: 'モード' },
-        { id: 'notion', label: 'Notion' },
-        { id: 'algolia', label: 'Algolia' },
-        { id: 'sync', label: '同期' },
-        { id: 'options', label: 'オプション' },
-      ]
+  // 「何から始めるか」の選択と検索モードに応じてステップ表示を動的に構築する。
+  // - premium のみ（個人/部署DBなし）: モード選択もNotion入力も不要 → start → options
+  // - personal を含む: Notion入力が必要
+  // - power(algolia) かつ 個人/部署DBあり: algolia/sync も必要
+  const usesOwnDb = targets.personal || targets.team
+  const isPremiumOnly = targets.premium && !usesOwnDb
+  const allSteps: { id: Step; label: string }[] = (() => {
+    const list: { id: Step; label: string }[] = [{ id: 'start', label: '対象' }]
+    if (isPremiumOnly) {
+      // プレミアムのみはモード選択をスキップ（シンプル固定）し、オプションで入力。
+      list.push({ id: 'options', label: '設定' })
+      return list
+    }
+    list.push({ id: 'mode', label: 'モード' })
+    if (targets.personal) list.push({ id: 'notion', label: 'Notion' })
+    if (form.searchMode === 'algolia') {
+      list.push({ id: 'algolia', label: 'Algolia' })
+      list.push({ id: 'sync', label: '同期' })
+    }
+    list.push({ id: 'options', label: 'オプション' })
+    return list
+  })()
   const steps = allSteps
   const stepIndex = steps.findIndex((s) => s.id === step)
 
@@ -905,6 +949,69 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
         {/* カード */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+
+          {/* Step 0: 何から始めるか */}
+          {step === 'start' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">何から始めますか？</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  使いたいものを選んでください（複数選択可）。あとから「設定」で追加もできます。
+                </p>
+              </div>
+
+              {([
+                { key: 'personal' as const, icon: '🧑', title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
+                { key: 'team' as const, icon: '🏥', title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
+                { key: 'premium' as const, icon: '⭐', title: '専門医の知識をのぞく', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
+              ]).map((opt) => {
+                const selected = targets[opt.key]
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setTargets((t) => ({ ...t, [opt.key]: !t[opt.key] }))}
+                    className={`w-full border-2 rounded-xl p-4 text-left transition-colors ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}>✓</span>
+                      <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{opt.icon} {opt.title}</p>
+                      <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{opt.sub}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pl-7">{opt.desc}</p>
+                  </button>
+                )
+              })}
+
+              <button
+                onClick={() => {
+                  if (!targets.personal && !targets.team && !targets.premium) {
+                    setError('使いたいものを1つ以上選んでください')
+                    return
+                  }
+                  setError('')
+                  if (targets.premium && !targets.personal && !targets.team) {
+                    // プレミアムのみ：モードをスキップし、シンプル固定でオプションへ。
+                    setForm((f) => ({ ...f, searchMode: 'notion' }))
+                    setOpenSection('subscription')
+                    setStep('options')
+                  } else {
+                    setStep('mode')
+                  }
+                }}
+                disabled={!targets.personal && !targets.team && !targets.premium}
+                className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                次へ →
+              </button>
+              {error && (
+                <p className="text-xs text-red-500 text-center">{error}</p>
+              )}
+            </div>
+          )}
 
           {/* Step 0: モード選択 */}
           {step === 'mode' && (
