@@ -83,11 +83,26 @@ export function clearSettings(): void {
 export function isSetupComplete(): boolean {
   const s = getSettings()
   if (!s) return false
-  if (!s.notionToken || !s.notionMedicalDbId) return false
-  // Notionモードはここまででok
-  if (s.searchMode === 'notion') return true
-  // Algoliaモードはキーも必要
-  return !!(s.algoliaAppId && s.algoliaSearchKey && s.algoliaAdminKey)
+
+  // 個人DB / 部署DB / プレミアム のいずれか1つでも設定されていれば開始できる。
+  // （ゲスト参加で個人DBを持たない人や、プレミアムだけ使いたい人に対応）
+  const hasPersonal = !!(s.notionToken && s.notionMedicalDbId)
+  const hasTeam = !!(s.teamNotionToken && s.teamNotionMedicalDbId)
+  // プレミアムは作者配信のAlgoliaを使うため本人DB不要で単独成立する。
+  // 期限切れの無効化は表示側（hasSubscriptionConfig）が担保するため、
+  // 完了判定には期限を持ち込まない（settings→algolia の循環import回避も兼ねる）。
+  const hasPremium = !!(s.subscriptionAppId && s.subscriptionSearchKey)
+
+  if (!hasPersonal && !hasTeam && !hasPremium) return false
+
+  // 個人DB／部署DBを Algolia（パワーモード）で使う場合は Algolia キーも必要。
+  const usesOwnAlgolia = (hasPersonal || hasTeam) && s.searchMode === 'algolia'
+  if (usesOwnAlgolia) {
+    return !!(s.algoliaAppId && s.algoliaSearchKey && s.algoliaAdminKey)
+  }
+
+  // 上記以外（Notionモードで個人/部署DBあり、またはプレミアムのみ）は完了。
+  return true
 }
 
 // セットアップ途中の一時保存
