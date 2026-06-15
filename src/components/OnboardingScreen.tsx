@@ -53,6 +53,33 @@ const PAGES = [
     ],
   },
   {
+    id: 'sources',
+    badge: '📚 3つの知識源',
+    title: '使いたい知識を\n選んで始められます',
+    description: null,
+    illustration: null,
+    features: [
+      {
+        icon: '🧑',
+        color: 'bg-blue-50 text-blue-600',
+        title: '自分の知識（個人のNotion）',
+        desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます',
+      },
+      {
+        icon: '🏥',
+        color: 'bg-indigo-50 text-indigo-600',
+        title: 'みんなの知識（部署の共有DB）',
+        desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ（自分のNotionは不要）',
+      },
+      {
+        icon: '⭐',
+        color: 'bg-amber-50 text-amber-600',
+        title: '専門医の知識（プレミアム）',
+        desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます',
+      },
+    ],
+  },
+  {
     id: 'notion',
     badge: '📝 Notionと連携',
     title: '書く場所は\nそのままでいい',
@@ -81,7 +108,7 @@ const PAGES = [
   },
   {
     id: 'dbs',
-    badge: '🗂 2つのDBの役割',
+    badge: '🗂 Notionを使う場合のDB',
     title: '知識本体と\n参考文献を分けて管理',
     description: null,
     illustration: (
@@ -91,7 +118,7 @@ const PAGES = [
           <g>
             <rect x="6" y="20" width="120" height="140" rx="14" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="2" />
             <text x="66" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="#1D4ED8">🏥 Medical DB</text>
-            <text x="66" y="60" textAnchor="middle" fontSize="9" fill="#1E40AF">（必須）</text>
+            <text x="66" y="60" textAnchor="middle" fontSize="9" fill="#1E40AF">（知識の本体）</text>
             <line x1="18" y1="70" x2="114" y2="70" stroke="#BFDBFE" strokeWidth="1" />
             <text x="18" y="86" fontSize="9" fill="#1E3A8A">📝 病名・治療・知識</text>
             <text x="18" y="102" fontSize="9" fill="#1E3A8A">🏷 ジャンル / キーワード</text>
@@ -126,8 +153,8 @@ const PAGES = [
       {
         icon: '🏥',
         color: 'bg-blue-50 text-blue-600',
-        title: 'Medical DB（必須）',
-        desc: '病名・治療・手技などの本体ノート。検索・クイズ・ジャンルブラウズの中心',
+        title: 'Medical DB（知識の本体）',
+        desc: '病名・治療・手技などの本体ノート。検索・クイズ・ジャンルブラウズの中心（自分や部署のNotionを使う場合）',
       },
       {
         icon: '📖',
@@ -146,27 +173,27 @@ const PAGES = [
   {
     id: 'setup',
     badge: '🔑 セットアップ',
-    title: '3ステップで\nすぐ使い始められます',
+    title: '選んで設定するだけ\nすぐ使い始められます',
     description: null,
     illustration: null,
     features: [
       {
-        icon: '📋',
+        icon: '🧭',
         color: 'bg-blue-50 text-blue-600',
-        title: 'テンプレートをNotionに複製',
-        desc: '無料テンプレートをコピー。既存DBがあればそちらでもOK',
+        title: 'まず使う知識を選ぶ',
+        desc: '自分の知識／みんなの知識／専門医の知識から、使いたいものを選びます（複数OK）',
       },
       {
         icon: '🔑',
         color: 'bg-purple-50 text-purple-600',
-        title: 'コネクトTokenを入力・接続',
-        desc: 'notion.so/my-integrations で数分で取得できる（旧称: Integration）',
+        title: '選んだものを設定',
+        desc: 'Notionを使う場合はコネクトTokenを入力。専門医の知識（プレミアム）だけなら設定はほぼ不要',
       },
       {
         icon: '🚀',
         color: 'bg-green-50 text-green-600',
-        title: '同期して完了',
-        desc: 'あとはNotionに書くだけ。自動で反映される',
+        title: '完了して検索開始',
+        desc: 'あとは検索・新着・ジャンル・クイズをすぐ使えます',
       },
     ],
   },
