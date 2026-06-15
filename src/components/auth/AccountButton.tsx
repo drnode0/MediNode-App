@@ -32,11 +32,17 @@ export function AccountButton() {
       <>
         <button
           onClick={() => setShowLogin(true)}
+          title="プレミアム会員が、契約を別の端末に引き継ぐためのログインです"
           className="text-xs font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400 transition-colors"
         >
           ログイン
         </button>
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+        {showLogin && (
+          <LoginModal
+            onClose={() => setShowLogin(false)}
+            reason="プレミアム会員専用：契約を別の端末（スマホ⇄PC）に引き継ぐためのログインです。アプリの利用自体にログインは不要です。"
+          />
+        )}
       </>
     )
   }
