@@ -3073,6 +3073,9 @@ export default function Home() {
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
+        <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
+          <SyncPanel />
+        </div>
         <div className="max-w-2xl mx-auto px-4 py-4">
           {tab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'recent' && (
@@ -3083,9 +3086,6 @@ export default function Home() {
           {tab === 'quiz' && (
             <QuizTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
-        </div>
-        <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-t border-gray-100 dark:border-gray-700 mt-4">
-          <SyncPanel />
         </div>
       </div>
       {settingsModal}
