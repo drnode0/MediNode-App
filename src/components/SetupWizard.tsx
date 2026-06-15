@@ -820,20 +820,20 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   }
 
   // 「何から始めるか」の選択と検索モードに応じてステップ表示を動的に構築する。
-  // - premium のみ（個人/部署DBなし）: モード選択もNotion入力も不要 → start → options
-  // - personal を含む: Notion入力が必要
-  // - power(algolia) かつ 個人/部署DBあり: algolia/sync も必要
-  const usesOwnDb = targets.personal || targets.team
-  const isPremiumOnly = targets.premium && !usesOwnDb
+  // - 個人DBを含まない（部署のみ／プレミアムのみ／部署+プレミアム）:
+  //   モード選択もNotion入力も不要。シンプル固定で start → options。
+  //   （部署DBはモードを個人に合わせる仕様。個人を使わないならAlgoliaを求めず
+  //    Notion直＝シンプルで動かす）
+  // - personal を含む: モード選択あり。Notion入力が必要。power なら algolia/sync も。
+  const skipMode = !targets.personal
   const allSteps: { id: Step; label: string }[] = (() => {
     const list: { id: Step; label: string }[] = [{ id: 'start', label: '対象' }]
-    if (isPremiumOnly) {
-      // プレミアムのみはモード選択をスキップ（シンプル固定）し、オプションで入力。
+    if (skipMode) {
       list.push({ id: 'options', label: '設定' })
       return list
     }
     list.push({ id: 'mode', label: 'モード' })
-    if (targets.personal) list.push({ id: 'notion', label: 'Notion' })
+    list.push({ id: 'notion', label: 'Notion' })
     if (form.searchMode === 'algolia') {
       list.push({ id: 'algolia', label: 'Algolia' })
       list.push({ id: 'sync', label: '同期' })
@@ -1000,10 +1000,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     return
                   }
                   setError('')
-                  if (targets.premium && !targets.personal && !targets.team) {
-                    // プレミアムのみ：モードをスキップし、シンプル固定でオプションへ。
+                  if (!targets.personal) {
+                    // 個人DBを使わない場合（部署のみ／プレミアムのみ／部署+プレミアム）は
+                    // モード選択・Notion入力をスキップし、シンプル固定でオプションへ。
+                    // 部署DBはモードを個人に合わせる仕様だが、個人を使わないなら
+                    // Algolia設定を求めず Notion直（シンプル）で動かす。
                     setForm((f) => ({ ...f, searchMode: 'notion' }))
-                    setOpenSection('subscription')
+                    setOpenSection(targets.team ? 'team' : 'subscription')
                     setStep('options')
                   } else {
                     setStep('mode')
