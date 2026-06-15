@@ -873,9 +873,9 @@ function SubscriptionPromoPanel() {
           🎁 最初の2週間は無料
         </p>
         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-          月額 ¥980<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
+          月額<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（価格は準備中）</span>
         </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500">14日間の無料トライアル後に課金開始・いつでも解約できます</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">無料トライアル後に課金開始・いつでも解約できます</p>
       </div>
 
       {mode?.testMode && <div className="text-left"><TestModeNotice /></div>}
@@ -888,7 +888,7 @@ function SubscriptionPromoPanel() {
         {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 2週間無料で試す →'}
       </button>
       <p className="text-[11px] text-gray-400 dark:text-gray-500">
-        14日間は無料。トライアル終了後に月額¥980（税込）が課金されます。いつでも解約できます。
+        トライアル期間中は無料。終了後に月額料金（価格は準備中）が課金されます。いつでも解約できます。
       </p>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
@@ -2012,7 +2012,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額¥980・最初の14日間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の14日間無料）へお進みください。
         </p>
       </div>
     )
@@ -2487,7 +2487,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
                           <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
                           <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額¥980）へお進みください。</p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額・価格は準備中）へお進みください。</p>
                           <div className="pt-2"><PremiumCheckoutButtonInline /></div>
                         </div>
                       ) : (
@@ -2507,14 +2507,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     {trialExpired && (
                       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-center space-y-0.5">
                         <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⏰ 無料トライアルが終了しました</p>
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額¥980）へお進みください。</p>
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額・価格は準備中）へお進みください。</p>
                       </div>
                     )}
                     {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                     <PremiumValueProps showHeader={false} />
                     <div className="space-y-0.5">
                       <p className="inline-block text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5">🎁 最初の2週間は無料</p>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額 ¥980<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・14日間の無料トライアル後に課金開始・いつでも解約可能</span></p>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（価格は準備中）・14日間の無料トライアル後に課金開始・いつでも解約可能</span></p>
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                       ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
@@ -2529,7 +2529,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                      <strong>💳 有料登録（月額¥980）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
+                      <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
                     </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
@@ -2553,7 +2553,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p>🔍 ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
                   <p className="pt-1"><strong>試し方は2通り：</strong></p>
                   <p>🎁 <strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
-                  <p>💳 <strong>有料登録（月額¥980）</strong>… 最初の14日は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
+                  <p>💳 <strong>有料登録（月額・価格は準備中）</strong>… 最初の14日は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
                   <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → ⭐ プレミアムDB設定」から行えます。</p>
                 </div>
               </section>
@@ -2970,7 +2970,16 @@ export default function Home() {
             <img src="/icon-192.png" alt="MediNode" className="w-7 h-7 rounded-lg" />
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
           </div>
-          <div className="w-16 flex justify-end">
+          <div className="min-w-16 flex justify-end items-center gap-2">
+            <a
+              href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-lg text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+              title="使い方ガイド"
+            >
+              📘
+            </a>
             <button
               onClick={() => setShowSettings(true)}
               className="text-xl text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
