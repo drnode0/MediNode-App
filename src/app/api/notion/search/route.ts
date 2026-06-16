@@ -46,6 +46,32 @@ function extractList(prop: Record<string, unknown>): string[] {
   return []
 }
 
+// 検索用にテキストを正規化する。
+// ・小文字化（英大文字小文字の揺れ吸収）
+// ・全角英数を半角へ（Ａ→a 等）
+// ・全角スペース→半角、前後トリム
+// これにより「低Na血症」「低ナトリウム血症」のような要約/キーワード中の語も
+// タイトル以外から拾えるようにする。
+function normalizeForSearch(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .replace(/\u3000/g, ' ')
+    .trim()
+}
+
+// レコードのタイトル・要約・キーワードを横断して、全キーワード（スペース区切り）を
+// すべて含むか（AND一致）を判定する。Notionのtitle前方一致では拾えない
+// 要約・キーワード中の語にもヒットさせるための、型に依存しないJS側マッチャ。
+function matchesKeyword(record: NotionRecord, keyword: string): boolean {
+  const haystack = normalizeForSearch(
+    [record.title, record.aiSummary, record.aiKeywords].join(' '),
+  )
+  const terms = normalizeForSearch(keyword).split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return true
+  return terms.every((term) => haystack.includes(term))
+}
+
 type NotionRecord = {
   objectID: string
   source: 'medical' | 'reference'
@@ -68,34 +94,15 @@ type NotionRecord = {
   notionUrl: string
 }
 
-async function queryDb(
-  notion: Client,
-  dbId: string,
+// 1ページ分のNotionページ配列をNotionRecord配列へ変換する。
+// queryDb / 新着・通常検索の両方から使う共通ロジック。
+function mapPagesToRecords(
+  pages: Array<Record<string, unknown>>,
   source: 'medical' | 'reference',
-  keyword: string,
-  pageSize: number,
-  cursor?: string,
-  owner: 'personal' | 'team' = 'personal',
-): Promise<{ records: NotionRecord[]; hasMore: boolean; nextCursor: string | null }> {
-  // Notionはtitle前方一致のみ対応。キーワードがある場合はtitleで絞り込み
-  // keywordがない場合はlast_edited_time降順で全件取得（新着用）
-  const filter = keyword
-    ? {
-        property: '名前',
-        title: { contains: keyword },
-      }
-    : undefined
-
-  const res = await notion.databases.query({
-    database_id: dbId,
-    filter: filter as Parameters<typeof notion.databases.query>[0]['filter'],
-    sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
-    page_size: pageSize,
-    start_cursor: cursor,
-  })
-
+  owner: 'personal' | 'team',
+): NotionRecord[] {
   const records: NotionRecord[] = []
-  for (const page of res.results) {
+  for (const page of pages) {
     if (page.object !== 'page') continue
     const p = page as Record<string, unknown>
     const props = p.properties as Record<string, Record<string, unknown>>
@@ -106,7 +113,7 @@ async function queryDb(
     if (source === 'medical') {
       const genreList = extractList(props['ジャンル'] || {})
       records.push({
-        objectID: `${owner}_${page.id}`,
+        objectID: `${owner}_${p.id as string}`,
         source: 'medical',
         owner,
         title,
@@ -127,7 +134,7 @@ async function queryDb(
       })
     } else {
       records.push({
-        objectID: `${owner}_${page.id}`,
+        objectID: `${owner}_${p.id as string}`,
         source: 'reference',
         owner,
         title,
@@ -148,11 +155,59 @@ async function queryDb(
       })
     }
   }
+  return records
+}
+
+async function queryDb(
+  notion: Client,
+  dbId: string,
+  source: 'medical' | 'reference',
+  keyword: string,
+  pageSize: number,
+  cursor?: string,
+  owner: 'personal' | 'team' = 'personal',
+): Promise<{ records: NotionRecord[]; hasMore: boolean; nextCursor: string | null }> {
+  // keywordなし（新着用）：last_edited_time降順で先頭1ページのみ取得。
+  if (!keyword.trim()) {
+    const res = await notion.databases.query({
+      database_id: dbId,
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
+      page_size: pageSize,
+      start_cursor: cursor,
+    })
+    return {
+      records: mapPagesToRecords(res.results as Array<Record<string, unknown>>, source, owner),
+      hasMore: res.has_more,
+      nextCursor: res.next_cursor,
+    }
+  }
+
+  // keywordあり（通常検索）：
+  // Notionのtitleフィルタはタイトル前方一致のみで、要約・キーワードを検索できない。
+  // そのため全件をページネーションで取得し、title/要約/キーワードを横断してJS側で
+  // 絞り込む（型・プロパティ名に依存しない堅牢版。ジャンル/クイズと同方針）。
+  const matched: NotionRecord[] = []
+  let pageCursor: string | undefined = undefined
+  do {
+    const res = await notion.databases.query({
+      database_id: dbId,
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
+      page_size: 100,
+      start_cursor: pageCursor,
+    })
+    const mapped = mapPagesToRecords(res.results as Array<Record<string, unknown>>, source, owner)
+    for (const r of mapped) {
+      if (matchesKeyword(r, keyword)) matched.push(r)
+      if (matched.length >= pageSize) break
+    }
+    if (matched.length >= pageSize) break
+    pageCursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (pageCursor)
 
   return {
-    records,
-    hasMore: res.has_more,
-    nextCursor: res.next_cursor,
+    records: matched,
+    hasMore: false,
+    nextCursor: null,
   }
 }
 
