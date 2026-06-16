@@ -1318,25 +1318,28 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p className="text-gray-400 break-all">例: https://notion.so/workspace/<strong>abc123def456...</strong>?v=...</p>
                   </div>
 
-                  {/* DBの役割説明 */}
-                  <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-3 text-xs text-indigo-700 dark:text-indigo-300 space-y-2">
-                    <p className="font-semibold">📚 Medical DB / Reference DB ってなに？</p>
-                    <div className="space-y-1.5">
+                  {/* DBの役割説明（トグルで畳める：入力欄まで早く到達できるように） */}
+                  <details className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-xs text-indigo-700 dark:text-indigo-300">
+                    <summary className="font-semibold cursor-pointer p-3 select-none">📚 Medical DB / Reference DB / 📋 Manual DB ってなに？（タップで開く）</summary>
+                    <div className="space-y-1.5 px-3 pb-3">
                       <p><strong>🚑 Medical DB</strong>（メイン・必須）<br/>
                         <span className="text-indigo-600 dark:text-indigo-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
                       </p>
                       <p><strong>📖 Reference DB</strong>（参考文献・任意）<br/>
                         <span className="text-indigo-600 dark:text-indigo-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
                       </p>
+                      <p><strong>📋 Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
+                        <span className="text-indigo-600 dark:text-indigo-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定すると📋マニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
+                      </p>
                     </div>
-                  </div>
+                  </details>
 
-                  {/* プロパティ名ガイダンス */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
-                    <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2">
-                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">📋 このアプリを効果的に使うためのプロパティ</p>
+                  {/* プロパティ名ガイダンス（トグルで畳める） */}
+                  <details className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+                    <summary className="bg-gray-50 dark:bg-gray-700 px-3 py-2 cursor-pointer select-none">
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">📋 このアプリを効果的に使うためのプロパティ（タップで開く）</span>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">名前は<strong>完全一致</strong>させてください（型は柔軟）</p>
-                    </div>
+                    </summary>
                     <div className="p-3 space-y-3">
                       <div>
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">🚑 Medical DB</p>
@@ -1393,6 +1396,34 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           })}
                         </div>
                       </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">📋 Manual DB <span className="font-normal text-gray-400">（DB自体が任意・マニュアル/お知らせ用）</span></p>
+                        <div className="space-y-1">
+                          {[
+                            { name: '名前', type: 'タイトル型', note: '最初から存在', level: 'required' as const },
+                            { name: '種別', type: 'セレクト型', note: 'マニュアル/お知らせ/業務改善で絞り込み', level: 'recommended' as const },
+                            { name: '要約', type: 'テキスト型', note: '検索対象・カード表示', level: 'required' as const },
+                            { name: 'キーワード', type: 'テキスト型', note: '検索対象', level: 'required' as const },
+                            { name: '掲載日', type: '日付型', note: 'カードに表示（任意）', level: 'optional' as const },
+                          ].map((prop) => {
+                            const badge = prop.level === 'required'
+                              ? { text: '必須', cls: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' }
+                              : prop.level === 'recommended'
+                              ? { text: '推奨', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' }
+                              : { text: '任意', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }
+                            return (
+                              <div key={prop.name} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-800 dark:text-gray-200 font-mono shrink-0">{prop.name}</code>
+                                  <span className="text-gray-400 dark:text-gray-500 truncate">{prop.type}・{prop.note}</span>
+                                </div>
+                                <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.cls}`}>{badge.text}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">※ 新着順は Notion の「最終更新日時」（自動）を使うため、専用プロパティは不要です。</p>
+                      </div>
                       <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 text-xs text-blue-700 dark:text-blue-300">
                         💡 作成日プロパティは不要（Notionが自動で持っています）
                       </div>
@@ -1402,7 +1433,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <p>💡 ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                       </div>
                     </div>
-                  </div>
+                  </details>
 
                   <div className="space-y-3">
                     <div>
@@ -1438,6 +1469,22 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
                       )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Manual DB（URLまたはID） <span className="text-gray-400 font-normal">（マニュアル・お知らせ・任意）</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionManualDbId}
+                        onChange={(e) => update('notionManualDbId', e.target.value)}
+                        placeholder="https://www.notion.so/... またはID32桁"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionManualDbId && form.notionManualDbId.length === 32 && (
+                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
                     </div>
                   </div>
 
