@@ -10,9 +10,9 @@ import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
 
 const DEFAULT_SETTINGS: AppSettings = {
   searchMode: 'algolia',
-  notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
+  notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
   algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-  teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '',
+  teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
   subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
   propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
 }

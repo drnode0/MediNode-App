@@ -74,7 +74,7 @@ function matchesKeyword(record: NotionRecord, keyword: string): boolean {
 
 type NotionRecord = {
   objectID: string
-  source: 'medical' | 'reference'
+  source: 'medical' | 'reference' | 'manual'
   owner: 'personal' | 'team'
   teamLabel?: string
   title: string
@@ -89,6 +89,9 @@ type NotionRecord = {
   journal: string
   year: string
   evidenceLevel: string
+  // マニュアルDB用：種別（📕マニュアル / 📢お知らせ / 🔧業務改善）・掲載日
+  manualType: string
+  publishedAt: string
   lastEdited: string
   createdAt: string
   notionUrl: string
@@ -96,9 +99,19 @@ type NotionRecord = {
 
 // 1ページ分のNotionページ配列をNotionRecord配列へ変換する。
 // queryDb / 新着・通常検索の両方から使う共通ロジック。
+// 掲載日（date型）のstart日付をそのまま返す（YYYY-MM-DD）。新着順ソートは
+// last_edited_time（システム）を使うため、これはカード表示の補助情報。
+function extractDateStart(prop: Record<string, unknown>): string {
+  if (!prop) return ''
+  if ((prop.type as string) === 'date') {
+    return (prop.date as { start: string } | null)?.start || ''
+  }
+  return ''
+}
+
 function mapPagesToRecords(
   pages: Array<Record<string, unknown>>,
-  source: 'medical' | 'reference',
+  source: 'medical' | 'reference' | 'manual',
   owner: 'personal' | 'team',
 ): NotionRecord[] {
   const records: NotionRecord[] = []
@@ -128,6 +141,33 @@ function mapPagesToRecords(
         journal: '',
         year: '',
         evidenceLevel: '',
+        manualType: '',
+        publishedAt: '',
+        lastEdited: (p.last_edited_time as string) || '',
+        createdAt: (p.created_time as string) || '',
+        notionUrl: (p.url as string) || '',
+      })
+    } else if (source === 'manual') {
+      // マニュアル・お知らせ・業務改善DB。種別(select)と掲載日(date)を拾う。
+      // ジャンル等の医療知識特有プロパティは持たないため空で埋める。
+      records.push({
+        objectID: `${owner}_${p.id as string}`,
+        source: 'manual',
+        owner,
+        title,
+        genre: '',
+        genreList: [],
+        detailGenre: '',
+        tags: '',
+        knowledgeLevel: '',
+        aiSummary: extractText(props['要約'] || {}),
+        aiKeywords: extractText(props['キーワード'] || {}),
+        author: '',
+        journal: '',
+        year: '',
+        evidenceLevel: '',
+        manualType: extractText(props['種別'] || {}),
+        publishedAt: extractDateStart(props['掲載日'] || {}),
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
@@ -149,6 +189,8 @@ function mapPagesToRecords(
         journal: extractText(props['ジャーナル名'] || {}),
         year: extractText(props['発行年'] || {}),
         evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+        manualType: '',
+        publishedAt: '',
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
@@ -161,7 +203,7 @@ function mapPagesToRecords(
 async function queryDb(
   notion: Client,
   dbId: string,
-  source: 'medical' | 'reference',
+  source: 'medical' | 'reference' | 'manual',
   keyword: string,
   pageSize: number,
   cursor?: string,
@@ -256,6 +298,7 @@ async function fetchQuizRecords(
         aiSummary,
         aiKeywords: extractText(props['キーワード'] || {}),
         author: '', journal: '', year: '', evidenceLevel: '',
+        manualType: '', publishedAt: '',
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
@@ -313,6 +356,7 @@ async function fetchBrowseRecords(
           aiSummary: extractText(props['要約'] || {}),
           aiKeywords: extractText(props['キーワード'] || {}),
           author: '', journal: '', year: '', evidenceLevel: '',
+          manualType: '', publishedAt: '',
           lastEdited: (p.last_edited_time as string) || '',
           createdAt: (p.created_time as string) || '',
           notionUrl: (p.url as string) || '',
@@ -334,6 +378,7 @@ async function fetchBrowseRecords(
           journal: extractText(props['ジャーナル名'] || {}),
           year: extractText(props['発行年'] || {}),
           evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+          manualType: '', publishedAt: '',
           lastEdited: (p.last_edited_time as string) || '',
           createdAt: (p.created_time as string) || '',
           notionUrl: (p.url as string) || '',
@@ -353,13 +398,15 @@ export async function POST(req: NextRequest) {
       notionToken,
       notionMedicalDbId,
       notionReferenceDbId,
+      notionManualDbId,
       teamNotionToken,
       teamNotionMedicalDbId,
       teamNotionReferenceDbId,
+      teamNotionManualDbId,
       // 部署バッジに表示する部署名（例: 救急）。未指定時は「部署」をフォールバック。
       teamLabel = '',
       keyword = '',
-      mode = 'search', // 'search' | 'recent' | 'quiz' | 'browse'
+      mode = 'search', // 'search' | 'recent' | 'quiz' | 'browse' | 'manual'
       genre = '',
       cursor,
       pageSize = 50,
@@ -368,23 +415,25 @@ export async function POST(req: NextRequest) {
       teamOnly = false,
     } = await req.json()
 
-    if (!notionToken || !notionMedicalDbId) {
+    // manualモードはマニュアルDB（個人 or 部署）だけで成立するため、医療DB必須を課さない。
+    // それ以外のモード（検索/新着/クイズ/ジャンル）は従来どおり個人医療DBを必須とする。
+    if (mode !== 'manual' && (!notionToken || !notionMedicalDbId)) {
       return NextResponse.json({ error: 'notionToken と notionMedicalDbId が必要です' }, { status: 400 })
     }
 
-    const notion = new Client({ auth: notionToken })
-    // 部署用クライアント（設定がある場合のみ）
-    const hasTeam = !!(teamNotionToken && teamNotionMedicalDbId)
+    const notion = notionToken ? new Client({ auth: notionToken }) : null
+    // 部署用クライアント。manualモードでは医療DBが無くても部署トークンだけで生成する。
+    const hasTeam = !!(teamNotionToken && (teamNotionMedicalDbId || (mode === 'manual' && teamNotionManualDbId)))
     const teamNotion = hasTeam ? new Client({ auth: teamNotionToken }) : null
     const records: NotionRecord[] = []
 
     if (mode === 'recent') {
       // 新着：最新50件（keyword不要）
       if (!teamOnly) {
-        const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', '', 50)
+        const { records: medRecords } = await queryDb(notion!, notionMedicalDbId, 'medical', '', 50)
         records.push(...medRecords)
         if (notionReferenceDbId) {
-          const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', '', 20)
+          const { records: refRecords } = await queryDb(notion!, notionReferenceDbId, 'reference', '', 20)
           records.push(...refRecords)
         }
       }
@@ -402,7 +451,7 @@ export async function POST(req: NextRequest) {
     } else if (mode === 'quiz') {
       // クイズ：知識レベルが「ナレッジ系」かつ要約ありのもの
       if (!teamOnly) {
-        const personalQuiz = await fetchQuizRecords(notion, notionMedicalDbId, 'personal')
+        const personalQuiz = await fetchQuizRecords(notion!, notionMedicalDbId, 'personal')
         records.push(...personalQuiz)
       }
       if (teamNotion && teamNotionMedicalDbId) {
@@ -413,10 +462,10 @@ export async function POST(req: NextRequest) {
       // ジャンル別：genreで絞り込み（multi_select: contains を使用）
       // Medical / Reference の両DBから取得し、ジャンルタブで横断表示する。
       if (!teamOnly) {
-        const personalBrowse = await fetchBrowseRecords(notion, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor)
+        const personalBrowse = await fetchBrowseRecords(notion!, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor)
         records.push(...personalBrowse)
         if (notionReferenceDbId) {
-          const personalRefBrowse = await fetchBrowseRecords(notion, notionReferenceDbId, genre, pageSize, 'personal', 'reference')
+          const personalRefBrowse = await fetchBrowseRecords(notion!, notionReferenceDbId, genre, pageSize, 'personal', 'reference')
           records.push(...personalRefBrowse)
         }
       }
@@ -428,14 +477,47 @@ export async function POST(req: NextRequest) {
           records.push(...teamRefBrowse)
         }
       }
+    } else if (mode === 'manual') {
+      // マニュアルタブ：マニュアル・お知らせ・業務改善DB（個人・部署）を取得。
+      // keywordなし＝新着（最終更新日時降順）、keywordあり＝要約/キーワード横断検索。
+      // 個人クライアント（notionToken）でマニュアルDBを読む。部署は teamNotion。
+      //
+      // 任意接続のオプトイン機能のため、片方のDBがコネクト未追加（403/not_found）でも
+      // もう片方は表示できるよう、個人・部署を個別にtry-catchする。両方失敗時のみエラー化。
+      const manualErrors: string[] = []
+      let attempted = 0
+      if (!teamOnly && notionManualDbId && notion) {
+        attempted++
+        try {
+          const { records: manualRecs } = await queryDb(notion, notionManualDbId, 'manual', keyword, pageSize, cursor, 'personal')
+          records.push(...manualRecs)
+        } catch (e) {
+          manualErrors.push(`個人マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
+        }
+      }
+      if (teamNotion && teamNotionManualDbId) {
+        attempted++
+        try {
+          const { records: teamManual } = await queryDb(teamNotion, teamNotionManualDbId, 'manual', keyword, pageSize, undefined, 'team')
+          records.push(...teamManual)
+        } catch (e) {
+          manualErrors.push(`部署マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
+        }
+      }
+      // 設定したDBがすべて失敗した場合のみエラーを返す（片方成功なら表示を優先）。
+      if (attempted > 0 && manualErrors.length === attempted) {
+        return NextResponse.json({ error: manualErrors.join(' / ') }, { status: 500 })
+      }
+      // 新着順（最終更新日時降順）。改訂したものが上に来る。
+      records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
     } else {
       // 通常検索（keyword必須）
       if (keyword.trim()) {
         if (!teamOnly) {
-          const { records: medRecords } = await queryDb(notion, notionMedicalDbId, 'medical', keyword, pageSize, cursor)
+          const { records: medRecords } = await queryDb(notion!, notionMedicalDbId, 'medical', keyword, pageSize, cursor)
           records.push(...medRecords)
           if (notionReferenceDbId) {
-            const { records: refRecords } = await queryDb(notion, notionReferenceDbId, 'reference', keyword, 20)
+            const { records: refRecords } = await queryDb(notion!, notionReferenceDbId, 'reference', keyword, 20)
             records.push(...refRecords)
           }
         }
