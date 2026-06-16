@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { PremiumSync } from '@/components/auth/PremiumSync'
+import { Analytics } from '@vercel/analytics/react'
 
 export const metadata: Metadata = {
   title: 'MediNode',
@@ -34,6 +35,7 @@ export default function RootLayout({
           <PremiumSync />
           {children}
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
