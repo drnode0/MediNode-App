@@ -50,6 +50,12 @@ const PAGES = [
         title: '参考文献管理',
         desc: '文献・ソースをまとめて管理・参照',
       },
+      {
+        icon: '📋',
+        color: 'bg-emerald-50 text-emerald-600',
+        title: 'マニュアル・お知らせ（任意）',
+        desc: '病院・部署の手順やお知らせも検索・新着表示',
+      },
     ],
   },
   {
