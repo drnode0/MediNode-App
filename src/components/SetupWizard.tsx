@@ -636,7 +636,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   }, [step, targets.team, targets.premium])
 
   const update = (key: keyof AppSettings, value: string) => {
-    const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'teamNotionMedicalDbId', 'teamNotionReferenceDbId']
+    const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'notionManualDbId', 'teamNotionMedicalDbId', 'teamNotionReferenceDbId', 'teamNotionManualDbId']
     const processed = dbIdKeys.includes(key) ? extractNotionDbId(value) : value
     const next = { ...form, [key]: processed }
     setForm(next)
@@ -1249,6 +1249,22 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
                       )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Manual DB の URL <span className="text-gray-400 font-normal text-xs">（マニュアル・お知らせ・任意）</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.notionManualDbId}
+                        onChange={(e) => update('notionManualDbId', e.target.value)}
+                        placeholder="https://www.notion.so/..."
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      {form.notionManualDbId && form.notionManualDbId.length === 32 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                      )}
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
                     </div>
                   </div>
 

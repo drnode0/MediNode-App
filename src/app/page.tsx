@@ -24,6 +24,47 @@ import { useAuth } from '@/components/auth/AuthProvider'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
+// ============================================================
+// アプリ内お知らせ（更新バナー）
+// ------------------------------------------------------------
+// メジャーアップデートをユーザーが驚かず把握できるようにする軽量バナー。
+// id を更新するたびに全ユーザーへ1回だけ表示され、×で既読化（localStorage）。
+// 運用：新しいお知らせを出すときは LATEST_ANNOUNCEMENT を書き換える（idも変える）。
+// ============================================================
+const ANNOUNCEMENT_SEEN_KEY = 'medinode_announcement_seen_v1'
+const LATEST_ANNOUNCEMENT = {
+  id: '2026-06-16-manual',
+  emoji: '📋',
+  title: 'マニュアルタブを追加しました',
+  body: '病院・部署のマニュアルやお知らせ、業務改善を検索・新着表示できます。⚙️設定の「Manual DB」にNotionのDBを登録すると📋タブが表示されます。',
+}
+
+function UpdateBanner() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const seen = localStorage.getItem(ANNOUNCEMENT_SEEN_KEY)
+    if (seen !== LATEST_ANNOUNCEMENT.id) setShow(true)
+  }, [])
+  if (!show) return null
+  const dismiss = () => {
+    localStorage.setItem(ANNOUNCEMENT_SEEN_KEY, LATEST_ANNOUNCEMENT.id)
+    setShow(false)
+  }
+  return (
+    <div className="max-w-2xl mx-auto px-4 pt-3">
+      <div className="bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-900/30 dark:to-blue-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-start gap-3">
+        <span className="text-xl shrink-0">{LATEST_ANNOUNCEMENT.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed">{LATEST_ANNOUNCEMENT.body}</p>
+        </div>
+        <button onClick={dismiss} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200 shrink-0 text-lg leading-none" title="閉じる" aria-label="閉じる">×</button>
+      </div>
+    </div>
+  )
+}
+
 type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference' | 'manual'
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
@@ -3175,6 +3216,7 @@ export default function Home() {
       <SubscriptionSearchProvider enableBridge={true}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
+        <UpdateBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
           {tab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
@@ -3225,6 +3267,7 @@ export default function Home() {
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
+        <UpdateBanner />
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
           <SyncPanel />
         </div>
