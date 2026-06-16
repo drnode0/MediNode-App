@@ -5,8 +5,11 @@ import { useState } from 'react'
 export type Hit = {
   objectID: string
   title: string
-  source: 'medical' | 'reference'
+  source: 'medical' | 'reference' | 'manual'
   owner?: 'personal' | 'team' | 'subscription'
+  // マニュアルDB用：種別（📕マニュアル/📢お知らせ/🔧業務改善）・掲載日(YYYY-MM-DD)
+  manualType?: string
+  publishedAt?: string
   teamLabel?: string
   genre?: string | string[]
   genreList?: string[]

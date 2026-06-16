@@ -10,6 +10,8 @@ export type AppSettings = {
   notionToken: string
   notionMedicalDbId: string
   notionReferenceDbId: string
+  // マニュアル・お知らせ・業務改善DB（任意）。未設定なら📋マニュアルタブは非表示。
+  notionManualDbId: string
 
   // Algoliaモードのみ必須
   algoliaAppId: string
@@ -22,6 +24,8 @@ export type AppSettings = {
   teamNotionToken: string
   teamNotionMedicalDbId: string
   teamNotionReferenceDbId: string
+  // 部署のマニュアルDB（任意）
+  teamNotionManualDbId: string
 
   // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string

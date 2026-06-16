@@ -24,7 +24,7 @@ import { useAuth } from '@/components/auth/AuthProvider'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
-type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference'
+type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference' | 'manual'
 type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
 // ============================================================
@@ -1111,9 +1111,11 @@ function useNotionSearch(mode: Tab) {
           notionToken: settings.notionToken,
           notionMedicalDbId: settings.notionMedicalDbId,
           notionReferenceDbId: settings.notionReferenceDbId || undefined,
+          notionManualDbId: settings.notionManualDbId || undefined,
           teamNotionToken: settings.teamNotionToken || undefined,
           teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
           teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+          teamNotionManualDbId: settings.teamNotionManualDbId || undefined,
           teamLabel: settings.teamLabel || undefined,
           keyword,
           ...extra,
@@ -1129,7 +1131,7 @@ function useNotionSearch(mode: Tab) {
     } finally {
       if (reqId === reqIdRef.current) setLoading(false)
     }
-  }, [settings?.notionToken, settings?.notionMedicalDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId])
+  }, [settings?.notionToken, settings?.notionMedicalDbId, settings?.notionManualDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId, settings?.teamNotionManualDbId])
 
   // 新着・クイズ・ジャンルは初回マウント時に自動取得（fetchはsettings変更時に再取得するため依存に含める）
   useEffect(() => {
@@ -1137,20 +1139,27 @@ function useNotionSearch(mode: Tab) {
     if (mode === 'quiz') fetch('', { mode: 'quiz' })
     if (mode === 'browse') fetch('', { mode: 'browse', pageSize: 200 })
     if (mode === 'reference') fetch('', { mode: 'recent' }) // referenceはrecentと共用でフィルタ
+    if (mode === 'manual') fetch('', { mode: 'manual', pageSize: 100 }) // マニュアル：新着（最終更新日時順）を初期表示
   }, [mode, fetch])
 
   const search = useCallback((keyword: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!keyword.trim()) {
+      // マニュアルタブはキーワード未入力時に新着一覧を表示する（検索タブと違い一覧が主役）
+      if (mode === 'manual') {
+        reqIdRef.current++
+        fetch('', { mode: 'manual', pageSize: 100 })
+        return
+      }
       // 入力クリア時は進行中レスポンスを無効化して即空に
       reqIdRef.current++
       setRecords([])
       return
     }
     debounceRef.current = setTimeout(() => {
-      fetch(keyword, { mode: 'search' })
+      fetch(keyword, { mode: mode === 'manual' ? 'manual' : 'search' })
     }, 600)
-  }, [fetch])
+  }, [fetch, mode])
 
   return { records, loading, error, search, refetch: fetch }
 }
@@ -1778,6 +1787,129 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   )
 }
 
+// マニュアルカード：種別バッジ・掲載日付きの軽量カード（ResultCardは医療/文献用なので別実装）
+const MANUAL_TYPE_STYLE: Record<string, string> = {
+  '📕 マニュアル': 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  '📢 お知らせ': 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  '🔧 業務改善': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+}
+function ManualCard({ hit }: { hit: Hit }) {
+  const [expanded, setExpanded] = useState(false)
+  const displaySummary = hit.aiSummary || hit.summary || null
+  const hasExpandable = !!displaySummary
+  const typeStyle = hit.manualType ? (MANUAL_TYPE_STYLE[hit.manualType] || 'bg-gray-50 text-gray-600') : ''
+  const ownerLabel = hit.owner === 'team' ? (hit.teamLabel || '部署') : null
+  const publishedLabel = hit.publishedAt
+    ? new Date(hit.publishedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
+    : ''
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-emerald-400 overflow-hidden">
+      <div className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`} onClick={() => hasExpandable && setExpanded((v) => !v)}>
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-snug flex-1">{hit.title}</h3>
+          <div className="flex items-center gap-1 shrink-0">
+            {ownerLabel && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">{ownerLabel}</span>
+            )}
+            {hit.manualType && (
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeStyle}`}>{hit.manualType}</span>
+            )}
+            {hasExpandable && <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>}
+          </div>
+        </div>
+        {!expanded && (
+          displaySummary
+            ? <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{displaySummary}</p>
+            : <p className="text-xs text-gray-300 italic">要約なし</p>
+        )}
+        {publishedLabel && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">掲載: {publishedLabel}</p>
+        )}
+      </div>
+      {expanded && displaySummary && (
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+          <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed pt-3 whitespace-pre-wrap">{displaySummary}</p>
+          {hit.aiKeywords && <p className="text-xs text-gray-300 mt-3 leading-relaxed">{hit.aiKeywords}</p>}
+          <div className="flex justify-end mt-3">
+            <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+              Notionで開く
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            </a>
+          </div>
+        </div>
+      )}
+      {!hasExpandable && (
+        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="block px-4 pb-3 text-xs text-blue-500 hover:text-blue-700">Notionで開く →</a>
+      )}
+    </div>
+  )
+}
+
+// Notionモード：📋マニュアルタブ（マニュアル・お知らせ・業務改善）
+// 検索＋新着一覧（最終更新日時順＝改訂が上に来る）＋種別フィルタ。
+function NotionManualTab() {
+  const { records, loading, error, search } = useNotionSearch('manual')
+  const [query, setQuery] = useState('')
+  // 種別フィルタ：''=すべて / 各種別名
+  const [typeFilter, setTypeFilter] = useState('')
+
+  const filtered = useMemo(() => {
+    if (!typeFilter) return records
+    return records.filter((r) => (r.manualType || '') === typeFilter)
+  }, [records, typeFilter])
+
+  const TYPE_TABS = ['', '📕 マニュアル', '📢 お知らせ', '🔧 業務改善']
+  const composingRef = useRef(false)
+
+  return (
+    <>
+      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); search(e.target.value) }}
+          onCompositionStart={() => { composingRef.current = true }}
+          onCompositionEnd={() => { composingRef.current = false }}
+          placeholder="マニュアル・お知らせを検索..."
+          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 mb-2"
+        />
+        <div className="flex gap-1 overflow-x-auto">
+          {TYPE_TABS.map((t) => (
+            <button
+              key={t || 'all'}
+              onClick={() => setTypeFilter(t)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                typeFilter === t
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+            >
+              {t || 'すべて'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {!loading && !error && filtered.length === 0 ? (
+        <div className="text-center py-14 px-4">
+          <div className="text-5xl mb-4">📋</div>
+          <p className="text-gray-600 dark:text-gray-300 font-semibold">{query ? '該当なし' : 'マニュアルがありません'}</p>
+          <p className="text-sm text-gray-400 mt-1">{query ? '別のキーワードで試してください' : 'マニュアルDBにデータを追加してください'}</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{filtered.length}件{query ? '' : '（新着順）'}</p>
+          <div className="space-y-3">
+            {filtered.map((hit) => <ManualCard key={hit.objectID} hit={hit} />)}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
 // Notionモード：参考文献タブ
 function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error } = useNotionSearch('reference')
@@ -1981,9 +2113,9 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       // 既存設定にトライアルのキー＋期限を書き込む（決済フローと同じ書き込み方）。
       const defaultSettings = {
         searchMode: 'algolia' as const,
-        notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
+        notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
         algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-        teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '',
+        teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
         subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
         propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
       }
@@ -2106,6 +2238,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
     notionToken: s0?.notionToken || '',
     notionMedicalDbId: s0?.notionMedicalDbId || '',
     notionReferenceDbId: s0?.notionReferenceDbId || '',
+    notionManualDbId: s0?.notionManualDbId || '',
     algoliaAppId: s0?.algoliaAppId || '',
     algoliaSearchKey: s0?.algoliaSearchKey || '',
     algoliaAdminKey: s0?.algoliaAdminKey || '',
@@ -2116,6 +2249,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
     teamNotionToken: s0?.teamNotionToken || '',
     teamNotionMedicalDbId: s0?.teamNotionMedicalDbId || '',
     teamNotionReferenceDbId: s0?.teamNotionReferenceDbId || '',
+    teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
 
@@ -2382,6 +2516,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <label className={labelCls}>Reference DB（URLまたはID・任意）</label>
                   <input type="text" value={notionForm.notionReferenceDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
                 </div>
+                <div>
+                  <label className={labelCls}>Manual DB（マニュアル・お知らせ・URLまたはID・任意）</label>
+                  <input type="text" value={notionForm.notionManualDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
+                </div>
                 {currentMode === 'algolia' && (
                   <>
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
@@ -2409,6 +2548,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   ...notionForm,
                   notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
                   notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
+                  notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
                 })}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
@@ -2440,6 +2580,12 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <input type="text" value={teamForm.teamNotionReferenceDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
                   {teamForm.teamNotionReferenceDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
                 </div>
+                <div>
+                  <label className={labelCls}>部署用 Manual DB（マニュアル・お知らせ・URLまたはID・任意）</label>
+                  <input type="text" value={teamForm.teamNotionManualDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  {teamForm.teamNotionManualDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
+                </div>
               </div>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
@@ -2447,6 +2593,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   ...teamForm,
                   teamNotionMedicalDbId: teamForm.teamNotionMedicalDbId ? extractNotionDbId(teamForm.teamNotionMedicalDbId) : '',
                   teamNotionReferenceDbId: teamForm.teamNotionReferenceDbId ? extractNotionDbId(teamForm.teamNotionReferenceDbId) : '',
+                  teamNotionManualDbId: teamForm.teamNotionManualDbId ? extractNotionDbId(teamForm.teamNotionManualDbId) : '',
                 })}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
@@ -2455,8 +2602,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {(teamForm.teamNotionToken || teamForm.teamNotionMedicalDbId) && (
                 <button
                   onClick={() => {
-                    setTeamForm({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '' })
-                    saveSection({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '' })
+                    setTeamForm({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '' })
+                    saveSection({ teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '' })
                   }}
                   className="w-full text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 py-1 transition-colors"
                 >
@@ -2823,9 +2970,9 @@ export default function Home() {
           // LocalStorageの設定にAlgoliaキーを書き込む
           const defaultSettings = {
             searchMode: 'algolia' as const,
-            notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '',
+            notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
             algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-            teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '',
+            teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
             subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
             propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
           }
@@ -2950,6 +3097,8 @@ export default function Home() {
   const searchMode = settings?.searchMode || 'algolia'
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
   const hasSubscription = !!(settings?.subscriptionSearchKey && settings?.subscriptionAppId)
+  // マニュアルタブはオプトイン：個人 or 部署のマニュアルDBが設定されている時のみ表示。
+  const hasManual = !!(settings?.notionManualDbId || settings?.teamNotionManualDbId)
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'search', label: '🔍 検索' },
@@ -2957,6 +3106,8 @@ export default function Home() {
     { id: 'browse', label: '🗂 ジャンル' },
     { id: 'reference', label: '📖 文献' },
     { id: 'quiz', label: '🧠 クイズ' },
+    // マニュアルDBが設定されている時のみ📋タブを表示（オプトイン）。
+    ...(hasManual ? [{ id: 'manual' as Tab, label: '📋 マニュアル' }] : []),
   ]
 
   const header = (
@@ -3031,6 +3182,7 @@ export default function Home() {
           {tab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {tab === 'manual' && <NotionManualTab />}
         </div>
         {settingsModal}
       </div>
@@ -3086,6 +3238,8 @@ export default function Home() {
           {tab === 'quiz' && (
             <QuizTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
+          {/* マニュアルはMVPではNotion直読みで動かす（Algoliaモードでも同じコンポーネント） */}
+          {tab === 'manual' && <NotionManualTab />}
         </div>
       </div>
       {settingsModal}
