@@ -32,6 +32,9 @@ const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 // 運用：新しいお知らせを出すときは LATEST_ANNOUNCEMENT を書き換える（idも変える）。
 // ============================================================
 const ANNOUNCEMENT_SEEN_KEY = 'medinode_announcement_seen_v1'
+// 設定方法（運用ガイド）とテンプレ複製（マーケットプレイス）の導線。
+const MANUAL_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
+const MANUAL_TEMPLATE_URL = 'https://www.notion.com/ja/templates/medinode-db'
 const LATEST_ANNOUNCEMENT = {
   id: '2026-06-16-manual',
   emoji: '📋',
@@ -58,6 +61,24 @@ function UpdateBanner() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
           <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed">{LATEST_ANNOUNCEMENT.body}</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <a
+              href={MANUAL_GUIDE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-white/70 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-emerald-900/60 transition-colors"
+            >
+              📖 設定方法・必要なプロパティを見る
+            </a>
+            <a
+              href={MANUAL_TEMPLATE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-200 bg-white/70 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-blue-900/60 transition-colors"
+            >
+              📋 テンプレを複製して始める
+            </a>
+          </div>
         </div>
         <button onClick={dismiss} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200 shrink-0 text-lg leading-none" title="閉じる" aria-label="閉じる">×</button>
       </div>
