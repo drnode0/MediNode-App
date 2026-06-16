@@ -35,12 +35,32 @@ const ANNOUNCEMENT_SEEN_KEY = 'medinode_announcement_seen_v1'
 // 設定方法（運用ガイド）とテンプレ複製（マーケットプレイス）の導線。
 const MANUAL_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 const MANUAL_TEMPLATE_URL = 'https://www.notion.com/ja/templates/medinode-db'
-const LATEST_ANNOUNCEMENT = {
-  id: '2026-06-16-manual',
-  emoji: '📋',
-  title: 'マニュアルタブを追加しました',
-  body: '病院・部署のマニュアルやお知らせ、業務改善を検索・新着表示できます。⚙️設定の「Manual DB」にNotionのDBを登録すると📋タブが表示されます。',
+
+// お知らせ（更新履歴）。新しい順に並べる。先頭[0]がバナーに1回だけ出る最新お知らせ。
+// 全件は設定→「お知らせ・更新履歴」で見返せる（バナーを消しても確認できる）。
+// 新しいお知らせを出すときは、この配列の先頭に1件足す（id・dateを新しくする）。
+type Announcement = {
+  id: string
+  date: string
+  emoji: string
+  title: string
+  body: string
+  links?: { label: string; url: string }[]
 }
+const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-06-16-manual',
+    date: '2026-06-16',
+    emoji: '📋',
+    title: 'マニュアルタブを追加しました',
+    body: '病院・部署のマニュアルやお知らせ、業務改善を検索・新着表示できます。⚙️設定の「Manual DB」にNotionのDBを登録すると📋タブが表示されます。',
+    links: [
+      { label: '📖 設定方法・必要なプロパティを見る', url: MANUAL_GUIDE_URL },
+      { label: '📋 テンプレを複製して始める', url: MANUAL_TEMPLATE_URL },
+    ],
+  },
+]
+const LATEST_ANNOUNCEMENT = ANNOUNCEMENTS[0]
 
 function UpdateBanner() {
   const [show, setShow] = useState(false)
@@ -62,23 +82,19 @@ function UpdateBanner() {
           <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
           <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed">{LATEST_ANNOUNCEMENT.body}</p>
           <div className="flex flex-wrap gap-2 mt-2">
-            <a
-              href={MANUAL_GUIDE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-white/70 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-emerald-900/60 transition-colors"
-            >
-              📖 設定方法・必要なプロパティを見る
-            </a>
-            <a
-              href={MANUAL_TEMPLATE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-200 bg-white/70 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-blue-900/60 transition-colors"
-            >
-              📋 テンプレを複製して始める
-            </a>
+            {(LATEST_ANNOUNCEMENT.links || []).map((lk) => (
+              <a
+                key={lk.url}
+                href={lk.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-white/70 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-emerald-900/60 transition-colors"
+              >
+                {lk.label}
+              </a>
+            ))}
           </div>
+          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-2">過去のお知らせは ⚙️設定 →「お知らせ・更新履歴」から見返せます。</p>
         </div>
         <button onClick={dismiss} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200 shrink-0 text-lg leading-none" title="閉じる" aria-label="閉じる">×</button>
       </div>
@@ -2291,7 +2307,7 @@ type SettingsPanelProps = {
   currentMode: string
 }
 function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode }: SettingsPanelProps) {
-  type Section = null | 'notion' | 'team' | 'subscription' | 'help' | 'redo-confirm' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
+  type Section = null | 'notion' | 'team' | 'subscription' | 'help' | 'announcements' | 'redo-confirm' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
   const [section, setSection] = useState<Section>(null)
 
   // セクション別編集フォーム
@@ -2518,6 +2534,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
 
               {/* ── サポート ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
+              <button onClick={() => setSection('announcements')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">📢</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
               <a
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -2749,6 +2773,42 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   </div>
                 )
               })()}
+            </div>
+          )}
+
+          {/* ── お知らせ・更新履歴 ── */}
+          {section === 'announcements' && (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 px-1">アプリの新機能・アップデート情報です（新しい順）。</p>
+              {ANNOUNCEMENTS.map((a) => (
+                <div key={a.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xl shrink-0">{a.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{a.title}</p>
+                        <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{a.date}</span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">{a.body}</p>
+                      {a.links && a.links.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {a.links.map((lk) => (
+                            <a
+                              key={lk.url}
+                              href={lk.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-full px-3 py-1 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                            >
+                              {lk.label}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
