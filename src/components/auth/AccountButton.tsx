@@ -32,7 +32,7 @@ export function AccountButton() {
       <>
         <button
           onClick={() => setShowLogin(true)}
-          title="プレミアム会員が、契約を別の端末に引き継ぐためのログインです"
+          title="ログインすると設定やプレミアム契約を別の端末に引き継げます"
           className="text-xs font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400 transition-colors"
         >
           ログイン
@@ -40,7 +40,7 @@ export function AccountButton() {
         {showLogin && (
           <LoginModal
             onClose={() => setShowLogin(false)}
-            reason="プレミアム会員専用：契約を別の端末（スマホ⇄PC）に引き継ぐためのログインです。アプリの利用自体にログインは不要です。"
+            reason="ログインすると、NotionDBの接続設定やプレミアム契約が暗号化保存され、別の端末（スマホ⇄PC）でもログインするだけで自動で引き継がれます。"
           />
         )}
       </>

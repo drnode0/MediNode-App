@@ -166,7 +166,7 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
               <br />
               <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。</span>
               <br />
-              <span className="text-[11px] text-amber-600 dark:text-amber-400">※ ログインは「プレミアム契約の引き継ぎ」用です。検索などの利用や、NotionDBの接続設定（端末ごと）はログインとは別に必要です。</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400">※ ログインすると、NotionDBの接続設定やプレミアム契約が暗号化のうえ保存され、別の端末でもログインするだけで自動で引き継がれます。</span>
             </div>
 
             {/* 6桁コード入力（SMTP接続後に OTP_ENABLED=true で復活） */}
