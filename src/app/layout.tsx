@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { PremiumSync } from '@/components/auth/PremiumSync'
+import { SettingsSync } from '@/components/auth/SettingsSync'
 import { Analytics } from '@vercel/analytics/react'
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="bg-gray-50 min-h-screen">
         <AuthProvider>
           <PremiumSync />
+          <SettingsSync />
           {children}
         </AuthProvider>
         <Analytics />
