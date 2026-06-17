@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
+import { useAuth } from './auth/AuthProvider'
+import { AccountButton } from './auth/AccountButton'
+import { LoginModal } from './auth/LoginModal'
 
 type Step = 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'after-template' | 'existing'
@@ -579,6 +582,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
+  // ログイン誘導（別端末で設定済みの人がログインで復元するため）
+  const { configured, user } = useAuth()
+  const [showLogin, setShowLogin] = useState(false)
   // optionsステップに直行した場合はプレミアムセクションを自動展開
   const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
@@ -878,6 +884,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           )}
           {/* ガイド・ヘルプボタン（右上） */}
           <div className="absolute top-0 right-0 flex items-center gap-1.5">
+            <AccountButton />
             <a
               href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
               target="_blank"
@@ -979,6 +986,22 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   使いたいものを選んでください（複数選択可）。あとから「設定」で追加もできます。
                 </p>
               </div>
+
+              {/* 別端末で設定済みの人へ：ログインで設定を復元できる案内（未ログイン時のみ） */}
+              {configured && !user && (
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 p-4">
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200 mb-1">📲 すでに別の端末で使ったことがある方へ</p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed mb-3">
+                    ログインすると、別の端末で保存したNotion接続・Algoliaなどの設定をこの端末にそのまま復元できます。初めての方は、このまま下から設定を始めてください。
+                  </p>
+                  <button
+                    onClick={() => setShowLogin(true)}
+                    className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    ログインして設定を復元する
+                  </button>
+                </div>
+              )}
 
               {([
                 { key: 'personal' as const, icon: '🧑', title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
@@ -1909,6 +1932,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           入力したAPIキーはこのブラウザにのみ保存されます
         </p>
       </div>
+
+      {/* ログイン誘導モーダル（別端末で保存した設定の復元用） */}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          reason="ログインすると、別の端末で保存した設定（Notion接続・Algolia）をこの端末に復元できます。"
+        />
+      )}
     </div>
   )
 }
