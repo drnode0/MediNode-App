@@ -45,6 +45,8 @@ export type AppSettings = {
 const STORAGE_KEY = 'medical_search_settings'
 const DRAFT_KEY = 'medical_search_setup_draft'
 const LAST_SYNCED_KEY = 'medical_search_last_synced'
+// この端末でローカル設定を最後に更新した時刻（ISO）。端末間同期の last-write-wins 比較に使う。
+const SETTINGS_UPDATED_KEY = 'medical_search_settings_updated'
 // この端末でトライアルコードを使用済みかを記録するキー。
 // 期限切れ後に同じ端末で再度コードを使う“実質無限トライアル”をカジュアルに防ぐための軽量対策。
 // 注意: 別ブラウザ・シークレット・別端末・localStorage削除では回避可能（厳密対策はサーバー側のメール登録制が必要）。
@@ -73,15 +75,45 @@ export function getSettings(): AppSettings | null {
   }
 }
 
-export function saveSettings(settings: AppSettings): void {
+export function saveSettings(settings: AppSettings, opts?: { skipServer?: boolean }): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+  const now = new Date().toISOString()
+  localStorage.setItem(SETTINGS_UPDATED_KEY, now)
+
+  // ログイン中ならサーバーにも保存して端末間同期する（fire-and-forget・失敗は次回保存に委ねる）。
+  // skipServer は、SettingsSync がサーバー値をローカルへ復元した直後の echo POST を防ぐためのフラグ。
+  if (opts?.skipServer) return
+  try {
+    void fetch('/api/user-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+      cache: 'no-store',
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    // 未ログイン・ネットワーク失敗等は無視（API側で401を返すだけ）。次回 saveSettings で再送される。
+  }
+}
+
+// ローカル設定の最終更新時刻（端末間同期の last-write-wins 比較用）。
+export function getSettingsUpdatedAt(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SETTINGS_UPDATED_KEY)
+}
+
+// サーバー由来の更新時刻をローカルの基準として記録する（SettingsSync が復元時に使う）。
+export function setSettingsUpdatedAt(iso: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(SETTINGS_UPDATED_KEY, iso)
 }
 
 export function clearSettings(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem(STORAGE_KEY)
   localStorage.removeItem(LAST_SYNCED_KEY)
+  localStorage.removeItem(SETTINGS_UPDATED_KEY)
 }
 
 export function isSetupComplete(): boolean {
