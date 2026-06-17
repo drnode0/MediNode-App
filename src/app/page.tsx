@@ -49,6 +49,13 @@ type Announcement = {
 }
 const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: '2026-06-17-settings-sync',
+    date: '2026-06-17',
+    emoji: '🔄',
+    title: '別端末でもログインで設定を引き継げるようになりました',
+    body: 'ログインしておけば、別のスマホ・PCでログインするだけで、NotionトークンやDB ID・Algoliaキーなどの設定が自動で引き継がれます。端末ごとの再入力は不要です。設定は暗号化してサーバーに保存されます。',
+  },
+  {
     id: '2026-06-16-manual',
     date: '2026-06-16',
     emoji: '📋',
