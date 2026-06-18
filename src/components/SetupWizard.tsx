@@ -1721,7 +1721,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p>• Medical DB → Algolia</p>
                     {form.notionReferenceDbId && <p>• Reference DB → Algolia</p>}
                     <p className="text-xs text-gray-400 mt-2">
-                      ※ APIキーはこのブラウザのみに保存されます。外部サーバーには送信されません。
+                      ※ APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します（詳しくはプライバシーポリシー）。
                     </p>
                   </div>
 
@@ -1793,8 +1793,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
                   <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400 space-y-1">
                     <p className="font-semibold">⚠️ ご注意</p>
-                    <p>APIキーは入力した端末のブラウザにのみ保存されます。スマホや他のPCでも使いたい場合は、同じAPIキーを再度入力してください。</p>
-                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。</p>
+                    <p>APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。詳しくはプライバシーポリシーをご確認ください。</p>
                   </div>
                   <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
                     <p className="font-semibold">🔒 このアプリのURLについて</p>
@@ -2003,7 +2003,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          入力したAPIキーはこのブラウザにのみ保存されます
+          APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します
         </p>
       </div>
 
