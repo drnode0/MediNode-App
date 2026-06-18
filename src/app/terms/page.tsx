@@ -21,7 +21,7 @@ export default function TermsPage() {
           免責事項・利用規約
         </h1>
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-8">
-          最終更新日：2026年6月11日
+          最終更新日：2026年6月18日
         </p>
 
         <div className="space-y-8 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -114,10 +114,32 @@ export default function TermsPage() {
             </ul>
           </section>
 
-          {/* 5. お問い合わせ */}
+          {/* 5. アカウント・ログイン */}
           <section>
             <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-2">
-              5. 同意について
+              5. アカウント・ログインについて
+            </h2>
+            <ul className="space-y-2 list-disc list-inside">
+              <li>
+                本サービスの一部機能のご利用、または将来的に本サービス全体のご利用にあたって、
+                メールアドレスによるアカウント登録・ログインが必要となる場合があります。
+              </li>
+              <li>
+                ログインはパスワードを設定しない方式（メールに送付されるリンクまたは確認コードによる認証）
+                を採用しています。<strong>認証用のメールやコードは第三者に共有しないでください。</strong>
+                アカウントの管理は利用者ご自身の責任で行っていただきます。
+              </li>
+              <li>
+                本規約に違反する利用や不正な利用が認められた場合、運営者は事前の通知なく
+                アカウントの利用を停止・制限することがあります。
+              </li>
+            </ul>
+          </section>
+
+          {/* 6. 同意について */}
+          <section>
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-2">
+              6. 同意について
             </h2>
             <p>
               本サービスをご利用いただいた場合、本免責事項・利用規約の内容に同意いただいたものとみなします。
