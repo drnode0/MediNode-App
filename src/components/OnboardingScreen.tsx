@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
 
 type Props = {
@@ -211,7 +210,6 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
   const [page, setPage] = useState(0)
   const current = PAGES[page]
   const isLast = page === PAGES.length - 1
-  const { configured, user } = useAuth()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
@@ -227,15 +225,6 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
           スキップ →
         </button>
       </div>
-
-      {/* 別端末で設定済みの人へ：ログインで復元できる案内（未ログイン時のみ） */}
-      {configured && !user && (
-        <div className="px-5 pt-2">
-          <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-            すでに別の端末で設定済みの方は、左上の「ログイン」から設定をそのまま引き継げます。
-          </p>
-        </div>
-      )}
 
       {/* コンテンツ */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4 max-w-md mx-auto w-full">
