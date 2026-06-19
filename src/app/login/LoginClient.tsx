@@ -168,8 +168,10 @@ export function LoginClient() {
 
           <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
             📩 <span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
-            <span className="font-medium">同じブラウザで開いているこの画面に戻って</span>
-            、メール内の6桁コードを入力するのが確実です。リンクをタップした場合は、別のブラウザが開いてもログイン自体は完了しています。
+            <span className="font-medium text-emerald-700 dark:text-emerald-300">
+              ホーム画面に追加したアプリ（PWA）やこの画面でログインするときは、下の6桁コードを入力するのが確実です。
+            </span>
+            メールのリンクをタップすると別のブラウザが開いてしまい、このアプリ側ではログインされたままにならないことがあります（その場合は下のコード入力をご利用ください）。
             <br />
             <span className="text-[11px] text-gray-400">
               ※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。
@@ -184,7 +186,7 @@ export function LoginClient() {
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  6桁コード（リンクが開けないとき）
+                  6桁コードでログイン（アプリ・PWAはこちらが確実）
                 </label>
                 <input
                   type="text"
