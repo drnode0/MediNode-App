@@ -49,6 +49,13 @@ type Announcement = {
 }
 const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: '2026-06-17-settings-sync',
+    date: '2026-06-17',
+    emoji: '🔄',
+    title: '別端末でもログインで設定を引き継げるようになりました',
+    body: 'ログインしておけば、別のスマホ・PCでログインするだけで、NotionトークンやDB ID・Algoliaキーなどの設定が自動で引き継がれます。端末ごとの再入力は不要です。設定は暗号化してサーバーに保存されます。',
+  },
+  {
     id: '2026-06-16-manual',
     date: '2026-06-16',
     emoji: '📋',
@@ -2979,8 +2986,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
                 <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1.5">
-                  <p>Notionの接続設定（トークン等）はこのブラウザのみに保存されています。別のデバイスで使う場合は同じURLを開いて再入力してください。</p>
-                  <p>プレミアム契約については、<span className="font-semibold">ログインすると端末をまたいで引き継げます</span>（上の「ログインとは」を参照）。</p>
+                  <p>Notionの接続設定（トークン等）はこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
+                  <p>プレミアム契約についても、<span className="font-semibold">ログインすると端末をまたいで引き継げます</span>（上の「ログインとは」を参照）。</p>
                 </div>
               </section>
               <section>
@@ -3128,17 +3135,19 @@ export default function Home() {
     setOnboardingDone(done)
   }, [])
 
-  const [setupInitialStep, setSetupInitialStep] = useState<'start' | 'mode' | 'notion' | 'options'>('start')
+  // 'entry' はオンボーディング後の入口分岐（アカウント有無の選択）。初回・リセット・やり直しは
+  // ここから始める。Notionだけ修正など特定ステップ直行のケースは個別に start/notion 等を指定する。
+  const [setupInitialStep, setSetupInitialStep] = useState<'entry' | 'start' | 'mode' | 'notion' | 'options'>('entry')
 
   const handleReset = () => {
     clearSettings()
     setSetupDone(false)
     setShowSettings(false)
-    setSetupInitialStep('start')
+    setSetupInitialStep('entry')
   }
 
   const handleRedo = () => {
-    setSetupInitialStep('start')
+    setSetupInitialStep('entry')
     setSetupDone(false)
   }
 
@@ -3212,7 +3221,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('start') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
   }
 
   const settings = getSettings()

@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           プライバシーポリシー
         </h1>
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-8">
-          最終更新日：2026年6月11日
+          最終更新日：2026年6月17日
         </p>
 
         <div className="space-y-8 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -38,11 +38,19 @@ export default function PrivacyPage() {
             </h2>
             <ul className="space-y-2 list-disc list-inside">
               <li>
-                <strong>Notion連携情報（APIトークン・データベースID等）</strong>：
+                <strong>アカウント情報（メールアドレス等）</strong>：
+                ログイン機能のため、認証基盤（Supabase）を通じてメールアドレス等の
+                アカウント情報を取得・保存します。これらは本人確認・ログイン状態の維持・
+                設定の端末間同期のために使用します。
+              </li>
+              <li>
+                <strong>Notion連携情報（APIトークン・データベースID等）・各種設定</strong>：
                 利用者ご自身のNotionデータを検索・表示するために使用します。これらの情報は
                 利用者の端末（ブラウザのローカルストレージ）に保存され、検索のたびに本サービスの
-                サーバーを経由してNotion APIへ問い合わせます。本サービスはこれらの情報を
-                サーバー側に永続的に保存しません。
+                サーバーを経由してNotion APIへ問い合わせます。さらに、ログイン中の利用者については、
+                別の端末でも同じ設定をご利用いただけるよう、これらの設定情報を<strong>暗号化のうえ
+                本サービスのサーバー（Supabase）に保存し、端末間で同期</strong>します。詳細は
+                「2. データの保存場所」をご覧ください。
               </li>
               <li>
                 <strong>決済情報</strong>：プレミアム機能の決済は決済代行サービス
@@ -58,15 +66,30 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-2">
-              2. データの保存場所
+              2. データの保存場所と端末間同期
             </h2>
             <ul className="space-y-2 list-disc list-inside">
               <li>
-                Notion連携情報や各種設定は、原則として<strong>利用者ご自身の端末内</strong>
-                （ブラウザのローカルストレージ）に保存されます。
+                Notion連携情報や各種設定は、まず<strong>利用者ご自身の端末内</strong>
+                （ブラウザのローカルストレージ）に保存されます。未ログインの場合、これらの設定は
+                端末内にのみ保存され、サーバーには送信されません。
               </li>
               <li>
-                本サービスは、検索内容や利用者のNotion内のデータをサーバー側に蓄積・保存しません。
+                <strong>ログイン中の利用者については</strong>、別の端末でも同じ設定をご利用
+                いただける「端末間同期」のため、上記の設定情報（NotionトークンやAlgoliaの
+                キー等の機密情報を含みます）を本サービスのサーバー（Supabase）に保存します。
+                これらの機密情報は、サーバー側で<strong>暗号化（AES-GCM）したうえで保存</strong>
+                し、復号は本サービスのサーバー内の処理に限定されます。
+              </li>
+              <li>
+                暗号化に用いる鍵は、データの保存先（Supabase）とは別の事業者の環境で管理し、
+                データと鍵を分離して保管します。これにより、万一データベース単体が流出した場合でも、
+                保存された機密情報がそのまま読み取られることを防ぎます。
+              </li>
+              <li>
+                本サービスは、利用者の検索内容や、利用者のNotion内に保存されているデータ本体を
+                サーバー側に蓄積・保存しません。サーバーに保存されるのは、上記のアカウント情報と
+                同期のための設定情報に限られます。
               </li>
             </ul>
           </section>
@@ -85,9 +108,10 @@ export default function PrivacyPage() {
                 データ取り扱いについては、それぞれの提供者のプライバシーポリシーをご確認ください。
                 <ul className="mt-1 ml-4 space-y-1 list-disc list-inside text-gray-500 dark:text-gray-400">
                   <li>Notion（データの検索・取得）</li>
+                  <li>Supabase（ログイン認証・設定の同期保存）</li>
                   <li>Stripe（決済処理）</li>
                   <li>Algolia（プレミアム機能の検索）</li>
-                  <li>Vercel（ホスティング）</li>
+                  <li>Vercel（ホスティング・暗号鍵の管理）</li>
                 </ul>
               </li>
             </ul>
@@ -109,8 +133,10 @@ export default function PrivacyPage() {
               5. 安全管理
             </h2>
             <p>
-              本サービスは、取得した情報の漏えい・滅失・毀損の防止に努めます。ただし、
-              インターネットを通じた通信の性質上、完全な安全性を保証するものではありません。
+              本サービスは、取得した情報の漏えい・滅失・毀損の防止に努めます。特に、
+              サーバーに保存する設定情報のうちNotionトークン等の機密情報は暗号化したうえで
+              保存し、暗号鍵をデータ本体とは分離して管理します。ただし、インターネットを
+              通じた通信の性質上、完全な安全性を保証するものではありません。
             </p>
           </section>
 
