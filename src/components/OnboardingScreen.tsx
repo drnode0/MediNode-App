@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { AccountButton } from './auth/AccountButton'
 
 type Props = {
   onComplete: () => void
@@ -212,8 +213,11 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
-      {/* スキップボタン */}
-      <div className="flex justify-end px-5 pt-5">
+      {/* 上部バー：ログイン導線（左）＋スキップ（右） */}
+      <div className="flex justify-between items-center px-5 pt-5">
+        <div className="flex items-center">
+          <AccountButton />
+        </div>
         <button
           onClick={onSkip}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-100"

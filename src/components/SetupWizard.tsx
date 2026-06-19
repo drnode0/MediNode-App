@@ -3,8 +3,13 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
+import { useAuth } from './auth/AuthProvider'
+import { AccountButton } from './auth/AccountButton'
+import { LoginModal } from './auth/LoginModal'
 
-type Step = 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
+// 'entry' はオンボーディング直後の入口分岐（アカウント作成済み / はじめて使う）。
+// 純粋な分岐画面でステップインジケーターには含めない（後述の allSteps は 'start' から）。
+type Step = 'entry' | 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'after-template' | 'existing'
 
 // セットアップ開始時に「何から始めるか」を選ぶ。1つ以上選べばOK。
@@ -264,6 +269,21 @@ function parseErrorMessage(msg: string): string {
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
+  entry: {
+    title: 'はじめに（アカウントについて）',
+    content: (
+      <div className="space-y-4 text-sm">
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📲 アカウントをお持ちの方</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">別の端末ですでに設定済みの方は、メールアドレスを入力してログインするだけ。Notion接続・Algolia・プレミアム契約などの設定がこの端末にそのまま復元されます。</p>
+        </section>
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">✨ はじめて使う方</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">使いたい知識を選んでDB設定を行います。設定の最後にメールアドレスでアカウント登録を行うと、設定が暗号化のうえ保存され、他の端末でもログインだけで引き継げます。</p>
+        </section>
+      </div>
+    ),
+  },
   start: {
     title: '何から始める？のヘルプ',
     content: (
@@ -574,11 +594,18 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 }
 
 export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
-  const [step, setStep] = useState<Step>(initialStep || 'start')
+  // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
+  const [step, setStep] = useState<Step>(initialStep || 'entry')
   // 「何から始めるか」の選択。初期値は個人のみ（従来挙動に近い）。start画面で更新。
   const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
+  // ログイン誘導（別端末で設定済みの人がログインで復元するため）
+  const { user } = useAuth()
+  const [showLogin, setShowLogin] = useState(false)
+  // ログインモーダルの用途。'restore'=既存アカウントの設定復元（成功で即完了）、
+  // 'register'=新規が設定完了後に行うアカウント登録（成功で設定保存＋完了）。
+  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register'>('restore')
   // optionsステップに直行した場合はプレミアムセクションを自動展開
   const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
@@ -878,6 +905,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           )}
           {/* ガイド・ヘルプボタン（右上） */}
           <div className="absolute top-0 right-0 flex items-center gap-1.5">
+            <AccountButton />
             <a
               href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
               target="_blank"
@@ -926,7 +954,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           </>
         )}
 
-        {/* ステップインジケーター */}
+        {/* ステップインジケーター（入口分岐 entry では非表示） */}
+        {step !== 'entry' && (
         <div className="flex items-center justify-center mb-8">
           {steps.map((s, i) => (
             <div key={s.id} className="flex items-center">
@@ -952,8 +981,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             </div>
           ))}
         </div>
+        )}
 
-        {/* ヘルプ誘導ヒント */}
+        {/* ヘルプ誘導ヒント（入口分岐 entry では非表示） */}
+        {step !== 'entry' && (
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-3">
           迷ったら右上の
           <button
@@ -966,9 +997,57 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           </button>
           から詳しい説明を確認できます
         </p>
+        )}
 
         {/* カード */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+
+          {/* 入口: アカウント作成済み / はじめて使う の分岐 */}
+          {step === 'entry' && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">MediNode を始める</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  はじめてご利用ですか？ それとも別の端末で設定済みですか？
+                </p>
+              </div>
+
+              {/* 🅐 アカウント作成済み（別端末で設定済み）→ ログインで復元 */}
+              <button
+                onClick={() => {
+                  setLoginPurpose('restore')
+                  setShowLogin(true)
+                }}
+                className="w-full border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 text-left hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">📲</span>
+                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">アカウントをお持ちの方</p>
+                </div>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed pl-7">
+                  メールアドレスを入力してログインするだけ。別の端末で保存したNotion接続・Algolia・プレミアム設定がそのまま復元されます。
+                </p>
+              </button>
+
+              {/* 🅑 はじめて使う → 従来のDB設定へ */}
+              <button
+                onClick={() => setStep('start')}
+                className="w-full border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">✨</span>
+                  <p className="text-sm font-bold text-blue-800 dark:text-blue-200">はじめて使う方</p>
+                </div>
+                <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed pl-7">
+                  使いたい知識を選んでセットアップ。設定の最後に、メールアドレスでアカウントを登録します。
+                </p>
+              </button>
+
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
+                ※ どちらもパスワードは不要です。メールアドレスに届くリンク／6桁コードで認証します。
+              </p>
+            </div>
+          )}
 
           {/* Step 0: 何から始めるか */}
           {step === 'start' && (
@@ -1029,6 +1108,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 次へ →
+              </button>
+              <button
+                onClick={() => { setError(''); setStep('entry') }}
+                className="w-full text-gray-400 dark:text-gray-500 text-xs py-1 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ← 入口（アカウントの有無）に戻る
               </button>
               {error && (
                 <p className="text-xs text-red-500 text-center">{error}</p>
@@ -1636,7 +1721,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p>• Medical DB → Algolia</p>
                     {form.notionReferenceDbId && <p>• Reference DB → Algolia</p>}
                     <p className="text-xs text-gray-400 mt-2">
-                      ※ APIキーはこのブラウザのみに保存されます。外部サーバーには送信されません。
+                      ※ APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します（詳しくはプライバシーポリシー）。
                     </p>
                   </div>
 
@@ -1708,8 +1793,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
                   <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400 space-y-1">
                     <p className="font-semibold">⚠️ ご注意</p>
-                    <p>APIキーは入力した端末のブラウザにのみ保存されます。スマホや他のPCでも使いたい場合は、同じAPIキーを再度入力してください。</p>
-                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。</p>
+                    <p>APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。詳しくはプライバシーポリシーをご確認ください。</p>
                   </div>
                   <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
                     <p className="font-semibold">🔒 このアプリのURLについて</p>
@@ -1889,26 +1974,61 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 )}
               </div>
 
+              {/* 完了。メール登録（=ログイン）は必須。
+                  未ログインなら登録モーダルを開き、成功後に設定保存＋完了する。
+                  既にログイン済み（入口で復元した等）ならそのまま完了。 */}
               <button
-                onClick={() => { saveSettings(form); clearDraft(); onComplete() }}
+                onClick={() => {
+                  if (user) {
+                    saveSettings(form)
+                    clearDraft()
+                    onComplete()
+                  } else {
+                    saveDraft(form) // モーダル中の離脱に備えて途中保存
+                    setLoginPurpose('register')
+                    setShowLogin(true)
+                  }
+                }}
                 className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
-                設定を保存して検索を開始する →
+                {user ? '設定を保存して検索を開始する →' : 'メールを登録して検索を開始する →'}
               </button>
-              <button
-                onClick={() => { saveSettings(form); clearDraft(); onComplete() }}
-                className="w-full text-gray-400 dark:text-gray-500 text-sm py-1 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                スキップして検索を開始する
-              </button>
+              {!user && (
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
+                  メールアドレスの登録（パスワード不要）が必要です。設定が暗号化のうえ保存され、別の端末でも引き継げます。
+                </p>
+              )}
             </div>
           )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          入力したAPIキーはこのブラウザにのみ保存されます
+          APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します
         </p>
       </div>
+
+      {/* ログイン誘導モーダル。用途で挙動を切り替える。
+          - restore: 既存アカウントの設定復元（成功で同期復元 → 完了）
+          - register: 新規が設定完了後に行うアカウント登録（成功で設定保存 → 完了） */}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onSuccess={() => {
+            if (loginPurpose === 'register') {
+              // 新規ユーザーの設定をローカル保存し、サーバー同期はログイン後に走る。
+              saveSettings(form)
+              clearDraft()
+            }
+            // restore はサーバー保存済み設定が AuthProvider 経由で復元される。
+            onComplete()
+          }}
+          reason={
+            loginPurpose === 'register'
+              ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
+              : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
+          }
+        />
+      )}
     </div>
   )
 }
