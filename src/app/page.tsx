@@ -2219,12 +2219,12 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
         subscriptionSearchKey: data.algolia.searchKey,
         subscriptionIndex: data.algolia.index,
         // comp（招待コード・無期限）は期限を書かない＝期限切れ扱いされない。
-        // 通常トライアルのみ期限を保存する。
+        // 期限付きトライアル（trial）/ 通常トライアルは期限を保存し、この端末でも失効させる。
         subscriptionTrialEndsAt: data.trialEndsAt ?? undefined,
       })
-      // 通常トライアルのみ「使用済み」を記録（期限切れ後の再入力をカジュアルに防ぐ）。
-      // comp（無期限招待）は使用済み扱いにしない＝サーバーで端末またぎ復元されるため。
-      if (!data.comp) markTrialUsed()
+      // 「使用済み」記録は端末ローカル保存の通常トライアル(A)のみ（同端末での再入力をカジュアルに防ぐ）。
+      // comp（無期限招待）・期限付きトライアル(C)はサーバー管理＝端末またぎ復元されるため記録しない。
+      if (!data.comp && !data.trial) markTrialUsed()
       if (onActivated) onActivated()
       setTimeout(() => window.location.reload(), 1200)
     } catch {
@@ -2250,7 +2250,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方（カード登録不要）</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事に記載のコードを入力すると、<strong>カード登録なし・7日間</strong>プレミアムをお試しいただけます。
+        note記事などに記載のコードを入力すると、<strong>カード登録なし</strong>でプレミアムをお試しいただけます（期間はコードにより異なります）。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。気に入った場合のみ、下の有料登録（14日間無料）で継続できます。
       </p>
       <div className="flex gap-2">

@@ -23,7 +23,17 @@ import { notion } from '@/lib/notion'
 export type CompGrantInfo = {
   userId: string
   email: string | null
-  code: string // 入力された招待コード（正規化後）
+  code: string // 入力されたコード（正規化後）
+  // 付与したプランの種別。'comp'=無期限招待 / 'trial'=期限付きトライアル。
+  // 通知・台帳で両者を見分けるためのラベル。未指定なら 'comp' 扱い（後方互換）。
+  plan?: 'comp' | 'trial'
+  // 期限付きトライアルの失効日時（ISO）。'comp'（無期限）では undefined。
+  trialEndsAt?: string | null
+}
+
+// 付与種別の人間可読ラベル。
+function planLabel(plan?: 'comp' | 'trial'): string {
+  return plan === 'trial' ? '期限付きトライアル' : '無期限comp'
 }
 
 // Resend でオーナーへメール通知（best-effort）。
@@ -34,14 +44,17 @@ async function sendOwnerEmail(info: CompGrantInfo): Promise<void> {
   if (!apiKey || !to || !from) return // 未設定ならスキップ
 
   const when = new Date().toISOString()
-  const subject = 'MediNode: 招待コードで無料解放（comp）が付与されました'
+  const label = planLabel(info.plan)
+  const subject = `MediNode: コードで無料解放（${label}）が付与されました`
   const text = [
-    '招待コードによる無料解放（comp）が行われました。',
+    `コードによる無料解放（${label}）が行われました。`,
     '',
     `ユーザーID: ${info.userId}`,
     `メール: ${info.email ?? '(不明)'}`,
     `使用コード: ${info.code}`,
-    `日時(UTC): ${when}`,
+    `種別: ${label}`,
+    `失効日時(UTC): ${info.trialEndsAt ?? '無期限'}`,
+    `付与日時(UTC): ${when}`,
     '',
     '※ 取り消す場合は revoke API もしくは Supabase の subscriptions テーブルで status=canceled に。',
   ].join('\n')
@@ -66,6 +79,12 @@ async function appendNotionLog(info: CompGrantInfo): Promise<void> {
   if (!dbId || !process.env.NOTION_TOKEN) return // 未設定ならスキップ
 
   const when = new Date().toISOString()
+  const label = planLabel(info.plan)
+  // 状態欄に種別と失効日時を併記し、無期限compと期限付きtrialを台帳で見分けられるようにする。
+  const statusText =
+    info.plan === 'trial'
+      ? `active / ${label} / 失効:${info.trialEndsAt ?? '不明'}`
+      : `active / ${label}`
   // タイトル列名は環境によって異なるため「名前」を想定しつつ、
   // 失敗してもログ自体は best-effort なので握りつぶす。
   try {
@@ -88,7 +107,7 @@ async function appendNotionLog(info: CompGrantInfo): Promise<void> {
           date: { start: when },
         },
         状態: {
-          rich_text: [{ text: { content: 'active' } }],
+          rich_text: [{ text: { content: statusText } }],
         },
       },
     } as Parameters<typeof notion.pages.create>[0])
