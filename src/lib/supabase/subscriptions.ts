@@ -48,6 +48,42 @@ export async function grantComplimentaryByUserId(userId: string): Promise<void> 
   if (error) throw new Error(`comp付与失敗: ${error.message}`)
 }
 
+// comp（無料解放）を取り消す（無効化 / revoke）。
+//   - status='canceled' に更新するだけで、getActiveStatusByUserId は active 判定から外れる。
+//   - 行は残すので「いつ付与し、いつ取り消したか」が追える（棚卸し台帳と整合）。
+//   - 対象が comp（plan='comp'）の行のみを安全側で更新し、通常のStripe契約には触れない。
+export async function revokeComplimentaryByUserId(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('subscriptions')
+    .update({ status: 'canceled', updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('plan', 'comp')
+    .select('user_id')
+  if (error) throw new Error(`comp取り消し失敗: ${error.message}`)
+  // 1行でも更新されれば成功（= comp行が存在して取り消せた）。
+  return Array.isArray(data) && data.length > 0
+}
+
+// 現在 comp（無料解放）を持つユーザー一覧を返す（棚卸し用）。
+// active/canceled どちらも含め、現状を一覧できるようにする。
+export async function listComplimentary(): Promise<
+  Array<{ user_id: string; status: string | null; updated_at: string | null }>
+> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select('user_id, status, updated_at')
+    .eq('plan', 'comp')
+    .order('updated_at', { ascending: false })
+  if (error) throw new Error(`comp一覧取得失敗: ${error.message}`)
+  return (data ?? []).map((r) => ({
+    user_id: r.user_id,
+    status: r.status ?? null,
+    updated_at: r.updated_at ?? null,
+  }))
+}
+
 // stripe_customer_id から user_id を逆引きする（webhookでcustomer起点のイベントを処理する用）。
 export async function findUserIdByCustomer(customerId: string): Promise<string | null> {
   const admin = createAdminClient()

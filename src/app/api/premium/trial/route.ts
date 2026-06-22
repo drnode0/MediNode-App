@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
+import { notifyCompGranted } from '@/lib/comp-notify'
 
 /**
  * プレミアム 無料トライアル（クーポンコード式・カード不要）
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'login_required' }, { status: 401 })
       }
       await grantComplimentaryByUserId(user.id)
+      // オーナー通知＆棚卸し台帳への記録（best-effort。失敗しても付与は成功扱い）。
+      await notifyCompGranted({ userId: user.id, email: user.email ?? null, code: normalized })
       return NextResponse.json({
         ok: true,
         comp: true,
