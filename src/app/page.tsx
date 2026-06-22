@@ -2502,8 +2502,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             <div className="space-y-1">
               {/* プレミアム会員バナー */}
               {(() => {
-                const s = getSettings()
-                const isPremium = !!(s?.subscriptionSearchKey && s?.subscriptionAppId)
+                // キーの有無だけでなくトライアル期限も考慮（期限切れはバナーを出さない）。
+                const isPremium = hasSubscriptionConfig()
                 if (!isPremium) return null
                 return (
                   <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-2">
@@ -3280,7 +3280,10 @@ export default function Home() {
   const settings = getSettings()
   const searchMode = settings?.searchMode || 'algolia'
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
-  const hasSubscription = !!(settings?.subscriptionSearchKey && settings?.subscriptionAppId)
+  // プレミアム判定はキーの有無だけでなくトライアル期限切れも考慮する。
+  // hasSubscriptionConfig() が isSubscriptionTrialExpired() を内包しており、
+  // 期限切れトライアル（端末localStorageにキーが残った状態）を正しく無効化する。
+  const hasSubscription = hasSubscriptionConfig()
   // マニュアルタブはオプトイン：個人 or 部署のマニュアルDBが設定されている時のみ表示。
   const hasManual = !!(settings?.notionManualDbId || settings?.teamNotionManualDbId)
 
