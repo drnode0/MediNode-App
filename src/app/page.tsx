@@ -1188,6 +1188,18 @@ function useNotionSearch(mode: Tab) {
 
   const fetch = useCallback(async (keyword = '', extra: Record<string, unknown> = {}) => {
     if (!settings) return
+    // プレミアム専用ユーザー（個人Notion DB未設定）では個人検索をスキップする。
+    // 個人Notionが無いことを致命的エラーにすると、新着/文献/クイズが
+    // 「notionToken と notionMedicalDbId が必要です」で埋まり、サブスク結果まで隠れてしまう。
+    // ここでは個人records=0・error無しで正常終了させ、サブスク結果のみ表示できるようにする
+    // （ジャンルタブと同じ耐性に統一）。
+    if (!settings.notionToken || !settings.notionMedicalDbId) {
+      reqIdRef.current++
+      setRecords([])
+      setError('')
+      setLoading(false)
+      return
+    }
     const reqId = ++reqIdRef.current
     setLoading(true)
     setError('')
