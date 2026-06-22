@@ -63,17 +63,22 @@ export async function POST(req: NextRequest) {
       locale: 'ja',
       subscription_data: {
         metadata: { source: 'medinode', ...(userId ? { user_id: userId } : {}) },
-        // 最初の14日間は無料トライアル。トライアル中も subscription.status は 'trialing' となり、
+        // 最初の無料トライアル（既定7日）。トライアル中も subscription.status は 'trialing' となり、
         // /api/premium/verify が 'trialing' を許可しているためプレミアムが利用できる。
-        // 14日経過後に登録カードへ自動課金される（解約しなければ継続）。
-        trial_period_days: 14,
+        // 期間経過後に登録カードへ自動課金される（解約しなければ継続）。
+        // note特典コード（TRIAL_CODES=14日）より短くし、note購入動線を相対的に優遇する。
+        // 日数は STRIPE_TRIAL_DAYS で変更可（未設定なら7）。
+        trial_period_days: (() => {
+          const n = Number(process.env.STRIPE_TRIAL_DAYS || '7')
+          return Number.isFinite(n) && n > 0 ? n : 7
+        })(),
         // トライアル終了時に有効な支払い方法が無ければサブスクをキャンセル（請求漏れ・未払い放置を防ぐ）。
         // Stripe ダッシュボード側でトライアル終了前のリマインドメールをONにしておくこと。
         trial_settings: {
           end_behavior: { missing_payment_method: 'cancel' },
         },
       },
-      // トライアル登録時もカード情報を必須にする（14日後の自動課金に必要）。
+      // トライアル登録時もカード情報を必須にする（トライアル終了後の自動課金に必要）。
       payment_method_collection: 'always',
     })
 

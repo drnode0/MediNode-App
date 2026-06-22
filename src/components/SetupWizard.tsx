@@ -75,7 +75,7 @@ function PremiumCheckoutButton() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 2週間無料で試す →'}
+        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 1週間無料で試す →'}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -145,7 +145,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の14日間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の1週間無料）へお進みください。
         </p>
       </div>
     )
@@ -168,7 +168,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
         note記事に記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
-        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（14日間無料）へお進みください。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
       </p>
       <div className="flex gap-2">
         <input
@@ -1941,7 +1941,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の14日間無料</strong>・月額・価格は準備中・いつでも解約可）へ。
+                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額・価格は準備中・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -1965,7 +1965,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                          <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらも<strong>最初の14日間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。トライアルコードでお試し後、継続したい方はこちらへ。
+                          <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                         </p>
                         <PremiumCheckoutButton />
                       </div>
