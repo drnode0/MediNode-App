@@ -2195,6 +2195,11 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       })
       const data = await res.json()
       if (!res.ok || !data.ok || !data.algolia) {
+        // 招待コード（無期限comp）はログイン必須。未ログインなら案内する。
+        if (res.status === 401 || data.error === 'login_required') {
+          setError('このコードのご利用にはログインが必要です。右上のアカウントからログインのうえ、もう一度お試しください。')
+          return
+        }
         setError(data.error || 'コードを確認できませんでした')
         return
       }
@@ -2213,10 +2218,13 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
         subscriptionAppId: data.algolia.appId,
         subscriptionSearchKey: data.algolia.searchKey,
         subscriptionIndex: data.algolia.index,
-        subscriptionTrialEndsAt: data.trialEndsAt,
+        // comp（招待コード・無期限）は期限を書かない＝期限切れ扱いされない。
+        // 通常トライアルのみ期限を保存する。
+        subscriptionTrialEndsAt: data.trialEndsAt ?? undefined,
       })
-      // この端末でトライアルを使ったことを記録（期限切れ後の再入力をカジュアルに防ぐ）
-      markTrialUsed()
+      // 通常トライアルのみ「使用済み」を記録（期限切れ後の再入力をカジュアルに防ぐ）。
+      // comp（無期限招待）は使用済み扱いにしない＝サーバーで端末またぎ復元されるため。
+      if (!data.comp) markTrialUsed()
       if (onActivated) onActivated()
       setTimeout(() => window.location.reload(), 1200)
     } catch {

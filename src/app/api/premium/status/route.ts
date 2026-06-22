@@ -23,7 +23,19 @@ export async function GET() {
     return NextResponse.json({ loggedIn: false, active: false })
   }
 
-  const sub = await getActiveStatusByUserId(user.id)
+  // 用途①: 自分専用（開発者として常時無料）。
+  // COMP_ADMIN_EMAILS（カンマ区切り）にログインメールが含まれていれば、
+  // DBの契約状態に依らず無条件でプレミアム有効とする。DB書き込みすら不要で最も堅牢。
+  const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
+
+  const sub = isAdmin
+    ? { active: true, status: 'comp_admin', currentPeriodEnd: null }
+    : await getActiveStatusByUserId(user.id)
+
   if (!sub.active) {
     return NextResponse.json({
       loggedIn: true,
