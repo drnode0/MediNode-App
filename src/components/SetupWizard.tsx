@@ -603,9 +603,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // ログイン誘導（別端末で設定済みの人がログインで復元するため）
   const { user } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
-  // ログインモーダルの用途。'restore'=既存アカウントの設定復元（成功で即完了）、
-  // 'register'=新規が設定完了後に行うアカウント登録（成功で設定保存＋完了）。
-  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register'>('restore')
+  // ログインモーダルの用途。
+  // 'restore'        = 既存アカウントの設定復元（成功で即完了）
+  // 'register'       = 設定完了後（options末尾）に行うアカウント登録（成功で設定保存＋完了）※フォールバック
+  // 'register-first' = 「はじめて使う方」直後の早期登録（成功で start へ進むだけ。保存・完了はしない）。
+  //                    これにより以降の options でトライアルコードを入れても未ログイン弾き(login_required)が起きない。
+  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-first'>('restore')
   // optionsステップに直行した場合はプレミアムセクションを自動展開
   const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
@@ -1029,9 +1032,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </p>
               </button>
 
-              {/* 🅑 はじめて使う → 従来のDB設定へ */}
+              {/* 🅑 はじめて使う → まずメール登録（早期）→ 成功後に start へ。
+                  設定より先にログインを済ませることで、後続のトライアルコード入力で弾かれないようにする。 */}
               <button
-                onClick={() => setStep('start')}
+                onClick={() => {
+                  setLoginPurpose('register-first')
+                  setShowLogin(true)
+                }}
                 className="w-full border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -1039,7 +1046,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <p className="text-sm font-bold text-blue-800 dark:text-blue-200">はじめて使う方</p>
                 </div>
                 <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed pl-7">
-                  使いたい知識を選んでセットアップ。設定の最後に、メールアドレスでアカウントを登録します。
+                  最初にメールアドレスでアカウントを登録してから、使いたい知識を選んでセットアップします。
                 </p>
               </button>
 
@@ -2014,8 +2021,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         <LoginModal
           onClose={() => setShowLogin(false)}
           onSuccess={() => {
+            if (loginPurpose === 'register-first') {
+              // 「はじめて使う方」の早期登録。まだ設定が無いので保存も完了もせず、知識選択へ進めるだけ。
+              // 以降は user=非null のため、optionsのコード入力で login_required が起きない。
+              setShowLogin(false)
+              setStep('start')
+              return
+            }
             if (loginPurpose === 'register') {
-              // 新規ユーザーの設定をローカル保存し、サーバー同期はログイン後に走る。
+              // フォールバック（options末尾で未ログインだった場合）。設定をローカル保存し、サーバー同期はログイン後に走る。
               saveSettings(form)
               clearDraft()
             }
@@ -2023,7 +2037,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             onComplete()
           }}
           reason={
-            loginPurpose === 'register'
+            loginPurpose === 'register-first'
+              ? '最初にメールアドレスでアカウントを登録します（パスワード不要）。以降の設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
+              : loginPurpose === 'register'
               ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
               : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
           }
