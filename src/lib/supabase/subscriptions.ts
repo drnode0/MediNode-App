@@ -22,6 +22,32 @@ export async function upsertSubscriptionByUserId(row: SubscriptionRow): Promise<
   if (error) throw new Error(`subscriptions upsert失敗: ${error.message}`)
 }
 
+// 招待コードによる無料解放（complimentary）を user_id に紐付けて書き込む。
+// Stripe決済を介さない無期限の無料プレミアム。
+//   - status='active'         … getActiveStatusByUserId がそのまま有効と判定する
+//   - plan='comp'             … Stripe由来(premium)と区別。webhookは customer 起点で更新するため
+//                               stripe_customer_id=null のこの行には触れない（解約で上書きされない）
+//   - current_period_end=null … 無期限
+export async function grantComplimentaryByUserId(userId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('subscriptions')
+    .upsert(
+      {
+        user_id: userId,
+        stripe_customer_id: null,
+        stripe_subscription_id: null,
+        status: 'active',
+        current_period_end: null,
+        trial_ends_at: null,
+        plan: 'comp',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    )
+  if (error) throw new Error(`comp付与失敗: ${error.message}`)
+}
+
 // stripe_customer_id から user_id を逆引きする（webhookでcustomer起点のイベントを処理する用）。
 export async function findUserIdByCustomer(customerId: string): Promise<string | null> {
   const admin = createAdminClient()
