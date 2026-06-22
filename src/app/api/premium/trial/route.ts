@@ -16,7 +16,7 @@ import { notifyCompGranted } from '@/lib/comp-notify'
  * このエンドポイントは3種類のコードを受け付ける（UIは共通の1入力欄）:
  *   (A) 通常のトライアルコード（PREMIUM_TRIAL_CODE）… 期限付き・端末ローカル保存（従来動作・ログイン不要）
  *   (B) 招待コード（COMP_INVITE_CODES）… 無期限・ログイン必須・subscriptions(plan=comp)へサーバー保存
- *   (C) 期限付きトライアルコード（TRIAL_30D_CODES）… note特典など一般向け。カード不要・30日（既定）で
+ *   (C) 期限付きトライアルコード（TRIAL_CODES）… note特典など一般向け。カード不要・14日（既定）で
  *       自動失効・ログイン必須・subscriptions(plan=trial, trial_ends_at=付与+日数)へサーバー保存。
  *       サーバーが trial_ends_at を見て失効させるため、端末またぎでも期限が効く（無期限compとは別系統）。
  *   いずれも目立つUIを足さず、同じ入力欄に入れたコードの種別でサーバーが分岐する。
@@ -25,8 +25,8 @@ import { notifyCompGranted } from '@/lib/comp-notify'
  *   - PREMIUM_TRIAL_CODE              ... トライアル開始用のクーポンコード（例: MEDINODE2026）
  *   - PREMIUM_TRIAL_DAYS             ... トライアル日数（未設定なら14）
  *   - COMP_INVITE_CODES               ... 招待コード（カンマ区切り・無期限comp）。任意
- *   - TRIAL_30D_CODES                 ... 期限付きトライアルコード（カンマ区切り・note特典用）。任意
- *   - TRIAL_30D_DAYS                  ... 期限付きトライアルの日数（未設定なら30）
+ *   - TRIAL_CODES                     ... 期限付きトライアルコード（カンマ区切り・note特典用）。任意
+ *   - TRIAL_DAYS                      ... 期限付きトライアルの日数（未設定なら14）
  *   - SUBSCRIPTION_ALGOLIA_APP_ID     ... サブスク用AlgoliaのApp ID
  *   - SUBSCRIPTION_ALGOLIA_SEARCH_KEY ... サブスク用Algoliaの検索専用キー（Search-only）
  *   - SUBSCRIPTION_ALGOLIA_INDEX      ... サブスク用インデックス名
@@ -39,17 +39,17 @@ export async function POST(req: NextRequest) {
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
   // 期限付きトライアル（note特典など）。無期限compとは別の環境変数で管理し、取り違えを防ぐ。
-  const trial30Codes = (process.env.TRIAL_30D_CODES || '')
+  const trialCodes = (process.env.TRIAL_CODES || '')
     .split(',')
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
-  const trial30Days = Number(process.env.TRIAL_30D_DAYS || '30')
+  const trialPeriodDays = Number(process.env.TRIAL_DAYS || '14')
   const algoliaAppId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
   const algoliaSearchKey = process.env.SUBSCRIPTION_ALGOLIA_SEARCH_KEY
   const algoliaIndex = process.env.SUBSCRIPTION_ALGOLIA_INDEX || 'Medical Knowledge_DB（サブスク用）'
 
   // どのコード系統も未設定なら、機能自体を無効として扱う。
-  if (!trialCode && inviteCodes.length === 0 && trial30Codes.length === 0) {
+  if (!trialCode && inviteCodes.length === 0 && trialCodes.length === 0) {
     return NextResponse.json({ error: 'トライアルは現在利用できません' }, { status: 503 })
   }
   if (!algoliaAppId || !algoliaSearchKey) {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     // (C) 期限付きトライアルコード（note特典など一般向け）→ サーバー保存・自動失効。
     //     comp と同じくログイン必須（端末またぎ＆サーバー失効のため）だが、plan=trial で
     //     trial_ends_at を入れる点が異なる。サーバーの getActiveStatusByUserId が期限を見て失効させる。
-    if (trial30Codes.includes(normalized)) {
+    if (trialCodes.includes(normalized)) {
       const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
       if (!supabaseReady) {
         return NextResponse.json({ error: 'サーバー設定が不足しています' }, { status: 500 })
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
         // 端末またぎ＆サーバー失効のためログインが前提。
         return NextResponse.json({ error: 'login_required' }, { status: 401 })
       }
-      const days = Number.isFinite(trial30Days) && trial30Days > 0 ? trial30Days : 30
+      const days = Number.isFinite(trialPeriodDays) && trialPeriodDays > 0 ? trialPeriodDays : 14
       const trialEndsAt = await grantTrialByUserId(user.id, days)
       // オーナー通知＆棚卸し台帳への記録（best-effort。失敗しても付与は成功扱い）。
       // plan='trial' の付与であることを通知側に伝え、台帳で無期限compと区別できるようにする。
