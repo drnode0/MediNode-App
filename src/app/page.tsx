@@ -35,6 +35,9 @@ const ANNOUNCEMENT_SEEN_KEY = 'medinode_announcement_seen_v1'
 // 設定方法（運用ガイド）とテンプレ複製（マーケットプレイス）の導線。
 const MANUAL_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 const MANUAL_TEMPLATE_URL = 'https://www.notion.com/ja/templates/medinode-db'
+// フィードバック（全員向け）と臨床疑問投稿（プレミアム限定）のNotion公開フォーム。
+const FEEDBACK_FORM_URL = 'https://foregoing-feta-45b.notion.site/584afcdce06e4216810fd99bc5c28360'
+const CLINICAL_QUESTION_FORM_URL = 'https://foregoing-feta-45b.notion.site/387fd756737080f4aa54e915457f7eab'
 
 // お知らせ（更新履歴）。新しい順に並べる。先頭[0]がバナーに1回だけ出る最新お知らせ。
 // 全件は設定→「お知らせ・更新履歴」で見返せる（バナーを消しても確認できる）。
@@ -2562,6 +2565,34 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">↗</span>
               </a>
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+              >
+                <span className="text-xl">📮</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">↗</span>
+              </a>
+              {hasSubscriptionConfig() && (
+                <a
+                  href={CLINICAL_QUESTION_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+                >
+                  <span className="text-xl">❓</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <span className="text-purple-500">⭐</span></p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が回答し、プレミアムナレッジに反映されます</p>
+                  </div>
+                  <span className="text-gray-300 dark:text-gray-600">↗</span>
+                </a>
+              )}
               <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="text-xl">📖</span>
                 <div className="flex-1 min-w-0">
