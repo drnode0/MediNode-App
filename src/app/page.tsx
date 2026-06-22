@@ -2113,15 +2113,21 @@ function usePremiumPaymentMode() {
 // 登録済みユーザー向けの解約案内。
 // STRIPE_PORTAL_URL があれば Stripe カスタマーポータルへのリンク、
 // なければメール問い合わせにフォールバックする（壊れたリンクを出さない）。
-function PremiumCancelInfo() {
+function PremiumCancelInfo({ trial = false }: { trial?: boolean }) {
   const mode = usePremiumPaymentMode()
   const portalUrl = mode?.portalUrl || ''
   // 衝動的な解約を防ぐため、ボタン → 確認ダイアログ（ワンクッション）→ ポータル の順にする。
   const [confirming, setConfirming] = useState(false)
   return (
     <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">解約するには</p>
-      <p className="text-xs text-gray-400 dark:text-gray-500">解約後も次回請求日まで利用できます。</p>
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+        {trial ? '解約・契約を管理するには' : '解約するには'}
+      </p>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        {trial
+          ? 'トライアル期間中に解約すれば料金はかかりません。カード未登録（コード）でのお試しは、期限が来れば自動で終了します。'
+          : '解約後も次回請求日まで利用できます。'}
+      </p>
       {portalUrl ? (
         !confirming ? (
           <button
@@ -2317,16 +2323,19 @@ function PremiumCheckoutButtonInline() {
   )
 }
 
+type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | 'help' | 'announcements' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
 type SettingsPanelProps = {
   onClose: () => void
   onReset: () => void
   onRedo: () => void
   onRedoFromNotion: () => void
   currentMode: string
+  // 開いたとき最初に表示するセクション（例: アカウントメニューから「プレミアム設定」を開く）。
+  initialSection?: SettingsPanelSection
 }
-function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode }: SettingsPanelProps) {
-  type Section = null | 'notion' | 'team' | 'subscription' | 'help' | 'announcements' | 'redo-confirm' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
-  const [section, setSection] = useState<Section>(null)
+function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode, initialSection = null }: SettingsPanelProps) {
+  type Section = SettingsPanelSection
+  const [section, setSection] = useState<Section>(initialSection)
 
   // セクション別編集フォーム
   const s0 = getSettings()
@@ -2611,15 +2620,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               </button>
 
               {/* ── 危険ゾーン ── */}
+              {/* 「🔄 セットアップをやり直す」は削除。動作が「🔀 モードを変更する」と
+                  完全に同一（どちらも onRedo＝SetupWizard先頭へ）で重複していたため。
+                  DB接続の変更は上の「Notion・Algolia接続設定」または
+                  「📋 NotionDBをセットアップする」で完結する（ログイン不要）。 */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">その他</p>
-              <button onClick={() => setSection('redo-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-left">
-                <span className="text-xl">🔄</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">セットアップをやり直す</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">現在の設定値を保持したまま再設定</p>
-                </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
-              </button>
               <button onClick={() => setSection('reset-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
                 <span className="text-xl">🗑</span>
                 <div className="flex-1 min-w-0">
@@ -2763,12 +2768,18 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   return (
                     <div className="space-y-3">
                       {isTrial ? (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
-                          <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
-                          <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額・価格は準備中）へお進みください。</p>
-                          <div className="pt-2"><PremiumCheckoutButtonInline /></div>
-                        </div>
+                        <>
+                          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
+                            <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
+                            <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額・価格は準備中）へお進みください。</p>
+                            <div className="pt-2"><PremiumCheckoutButtonInline /></div>
+                          </div>
+                          {/* トライアル中でも「やめたい/管理したい」人の導線を確保。
+                              カード登録済み（Checkout経由）ならポータルで解約でき、
+                              ポータル未設定やコード式トライアルはメール問い合わせにフォールバックする。 */}
+                          <PremiumCancelInfo trial />
+                        </>
                       ) : (
                         <>
                           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
@@ -3040,19 +3051,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             </div>
           )}
 
-          {/* ── セットアップをやり直す確認 ── */}
-          {section === 'redo-confirm' && (
-            <div className="space-y-4">
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300 space-y-1">
-                <p className="font-bold">🔄 セットアップをやり直しますか？</p>
-                <p className="text-xs">現在入力しているAPIキーやDB設定は保持されます。モードの変更や入力し直しができます。</p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
-                <button onClick={() => { onClose(); onRedo() }} className="flex-1 bg-amber-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-amber-600 transition-colors">やり直す</button>
-              </div>
-            </div>
-          )}
+          {/* 「redo-confirm」確認画面は削除（上記「🔄 セットアップをやり直す」ボタン廃止に伴う）。
+              同等機能は「🔀 モードを変更する」(mode-confirm) が担う。 */}
 
           {/* ── 完全削除確認 ── */}
           {section === 'reset-confirm' && (
@@ -3112,8 +3112,22 @@ export default function Home() {
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  // 設定パネルを開くとき最初に表示するセクション（null=トップ一覧）。
+  // アカウント(👤)メニューの「プレミアム設定・解約を開く」から 'subscription' で開く。
+  const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsPanelSection>(null)
   const [premiumActivating, setPremiumActivating] = useState(false)
   const [premiumMessage, setPremiumMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // アカウントメニューからのプレミアム設定オープン要求を購読。
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = () => {
+      setSettingsInitialSection('subscription')
+      setShowSettings(true)
+    }
+    window.addEventListener('medinode:open-premium-settings', handler)
+    return () => window.removeEventListener('medinode:open-premium-settings', handler)
+  }, [])
 
   // Stripe決済完了後の ?premium_session= パラメータを処理してキーを自動取得
   useEffect(() => {
@@ -3331,11 +3345,12 @@ export default function Home() {
 
   const settingsModal = showSettings && (
     <SettingsPanel
-      onClose={() => setShowSettings(false)}
+      onClose={() => { setShowSettings(false); setSettingsInitialSection(null) }}
       onReset={handleReset}
       onRedo={handleRedo}
       onRedoFromNotion={handleRedoFromNotion}
       currentMode={searchMode}
+      initialSection={settingsInitialSection}
     />
   )
 

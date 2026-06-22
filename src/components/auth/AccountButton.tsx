@@ -73,6 +73,20 @@ export function AccountButton() {
                 <p className="text-[11px] text-gray-400">ログイン中のアカウント</p>
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100 break-all">{user.email}</p>
               </div>
+              {/* プレミアムの確認・管理への控えめな導線。
+                  「解約」を主役にせず「管理」入口にとどめ（煽らない）、解約はその先の
+                  ⭐プレミアムタブ内に置く。塗りボタンではなく控えめなテキストリンクにする。
+                  ボタンを押すと設定パネルのプレミアムタブを開くようカスタムイベントを発火。 */}
+              <button
+                onClick={() => {
+                  setShowMenu(false)
+                  // page.tsx 側がこのイベントを購読し、設定パネルのプレミアムタブを開く。
+                  window.dispatchEvent(new CustomEvent('medinode:open-premium-settings'))
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline underline-offset-2"
+              >
+                プレミアムの確認・管理
+              </button>
               <button
                 onClick={async () => {
                   setSigningOut(true)
