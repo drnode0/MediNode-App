@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * プレミアム サブスク Checkout Session 作成
@@ -46,9 +47,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const email = typeof body.email === 'string' ? body.email : undefined
-    // ログイン中ユーザーのID（契約をアカウントに紐付けるため）。未ログインなら undefined。
-    const userId = typeof body.userId === 'string' && body.userId ? body.userId : undefined
+
+    // 契約を紐付けるユーザーIDはセッションから取得する（body渡しは廃止）。
+    // body の userId を信用すると、第三者が任意のアカウントに契約を紐付けられてしまう。
+    // 未ログイン（またはSupabase未設定環境）なら従来どおり紐付けなしで決済だけ通す。
+    let userId: string | undefined
+    let sessionEmail: string | undefined
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          userId = user.id
+          sessionEmail = user.email ?? undefined
+        }
+      } catch {
+        // セッション取得失敗は「未ログイン」として扱う。
+      }
+    }
+    // Checkout画面に事前入力するメール。セッション優先・未ログイン時のみbodyを許容。
+    const email = sessionEmail ?? (typeof body.email === 'string' ? body.email : undefined)
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

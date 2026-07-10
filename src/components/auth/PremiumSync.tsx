@@ -30,6 +30,11 @@ export function PremiumSync() {
     lastSyncedUser.current = user.id
 
     let cancelled = false
+
+    // 初回ログインならウェルカムメールを送る（fire-and-forget・失敗無視）。
+    // 送信済み判定・環境未設定時のno-opはサーバー側で行う。
+    fetch('/api/welcome', { method: 'POST' }).catch(() => {})
+
     ;(async () => {
       try {
         const res = await fetch('/api/premium/status', { cache: 'no-store' })

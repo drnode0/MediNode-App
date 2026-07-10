@@ -1,12 +1,22 @@
 'use client'
 import { useSearchBox } from 'react-instantsearch'
 import { useRef, useState } from 'react'
+import { track } from '@vercel/analytics'
 
 export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {}) {
   const { query, refine } = useSearchBox()
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState(query)
   const composingRef = useRef(false)
+  const trackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Algolia検索の実行計測。refineはキーストローク毎に走るため、
+  // 入力が1.2秒止まったら「1回の検索」としてカウントする（キーワードは送らない）。
+  const trackSearch = (value: string) => {
+    if (trackTimerRef.current) clearTimeout(trackTimerRef.current)
+    if (!value.trim()) return
+    trackTimerRef.current = setTimeout(() => track('search_exec', { engine: 'algolia' }), 1200)
+  }
 
   return (
     <div className="relative">
@@ -23,12 +33,14 @@ export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {})
           setInputValue(e.target.value)
           if (!composingRef.current) {
             refine(e.target.value)
+            trackSearch(e.target.value)
           }
         }}
         onCompositionStart={() => { composingRef.current = true }}
         onCompositionEnd={(e) => {
           composingRef.current = false
           refine((e.target as HTMLInputElement).value)
+          trackSearch((e.target as HTMLInputElement).value)
         }}
         onKeyDown={(e) => {
           // 日本語変換確定中のEnterは検索確定としない
