@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveStatusByUserId } from '@/lib/supabase/subscriptions'
+import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 
 export async function GET() {
   const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -58,11 +59,23 @@ export async function GET() {
     })
   }
 
+  // S-4: 生の共有キーではなく、有効期限付きの Secured API Key を配布する。
+  // 期限は日単位でグリッド化されており、同じ日のうちは同じキーが返る
+  // （PremiumSync の「キー変更時のみ保存＆リロード」が日1回しか発火しない）。
+  // 漏えいしても数日で失効し、ログイン中のユーザーはこのAPIで自動更新され続ける。
   return NextResponse.json({
     loggedIn: true,
     active: true,
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
-    algolia: { appId: algoliaAppId, searchKey: algoliaSearchKey, index: algoliaIndex },
+    algolia: {
+      appId: algoliaAppId,
+      searchKey: issuePremiumSearchKey({
+        appId: algoliaAppId,
+        parentSearchKey: algoliaSearchKey,
+        index: algoliaIndex,
+      }),
+      index: algoliaIndex,
+    },
   })
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 
 /**
  * プレミアム サブスク 検証 & Algoliaキー配布
@@ -100,7 +101,12 @@ export async function POST(req: NextRequest) {
       linkedToAccount: !!(supabaseReady && userId),
       algolia: {
         appId: algoliaAppId,
-        searchKey: algoliaSearchKey,
+        // S-4: 短命の Secured API Key を配布（ログイン中は /api/premium/status が自動更新）。
+        searchKey: issuePremiumSearchKey({
+          appId: algoliaAppId,
+          parentSearchKey: algoliaSearchKey,
+          index: algoliaIndex,
+        }),
         index: algoliaIndex,
       },
     })
