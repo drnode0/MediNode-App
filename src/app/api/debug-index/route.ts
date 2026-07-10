@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import algoliasearch from 'algoliasearch'
+import { requireAdminSession } from '@/lib/api-guard'
 
 export async function POST(req: NextRequest) {
+  // デバッグ専用エンドポイント。任意の Algolia Admin キーで代理リクエストできてしまうため、
+  // REQUIRE_LOGIN の値に関係なく常にオーナー（COMP_ADMIN_EMAILS）のみに制限する。
+  const denied = await requireAdminSession()
+  if (denied) return denied
   try {
     const { algoliaAppId, algoliaAdminKey, algoliaIndex } = await req.json()
     if (!algoliaAppId || !algoliaAdminKey) {

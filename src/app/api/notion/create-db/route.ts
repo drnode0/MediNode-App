@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 
 // Medical DBのスキーマ定義
@@ -60,6 +61,11 @@ const REFERENCE_DB_PROPERTIES = {
 }
 
 export async function POST(req: NextRequest) {
+  // REQUIRE_LOGIN 有効時はセッション必須（S-3: middlewareに依存しない二重ゲート。
+  // 未ログインで叩ける「任意トークンの代理リクエスト」＝オープンプロキシ化を防ぐ）。
+  const denied = await requireSessionIfLoginRequired()
+  if (denied) return denied
+
   try {
     const { notionToken, parentPageId, dbType } = await req.json()
 

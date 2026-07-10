@@ -1,0 +1,55 @@
+// データ系 API のアクセス制御（S-3: middleware ゲートだけに依存しない二重化）。
+//
+// proxy.ts の REQUIRE_LOGIN ゲートは「ページ表示」のみ対象で、/api/* は matcher から
+// 除外されている。さらに Next.js の middleware 層には過去に認証バイパス脆弱性
+// （例: CVE-2025-29927）が出ているため、route handler 内でも独立にセッションを検証する。
+//
+// REQUIRE_LOGIN=true のときだけ有効（モニター期・ローカル開発では従来どおり素通し）。
+// 同一オリジンの fetch は Supabase セッション Cookie を自動送信するため、
+// ログイン済みクライアントの呼び出しはそのまま通る。
+
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+// REQUIRE_LOGIN=true なら Supabase セッションを検証し、未ログインは 401 を返す。
+// 通過時は null を返す（呼び出し側は `const denied = await requireSessionIfLoginRequired(); if (denied) return denied` の形で使う）。
+export async function requireSessionIfLoginRequired(): Promise<NextResponse | null> {
+  if (process.env.REQUIRE_LOGIN !== 'true') return null
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Supabase 未設定の環境では検証しようがない（ローカル等）。ゲートは proxy 側と同様に無効化。
+  if (!url || !anonKey) return null
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'login_required' }, { status: 401 })
+  }
+  return null
+}
+
+// 管理者（COMP_ADMIN_EMAILS）専用ガード。デバッグ用エンドポイント等、
+// REQUIRE_LOGIN の値に関係なく常にオーナーのみに制限したい場所で使う。
+export async function requireAdminSession(): Promise<NextResponse | null> {
+  const supabaseReady = !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+  if (!supabaseReady) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'login_required' }, { status: 401 })
+  }
+  const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+  return null
+}
