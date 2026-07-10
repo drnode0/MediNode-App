@@ -1,6 +1,7 @@
 'use client'
 import { InstantSearch, Configure, useHits, useSearchBox } from 'react-instantsearch'
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react'
+import { track } from '@vercel/analytics'
 import {
   createSearchClient,
   getIndexName,
@@ -1257,6 +1258,8 @@ function useNotionSearch(mode: Tab) {
       return
     }
     debounceRef.current = setTimeout(() => {
+      // 検索実行の計測（デバウンス後＝実際にAPIへ飛ぶ回数と一致）。
+      track('search_exec', { engine: 'notion', mode })
       fetch(keyword, { mode: mode === 'manual' ? 'manual' : 'search' })
     }, 600)
   }, [fetch, mode])
@@ -3343,7 +3346,11 @@ export default function Home() {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id)
+                // 機能利用の実態把握用（どのタブが使われているか）。
+                track('tab_switch', { tab: t.id })
+              }}
               className={`shrink-0 flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                 tab === t.id
                   ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'

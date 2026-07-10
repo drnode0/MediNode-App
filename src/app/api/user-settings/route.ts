@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { encryptSettings, decryptSettings, isCryptoReady } from '@/lib/crypto'
+import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
 
 function supabaseReady(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -47,11 +47,27 @@ export async function GET() {
   }
 
   try {
-    const json = decryptSettings(data.settings_enc)
+    const { json, needsReencrypt } = decryptSettingsDetailed(data.settings_enc)
     const settings = JSON.parse(json)
+
+    // 鍵ローテーションの遅延移行: 旧鍵・旧形式で復号できた行は、この場で現行鍵の
+    // v2形式に暗号化し直して保存する（best-effort。失敗しても読み取りは成功させる）。
+    // 全ユーザーが次回アクセスで自動移行するため、user_settings の全消しが不要になる。
+    if (needsReencrypt) {
+      try {
+        const { error: reencErr } = await admin
+          .from('user_settings')
+          .update({ settings_enc: encryptSettings(json) })
+          .eq('user_id', user.id)
+        if (reencErr) console.error('user-settings: 再暗号化保存に失敗:', reencErr.message)
+      } catch (e) {
+        console.error('user-settings: 再暗号化に失敗:', e instanceof Error ? e.message : e)
+      }
+    }
+
     return NextResponse.json({ loggedIn: true, settings, updatedAt: data.updated_at })
   } catch {
-    // 復号失敗（鍵ローテーション等）。設定なし扱いにしてローカルを優先させる。
+    // 復号失敗（旧鍵も不一致等）。設定なし扱いにしてローカルを優先させる。
     return NextResponse.json({ loggedIn: true, settings: null, reason: 'decrypt_failed' })
   }
 }
