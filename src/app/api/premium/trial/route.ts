@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { grantComplimentaryByUserId, grantTrialByUserId } from '@/lib/supabase/subscriptions'
 import { notifyCompGranted } from '@/lib/comp-notify'
+import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 
 /**
  * プレミアム 無料トライアル（クーポンコード式・カード不要）
@@ -32,6 +34,15 @@ import { notifyCompGranted } from '@/lib/comp-notify'
  *   - SUBSCRIPTION_ALGOLIA_INDEX      ... サブスク用インデックス名
  */
 export async function POST(req: NextRequest) {
+  // S-5: 共有コードの総当たり対策。IP単位で 10回/10分 まで（正規ユーザーの
+  // 入力ミス数回は許容しつつ、機械的な列挙を止める）。
+  if (!rateLimit(`trial:${clientIp(req)}`, 10, 10 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: '試行回数が多すぎます。しばらく待ってからお試しください' },
+      { status: 429 },
+    )
+  }
+
   const trialCode = process.env.PREMIUM_TRIAL_CODE || ''
   const trialDays = Number(process.env.PREMIUM_TRIAL_DAYS || '14')
   const inviteCodes = (process.env.COMP_INVITE_CODES || '')
@@ -83,10 +94,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         comp: true,
-        trialEndsAt: null, // 無期限
+        trialEndsAt: null, // 無期限（キー自体は短命。ログイン中は PremiumSync が自動更新する）
         algolia: {
           appId: algoliaAppId,
-          searchKey: algoliaSearchKey,
+          searchKey: issuePremiumSearchKey({
+            appId: algoliaAppId,
+            parentSearchKey: algoliaSearchKey,
+            index: algoliaIndex,
+          }),
           index: algoliaIndex,
         },
       })
@@ -115,10 +130,15 @@ export async function POST(req: NextRequest) {
         ok: true,
         trial: true,
         trialDays: days,
-        trialEndsAt, // この日時を過ぎるとサーバーが失効させる
+        trialEndsAt, // この日時を過ぎるとサーバーが失効させる（キーも同時刻で暗号的に失効）
         algolia: {
           appId: algoliaAppId,
-          searchKey: algoliaSearchKey,
+          searchKey: issuePremiumSearchKey({
+            appId: algoliaAppId,
+            parentSearchKey: algoliaSearchKey,
+            index: algoliaIndex,
+            expiresAt: trialEndsAt,
+          }),
           index: algoliaIndex,
         },
       })
@@ -139,7 +159,14 @@ export async function POST(req: NextRequest) {
       trialEndsAt,
       algolia: {
         appId: algoliaAppId,
-        searchKey: algoliaSearchKey,
+        // S-4: 期限をキー自体に埋め込む。localStorage の trialEndsAt を改ざんしても
+        // 期限を過ぎたキーでは Algolia 検索自体が通らない。
+        searchKey: issuePremiumSearchKey({
+          appId: algoliaAppId,
+          parentSearchKey: algoliaSearchKey,
+          index: algoliaIndex,
+          expiresAt: trialEndsAt,
+        }),
         index: algoliaIndex,
       },
     })

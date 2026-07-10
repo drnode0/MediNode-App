@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 
 const MEDICAL_REQUIRED = ['名前', 'ジャンル', '知識レベル', '要約', 'キーワード']
 const REFERENCE_REQUIRED = ['名前', '著者', 'ジャーナル名', '発行年', 'エビデンスレベル', '要約', 'キーワード']
 
 export async function POST(req: NextRequest) {
+  // REQUIRE_LOGIN 有効時はセッション必須（S-3: middlewareに依存しない二重ゲート。
+  // 未ログインで叩ける「任意トークンの代理リクエスト」＝オープンプロキシ化を防ぐ）。
+  const denied = await requireSessionIfLoginRequired()
+  if (denied) return denied
+
   try {
     const { notionToken, notionMedicalDbId, notionReferenceDbId } = await req.json()
     if (!notionToken || !notionMedicalDbId) {
