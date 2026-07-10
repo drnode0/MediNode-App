@@ -73,6 +73,12 @@ function matchesKeyword(record: NotionRecord, keyword: string): boolean {
   return terms.every((term) => haystack.includes(term))
 }
 
+// 全件スキャン系（キーワード検索・クイズ・ジャンル）の安全上限。
+// Notion APIは100件/頁のため、15頁=1500件を超えるDBはそれ以降を対象外にする
+// （Notion API往復の累積によるVercelタイムアウト保護。大規模DBには
+//  Algolia検索＝パワーモード/プレミアムの利用を案内する既定路線）。
+const MAX_SCAN_PAGES = 15
+
 type NotionRecord = {
   objectID: string
   source: 'medical' | 'reference' | 'manual'
@@ -231,6 +237,7 @@ async function queryDb(
   // 絞り込む（型・プロパティ名に依存しない堅牢版。ジャンル/クイズと同方針）。
   const matched: NotionRecord[] = []
   let pageCursor: string | undefined = undefined
+  let pagesScanned = 0
   do {
     const res = await notion.databases.query({
       database_id: dbId,
@@ -238,12 +245,13 @@ async function queryDb(
       page_size: 100,
       start_cursor: pageCursor,
     })
+    pagesScanned++
     const mapped = mapPagesToRecords(res.results as Array<Record<string, unknown>>, source, owner)
     for (const r of mapped) {
       if (matchesKeyword(r, keyword)) matched.push(r)
       if (matched.length >= pageSize) break
     }
-    if (matched.length >= pageSize) break
+    if (matched.length >= pageSize || pagesScanned >= MAX_SCAN_PAGES) break
     pageCursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (pageCursor)
 
@@ -266,12 +274,14 @@ async function fetchQuizRecords(
   // クライアントと同じ条件をJS側で判定する（型に依存しない堅牢版）。
   const records: NotionRecord[] = []
   let cursor: string | undefined = undefined
+  let pagesScanned = 0
   do {
     const res = await notion.databases.query({
       database_id: dbId,
       page_size: 100,
       start_cursor: cursor,
     })
+    pagesScanned++
     for (const page of res.results) {
       if (page.object !== 'page') continue
       const p = page as Record<string, unknown>
@@ -305,6 +315,7 @@ async function fetchQuizRecords(
         notionUrl: (p.url as string) || '',
       })
     }
+    if (pagesScanned >= MAX_SCAN_PAGES) break
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
   return records
@@ -327,6 +338,7 @@ async function fetchBrowseRecords(
   // そのため型固有フィルタは使わず、全件取得してから genreList でJS側で絞り込む。
   const records: NotionRecord[] = []
   let pageCursor: string | undefined = cursor
+  let pagesScanned = 0
   do {
     const res = await notion.databases.query({
       database_id: dbId,
@@ -334,6 +346,7 @@ async function fetchBrowseRecords(
       page_size: 100,
       start_cursor: pageCursor,
     })
+    pagesScanned++
     for (const page of res.results) {
       if (page.object !== 'page') continue
       const p = page as Record<string, unknown>
@@ -387,7 +400,7 @@ async function fetchBrowseRecords(
       }
       if (records.length >= pageSize) break
     }
-    if (records.length >= pageSize) break
+    if (records.length >= pageSize || pagesScanned >= MAX_SCAN_PAGES) break
     pageCursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (pageCursor)
   return records
@@ -433,55 +446,42 @@ export async function POST(req: NextRequest) {
     const teamNotion = hasTeam ? new Client({ auth: teamNotionToken }) : null
     const records: NotionRecord[] = []
 
+    // 個人・部署の各DBクエリは互いに独立なので Promise.all で並列実行する
+    // （従来は直列awaitで、DB4つ構成だと応答時間が最大4倍になっていた）。
+    // 表示順を保つため、結果は「個人medical → 個人reference → 部署medical → 部署reference」
+    // の順で records に詰める。
     if (mode === 'recent') {
       // 新着：最新50件（keyword不要）
-      if (!teamOnly) {
-        const { records: medRecords } = await queryDb(notion!, notionMedicalDbId, 'medical', '', 50)
-        records.push(...medRecords)
-        if (notionReferenceDbId) {
-          const { records: refRecords } = await queryDb(notion!, notionReferenceDbId, 'reference', '', 20)
-          records.push(...refRecords)
-        }
-      }
-      // 部署DB
-      if (teamNotion && teamNotionMedicalDbId) {
-        const { records: teamMed } = await queryDb(teamNotion, teamNotionMedicalDbId, 'medical', '', 50, undefined, 'team')
-        records.push(...teamMed)
-        if (teamNotionReferenceDbId) {
-          const { records: teamRef } = await queryDb(teamNotion, teamNotionReferenceDbId, 'reference', '', 20, undefined, 'team')
-          records.push(...teamRef)
-        }
+      const [med, ref, teamMed, teamRef] = await Promise.all([
+        !teamOnly ? queryDb(notion!, notionMedicalDbId, 'medical', '', 50) : null,
+        !teamOnly && notionReferenceDbId ? queryDb(notion!, notionReferenceDbId, 'reference', '', 20) : null,
+        teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', '', 50, undefined, 'team') : null,
+        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', '', 20, undefined, 'team') : null,
+      ])
+      for (const r of [med, ref, teamMed, teamRef]) {
+        if (r) records.push(...r.records)
       }
       // createdAt降順でソート
       records.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
     } else if (mode === 'quiz') {
       // クイズ：知識レベルが「ナレッジ系」かつ要約ありのもの
-      if (!teamOnly) {
-        const personalQuiz = await fetchQuizRecords(notion!, notionMedicalDbId, 'personal')
-        records.push(...personalQuiz)
-      }
-      if (teamNotion && teamNotionMedicalDbId) {
-        const teamQuiz = await fetchQuizRecords(teamNotion, teamNotionMedicalDbId, 'team')
-        records.push(...teamQuiz)
-      }
+      const [personalQuiz, teamQuiz] = await Promise.all([
+        !teamOnly ? fetchQuizRecords(notion!, notionMedicalDbId, 'personal') : null,
+        teamNotion && teamNotionMedicalDbId ? fetchQuizRecords(teamNotion, teamNotionMedicalDbId, 'team') : null,
+      ])
+      if (personalQuiz) records.push(...personalQuiz)
+      if (teamQuiz) records.push(...teamQuiz)
     } else if (mode === 'browse') {
       // ジャンル別：genreで絞り込み（multi_select: contains を使用）
       // Medical / Reference の両DBから取得し、ジャンルタブで横断表示する。
-      if (!teamOnly) {
-        const personalBrowse = await fetchBrowseRecords(notion!, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor)
-        records.push(...personalBrowse)
-        if (notionReferenceDbId) {
-          const personalRefBrowse = await fetchBrowseRecords(notion!, notionReferenceDbId, genre, pageSize, 'personal', 'reference')
-          records.push(...personalRefBrowse)
-        }
-      }
-      if (teamNotion && teamNotionMedicalDbId) {
-        const teamBrowse = await fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team', 'medical')
-        records.push(...teamBrowse)
-        if (teamNotionReferenceDbId) {
-          const teamRefBrowse = await fetchBrowseRecords(teamNotion, teamNotionReferenceDbId, genre, pageSize, 'team', 'reference')
-          records.push(...teamRefBrowse)
-        }
+      const [pMed, pRef, tMed, tRef] = await Promise.all([
+        !teamOnly ? fetchBrowseRecords(notion!, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor) : null,
+        !teamOnly && notionReferenceDbId ? fetchBrowseRecords(notion!, notionReferenceDbId, genre, pageSize, 'personal', 'reference') : null,
+        teamNotion && teamNotionMedicalDbId ? fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team', 'medical') : null,
+        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? fetchBrowseRecords(teamNotion, teamNotionReferenceDbId, genre, pageSize, 'team', 'reference') : null,
+      ])
+      for (const r of [pMed, pRef, tMed, tRef]) {
+        if (r) records.push(...r)
       }
     } else if (mode === 'manual') {
       // マニュアルタブ：マニュアル・お知らせ・業務改善DB（個人・部署）を取得。
@@ -492,24 +492,25 @@ export async function POST(req: NextRequest) {
       // もう片方は表示できるよう、個人・部署を個別にtry-catchする。両方失敗時のみエラー化。
       const manualErrors: string[] = []
       let attempted = 0
-      if (!teamOnly && notionManualDbId && notion) {
-        attempted++
-        try {
-          const { records: manualRecs } = await queryDb(notion, notionManualDbId, 'manual', keyword, pageSize, cursor, 'personal')
-          records.push(...manualRecs)
-        } catch (e) {
-          manualErrors.push(`個人マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
-        }
-      }
-      if (teamNotion && teamNotionManualDbId) {
-        attempted++
-        try {
-          const { records: teamManual } = await queryDb(teamNotion, teamNotionManualDbId, 'manual', keyword, pageSize, undefined, 'team')
-          records.push(...teamManual)
-        } catch (e) {
-          manualErrors.push(`部署マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
-        }
-      }
+      // 個人・部署とも個別にtry-catchしつつ並列で取得する（片方失敗でも他方は表示）。
+      const [personalManual, teamManual] = await Promise.all([
+        !teamOnly && notionManualDbId && notion
+          ? (attempted++,
+            queryDb(notion, notionManualDbId, 'manual', keyword, pageSize, cursor, 'personal').catch((e) => {
+              manualErrors.push(`個人マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
+              return null
+            }))
+          : null,
+        teamNotion && teamNotionManualDbId
+          ? (attempted++,
+            queryDb(teamNotion, teamNotionManualDbId, 'manual', keyword, pageSize, undefined, 'team').catch((e) => {
+              manualErrors.push(`部署マニュアルDB: ${e instanceof Error ? e.message : '取得失敗'}`)
+              return null
+            }))
+          : null,
+      ])
+      if (personalManual) records.push(...personalManual.records)
+      if (teamManual) records.push(...teamManual.records)
       // 設定したDBがすべて失敗した場合のみエラーを返す（片方成功なら表示を優先）。
       if (attempted > 0 && manualErrors.length === attempted) {
         return NextResponse.json({ error: manualErrors.join(' / ') }, { status: 500 })
@@ -519,22 +520,14 @@ export async function POST(req: NextRequest) {
     } else {
       // 通常検索（keyword必須）
       if (keyword.trim()) {
-        if (!teamOnly) {
-          const { records: medRecords } = await queryDb(notion!, notionMedicalDbId, 'medical', keyword, pageSize, cursor)
-          records.push(...medRecords)
-          if (notionReferenceDbId) {
-            const { records: refRecords } = await queryDb(notion!, notionReferenceDbId, 'reference', keyword, 20)
-            records.push(...refRecords)
-          }
-        }
-        // 部署DB
-        if (teamNotion && teamNotionMedicalDbId) {
-          const { records: teamMed } = await queryDb(teamNotion, teamNotionMedicalDbId, 'medical', keyword, pageSize, undefined, 'team')
-          records.push(...teamMed)
-          if (teamNotionReferenceDbId) {
-            const { records: teamRef } = await queryDb(teamNotion, teamNotionReferenceDbId, 'reference', keyword, 20, undefined, 'team')
-            records.push(...teamRef)
-          }
+        const [med, ref, teamMed, teamRef] = await Promise.all([
+          !teamOnly ? queryDb(notion!, notionMedicalDbId, 'medical', keyword, pageSize, cursor) : null,
+          !teamOnly && notionReferenceDbId ? queryDb(notion!, notionReferenceDbId, 'reference', keyword, 20) : null,
+          teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', keyword, pageSize, undefined, 'team') : null,
+          teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', keyword, 20, undefined, 'team') : null,
+        ])
+        for (const r of [med, ref, teamMed, teamRef]) {
+          if (r) records.push(...r.records)
         }
       }
     }
