@@ -5,11 +5,20 @@ import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// オープンリダイレクト防止: 同一サイト内の相対パスのみ許可する（LoginClient と同じ規則）。
+// "/" 始まり以外（".evil.com" 等は origin と連結するとホストが変わる）と
+// "//" 始まり（プロトコル相対URL）を拒否する。
+function safeNext(raw: string | null): string {
+  if (!raw) return '/'
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw
+  return '/'
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
-  const next = searchParams.get('next') ?? '/'
+  const next = safeNext(searchParams.get('next'))
 
   // Supabaseが直接エラーを付けてくるケース（リンク期限切れ等）。
   const incomingError = searchParams.get('error_description') || searchParams.get('error')
