@@ -91,7 +91,8 @@ function UpdateBanner() {
         <span className="text-xl shrink-0">{LATEST_ANNOUNCEMENT.emoji}</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
-          <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed">{LATEST_ANNOUNCEMENT.body}</p>
+          {/* line-clamp-2: 長文お知らせが初回画面を占拠しないよう2行まで。全文は設定→お知らせ・更新履歴で読める */}
+          <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed line-clamp-2">{LATEST_ANNOUNCEMENT.body}</p>
           <div className="flex flex-wrap gap-2 mt-2">
             {(LATEST_ANNOUNCEMENT.links || []).map((lk) => (
               <a
@@ -962,7 +963,7 @@ function SubscriptionPromoPanel() {
           🎁 最初の1週間は無料
         </p>
         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-          月額<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（価格は準備中）</span>
+          月額980円<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500">無料トライアル後に課金開始・いつでも解約できます</p>
       </div>
@@ -977,7 +978,7 @@ function SubscriptionPromoPanel() {
         {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 1週間無料で試す →'}
       </button>
       <p className="text-[11px] text-gray-400 dark:text-gray-500">
-        トライアル期間中は無料。終了後に月額料金（価格は準備中）が課金されます。いつでも解約できます。
+        トライアル期間中は無料。終了後に月額料金980円（税込）が課金されます。いつでも解約できます。
       </p>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         既に会員の方は設定画面から「プレミアムDB」セクションで登録を確認してください
@@ -991,6 +992,84 @@ function SubscriptionPromoPanel() {
         <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
         <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
       </p>
+    </div>
+  )
+}
+
+// エラー表示から設定パネルを開くためのコンテキスト。
+// タブコンポーネントが深いため、propsのバケツリレーを避けて配布する。
+const OpenSettingsContext = createContext<(() => void) | null>(null)
+
+// Notion API等の生エラー（英語）を、対処つきの日本語メッセージへ変換する。
+// action: 'settings' はエラー表示に「⚙️ 接続設定を確認する」ボタンを出す。
+function humanizeSearchError(raw: string): {
+  message: string
+  hint: string | null
+  action: 'settings' | null
+} {
+  const msg = raw || ''
+  if (/API token is invalid|invalid_token|unauthorized|401/i.test(msg)) {
+    return {
+      message: 'Notionコネクトのトークンが無効です',
+      hint: '設定からトークンを再入力してください（notion.so/my-integrations で再コピーできます）',
+      action: 'settings',
+    }
+  }
+  if (/object_not_found|Could not find database|404/i.test(msg)) {
+    return {
+      message: '設定されたNotionデータベースが見つかりません',
+      hint: 'DBのURL・IDが正しいか、設定から確認してください',
+      action: 'settings',
+    }
+  }
+  if (/restricted_resource|403/.test(msg)) {
+    return {
+      message: 'NotionのDBへのアクセス権がありません',
+      hint: 'NotionでDBを開き、右上「…」→「コネクト」からMediNode用コネクトを追加してください',
+      action: 'settings',
+    }
+  }
+  if (/login_required/.test(msg)) {
+    return {
+      message: 'ログインが必要です',
+      hint: '画面右上の「ログイン」からログインし直してください',
+      action: null,
+    }
+  }
+  if (/rate.?limit|429|Too Many/i.test(msg)) {
+    return {
+      message: 'アクセスが集中しています',
+      hint: '少し時間をおいてから、もう一度お試しください',
+      action: null,
+    }
+  }
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) {
+    return {
+      message: 'ネットワークエラーが発生しました',
+      hint: '通信環境を確認して、もう一度お試しください',
+      action: null,
+    }
+  }
+  // 未知のエラーは原文をそのまま出す（隠すと切り分けできなくなるため）。
+  return { message: msg, hint: null, action: null }
+}
+
+// 検索系タブ共通のエラー表示。日本語の対処メッセージ＋接続設定への導線。
+function SearchErrorNotice({ error }: { error: string }) {
+  const openSettings = useContext(OpenSettingsContext)
+  const { message, hint, action } = humanizeSearchError(error)
+  return (
+    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 space-y-2">
+      <p className="text-sm font-semibold text-red-700 dark:text-red-300">⚠️ {message}</p>
+      {hint && <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{hint}</p>}
+      {action === 'settings' && openSettings && (
+        <button
+          onClick={openSettings}
+          className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+        >
+          ⚙️ 接続設定を確認する
+        </button>
+      )}
     </div>
   )
 }
@@ -1398,19 +1477,39 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>Notionを検索中...</div>}
-      {error && <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {error && <SearchErrorNotice error={error} />}
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
       ) : !query && !hasSearched ? (
-        <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
-      ) : !loading && merged.length === 0 && query ? (
+        <>
+          <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
+          {/* 履歴ゼロ（初回）の白紙画面を防ぐ: 例示キーワードをタップで即検索できるようにする */}
+          {history.length === 0 && (
+            <div className="text-center py-10">
+              <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">例えばこんなキーワードで検索できます</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {['敗血症', '人工呼吸', '抗菌薬', '電解質', '鎮静'].map((kw) => (
+                  <button
+                    key={kw}
+                    onClick={() => { addHistory(kw); handleChange(kw) }}
+                    className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-blue-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    🔍 {kw}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-300 dark:text-gray-600 mt-4">タイトルだけでなく要約・キーワードからもヒットします</p>
+            </div>
+          )}
+        </>
+      ) : !loading && !error && merged.length === 0 && query ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <p className="text-lg">該当なし</p>
           <p className="text-sm mt-1">別のキーワードで試してください</p>
         </div>
       ) : (
         <>
-          {query && <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>}
+          {query && !error && <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>}
           <div className="space-y-3">
             {merged.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
           </div>
@@ -1994,7 +2093,7 @@ function NotionManualTab() {
         </div>
       </div>
       {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>}
-      {error && <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {error && <SearchErrorNotice error={error} />}
       {!loading && !error && filtered.length === 0 ? (
         <div className="text-center py-14 px-4">
           <div className="text-5xl mb-4">📋</div>
@@ -2261,7 +2360,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の1週間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
         </p>
       </div>
     )
@@ -2787,7 +2886,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                           <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
                             <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
                             <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額・価格は準備中）へお進みください。</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額980円・税込）へお進みください。</p>
                             <div className="pt-2"><PremiumCheckoutButtonInline /></div>
                           </div>
                           {/* トライアル中でも「やめたい/管理したい」人の導線を確保。
@@ -2812,14 +2911,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     {trialExpired && (
                       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-center space-y-0.5">
                         <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⏰ 無料トライアルが終了しました</p>
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額・価格は準備中）へお進みください。</p>
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額980円・税込）へお進みください。</p>
                       </div>
                     )}
                     {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                     <PremiumValueProps showHeader={false} />
                     <div className="space-y-0.5">
                       <p className="inline-block text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5">🎁 最初の1週間は無料</p>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（価格は準備中）・1週間の無料トライアル後に課金開始・いつでも解約可能</span></p>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額980円<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・1週間の無料トライアル後に課金開始・いつでも解約可能</span></p>
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                       ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
@@ -2834,7 +2933,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                      <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                      <strong>💳 有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                     </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
@@ -2894,7 +2993,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p>🔍 ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
                   <p className="pt-1"><strong>試し方は2通り：</strong></p>
                   <p>🎁 <strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
-                  <p>💳 <strong>有料登録（月額・価格は準備中）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
+                  <p>💳 <strong>有料登録（月額980円・税込）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
                   <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → ⭐ プレミアムDB設定」から行えます。</p>
                 </div>
               </section>
@@ -3380,6 +3479,7 @@ export default function Home() {
   if (searchMode === 'notion') {
     return (
       <SubscriptionSearchProvider enableBridge={true}>
+      <OpenSettingsContext.Provider value={() => setShowSettings(true)}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
@@ -3394,6 +3494,7 @@ export default function Home() {
         </div>
         {settingsModal}
       </div>
+      </OpenSettingsContext.Provider>
       </SubscriptionSearchProvider>
     )
   }
