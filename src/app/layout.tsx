@@ -4,6 +4,7 @@ import { AuthProvider } from '@/components/auth/AuthProvider'
 import { PremiumSync } from '@/components/auth/PremiumSync'
 import { SettingsSync } from '@/components/auth/SettingsSync'
 import { Analytics } from '@vercel/analytics/react'
+import { AnalyticsEvents } from '@/components/AnalyticsEvents'
 
 export const metadata: Metadata = {
   title: 'MediNode',
@@ -38,6 +39,7 @@ export default function RootLayout({
           {children}
         </AuthProvider>
         <Analytics />
+        <AnalyticsEvents />
       </body>
     </html>
   )
