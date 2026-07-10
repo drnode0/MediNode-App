@@ -2437,7 +2437,7 @@ function PremiumCheckoutButtonInline() {
   )
 }
 
-type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | 'help' | 'announcements' | 'reset-confirm' | 'mode-confirm' | 'db-setup-confirm'
+type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | 'help' | 'announcements' | 'reset-confirm' | 'setup-redo'
 type SettingsPanelProps = {
   onClose: () => void
   onReset: () => void
@@ -2636,7 +2636,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <span className="text-xl">🔗</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">APIキー・DBのURLを変更</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">いま使っているAPIキー・DBのURLをその場で修正</p>
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
@@ -2656,19 +2656,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
-              <button onClick={() => setSection('mode-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">🔀</span>
+              <button onClick={() => setSection('setup-redo')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="text-xl">🛠</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">モードを変更する</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">シンプル↔パワーモードの切替・APIキーの再設定</p>
-                </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
-              </button>
-              <button onClick={() => setSection('db-setup-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">📋</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">NotionDBをセットアップする</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">既存DBの接続・テンプレートの複製</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップをやり直す</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">モード切替・DBの新規作成／接続（今の設定は保持）</p>
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
@@ -3182,33 +3174,34 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             </div>
           )}
 
-          {/* ── モード変更確認 ── */}
-          {section === 'mode-confirm' && (
+          {/* ── セットアップやり直し（モード変更・DBセットアップの統合入口） ── */}
+          {section === 'setup-redo' && (
             <div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
-                <p className="font-bold">🔀 モードを変更しますか？</p>
-                <p className="text-xs">セットアップ画面の最初に戻ります。現在のAPIキー・DB設定は保持されるので、必要な箇所だけ変更できます。</p>
+                <p className="font-bold">🛠 何をやり直しますか？</p>
+                <p className="text-xs">どちらもセットアップ画面へ移動します。現在のAPIキー・DB設定は保持されるので、必要な箇所だけ変更できます。</p>
                 <p className="text-xs">現在: <span className="font-semibold">{currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}</span></p>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
-                <button onClick={() => { onClose(); onRedo() }} className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors">モード選択へ</button>
-              </div>
-            </div>
-          )}
-
-          {/* ── DBセットアップ確認 ── */}
-          {section === 'db-setup-confirm' && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
-                <p className="font-bold">📋 NotionDBをセットアップしますか？</p>
-                <p className="text-xs">DB選択画面に移動します。既存のNotionDBを接続するか、テンプレートを複製して新しくDBを作成できます。</p>
-                <p className="text-xs">現在のAPIキー設定は保持されます。</p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setSection(null)} className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
-                <button onClick={() => { onClose(); onRedoFromNotion() }} className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors">DB選択へ</button>
-              </div>
+              <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 transition-all text-left">
+                <span className="text-xl">🔀</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">モードを切り替える</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">シンプル↔パワーモードの変更（モード選択画面へ）</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => { onClose(); onRedoFromNotion() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 transition-all text-left">
+                <span className="text-xl">📋</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">NotionDBを作り直す・つなぎ直す</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">テンプレート複製 or 既存DBの接続（DB選択画面へ）</p>
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">›</span>
+              </button>
+              <button onClick={() => setSection('notion')} className="w-full text-center text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 py-1">
+                APIキーやDBのURLを直すだけなら → 接続設定へ
+              </button>
+              <button onClick={() => setSection(null)} className="w-full border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
             </div>
           )}
         </div>
@@ -3314,7 +3307,9 @@ export default function Home() {
   }
 
   const handleRedo = () => {
-    setSetupInitialStep('entry')
+    // 「モードを切り替える」から来るので、入口分岐ではなくモード選択ステップへ直行する
+    // （targets は初期値 personal:true のため 'mode' ステップは常に存在する）。
+    setSetupInitialStep('mode')
     setSetupDone(false)
   }
 
