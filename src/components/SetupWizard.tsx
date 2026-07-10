@@ -145,7 +145,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額・価格は準備中／最初の1週間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
         </p>
       </div>
     )
@@ -888,7 +888,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="relative text-center mb-8">
-          <div className="mb-3">
+          {/* pt-8: 左上「使い方」・右上「ログイン/ガイド/ヘルプ」は absolute 配置のため、
+              モバイル幅（375px）でロゴと重ならないようロゴをボタン行の下へ落とす。 */}
+          <div className="mb-3 pt-8">
             <img src="/icon-512.png" alt="MediNode" width={64} height={64} className="w-16 h-16 mx-auto rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MediNode</h1>
@@ -1948,7 +1950,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額・価格は準備中・いつでも解約可）へ。
+                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額980円（税込）・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -1972,7 +1974,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                          <strong>💳 有料登録（月額・価格は準備中）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                          <strong>💳 有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                         </p>
                         <PremiumCheckoutButton />
                       </div>
