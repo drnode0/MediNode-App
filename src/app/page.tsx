@@ -1,5 +1,5 @@
 'use client'
-import { InstantSearch, Configure, useHits, useSearchBox } from 'react-instantsearch'
+import { InstantSearch, Configure, useHits, useSearchBox, useInstantSearch } from 'react-instantsearch'
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react'
 import { track } from '@vercel/analytics'
 import {
@@ -887,6 +887,7 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: !hasTeam }] : []),
     { id: 'subscription' as OwnerFilter, label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
   ]
+  const openSettings = useContext(OpenSettingsContext)
   return (
     <div className="mb-2">
       <div className="flex gap-1 flex-wrap">
@@ -908,6 +909,23 @@ function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
           </button>
         ))}
       </div>
+      {/* 部署未接続のまま部署フィルタを選んだ場合の案内（全タブ共通でここに一元実装） */}
+      {owner === 'team' && !hasTeam && (
+        <div className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">🏥 部署の共有DBは未接続です</p>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed">
+            職場で共有しているNotionDBをつなぐと、部署の知識もここで検索できます。代表者から共有された接続情報（トークンとDBのURL）を設定に登録してください。
+          </p>
+          {openSettings && (
+            <button
+              onClick={() => openSettings('team')}
+              className="text-xs font-semibold bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            >
+              ⚙️ 部署DB設定を開く
+            </button>
+          )}
+        </div>
+      )}
       {owner === 'subscription' && hasSubscription && (
         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed mt-1.5">
           ※ 掲載内容は参考情報です。最新性・正確性を保証するものではありません。臨床判断はご自身の責任で行ってください（
@@ -998,7 +1016,8 @@ function SubscriptionPromoPanel() {
 
 // エラー表示から設定パネルを開くためのコンテキスト。
 // タブコンポーネントが深いため、propsのバケツリレーを避けて配布する。
-const OpenSettingsContext = createContext<(() => void) | null>(null)
+// section を渡すと設定パネルの該当セクション（例: 'team'）を直接開ける。
+const OpenSettingsContext = createContext<((section?: SettingsPanelSection) => void) | null>(null)
 
 // Notion API等の生エラー（英語）を、対処つきの日本語メッセージへ変換する。
 // action: 'settings' はエラー表示に「⚙️ 接続設定を確認する」ボタンを出す。
@@ -1064,7 +1083,46 @@ function SearchErrorNotice({ error }: { error: string }) {
       {hint && <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{hint}</p>}
       {action === 'settings' && openSettings && (
         <button
-          onClick={openSettings}
+          onClick={() => openSettings('notion')}
+          className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+        >
+          ⚙️ 接続設定を確認する
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Algolia（パワーモード）の検索エラーを日本語で表示する。
+// InstantSearch はエラーを画面に出さず握りつぶすため（コンソールのみ）、
+// useInstantSearch の error を拾ってユーザーに対処を案内する。
+function AlgoliaSearchErrorNotice() {
+  const { error } = useInstantSearch({ catchError: true })
+  const openSettings = useContext(OpenSettingsContext)
+  if (!error) return null
+  const msg = error.message || ''
+  let message = 'Algolia検索でエラーが発生しました'
+  let hint: string | null = msg
+  let showSettings = false
+  if (/Invalid Application-ID|invalid.*api.?key|401|403/i.test(msg)) {
+    message = 'Algoliaの接続情報が正しくありません'
+    hint = 'App ID / Search API Key を設定から確認・再入力してください'
+    showSettings = true
+  } else if (/does not exist/i.test(msg)) {
+    message = '検索インデックスが見つかりません'
+    hint = 'インデックス名を設定から確認するか、同期（Notion→Algolia）を一度実行してください'
+    showSettings = true
+  } else if (/validUntil|expired/i.test(msg)) {
+    message = 'プレミアム検索キーの有効期限が切れています'
+    hint = 'ログイン中なら画面を再読み込みすると自動で更新されます'
+  }
+  return (
+    <div className="mb-4 bg-red-50 dark:bg-red-900/30 rounded-xl p-4 space-y-2">
+      <p className="text-sm font-semibold text-red-700 dark:text-red-300">⚠️ {message}</p>
+      {hint && <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{hint}</p>}
+      {showSettings && openSettings && (
+        <button
+          onClick={() => openSettings('notion')}
           className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
         >
           ⚙️ 接続設定を確認する
@@ -1892,9 +1950,23 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       ) : genresLoading ? (
         <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンルを読み込み中...</div>
       ) : genresError ? (
-        <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genresError}</div>
+        <SearchErrorNotice error={genresError} />
       ) : sortedGenres.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 dark:text-gray-500"><p className="text-sm">ジャンルが設定されていません</p></div>
+        <div className="text-center py-14 px-4 space-y-4">
+          <div className="text-5xl">🗂</div>
+          <div>
+            <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">ジャンルがまだありません</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">NotionのMedical DBで「ジャンル」プロパティにタグを付けると、ここに一覧が表示されます</p>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 ジャンルの付け方</p>
+            <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
+              <li>Notionで知識ページを開く</li>
+              <li>「ジャンル」プロパティにタグを追加（例: 循環・呼吸・感染）</li>
+              <li>アプリを開き直すと、ここにジャンル一覧が並びます</li>
+            </ol>
+          </div>
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2 mb-2">
@@ -3474,7 +3546,7 @@ export default function Home() {
   if (searchMode === 'notion') {
     return (
       <SubscriptionSearchProvider enableBridge={true}>
-      <OpenSettingsContext.Provider value={() => setShowSettings(true)}>
+      <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
@@ -3526,6 +3598,7 @@ export default function Home() {
 
   return (
     <SubscriptionSearchProvider enableBridge={true}>
+    <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
@@ -3534,6 +3607,7 @@ export default function Home() {
           <SyncPanel />
         </div>
         <div className="max-w-2xl mx-auto px-4 py-4">
+          <AlgoliaSearchErrorNotice />
           {tab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {tab === 'recent' && (
             <RecentTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
@@ -3549,6 +3623,7 @@ export default function Home() {
       </div>
       {settingsModal}
     </InstantSearch>
+    </OpenSettingsContext.Provider>
     </SubscriptionSearchProvider>
   )
 }
