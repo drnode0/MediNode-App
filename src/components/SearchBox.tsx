@@ -15,7 +15,14 @@ export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {})
   const trackSearch = (value: string) => {
     if (trackTimerRef.current) clearTimeout(trackTimerRef.current)
     if (!value.trim()) return
-    trackTimerRef.current = setTimeout(() => track('search_exec', { engine: 'algolia' }), 1200)
+    trackTimerRef.current = setTimeout(() => {
+      track('search_exec', { engine: 'algolia' })
+      // フィードバック促進バナーの表示条件（検索5回）用カウンタ。
+      try {
+        const n = Number(localStorage.getItem('medinode_search_count') || '0') + 1
+        localStorage.setItem('medinode_search_count', String(n))
+      } catch {}
+    }, 1200)
   }
 
   return (
