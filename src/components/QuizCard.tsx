@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { Hit } from './ResultCard'
+import { recordQuizResult } from '@/lib/quiz-srs'
 
 const LEVEL_STYLE: Record<string, string> = {
   '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
@@ -10,6 +11,13 @@ const LEVEL_STYLE: Record<string, string> = {
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [revealed, setRevealed] = useState(false)
+  // 「覚えた／まだ」の自己申告（このカードで申告済みならその結果を保持して表示を変える）。
+  const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
+
+  const answer = (ok: boolean) => {
+    recordQuizResult(hit.objectID, ok)
+    setAnswered(ok ? 'ok' : 'ng')
+  }
   const isMedical = hit.source === 'medical'
   const borderColor = isMedical ? 'border-l-blue-400' : 'border-l-amber-400'
   const displaySummary = hit.aiSummary || hit.summary || null
@@ -57,6 +65,27 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               <p className="text-sm text-gray-400 italic">要約なし</p>
             )}
           </div>
+          {/* 自己申告（簡易・間隔反復）: 記録すると次回の出題順で「まだ」が優先される */}
+          {answered === null ? (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => answer(false)}
+                className="flex-1 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg py-2 transition-colors"
+              >
+                🔁 まだ
+              </button>
+              <button
+                onClick={() => answer(true)}
+                className="flex-1 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg py-2 transition-colors"
+              >
+                ✅ 覚えた
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 mt-3 text-center">
+              {answered === 'ok' ? '✅ 記録しました。次回は後ろの方に出ます' : '🔁 記録しました。次回は優先して出ます'}
+            </p>
+          )}
           <div className="flex items-center justify-between mt-3">
             <button
               onClick={() => setRevealed(false)}

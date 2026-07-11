@@ -2,6 +2,7 @@
 import { InstantSearch, Configure, useHits, useSearchBox, useInstantSearch } from 'react-instantsearch'
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react'
 import { track } from '@vercel/analytics'
+import { weightedQuizOrder } from '@/lib/quiz-srs'
 import {
   createSearchClient,
   getIndexName,
@@ -455,12 +456,8 @@ function QuizHits() {
   })
 
   useEffect(() => {
-    const arr = [...quizCandidates]
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    setShuffled(arr.slice(0, 20))
+    // SRS順（まだ→未学習→覚えた）。各グループ内はシャッフル。
+    setShuffled(weightedQuizOrder(quizCandidates).slice(0, 20))
   }, [quizCandidates.length])
 
   // 知識レベルを1件も設定していないか確認
@@ -785,12 +782,8 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
   }
 
   const reshuffle = (source: Hit[]) => {
-    const arr = [...source]
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    setShuffled(arr.slice(0, 20))
+    // SRS順（まだ→未学習→覚えた）。各グループ内はシャッフル。
+    setShuffled(weightedQuizOrder(source).slice(0, 20))
   }
 
   useEffect(() => {
@@ -1761,12 +1754,8 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   }
 
   const reshuffle = (source: Hit[]) => {
-    const arr = [...source]
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    setShuffled(arr.slice(0, 20))
+    // SRS順（まだ→未学習→覚えた）。各グループ内はシャッフル。
+    setShuffled(weightedQuizOrder(source).slice(0, 20))
   }
 
   useEffect(() => {
