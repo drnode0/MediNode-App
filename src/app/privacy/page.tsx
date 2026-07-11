@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <a
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-6"
+          className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline mb-6"
         >
           ← トップに戻る
         </a>
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
 
         <div className="space-y-8 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
           <section>
-            <p className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-blue-800 dark:text-blue-200">
+            <p className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-brand-800 dark:text-brand-200">
               MediNode（以下「本サービス」）は、利用者のプライバシーを尊重し、個人情報・各種データの
               取り扱いについて以下のとおり定めます。本サービスをご利用いただくことで、本ポリシーに
               同意いただいたものとみなします。
@@ -166,16 +166,16 @@ export default function PrivacyPage() {
             </h2>
             <p>
               本ポリシーに関するお問い合わせは、
-              <a href="mailto:drnode0@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">drnode0@gmail.com</a>
+              <a href="mailto:drnode0@gmail.com" className="text-brand-600 dark:text-brand-400 hover:underline">drnode0@gmail.com</a>
               までご連絡ください。
             </p>
           </section>
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
-          <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
-          <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
-          <a href="/" className="text-blue-600 dark:text-blue-400 hover:underline">トップに戻る</a>
+          <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
+          <a href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</a>
+          <a href="/" className="text-brand-600 dark:text-brand-400 hover:underline">トップに戻る</a>
         </div>
       </div>
     </div>

@@ -2,8 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 組版の土台 ──
+   palt: 日本語の約物・かなを詰めて、見出しの間延びを防ぐ。
+   text-rendering / antialiased は Noto Sans JP を画面で美しく出すため。 */
+body {
+  font-feature-settings: 'palt';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* PWA（viewport-fit=cover）でノッチ・ホームバーに内容が食い込まないようにする */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* ── 触感 ──
+   タップ時の灰色フラッシュ（iOS/Android既定）を消し、
+   ボタン・リンクは transform ベースの press フィードバックに統一する。 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role='button'] {
+  touch-action: manipulation; /* ダブルタップズームの300ms遅延を防ぐ */
+}
+button:active, a:active, [role='button']:active {
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  button:active, a:active, [role='button']:active {
+    transform: none;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 検索ハイライト（ライト/ダーク両対応） */
 mark {
   background-color: #fef08a;
   border-radius: 2px;
   padding: 0 1px;
+}
+@media (prefers-color-scheme: dark) {
+  mark {
+    background-color: #6b5d1f;
+    color: #f5f0dc;
+  }
 }

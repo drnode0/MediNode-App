@@ -14,7 +14,7 @@ function GenreFilter() {
           onClick={() => refine(item.value)}
           className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
             item.isRefined
-              ? 'bg-blue-600 text-white'
+              ? 'bg-brand-600 text-white'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
@@ -37,7 +37,7 @@ function LevelFilter() {
           onClick={() => refine(item.value)}
           className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
             item.isRefined
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-brand-600 text-white'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
@@ -61,7 +61,7 @@ function EmptyState({ query }: { query: string }) {
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
           まず画面下の「🔄 データを再同期する」から同期を行ってください
         </p>
-        <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left text-sm text-blue-700 dark:text-blue-300 max-w-xs mx-auto">
+        <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left text-sm text-brand-700 dark:text-brand-300 max-w-xs mx-auto">
           <p className="font-semibold mb-2">📋 手順</p>
           <ol className="space-y-1 list-decimal list-inside text-xs">
             <li>NotionのDBにデータを入力</li>

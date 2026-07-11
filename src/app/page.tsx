@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext, us
 import { track } from '@vercel/analytics'
 import { weightedQuizOrder } from '@/lib/quiz-srs'
 import {
+  Search, Clock, FolderOpen, BookOpen, Lightbulb, ClipboardList, SlidersHorizontal,
+  Link2, Building2, Star, Wrench, Megaphone, Send, HelpCircle, Trash2, Shuffle, BookMarked,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   createSearchClient,
   getIndexName,
   createSubscriptionSearchClient,
@@ -259,7 +264,7 @@ function QuizGenreFilter({
           onClick={() => onChange([])}
           className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
             selected.length === 0
-              ? 'bg-blue-600 text-white border-blue-600'
+              ? 'bg-brand-600 text-white border-brand-600'
               : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
           }`}
         >
@@ -273,7 +278,7 @@ function QuizGenreFilter({
               onClick={() => toggle(g)}
               className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white border-blue-600'
+                  ? 'bg-brand-600 text-white border-brand-600'
                   : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
               }`}
             >
@@ -285,7 +290,7 @@ function QuizGenreFilter({
       {allGenres.length > GENRE_SHOW_LIMIT && (
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 mt-1.5"
+          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 mt-1.5"
         >
           {showAll ? '▲ 折りたたむ' : `▼ すべてのジャンル（残り ${allGenres.length - GENRE_SHOW_LIMIT} 件）`}
         </button>
@@ -416,7 +421,7 @@ function QuizHits() {
             }
             setShuffled(arr.slice(0, 20))
           }}
-          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-medium"
         >
           シャッフル
         </button>
@@ -744,7 +749,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
               <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
               <button
                 onClick={() => updateGenreFilter([])}
-                className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800 rounded-full px-3 py-1"
+                className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 font-medium border border-brand-200 dark:border-brand-800 rounded-full px-3 py-1"
               >
                 ジャンルフィルターを解除
               </button>
@@ -755,7 +760,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
                 <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
                 <button
                   onClick={() => reshuffle(filteredCandidates)}
-                  className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                  className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-medium"
                 >
                   シャッフル
                 </button>
@@ -802,7 +807,7 @@ function SubscriptionPromoPanel() {
   }
 
   return (
-    <div className="mt-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl p-6 text-center space-y-4">
+    <div className="mt-4 bg-gradient-to-br from-purple-50 to-brand-50 dark:from-purple-900/20 dark:to-brand-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl p-6 text-center space-y-4">
       <PremiumValueProps />
 
       {error && (
@@ -837,12 +842,12 @@ function SubscriptionPromoPanel() {
       </p>
       <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed border-t border-gray-100 dark:border-gray-700 pt-2 mt-1">
         ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
-        <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
+        <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
         をご覧ください。
       </p>
       <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
-        <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
-        <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
+        <a href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</a>
+        <a href="/privacy" className="text-brand-600 dark:text-brand-400 hover:underline">プライバシーポリシー</a>
       </p>
     </div>
   )
@@ -1203,7 +1208,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
           placeholder="キーワードで検索..."
-          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2"
+          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 mb-2"
         />
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
@@ -1223,7 +1228,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                   <button
                     key={kw}
                     onClick={() => { addHistory(kw); handleChange(kw) }}
-                    className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-blue-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
                   >
                     🔍 {kw}
                   </button>
@@ -1411,7 +1416,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
         <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
         <button
           onClick={() => updateGenreFilter([])}
-          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800 rounded-full px-3 py-1"
+          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 font-medium border border-brand-200 dark:border-brand-800 rounded-full px-3 py-1"
         >
           ジャンルフィルターを解除
         </button>
@@ -1422,7 +1427,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
         <p className="text-xs text-gray-400 dark:text-gray-500">タイトルを見て内容を思い出してみましょう</p>
         <button
           onClick={() => reshuffle(filteredCandidates)}
-          className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium"
+          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 font-medium"
         >
           シャッフル
         </button>
@@ -1661,8 +1666,8 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                   onClick={() => handleGenreSelect(genre)}
                   className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
                     isActive
-                      ? 'bg-blue-600 text-white border-transparent shadow-sm'
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:shadow-sm hover:border-blue-300'
+                      ? 'bg-brand-600 text-white border-transparent shadow-sm'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:shadow-sm hover:border-brand-300'
                   }`}
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
@@ -1682,7 +1687,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                       />
                     )}
                   </span>
-                  <span className={`text-xs shrink-0 ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{total}</span>
+                  <span className={`text-xs shrink-0 ${isActive ? 'text-brand-100' : 'text-gray-400'}`}>{total}</span>
                 </button>
               )
             })}
@@ -1690,7 +1695,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           {sortedGenres.length > GENRE_SHOW_LIMIT && (
             <button
               onClick={() => setShowAll((v) => !v)}
-              className="w-full text-xs text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 py-2 transition-colors"
+              className="w-full text-xs text-gray-400 hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400 py-2 transition-colors"
             >
               {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${sortedGenres.length - GENRE_SHOW_LIMIT} 件）`}
             </button>
@@ -1732,7 +1737,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
 // マニュアルカード：種別バッジ・掲載日付きの軽量カード（ResultCardは医療/文献用なので別実装）
 const MANUAL_TYPE_STYLE: Record<string, string> = {
-  '📕 マニュアル': 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  '📕 マニュアル': 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300',
   '📢 お知らせ': 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   '🔧 業務改善': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
 }
@@ -1775,7 +1780,7 @@ function ManualCard({ hit }: { hit: Hit }) {
           {hit.aiKeywords && <p className="text-xs text-gray-300 mt-3 leading-relaxed">{hit.aiKeywords}</p>}
           <div className="flex justify-end mt-3">
             <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+              className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-800">
               Notionで開く
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
             </a>
@@ -1783,7 +1788,7 @@ function ManualCard({ hit }: { hit: Hit }) {
         </div>
       )}
       {!hasExpandable && (
-        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="block px-4 pb-3 text-xs text-blue-500 hover:text-blue-700">Notionで開く →</a>
+        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="block px-4 pb-3 text-xs text-brand-500 hover:text-brand-700">Notionで開く →</a>
       )}
     </div>
   )
@@ -1907,7 +1912,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="文献を絞り込み..."
-          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
         />
         <select
           value={sort}
@@ -2022,7 +2027,7 @@ function PremiumCancelInfo({ trial = false }: { trial?: boolean }) {
       ) : (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           解約をご希望の場合は{' '}
-          <a href="mailto:drnode0@gmail.com?subject=プレミアム解約のご依頼" className="text-blue-500 hover:text-blue-700 dark:text-blue-400 underline">
+          <a href="mailto:drnode0@gmail.com?subject=プレミアム解約のご依頼" className="text-brand-500 hover:text-brand-700 dark:text-brand-400 underline">
             drnode0@gmail.com
           </a>{' '}
           までご連絡ください。
@@ -2327,7 +2332,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
     }
   }
 
-  const inputCls = 'w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300'
+  const inputCls = 'w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300'
   const labelCls = 'block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1'
 
   return (
@@ -2342,9 +2347,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-4">
             {section ? (
-              <button onClick={() => { setSection(null); setSaveMsg('') }} className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">← 戻る</button>
+              <button onClick={() => { setSection(null); setSaveMsg('') }} className="text-sm text-brand-500 hover:text-brand-700 dark:text-brand-400 flex items-center gap-1">← 戻る</button>
             ) : (
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">⚙️ 設定</h2>
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">設定</h2>
             )}
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
               {currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}
@@ -2360,7 +2365,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 const isPremium = hasSubscriptionConfig()
                 if (!isPremium) return null
                 return (
-                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-2">
+                  <div className="bg-gradient-to-r from-purple-50 to-brand-50 dark:from-purple-900/30 dark:to-brand-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-2">
                     <span className="text-2xl">⭐</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
@@ -2373,7 +2378,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── 接続設定 ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-2 pb-1">接続設定</p>
               <button onClick={() => setSection('notion')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">🔗</span>
+                <Link2 className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">いま使っているAPIキー・DBのURLをその場で修正</p>
@@ -2381,7 +2386,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
               <button onClick={() => setSection('team')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">🏥</span>
+                <Building2 className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">部署DB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">チームで共有するNotionDBを接続</p>
@@ -2389,7 +2394,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
               <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">⭐</span>
+                <Star className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアムDB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">作者提供のナレッジ・参考文献を追加</p>
@@ -2397,7 +2402,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
               <button onClick={() => setSection('setup-redo')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">🛠</span>
+                <Wrench className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップをやり直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">モード切替・DBの新規作成／接続（今の設定は保持）</p>
@@ -2408,7 +2413,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── サポート ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
               <button onClick={() => setSection('announcements')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">📢</span>
+                <Megaphone className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
@@ -2419,9 +2424,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
               >
-                <span className="text-xl">📘</span>
+                <BookOpen className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップ＆運用ガイド</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">困ったときはこちらを参照</p>
@@ -2432,9 +2437,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 href={FEEDBACK_FORM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
               >
-                <span className="text-xl">📮</span>
+                <Send className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
@@ -2448,7 +2453,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   rel="noopener noreferrer"
                   className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
                 >
-                  <span className="text-xl">❓</span>
+                  <HelpCircle className="w-5 h-5 text-purple-400 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <span className="text-purple-500">⭐</span></p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">専門医が回答し、プレミアムナレッジに反映されます</p>
@@ -2457,7 +2462,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </a>
               )}
               <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="text-xl">📖</span>
+                <HelpCircle className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・診断ツール</p>
@@ -2472,7 +2477,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   「📋 NotionDBをセットアップする」で完結する（ログイン不要）。 */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">その他</p>
               <button onClick={() => setSection('reset-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
-                <span className="text-xl">🗑</span>
+                <Trash2 className="w-5 h-5 text-red-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定を完全に削除する</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">全データを消去してゼロから再設定</p>
@@ -2533,7 +2538,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
                   notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
                 })}
-                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 保存する
               </button>
@@ -2578,7 +2583,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   teamNotionReferenceDbId: teamForm.teamNotionReferenceDbId ? extractNotionDbId(teamForm.teamNotionReferenceDbId) : '',
                   teamNotionManualDbId: teamForm.teamNotionManualDbId ? extractNotionDbId(teamForm.teamNotionManualDbId) : '',
                 })}
-                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 保存する
               </button>
@@ -2654,7 +2659,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                       ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
-                      <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
+                      <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
                       をご覧ください。登録手続きに進むことで、これらの内容に同意したものとみなされます。
                     </p>
                     {/* note購入者向け: コード入力でカード不要トライアル */}
@@ -2669,9 +2674,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
-                      <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
-                      <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
-                      <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
+                      <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
+                      <a href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</a>
+                      <a href="/privacy" className="text-brand-600 dark:text-brand-400 hover:underline">プライバシーポリシー</a>
                     </p>
                   </div>
                 )
@@ -2701,7 +2706,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                               href={lk.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-full px-3 py-1 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-full px-3 py-1 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
                             >
                               {lk.label}
                             </a>
@@ -2767,7 +2772,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     finally { setPropCheckLoading(false) }
                   }}
                   disabled={propCheckLoading}
-                  className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                  className="w-full text-sm bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl py-2.5 font-medium hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors disabled:opacity-50"
                 >
                   {propCheckLoading ? '確認中...' : '接続中のDBのプロパティを確認する'}
                 </button>
@@ -2808,7 +2813,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       finally { setSearchKeyCheckLoading(false) }
                     }}
                     disabled={searchKeyCheckLoading}
-                    className="w-full text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl py-2.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                    className="w-full text-sm bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl py-2.5 font-medium hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors disabled:opacity-50"
                   >
                     {searchKeyCheckLoading ? '確認中...' : 'Search Keyを確認する'}
                   </button>
@@ -2849,10 +2854,10 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                         <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📊 総レコード数: {algoliaDebug.totalHits}件</p>
                         <p className="text-gray-500 dark:text-gray-400">attributesForFaceting: {algoliaDebug.settings.attributesForFaceting?.join(', ') || '未設定'}</p>
                       </div>
-                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
-                        <p className="font-semibold text-blue-700 dark:text-blue-300 mb-1">💡 知識レベルの実際の値</p>
+                      <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3">
+                        <p className="font-semibold text-brand-700 dark:text-brand-300 mb-1">💡 知識レベルの実際の値</p>
                         {algoliaDebug.knowledgeLevelValues.length === 0 ? <p className="text-red-500">値なし（再同期が必要）</p> : (
-                          <div className="flex flex-wrap gap-1">{algoliaDebug.knowledgeLevelValues.map((v) => <span key={v} className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{v}</span>)}</div>
+                          <div className="flex flex-wrap gap-1">{algoliaDebug.knowledgeLevelValues.map((v) => <span key={v} className="bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full">{v}</span>)}</div>
                         )}
                       </div>
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
@@ -2871,7 +2876,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               )}
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 ログインとは（プレミアムの引き継ぎ）</h3>
-                <div className="text-xs bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 space-y-1.5 text-gray-700 dark:text-gray-300">
+                <div className="text-xs bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3 space-y-1.5 text-gray-700 dark:text-gray-300">
                   <p><span className="font-semibold">ログインは、プレミアム契約をあなたのアカウントに紐づけて、スマホ・PCなど複数の端末で同じプレミアムを使えるようにするためのものです。</span></p>
                   <p>・メールアドレスだけでログインできます（パスワード不要）。届いたメールのリンクをタップするか、6桁コードを入力するだけ。</p>
                   <p>・検索など基本機能は、ログインしなくても今まで通り使えます（ログインは必須ではありません）。</p>
@@ -2889,9 +2894,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">📄 規約・法的情報</h3>
                 <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3 flex flex-col gap-2">
-                  <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
-                  <a href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</a>
-                  <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
+                  <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
+                  <a href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</a>
+                  <a href="/privacy" className="text-brand-600 dark:text-brand-400 hover:underline">プライバシーポリシー</a>
                 </div>
               </section>
             </div>
@@ -2917,28 +2922,28 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {/* ── セットアップやり直し（モード変更・DBセットアップの統合入口） ── */}
           {section === 'setup-redo' && (
             <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
+              <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1.5">
                 <p className="font-bold">🛠 何をやり直しますか？</p>
                 <p className="text-xs">どちらもセットアップ画面へ移動します。現在のAPIキー・DB設定は保持されるので、必要な箇所だけ変更できます。</p>
                 <p className="text-xs">現在: <span className="font-semibold">{currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}</span></p>
               </div>
-              <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 transition-all text-left">
-                <span className="text-xl">🔀</span>
+              <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-brand-300 transition-all text-left">
+                <Shuffle className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">モードを切り替える</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">シンプル↔パワーモードの変更（モード選択画面へ）</p>
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
-              <button onClick={() => { onClose(); onRedoFromNotion() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 transition-all text-left">
-                <span className="text-xl">📋</span>
+              <button onClick={() => { onClose(); onRedoFromNotion() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-brand-300 transition-all text-left">
+                <ClipboardList className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">NotionDBを作り直す・つなぎ直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">テンプレート複製 or 既存DBの接続（DB選択画面へ）</p>
                 </div>
                 <span className="text-gray-300 dark:text-gray-600">›</span>
               </button>
-              <button onClick={() => setSection('notion')} className="w-full text-center text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 py-1">
+              <button onClick={() => setSection('notion')} className="w-full text-center text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 py-1">
                 APIキーやDBのURLを直すだけなら → 接続設定へ
               </button>
               <button onClick={() => setSection(null)} className="w-full border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">キャンセル</button>
@@ -3082,7 +3087,7 @@ export default function Home() {
   // プレミアム認証完了メッセージ（成功/失敗）
   if (premiumMessage) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
         <div className="max-w-sm w-full text-center space-y-4">
           <div className="text-5xl">{premiumMessage.type === 'success' ? '✅' : '⚠️'}</div>
           <p className={`text-base font-semibold ${premiumMessage.type === 'success' ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -3091,7 +3096,7 @@ export default function Home() {
           {premiumMessage.type === 'error' && (
             <button
               onClick={() => setPremiumMessage(null)}
-              className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400"
+              className="text-sm text-brand-500 hover:text-brand-700 dark:text-brand-400"
             >
               閉じる
             </button>
@@ -3106,7 +3111,7 @@ export default function Home() {
 
   if (setupDone === null || onboardingDone === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
         <div className="text-gray-400 text-sm">読み込み中...</div>
       </div>
     )
@@ -3136,14 +3141,14 @@ export default function Home() {
   // マニュアルタブはオプトイン：個人 or 部署のマニュアルDBが設定されている時のみ表示。
   const hasManual = !!(settings?.notionManualDbId || settings?.teamNotionManualDbId)
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'search', label: '🔍 検索' },
-    { id: 'recent', label: '🆕 新着' },
-    { id: 'browse', label: '🗂 ジャンル' },
-    { id: 'reference', label: '📖 文献' },
-    { id: 'quiz', label: '🧠 クイズ' },
-    // マニュアルDBが設定されている時のみ📋タブを表示（オプトイン）。
-    ...(hasManual ? [{ id: 'manual' as Tab, label: '📋 マニュアル' }] : []),
+  const tabs: { id: Tab; label: string; Icon: LucideIcon }[] = [
+    { id: 'search', label: '検索', Icon: Search },
+    { id: 'recent', label: '新着', Icon: Clock },
+    { id: 'browse', label: 'ジャンル', Icon: FolderOpen },
+    { id: 'reference', label: '文献', Icon: BookMarked },
+    { id: 'quiz', label: 'クイズ', Icon: Lightbulb },
+    // マニュアルDBが設定されている時のみタブを表示（オプトイン）。
+    ...(hasManual ? [{ id: 'manual' as Tab, label: 'マニュアル', Icon: ClipboardList }] : []),
   ]
 
   const header = (
@@ -3162,17 +3167,17 @@ export default function Home() {
               href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-lg text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+              className="w-10 h-10 -my-1 grid place-items-center rounded-xl text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               title="使い方ガイド"
             >
-              📘
+              <BookOpen className="w-5 h-5" />
             </a>
             <button
               onClick={() => setShowSettings(true)}
-              className="text-xl text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+              className="w-10 h-10 -my-1 grid place-items-center rounded-xl text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               title="設定"
             >
-              ⚙️
+              <SlidersHorizontal className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -3185,12 +3190,13 @@ export default function Home() {
                 // 機能利用の実態把握用（どのタブが使われているか）。
                 track('tab_switch', { tab: t.id })
               }}
-              className={`shrink-0 flex-1 py-2 px-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+              className={`shrink-0 flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
                 tab === t.id
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
+              <t.Icon className="w-[17px] h-[17px]" strokeWidth={2} />
               {t.label}
             </button>
           ))}
@@ -3215,7 +3221,7 @@ export default function Home() {
     return (
       <SubscriptionSearchProvider enableBridge={true}>
       <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
         <FeedbackNudgeBanner />
@@ -3239,7 +3245,7 @@ export default function Home() {
   // Search KeyまたはApp IDが未設定の場合はエラー表示
   if (!settings?.algoliaSearchKey || !settings?.algoliaAppId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-8 text-center">
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
@@ -3269,7 +3275,7 @@ export default function Home() {
     <SubscriptionSearchProvider enableBridge={true}>
     <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
         <FeedbackNudgeBanner />
