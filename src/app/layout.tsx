@@ -5,6 +5,7 @@ import { PremiumSync } from '@/components/auth/PremiumSync'
 import { SettingsSync } from '@/components/auth/SettingsSync'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
+import { PwaRuntime } from '@/components/PwaRuntime'
 
 export const metadata: Metadata = {
   title: 'MediNode',
@@ -33,6 +34,7 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/icon-192.png" />
       </head>
       <body className="bg-gray-50 min-h-screen">
+        <PwaRuntime />
         <AuthProvider>
           <PremiumSync />
           <SettingsSync />
