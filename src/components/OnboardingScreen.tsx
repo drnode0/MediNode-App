@@ -206,10 +206,31 @@ const PAGES = [
   },
 ]
 
+// ── 2層方式 ──
+// まずコア3枚（価値訴求→できること→始め方）だけ見せて最短でセットアップへ。
+// 仕組みの詳細（知識源・Notion連携・DB構成）は、コア最終ページの
+// 「仕組みをもっと詳しく」を押した人だけが読む任意の第2層にする。
+// 情報は削らず、初回の必読枚数だけを6→3に減らすのが狙い。
+const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p]))
+const CORE_PAGES = [pageById.welcome, pageById.features, pageById.setup]
+const DETAIL_PAGES = [pageById.sources, pageById.notion, pageById.dbs]
+
 export function OnboardingScreen({ onComplete, onSkip }: Props) {
+  const [layer, setLayer] = useState<'core' | 'detail'>('core')
   const [page, setPage] = useState(0)
-  const current = PAGES[page]
-  const isLast = page === PAGES.length - 1
+  const pages = layer === 'core' ? CORE_PAGES : DETAIL_PAGES
+  const current = pages[page]
+  const isLast = page === pages.length - 1
+
+  // 戻る: 層内で1枚戻る。詳細層の先頭ならコア最終ページ（始め方）へ戻る。
+  const goBack = () => {
+    if (page > 0) {
+      setPage(page - 1)
+    } else if (layer === 'detail') {
+      setLayer('core')
+      setPage(CORE_PAGES.length - 1)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
@@ -274,9 +295,12 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
       {/* フッター */}
       <div className="px-6 pb-10 max-w-md mx-auto w-full">
-        {/* ページインジケーター */}
-        <div className="flex justify-center gap-2 mb-6">
-          {PAGES.map((_, i) => (
+        {/* ページインジケーター（現在の層内だけを数える） */}
+        <div className="flex justify-center items-center gap-2 mb-6">
+          {layer === 'detail' && (
+            <span className="text-[10px] text-gray-400 mr-1">詳しい仕組み</span>
+          )}
+          {pages.map((_, i) => (
             <button
               key={i}
               onClick={() => setPage(i)}
@@ -289,9 +313,9 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
         {/* ナビゲーションボタン */}
         <div className="flex gap-3">
-          {page > 0 && (
+          {(page > 0 || layer === 'detail') && (
             <button
-              onClick={() => setPage(page - 1)}
+              onClick={goBack}
               className="flex-none px-5 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors"
             >
               ← 戻る
@@ -310,6 +334,16 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
             {isLast ? '🚀 セットアップを始める' : '次へ →'}
           </button>
         </div>
+
+        {/* コア最終ページ（始め方）にだけ、任意の第2層への入口を出す */}
+        {layer === 'core' && isLast && (
+          <button
+            onClick={() => { setLayer('detail'); setPage(0) }}
+            className="w-full text-center text-xs text-blue-500 hover:text-blue-700 mt-4 py-1"
+          >
+            🔎 仕組みをもっと詳しく（知識源・Notion連携・DB構成｜任意・3枚）
+          </button>
+        )}
       </div>
     </div>
   )
