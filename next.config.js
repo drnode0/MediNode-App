@@ -10,6 +10,7 @@
 //   - *.supabase.co              … Supabase Auth / DB（fetch・WebSocket）
 //   - *.algolia.net / *.algolianet.com / *.algolia.io … Algolia 検索（クライアント直叩き）
 //   - checkout.stripe.com        … Stripe Checkout（将来 embedded 化した場合の frame 用）
+//   - *.ingest.sentry.io / *.ingest.us.sentry.io / *.ingest.de.sentry.io … Sentry エラー送信
 // 開発モードのみ React が eval() を使うため許可する（本番ビルドでは付与しない）。
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -19,7 +20,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.algolia.net https://*.algolianet.com https://*.algolia.io https://va.vercel-scripts.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.algolia.net https://*.algolianet.com https://*.algolia.io https://va.vercel-scripts.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
   "frame-src https://checkout.stripe.com https://js.stripe.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
