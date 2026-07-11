@@ -33,7 +33,7 @@ export function AccountButton() {
         <button
           onClick={() => setShowLogin(true)}
           title="ログインすると設定やプレミアム契約を別の端末に引き継げます"
-          className="text-xs font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400 transition-colors"
+          className="text-xs font-medium text-brand-500 hover:text-brand-700 dark:text-brand-400 transition-colors"
         >
           ログイン
         </button>

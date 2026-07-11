@@ -12,7 +12,7 @@ export default function TermsPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-6"
+          className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline mb-6"
         >
           ← トップに戻る
         </Link>
@@ -27,7 +27,7 @@ export default function TermsPage() {
         <div className="space-y-8 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
           {/* はじめに */}
           <section>
-            <p className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-blue-800 dark:text-blue-200">
+            <p className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-brand-800 dark:text-brand-200">
               MediNode（以下「本サービス」）は、医療・臨床に関する知識や参考文献を検索・整理するための
               情報ツールです。なるべく正確で有用な情報をお届けできるよう努めていますが、
               本サービスで提供される情報は<strong>一般的な学習・参考を目的</strong>としたものであり、
@@ -149,9 +149,9 @@ export default function TermsPage() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
-          <Link href="/legal" className="text-blue-600 dark:text-blue-400 hover:underline">特定商取引法に基づく表記</Link>
-          <Link href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</Link>
-          <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">トップに戻る</Link>
+          <Link href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</Link>
+          <Link href="/privacy" className="text-brand-600 dark:text-brand-400 hover:underline">プライバシーポリシー</Link>
+          <Link href="/" className="text-brand-600 dark:text-brand-400 hover:underline">トップに戻る</Link>
         </div>
       </div>
     </div>

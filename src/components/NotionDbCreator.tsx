@@ -159,7 +159,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {/* idle: 開始ボタン */}
       {phase === 'idle' && (
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
+          <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1.5">
             <p className="font-semibold">✨ DBを自動作成します</p>
             <p>Notionのどのページ配下にDBを作るか選ぶだけでOKです。</p>
             <p>必要なプロパティは自動でセットされます。</p>
@@ -170,7 +170,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
           </div>
           <button
             onClick={handleFetchPages}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+            className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
           >
             ページ一覧を取得して選ぶ
           </button>
@@ -210,7 +210,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
                 value={pageSearch}
                 onChange={(e) => setPageSearch(e.target.value)}
                 placeholder="ページ名で絞り込み..."
-                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
               {pageSearch && (
                 <button
@@ -265,7 +265,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               {pageSearch ? `${filteredPages.length}/${pages.length} 件` : `全${pages.length}件`}
-              {!pageSearch && sortedPages.recent.length > 0 && <span className="ml-1 text-blue-400">（最近使用: {sortedPages.recent.length}件）</span>}
+              {!pageSearch && sortedPages.recent.length > 0 && <span className="ml-1 text-brand-400">（最近使用: {sortedPages.recent.length}件）</span>}
             </p>
           </div>
 
@@ -281,7 +281,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
           <button
             onClick={handleCreateMedical}
             disabled={!selectedPageId}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-50"
           >
             Medical DB を作成する
           </button>
@@ -329,7 +329,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
               </p>
               <button
                 onClick={handleCreateReference}
-                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 Reference DBも作成する（推奨）
               </button>
@@ -393,7 +393,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
 
           <button
             onClick={handleDone}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+            className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
           >
             次のステップへ（Algolia設定） →
           </button>
@@ -432,13 +432,13 @@ function PageRow({ page, selected, onSelect, recent }: {
       onClick={() => onSelect(page.id)}
       className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors ${
         selected
-          ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium'
+          ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 font-medium'
           : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
       }`}
     >
       <span className="mr-1.5">{recent ? '🕐' : '📄'}</span>
       {page.title}
-      {selected && <span className="float-right text-blue-500">✓</span>}
+      {selected && <span className="float-right text-brand-500">✓</span>}
     </button>
   )
 }

@@ -29,13 +29,13 @@ const PAGES = [
     features: [
       {
         icon: '🔍',
-        color: 'bg-blue-50 text-blue-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'キーワード検索',
         desc: '病名・薬名・キーワードで即絞り込み',
       },
       {
         icon: '🗂',
-        color: 'bg-indigo-50 text-indigo-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'ジャンル別ブラウズ',
         desc: '好きなカテゴリで知識を分類・ブラウズ',
       },
@@ -68,13 +68,13 @@ const PAGES = [
     features: [
       {
         icon: '🧑',
-        color: 'bg-blue-50 text-blue-600',
+        color: 'bg-brand-50 text-brand-600',
         title: '自分の知識（個人のNotion）',
         desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます',
       },
       {
         icon: '🏥',
-        color: 'bg-indigo-50 text-indigo-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'みんなの知識（部署の共有DB）',
         desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ（自分のNotionは不要）',
       },
@@ -95,13 +95,13 @@ const PAGES = [
     features: [
       {
         icon: '✍️',
-        color: 'bg-blue-50 text-blue-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'Notionに書くだけで即反映',
         desc: '追加・編集はいつものNotionで。MediNodeに自動で同期される',
       },
       {
         icon: '🔗',
-        color: 'bg-indigo-50 text-indigo-600',
+        color: 'bg-brand-50 text-brand-600',
         title: '詳細はNotionでそのまま確認',
         desc: 'タップするとNotionアプリで全文表示。書いた内容を活かせる',
       },
@@ -123,15 +123,15 @@ const PAGES = [
         <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
           {/* Medical DB カード */}
           <g>
-            <rect x="6" y="20" width="120" height="140" rx="14" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="2" />
-            <text x="66" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="#1D4ED8">🏥 Medical DB</text>
-            <text x="66" y="60" textAnchor="middle" fontSize="9" fill="#1E40AF">（知識の本体）</text>
-            <line x1="18" y1="70" x2="114" y2="70" stroke="#BFDBFE" strokeWidth="1" />
-            <text x="18" y="86" fontSize="9" fill="#1E3A8A">📝 病名・治療・知識</text>
-            <text x="18" y="102" fontSize="9" fill="#1E3A8A">🏷 ジャンル / キーワード</text>
-            <text x="18" y="118" fontSize="9" fill="#1E3A8A">🎯 知識レベル</text>
-            <text x="18" y="134" fontSize="9" fill="#1E3A8A">📎 参考文献(Relation)</text>
-            <text x="66" y="152" textAnchor="middle" fontSize="8" fill="#3B82F6">本体ノート</text>
+            <rect x="6" y="20" width="120" height="140" rx="14" fill="#E7F3EE" stroke="#2C8A6A" strokeWidth="2" />
+            <text x="66" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="#155A42">🏥 Medical DB</text>
+            <text x="66" y="60" textAnchor="middle" fontSize="9" fill="#196B4F">（知識の本体）</text>
+            <line x1="18" y1="70" x2="114" y2="70" stroke="#C4E6D8" strokeWidth="1" />
+            <text x="18" y="86" fontSize="9" fill="#124F3A">📝 病名・治療・知識</text>
+            <text x="18" y="102" fontSize="9" fill="#124F3A">🏷 ジャンル / キーワード</text>
+            <text x="18" y="118" fontSize="9" fill="#124F3A">🎯 知識レベル</text>
+            <text x="18" y="134" fontSize="9" fill="#124F3A">📎 参考文献(Relation)</text>
+            <text x="66" y="152" textAnchor="middle" fontSize="8" fill="#2C8A6A">本体ノート</text>
           </g>
           {/* Reference DB カード */}
           <g>
@@ -159,7 +159,7 @@ const PAGES = [
     features: [
       {
         icon: '🏥',
-        color: 'bg-blue-50 text-blue-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'Medical DB（知識の本体）',
         desc: '病名・治療・手技などの本体ノート。検索・クイズ・ジャンルブラウズの中心（自分や部署のNotionを使う場合）',
       },
@@ -186,7 +186,7 @@ const PAGES = [
     features: [
       {
         icon: '🧭',
-        color: 'bg-blue-50 text-blue-600',
+        color: 'bg-brand-50 text-brand-600',
         title: 'まず使う知識を選ぶ',
         desc: '自分の知識／みんなの知識／専門医の知識から、使いたいものを選びます（複数OK）',
       },
@@ -233,7 +233,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white flex flex-col">
       {/* 上部バー：ログイン導線（左）＋スキップ（右） */}
       <div className="flex justify-between items-center px-5 pt-5">
         <div className="flex items-center">
@@ -252,7 +252,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
         {/* バッジ */}
         <div className="mb-4">
-          <span className="text-xs font-semibold text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
+          <span className="text-xs font-semibold text-brand-500 bg-brand-50 border border-brand-100 rounded-full px-3 py-1">
             {current.badge}
           </span>
         </div>
@@ -305,7 +305,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
               key={i}
               onClick={() => setPage(i)}
               className={`h-2 rounded-full transition-all duration-300 ${
-                i === page ? 'w-6 bg-blue-500' : 'w-2 bg-gray-200'
+                i === page ? 'w-6 bg-brand-500' : 'w-2 bg-gray-200'
               }`}
             />
           ))}
@@ -329,7 +329,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
                 setPage(page + 1)
               }
             }}
-            className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm"
+            className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm"
           >
             {isLast ? '🚀 セットアップを始める' : '次へ →'}
           </button>
@@ -339,7 +339,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
         {layer === 'core' && isLast && (
           <button
             onClick={() => { setLayer('detail'); setPage(0) }}
-            className="w-full text-center text-xs text-blue-500 hover:text-blue-700 mt-4 py-1"
+            className="w-full text-center text-xs text-brand-500 hover:text-brand-700 mt-4 py-1"
           >
             🔎 仕組みをもっと詳しく（知識源・Notion連携・DB構成｜任意・3枚）
           </button>

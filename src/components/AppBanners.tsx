@@ -63,8 +63,8 @@ export function UpdateBanner() {
     setShow(false)
   }
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-3">
-      <div className="bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-900/30 dark:to-blue-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-start gap-3">
+    <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
+      <div className="bg-gradient-to-r from-emerald-50 to-brand-50 dark:from-emerald-900/30 dark:to-brand-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-start gap-3">
         <span className="text-xl shrink-0">{LATEST_ANNOUNCEMENT.emoji}</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
@@ -131,7 +131,7 @@ export function FeedbackNudgeBanner() {
     setShow(false)
   }
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-3">
+    <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
       <div className="bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
         <span className="text-xl shrink-0">📮</span>
         <div className="flex-1 min-w-0">
@@ -144,7 +144,7 @@ export function FeedbackNudgeBanner() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={done}
-            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors"
           >
             感想を送る
           </a>
@@ -171,19 +171,19 @@ export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () 
   }, [])
   if (dismissed) return null
   return (
-    <div className="mb-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-700 rounded-xl p-3 flex items-start gap-3">
+    <div className="mb-4 bg-gradient-to-br from-brand-50 to-brand-50 dark:from-brand-900/30 dark:to-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
       <div className="text-2xl shrink-0">⚡</div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+        <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">
           もっと速くしたい方はパワーモードへ
         </p>
-        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 leading-relaxed">
+        <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5 leading-relaxed">
           Algolia（無料）を使うと検索が<strong>0.1秒以下</strong>に。日本語の部分一致やジャンル絞り込みも快適です。
         </p>
         <div className="flex items-center gap-3 mt-2">
           <button
             onClick={onOpenSettings}
-            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors"
           >
             設定から切り替える
           </button>
