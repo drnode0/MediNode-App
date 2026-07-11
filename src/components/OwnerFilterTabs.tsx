@@ -43,7 +43,7 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
               owner === o.id
                 ? o.id === 'subscription' && !hasSubscription
                   ? 'bg-purple-500 text-white'
-                  : 'bg-blue-600 text-white'
+                  : 'bg-brand-600 text-white'
                 : o.inactive
                   ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -55,15 +55,15 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
       </div>
       {/* 部署未接続のまま部署フィルタを選んだ場合の案内（全タブ共通でここに一元実装） */}
       {owner === 'team' && !hasTeam && (
-        <div className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 space-y-2">
-          <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">🏥 部署の共有DBは未接続です</p>
-          <p className="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed">
+        <div className="mt-2 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-brand-700 dark:text-brand-300">🏥 部署の共有DBは未接続です</p>
+          <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
             職場で共有しているNotionDBをつなぐと、部署の知識もここで検索できます。代表者から共有された接続情報（トークンとDBのURL）を設定に登録してください。
           </p>
           {openSettings && (
             <button
               onClick={() => openSettings('team')}
-              className="text-xs font-semibold bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+              className="text-xs font-semibold bg-white dark:bg-gray-800 text-brand-600 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700 px-3 py-1.5 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
             >
               ⚙️ 部署DB設定を開く
             </button>
@@ -73,7 +73,7 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
       {owner === 'subscription' && hasSubscription && (
         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed mt-1.5">
           ※ 掲載内容は参考情報です。最新性・正確性を保証するものではありません。臨床判断はご自身の責任で行ってください（
-          <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項</a>
+          <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項</a>
           ）。
         </p>
       )}

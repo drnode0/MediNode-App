@@ -114,7 +114,7 @@ export function LoginClient() {
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm text-sm text-gray-600 dark:text-gray-300">
         現在ログイン機能は利用できません。トップページからご利用ください。
         <div className="mt-4">
-          <a href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <a href="/" className="text-brand-600 dark:text-brand-400 hover:underline">
             ← トップに戻る
           </a>
         </div>
@@ -150,7 +150,7 @@ export function LoginClient() {
           <button
             onClick={sendLink}
             disabled={loading || !emailValid}
-            className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {loading ? '送信中...' : 'ログインリンクを送る'}
           </button>
@@ -162,7 +162,7 @@ export function LoginClient() {
 
       {phase === 'sent' && (
         <>
-          <div className="rounded-lg bg-blue-50 dark:bg-blue-900/30 p-3 text-xs text-blue-700 dark:text-blue-300">
+          <div className="rounded-lg bg-brand-50 dark:bg-brand-900/30 p-3 text-xs text-brand-700 dark:text-brand-300">
             {info}
           </div>
 
@@ -202,7 +202,7 @@ export function LoginClient() {
               <button
                 onClick={verifyCode}
                 disabled={loading || code.length !== 6}
-                className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 {loading ? '確認中...' : 'コードでログイン'}
               </button>
@@ -212,7 +212,7 @@ export function LoginClient() {
           <button
             onClick={sendLink}
             disabled={loading}
-            className="w-full text-xs text-blue-500 hover:text-blue-700 disabled:opacity-50"
+            className="w-full text-xs text-brand-500 hover:text-brand-700 disabled:opacity-50"
           >
             メールを再送する
           </button>

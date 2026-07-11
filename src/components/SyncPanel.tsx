@@ -119,7 +119,7 @@ export function SyncPanel() {
     <div className="border-t border-gray-100 dark:border-gray-700 mt-1">
       <button
         onClick={() => { setOpen((v) => !v); setResult(null); setError('') }}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 hover:bg-brand-50/60 dark:hover:bg-brand-900/20 transition-colors"
       >
         <span className="flex items-center gap-2">
           <span>🔄 データを再同期する</span>
@@ -181,7 +181,7 @@ export function SyncPanel() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="w-full bg-blue-600 text-white rounded-xl py-2 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            className="w-full bg-brand-600 text-white rounded-xl py-2 text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {syncing ? (
               <>

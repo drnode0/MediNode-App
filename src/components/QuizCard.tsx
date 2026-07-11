@@ -4,9 +4,9 @@ import type { Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
 
 const LEVEL_STYLE: Record<string, string> = {
-  '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
-  '💡 ナレッジ': 'bg-green-50 text-green-700',
-  '📋 まとめ': 'bg-blue-50 text-blue-700',
+  '❓ クリニカルクエスチョン': 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  '💡 ナレッジ': 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  '📋 まとめ': 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300',
 }
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
@@ -19,12 +19,12 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
     setAnswered(ok ? 'ok' : 'ng')
   }
   const isMedical = hit.source === 'medical'
-  const borderColor = isMedical ? 'border-l-blue-400' : 'border-l-amber-400'
+  const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
   const displaySummary = hit.aiSummary || hit.summary || null
-  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 text-gray-600') : ''
+  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300') : ''
 
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${borderColor} overflow-hidden`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
       {/* タイトル部分：常に表示 */}
       <button
         className="w-full text-left p-4"
@@ -33,10 +33,10 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <span className="text-xs text-gray-300 mr-2">#{index + 1}</span>
-            <span className="font-semibold text-gray-900 text-base">{hit.title}</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100 text-base">{hit.title}</span>
           </div>
           {!revealed && (
-            <span className="shrink-0 text-xs text-blue-500 font-medium border border-blue-200 rounded-full px-2 py-0.5">
+            <span className="shrink-0 text-xs text-brand-500 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-700 rounded-full px-2 py-0.5">
               答えを見る
             </span>
           )}
@@ -48,7 +48,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
             </span>
           )}
           {hit.genre && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
               {hit.genre}
             </span>
           )}
@@ -57,10 +57,10 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
 
       {/* 要約：タップ後に展開 */}
       {revealed && (
-        <div className="px-4 pb-4 border-t border-gray-100">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in-up">
           <div className="pt-3">
             {displaySummary ? (
-              <p className="text-sm text-gray-700 leading-relaxed">{displaySummary}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{displaySummary}</p>
             ) : (
               <p className="text-sm text-gray-400 italic">要約なし</p>
             )}
@@ -70,13 +70,13 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => answer(false)}
-                className="flex-1 text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg py-2 transition-colors"
+                className="flex-1 text-sm font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg py-2 transition-colors"
               >
                 🔁 まだ
               </button>
               <button
                 onClick={() => answer(true)}
-                className="flex-1 text-sm font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg py-2 transition-colors"
+                className="flex-1 text-sm font-semibold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg py-2 transition-colors"
               >
                 ✅ 覚えた
               </button>
@@ -89,7 +89,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
           <div className="flex items-center justify-between mt-3">
             <button
               onClick={() => setRevealed(false)}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 dark:text-gray-300"
             >
               隠す
             </button>
@@ -97,7 +97,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               href={hit.notionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
             >
               Notionで開く
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

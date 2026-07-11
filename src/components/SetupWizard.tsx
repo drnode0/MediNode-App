@@ -339,7 +339,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 コネクトを作ってTokenを取得する</p>
           <ol className="space-y-2 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>
-              <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">notion.so/my-integrations</a> を開く（要ログイン）
+              <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">notion.so/my-integrations</a> を開く（要ログイン）
             </li>
             <li>「<strong>+ 新規コネクト</strong>」をクリック</li>
             <li>
@@ -378,7 +378,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>確認ダイアログが出たら「<strong>確認</strong>」（英語UI: <em>Confirm</em>）をクリック</li>
             <li>Reference DBがある場合も同じ手順で接続</li>
           </ol>
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 mt-2 text-xs text-blue-700 dark:text-blue-300">
+          <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
             💡 <strong>親ページに接続すると、配下の全ページ・DBにアクセスできます。</strong>個別に接続するのが面倒な場合は、両DBの親ページに接続するのが便利です。
           </div>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
@@ -401,9 +401,9 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📋 プロパティの考え方</p>
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-800 dark:text-blue-200 space-y-2 mb-2">
+          <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 space-y-2 mb-2">
             <p className="font-semibold">テンプレ複製でも、既存DBへの接続でもOK</p>
-            <p className="text-blue-700 dark:text-blue-300">どちらの方法でも、下記のプロパティ名さえ揃っていれば動きます。すでにNotionで知識を貯めている人は<strong>そのDBをそのまま使えます</strong>。ゼロから始める人は無料テンプレートを複製すると最初から揃っています。</p>
+            <p className="text-brand-700 dark:text-brand-300">どちらの方法でも、下記のプロパティ名さえ揃っていれば動きます。すでにNotionで知識を貯めている人は<strong>そのDBをそのまま使えます</strong>。ゼロから始める人は無料テンプレートを複製すると最初から揃っています。</p>
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
             <div className="bg-red-50 dark:bg-red-900/30 px-3 py-2 border-b border-gray-200 dark:border-gray-600">
@@ -432,7 +432,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
                   <li><strong>任意</strong>: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded font-mono">著者</code>（テキストまたは人/マルチセレクト）/ <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded font-mono">ジャーナル名</code>（テキストまたはセレクト）/ <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded font-mono">エビデンスレベル</code>（セレクト）</li>
                 </ul>
               </div>
-              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 text-blue-700 dark:text-blue-300">
+              <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 text-brand-700 dark:text-brand-300">
                 💡 作成日プロパティは不要（Notionが自動で持っています）
               </div>
             </div>
@@ -466,7 +466,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📝 アカウント作成手順</p>
           <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>
-              <a href="https://dashboard.algolia.com/users/sign_up" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">サインアップページ</a> を開く
+              <a href="https://dashboard.algolia.com/users/sign_up" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">サインアップページ</a> を開く
               <p className="text-gray-400 ml-4 mt-0.5">（algolia.com トップページ右上「Start free」からも入れます）</p>
             </li>
             <li>メール+パスワード、または Google / GitHub アカウントで登録</li>
@@ -474,7 +474,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>初回ウィザードで職種・用途・地域などを聞かれます（適当に選んでOK、後で変更可能）</li>
             <li>登録完了後、<strong>Buildプランで自動的に開始</strong>されます（プラン選択画面が出ない場合もあります）</li>
           </ol>
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 mt-2 text-xs text-blue-700 dark:text-blue-300">
+          <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
             💡 ダッシュボードは英語ですが、ブラウザの翻訳機能でも問題なく使えます
           </div>
         </section>
@@ -482,7 +482,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         <section>
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔐 2回目以降のログイン</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">
-            <a href="https://dashboard.algolia.com/users/sign_in" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">dashboard.algolia.com</a> から登録時のメール／SSOでログインしてください。
+            <a href="https://dashboard.algolia.com/users/sign_in" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">dashboard.algolia.com</a> から登録時のメール／SSOでログインしてください。
           </p>
         </section>
 
@@ -491,7 +491,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>ダッシュボード <strong>左サイドバー一番下の「⚙ Settings（歯車）」</strong> をクリック</li>
             <li>「<strong>Team and Access</strong>」セクション内の「<strong>API Keys</strong>」を開く</li>
-            <li>または直接 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">API Keys画面</a> へアクセスしてもOK</li>
+            <li>または直接 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">API Keys画面</a> へアクセスしてもOK</li>
             <li>下記3つの値が一覧表示されます（各行にコピーボタンあり）</li>
           </ol>
         </section>
@@ -518,7 +518,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             インデックスは「データの保存先」です。<strong>事前にAlgolia側で手動作成する必要はありません。</strong>
             アプリで初回同期を実行すると、設定した名前（初期値: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">medical_knowledge</code>）のインデックスが自動的に作成され、Notionのデータが入ります。
           </p>
-          <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 mt-2 text-xs text-blue-700 dark:text-blue-300">
+          <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
             💡 同期後、ダッシュボード左サイドバーの「<strong>Search</strong>」→「<strong>Index</strong>」を開くとデータを確認できます
           </div>
         </section>
@@ -707,7 +707,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         className={`w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
           showError
             ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-            : 'border-gray-200 dark:border-gray-600 focus:ring-blue-300'
+            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
         } ${className || ''}`}
       />
       <button
@@ -884,7 +884,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="relative text-center mb-8">
@@ -899,7 +899,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {onShowOnboarding && (
             <button
               onClick={onShowOnboarding}
-              className="absolute top-0 left-0 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors px-1 py-1"
+              className="absolute top-0 left-0 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 dark:hover:text-brand-400 transition-colors px-1 py-1"
               title="アプリの紹介を見る"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -922,10 +922,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             </a>
             <button
               onClick={() => setShowHelp(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 ring-1 ring-blue-200 dark:ring-blue-700 transition-colors text-xs font-semibold"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 ring-1 ring-brand-200 dark:ring-brand-700 transition-colors text-xs font-semibold"
               title="このステップの詳しい説明を見る"
             >
-              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">?</span>
+              <span className="w-4 h-4 rounded-full bg-brand-600 text-white text-[10px] font-bold flex items-center justify-center">?</span>
               ヘルプ
             </button>
           </div>
@@ -968,20 +968,20 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                     i < stepIndex
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-brand-500 text-white'
                       : i === stepIndex
-                      ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-900'
+                      ? 'bg-brand-600 text-white ring-4 ring-brand-100 dark:ring-brand-900'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                   }`}
                 >
                   {i < stepIndex ? '✓' : i + 1}
                 </div>
-                <span className={`text-[10px] font-medium leading-none ${i === stepIndex ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                <span className={`text-[10px] font-medium leading-none ${i === stepIndex ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'}`}>
                   {s.label}
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <div className={`w-6 h-px mb-3 ${i < stepIndex ? 'bg-blue-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
+                <div className={`w-6 h-px mb-3 ${i < stepIndex ? 'bg-brand-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
               )}
             </div>
           ))}
@@ -995,9 +995,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           <button
             type="button"
             onClick={() => setShowHelp(true)}
-            className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-700 align-middle text-[10px] font-semibold hover:bg-blue-100"
+            className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700 align-middle text-[10px] font-semibold hover:bg-brand-100"
           >
-            <span className="w-3 h-3 rounded-full bg-blue-600 text-white text-[8px] font-bold flex items-center justify-center">?</span>
+            <span className="w-3 h-3 rounded-full bg-brand-600 text-white text-[8px] font-bold flex items-center justify-center">?</span>
             ヘルプ
           </button>
           から詳しい説明を確認できます
@@ -1041,13 +1041,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   setLoginPurpose('register-first')
                   setShowLogin(true)
                 }}
-                className="w-full border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+                className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-lg">✨</span>
-                  <p className="text-sm font-bold text-blue-800 dark:text-blue-200">はじめて使う方</p>
+                  <p className="text-sm font-bold text-brand-800 dark:text-brand-200">はじめて使う方</p>
                 </div>
-                <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed pl-7">
+                <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
                   最初にメールアドレスでアカウントを登録してから、使いたい知識を選んでセットアップします。
                 </p>
               </button>
@@ -1080,12 +1080,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={() => setTargets((t) => ({ ...t, [opt.key]: !t[opt.key] }))}
                     className={`w-full border-2 rounded-xl p-4 text-left transition-colors ${
                       selected
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500'
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30 dark:border-brand-500'
                         : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}>✓</span>
+                      <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}>✓</span>
                       <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{opt.icon} {opt.title}</p>
                       <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{opt.sub}</span>
                     </div>
@@ -1114,7 +1114,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   }
                 }}
                 disabled={!targets.personal && !targets.team && !targets.premium}
-                className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 次へ →
               </button>
@@ -1168,13 +1168,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   setForm((f) => ({ ...f, searchMode: 'algolia' }))
                   setStep('notion')
                 }}
-                className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                className="w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-sm font-bold text-blue-700 dark:text-blue-300">⚡ パワーモード</p>
-                  <span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full">本格利用に</span>
+                  <p className="text-sm font-bold text-brand-700 dark:text-brand-300">⚡ パワーモード</p>
+                  <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">本格利用に</span>
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+                <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
                   Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<br />
                   Algoliaアカウント（無料）が必要です。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日の検索ならこちらが圧倒的に快適です。
                 </p>
@@ -1217,7 +1217,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 />
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     💡 ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
@@ -1250,13 +1250,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       window.open('https://www.notion.com/ja/templates/medinode-db', '_blank')
                       setNotionSetupMode('after-template')
                     }}
-                    className="w-full border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    className="w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-blue-700 dark:text-blue-300">📋 テンプレートを複製して使う</p>
-                      <span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
+                      <p className="text-sm font-bold text-brand-700 dark:text-brand-300">📋 テンプレートを複製して使う</p>
+                      <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
                     </div>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+                    <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
                       配布中のNotionテンプレートを複製するだけ。プロパティ設定不要ですぐ使えます。
                     </p>
                   </button>
@@ -1291,19 +1291,19 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
 
                   {/* ステップガイド */}
-                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 space-y-3">
-                    <p className="text-sm font-bold text-blue-700 dark:text-blue-300">テンプレートの複製手順</p>
-                    <ol className="space-y-2.5 text-xs text-blue-700 dark:text-blue-300">
+                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-bold text-brand-700 dark:text-brand-300">テンプレートの複製手順</p>
+                    <ol className="space-y-2.5 text-xs text-brand-700 dark:text-brand-300">
                       <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
+                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
                         <span>開いたNotionページ右上の <strong>「複製」</strong> をクリック</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
+                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
                         <span>複製されたDBページを開き、右上 <strong>「…」→「コネクト」</strong> から作成したコネクト（旧称: インテグレーション）を接続</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
+                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
                         <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
                       </li>
                     </ol>
@@ -1322,7 +1322,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
                           !form.notionMedicalDbId.trim()
                             ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-                            : 'border-gray-200 dark:border-gray-600 focus:ring-blue-300'
+                            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
                         }`}
                       />
                       {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
@@ -1338,7 +1338,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.notionReferenceDbId}
                         onChange={(e) => update('notionReferenceDbId', e.target.value)}
                         placeholder="https://www.notion.so/..."
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
@@ -1353,7 +1353,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.notionManualDbId}
                         onChange={(e) => update('notionManualDbId', e.target.value)}
                         placeholder="https://www.notion.so/..."
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionManualDbId && form.notionManualDbId.length === 32 && (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
@@ -1373,7 +1373,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   <button
                     onClick={handleNotionNext}
-                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                    className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
                     次へ →
                   </button>
@@ -1394,9 +1394,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
 
                   {/* Integration接続手順 */}
-                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 space-y-2">
+                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-700 dark:text-brand-300 space-y-2">
                     <p className="font-semibold">🔑 コネクト（旧称: インテグレーション）をDBに接続する（必須）</p>
-                    <ol className="space-y-1 list-decimal list-inside text-blue-700 dark:text-blue-300">
+                    <ol className="space-y-1 list-decimal list-inside text-brand-700 dark:text-brand-300">
                       <li>NotionでMedical DBのページを開く</li>
                       <li>右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
                       <li>「<strong>コネクト</strong>」または「<strong>コネクトを追加</strong>」を選択</li>
@@ -1413,17 +1413,17 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
 
                   {/* DBの役割説明（トグルで畳める：入力欄まで早く到達できるように） */}
-                  <details className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-xs text-indigo-700 dark:text-indigo-300">
+                  <details className="bg-brand-50 dark:bg-brand-900/30 rounded-xl text-xs text-brand-700 dark:text-brand-300">
                     <summary className="font-semibold cursor-pointer p-3 select-none">📚 Medical DB / Reference DB / 📋 Manual DB ってなに？（タップで開く）</summary>
                     <div className="space-y-1.5 px-3 pb-3">
                       <p><strong>🚑 Medical DB</strong>（メイン・必須）<br/>
-                        <span className="text-indigo-600 dark:text-indigo-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
+                        <span className="text-brand-600 dark:text-brand-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
                       </p>
                       <p><strong>📖 Reference DB</strong>（参考文献・任意）<br/>
-                        <span className="text-indigo-600 dark:text-indigo-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
+                        <span className="text-brand-600 dark:text-brand-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
                       </p>
                       <p><strong>📋 Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
-                        <span className="text-indigo-600 dark:text-indigo-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定すると📋マニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
+                        <span className="text-brand-600 dark:text-brand-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定すると📋マニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
                       </p>
                     </div>
                   </details>
@@ -1518,7 +1518,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         </div>
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">※ 新着順は Notion の「最終更新日時」（自動）を使うため、専用プロパティは不要です。</p>
                       </div>
-                      <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2 text-xs text-blue-700 dark:text-blue-300">
+                      <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 text-xs text-brand-700 dark:text-brand-300">
                         💡 作成日プロパティは不要（Notionが自動で持っています）
                       </div>
                       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
@@ -1542,7 +1542,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
                           !form.notionMedicalDbId.trim()
                             ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-                            : 'border-gray-200 dark:border-gray-600 focus:ring-blue-300'
+                            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
                         }`}
                       />
                       {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
@@ -1558,7 +1558,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.notionReferenceDbId}
                         onChange={(e) => update('notionReferenceDbId', e.target.value)}
                         placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
@@ -1573,7 +1573,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.notionManualDbId}
                         onChange={(e) => update('notionManualDbId', e.target.value)}
                         placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionManualDbId && form.notionManualDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
@@ -1593,7 +1593,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   <button
                     onClick={handleNotionNext}
-                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                    className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
                     次へ →
                   </button>
@@ -1618,7 +1618,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   高速検索エンジンのAPIキーを入力してください。無料プランで利用できます。
                 </p>
               </div>
-              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1">
                 <p className="font-semibold">取得方法</p>
                 <p>① <a href="https://www.algolia.com" target="_blank" rel="noopener noreferrer" className="underline">algolia.com</a> でアカウント作成（無料）</p>
                 <p>② ダッシュボード → Settings → API Keys を開く</p>
@@ -1638,7 +1638,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
                       !form.algoliaAppId.trim()
                         ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-                        : 'border-gray-200 dark:border-gray-600 focus:ring-blue-300'
+                        : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
                     }`}
                   />
                 </div>
@@ -1679,7 +1679,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     value={form.algoliaIndex}
                     onChange={(e) => update('algoliaIndex', e.target.value)}
                     placeholder="medical_knowledge"
-                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     初期値のままでOKです。初回の同期実行時にAlgolia側でこの名前の入れ物が自動作成されます。
@@ -1705,7 +1705,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </button>
                 <button
                   onClick={handleAlgoliaNext}
-                  className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  className="flex-1 bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                 >
                   次へ →
                 </button>
@@ -1743,7 +1743,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <button
                       onClick={handleTest}
                       disabled={testing || syncing}
-                      className="w-full border border-blue-300 text-blue-600 rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full border border-brand-300 text-brand-600 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {testing ? (
                         <><span className="animate-spin">⟳</span>接続確認中...</>
@@ -1764,7 +1764,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   {/* 同期中の進捗 */}
                   {syncing && syncProgress && (
-                    <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-600 text-center">
+                    <div className="bg-brand-50 rounded-xl p-3 text-sm text-brand-600 text-center">
                       <span className="animate-spin inline-block mr-2">⟳</span>
                       {syncProgress}
                     </div>
@@ -1781,7 +1781,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <button
                       onClick={handleSync}
                       disabled={syncing}
-                      className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                      className="flex-1 bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                     >
                       {syncing ? (
                         <><span className="animate-spin">⟳</span>同期中...</>
@@ -1805,14 +1805,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p>APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
                     <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。詳しくはプライバシーポリシーをご確認ください。</p>
                   </div>
-                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1">
                     <p className="font-semibold">🔒 このアプリのURLについて</p>
                     <p>このURLはあなた専用の検索アプリです。あなた自身のNotionデータベースに接続されています。</p>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">URLを第三者に共有すると、あなたのデータが閲覧できる状態になります。信頼できる方のみに共有してください。</p>
+                    <p className="text-xs text-brand-600 dark:text-brand-400 mt-1">URLを第三者に共有すると、あなたのデータが閲覧できる状態になります。信頼できる方のみに共有してください。</p>
                   </div>
                   <button
                     onClick={() => setStep('options')}
-                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                    className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
                     次へ（オプション設定） →
                   </button>
@@ -1863,7 +1863,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.teamLabel}
                         onChange={(e) => update('teamLabel', e.target.value)}
                         placeholder="例：3病棟、ICU、外科チーム"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                     </div>
                     <div>
@@ -1891,7 +1891,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.teamNotionMedicalDbId}
                         onChange={(e) => update('teamNotionMedicalDbId', e.target.value)}
                         placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
@@ -1906,7 +1906,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         value={form.teamNotionReferenceDbId}
                         onChange={(e) => update('teamNotionReferenceDbId', e.target.value)}
                         placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.teamNotionReferenceDbId && form.teamNotionReferenceDbId.length === 32 && (
                         <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
@@ -1998,7 +1998,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     setShowLogin(true)
                   }
                 }}
-                className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 {user ? '設定を保存して検索を開始する →' : 'メールを登録して検索を開始する →'}
               </button>
