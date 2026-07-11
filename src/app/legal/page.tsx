@@ -101,7 +101,7 @@ export default function LegalPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         <a
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-6"
+          className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400 hover:underline mb-6"
         >
           ← トップに戻る
         </a>
@@ -132,9 +132,9 @@ export default function LegalPage() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
-          <a href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">免責事項・利用規約</a>
-          <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">プライバシーポリシー</a>
-          <a href="/" className="text-blue-600 dark:text-blue-400 hover:underline">トップに戻る</a>
+          <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
+          <a href="/privacy" className="text-brand-600 dark:text-brand-400 hover:underline">プライバシーポリシー</a>
+          <a href="/" className="text-brand-600 dark:text-brand-400 hover:underline">トップに戻る</a>
         </div>
       </div>
     </div>

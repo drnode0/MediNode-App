@@ -133,9 +133,9 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
           onClick={() => onChange(o.id)}
           className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
             owner === o.id
-              ? 'bg-blue-600 text-white'
+              ? 'bg-brand-600 text-white'
               : o.inactive
-                ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+                ? 'bg-gray-50 dark:bg-gray-700/40 dark:bg-gray-800 text-gray-300 dark:text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
@@ -237,13 +237,13 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
 
   if (sortedGenres.length === 0) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 leading-relaxed">
+      <div className="bg-brand-50 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-700 rounded-xl p-4 text-sm text-brand-800 leading-relaxed">
         <p className="font-medium mb-2">💡 ジャンルを使ってみよう</p>
-        <p className="text-blue-700">
+        <p className="text-brand-700 dark:text-brand-300">
           Notion側の「ジャンル」プロパティにオプションを追加すると、ここに一覧表示されます。
         </p>
-        <p className="text-blue-700 mt-2">
-          オプション名の先頭を <span className="font-mono bg-white px-1.5 py-0.5 rounded">01.総論</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded">05.循環</span> のように
+        <p className="text-brand-700 dark:text-brand-300 mt-2">
+          オプション名の先頭を <span className="font-mono bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded">01.総論</span> <span className="font-mono bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded">05.循環</span> のように
           <strong className="font-semibold">2桁数字＋ピリオド</strong>で始めると、アプリ内でも同じ順番に並びます。
         </p>
       </div>
@@ -276,8 +276,8 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
             onClick={() => onGenreSelect(isActive ? null : genre)}
             className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
               isActive
-                ? 'bg-blue-600 text-white border-transparent shadow-sm'
-                : 'bg-white border-gray-200 text-gray-700 hover:shadow-sm hover:border-blue-300'
+                ? 'bg-brand-600 text-white border-transparent shadow-sm'
+                : 'bg-white dark:bg-gray-800 border-gray-200 text-gray-700 dark:text-gray-300 hover:shadow-sm hover:border-brand-300'
             }`}
           >
             <span className="flex items-center gap-1.5 min-w-0">
@@ -285,7 +285,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
               {hasTeam && (
                 <span
                   className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isActive ? 'bg-green-200' : 'bg-green-500'
+                    isActive ? 'bg-green-200' : 'bg-green-50 dark:bg-green-900/300'
                   }`}
                   title="部署にもあります"
                   aria-label="部署にもあります"
@@ -301,7 +301,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
                 />
               )}
             </span>
-            <span className={`text-xs shrink-0 ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>
+            <span className={`text-xs shrink-0 ${isActive ? 'text-brand-100' : 'text-gray-400'}`}>
               {total}
             </span>
           </button>
@@ -311,7 +311,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     {(hiddenCount > 0 || showAll) && sortedGenres.length > GENRE_SHOW_LIMIT && (
       <button
         onClick={() => setShowAll((v) => !v)}
-        className="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700 py-2 mb-4"
+        className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:text-brand-300 py-2 mb-4"
       >
         {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${hiddenCount} 件）`}
       </button>
@@ -399,10 +399,10 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
       <PersonalHitsCollector onLoaded={setPersonalHits} />
 
       <div className="flex items-center justify-between mb-3 gap-2">
-        <p className="text-sm font-medium text-gray-700 truncate">{displayGenreName(genre)}</p>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{displayGenreName(genre)}</p>
         <button
           onClick={onClear}
-          className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
+          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 dark:text-gray-300 shrink-0"
         >
           ✕ 解除
         </button>

@@ -8,7 +8,7 @@
 //     ※ 検索結果の鮮度と認証の整合性を優先。オフライン時のAPIエラーはアプリ側が日本語表示する
 //
 // バージョンを上げると旧キャッシュは activate 時に削除される。
-const CACHE_VERSION = 'medinode-v1'
+const CACHE_VERSION = 'medinode-v2'
 const APP_SHELL = [
   '/',
   '/manifest.json',

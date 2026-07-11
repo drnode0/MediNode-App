@@ -34,13 +34,13 @@ export type Hit = {
 }
 
 const LEVEL_STYLE: Record<string, string> = {
-  '❓ クリニカルクエスチョン': 'bg-yellow-50 text-yellow-700',
-  '💡 ナレッジ': 'bg-green-50 text-green-700',
-  '📋 まとめ': 'bg-blue-50 text-blue-700',
+  '❓ クリニカルクエスチョン': 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  '💡 ナレッジ': 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  '📋 まとめ': 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300',
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
-  personal: { label: '個人', style: 'bg-indigo-50 text-indigo-600' },
+  personal: { label: '個人', style: 'bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300' },
   team: { label: '部署', style: 'bg-teal-50 text-teal-700' },
   subscription: { label: 'プレミアム', style: 'bg-purple-50 text-purple-700' },
 }
@@ -49,9 +49,9 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
   const sourceLabel = isMedical ? '🚑 Medical' : '📖 Ref'
-  const sourceBg = isMedical ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-  const borderColor = isMedical ? 'border-l-blue-400' : 'border-l-amber-400'
-  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 text-gray-600') : ''
+  const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+  const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
+  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300') : ''
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
@@ -60,14 +60,14 @@ export function ResultCard({ hit }: { hit: Hit }) {
     : null
 
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${borderColor} overflow-hidden`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
       {/* メイン部分：タップで展開（要約ありの場合のみ） */}
       <div
         className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`}
         onClick={() => hasExpandable && setExpanded((v) => !v)}
       >
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 text-base leading-snug flex-1">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-snug flex-1">
             {(hit as any)._highlightResult
               ? <Highlight attribute="title" hit={hit as any} />
               : hit.title}
@@ -79,7 +79,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
               </span>
             )}
             {hit.hasAttachment && (
-              <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-500" title="ファイル添付あり">
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="ファイル添付あり">
                 📎
               </span>
             )}
@@ -99,17 +99,17 @@ export function ResultCard({ hit }: { hit: Hit }) {
             </span>
           )}
           {!isMedical && hit.evidenceLevel && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {hit.evidenceLevel}
             </span>
           )}
           {(Array.isArray(hit.genre) ? hit.genre : hit.genre ? [hit.genre] : []).map((g) => (
-            <span key={g} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+            <span key={g} className="text-xs bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 px-2 py-0.5 rounded-full">
               {g}
             </span>
           ))}
           {hit.detailGenre && (
-            <span className="text-xs bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-brand-50 dark:bg-brand-900/40 text-brand-500 dark:text-brand-300 px-2 py-0.5 rounded-full">
               {hit.detailGenre}
             </span>
           )}
@@ -118,7 +118,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {/* 折りたたみ時：2行まで表示 */}
         {!expanded && (
           displaySummary ? (
-            <p className="text-sm text-gray-600 line-clamp-2">{displaySummary}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{displaySummary}</p>
           ) : (
             <p className="text-xs text-gray-300 italic">要約なし</p>
           )
@@ -130,7 +130,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             {!isMedical && hit.year && (
-              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/40 px-2 py-0.5 rounded-full">
                 {hit.year}
               </span>
             )}
@@ -145,7 +145,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {!isMedical && hit.relatedCQTitles && hit.relatedCQTitles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {hit.relatedCQTitles.map((cq, i) => (
-              <span key={i} className="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
+              <span key={i} className="text-xs bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
                 ❓ {cq}
               </span>
             ))}
@@ -155,7 +155,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {isMedical && hit.relatedRefTitles && hit.relatedRefTitles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {hit.relatedRefTitles.map((ref, i) => (
-              <span key={i} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 leading-snug">
+              <span key={i} className="text-xs bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 leading-snug">
                 📖 {ref}
               </span>
             ))}
@@ -165,8 +165,8 @@ export function ResultCard({ hit }: { hit: Hit }) {
 
       {/* 展開時：全文＋Notionリンク */}
       {expanded && displaySummary && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          <p className="text-sm text-gray-700 leading-relaxed pt-3 whitespace-pre-wrap">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pt-3 whitespace-pre-wrap">
             {displaySummary}
           </p>
           {hit.aiKeywords && (
@@ -180,7 +180,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+              className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               Notionで開く
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,7 +197,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
           href={hit.notionUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block px-4 pb-3 text-xs text-blue-500 hover:text-blue-700"
+          className="block px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700 dark:text-brand-300"
         >
           Notionで開く →
         </a>
