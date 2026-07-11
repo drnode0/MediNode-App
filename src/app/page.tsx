@@ -1014,6 +1014,71 @@ function SubscriptionPromoPanel() {
   )
 }
 
+// ── フィードバック促進バナー ──
+// 「ある程度使い込んだ人」に1回だけ感想を聞く。表示条件:
+//   ・未表示（medinode_fb_nudge_done なし）かつ
+//   ・検索実行が累計5回以上 または 初回利用から3日以上
+// 「送る」「閉じる」どちらを押しても二度と出さない（しつこさはFB離れの元）。
+const FB_NUDGE_DONE_KEY = 'medinode_fb_nudge_done'
+const FIRST_USE_KEY = 'medinode_first_use_at'
+const SEARCH_COUNT_KEY = 'medinode_search_count'
+
+// 検索実行のたびに呼ぶ（useNotionSearch / SearchBox の計測と同じ場所）。
+function bumpSearchCount() {
+  try {
+    const n = Number(localStorage.getItem(SEARCH_COUNT_KEY) || '0') + 1
+    localStorage.setItem(SEARCH_COUNT_KEY, String(n))
+  } catch {}
+}
+
+function FeedbackNudgeBanner() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(FB_NUDGE_DONE_KEY)) return
+      // 初回利用日時を記録（無ければ今）。
+      let first = localStorage.getItem(FIRST_USE_KEY)
+      if (!first) {
+        first = new Date().toISOString()
+        localStorage.setItem(FIRST_USE_KEY, first)
+      }
+      const searches = Number(localStorage.getItem(SEARCH_COUNT_KEY) || '0')
+      const daysSinceFirst = (Date.now() - new Date(first).getTime()) / (24 * 60 * 60 * 1000)
+      if (searches >= 5 || daysSinceFirst >= 3) setShow(true)
+    } catch {}
+  }, [])
+  if (!show) return null
+  const done = () => {
+    try { localStorage.setItem(FB_NUDGE_DONE_KEY, new Date().toISOString()) } catch {}
+    setShow(false)
+  }
+  return (
+    <div className="max-w-2xl mx-auto px-4 pt-3">
+      <div className="bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
+        <span className="text-xl shrink-0">📮</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">MediNodeの使い心地はどうですか？</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">2〜3分の匿名フォームです。いただいた声は次の改善に直結します。</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <a
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={done}
+            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+          >
+            感想を送る
+          </a>
+          <button onClick={done} className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // エラー表示から設定パネルを開くためのコンテキスト。
 // タブコンポーネントが深いため、propsのバケツリレーを避けて配布する。
 // section を渡すと設定パネルの該当セクション（例: 'team'）を直接開ける。
@@ -1397,6 +1462,7 @@ function useNotionSearch(mode: Tab) {
     debounceRef.current = setTimeout(() => {
       // 検索実行の計測（デバウンス後＝実際にAPIへ飛ぶ回数と一致）。
       track('search_exec', { engine: 'notion', mode })
+      bumpSearchCount()
       fetch(keyword, { mode: mode === 'manual' ? 'manual' : 'search' })
     }, 600)
   }, [fetch, mode])
@@ -3550,6 +3616,7 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
+        <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
           {tab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
@@ -3603,6 +3670,7 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
+        <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
           <SyncPanel />
         </div>
