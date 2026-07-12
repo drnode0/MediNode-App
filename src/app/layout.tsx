@@ -73,8 +73,32 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (prefers-color-scheme: dark)" href="/splash/1206x2622-dark.png" />
         <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3)" href="/splash/1320x2868-light.png" />
         <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (prefers-color-scheme: dark)" href="/splash/1320x2868-dark.png" />
+        {/* 起動スプラッシュ（Web層）: OSのネイティブ起動画面が消えた直後、
+            アプリ本体（JS）が立ち上がるまでの数百ms〜1秒の「白」を、中央アイコン＋
+            スピナーで埋める。Tailwind CSS非依存の素のCSSなので、外部CSSの読み込みを
+            待たずにこのブロックだけで描画される。app-ready が付いたら静かにフェードアウト。 */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          #medinode-splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;background:#f0f9f5}
+          #medinode-splash img{width:96px;height:96px;border-radius:22px;box-shadow:0 12px 32px rgba(16,60,45,.14)}
+          #medinode-splash .medinode-spin{width:26px;height:26px;border-radius:50%;border:3px solid #c4e6d8;border-top-color:#196b4f;animation:medinode-rot .8s linear infinite}
+          @keyframes medinode-rot{to{transform:rotate(360deg)}}
+          @media (prefers-color-scheme:dark){
+            #medinode-splash{background:#10151c}
+            #medinode-splash .medinode-spin{border-color:#1f3a30;border-top-color:#7bd0b0}
+          }
+          html.app-ready #medinode-splash{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,visibility .3s ease}
+          @media (prefers-reduced-motion:reduce){
+            #medinode-splash .medinode-spin{animation:none}
+            html.app-ready #medinode-splash{transition:none}
+          }
+        ` }} />
       </head>
       <body className={`${notoSansJP.className} bg-gray-50 min-h-screen`}>
+        {/* aria-hidden: 支援技術には読み上げさせない（純粋な視覚的ローディング） */}
+        <div id="medinode-splash" aria-hidden="true">
+          <img src="/icon-512.png" alt="" width={96} height={96} />
+          <div className="medinode-spin" />
+        </div>
         <PwaRuntime />
         <AuthProvider>
           <PremiumSync />
