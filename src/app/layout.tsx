@@ -99,6 +99,16 @@ export default function RootLayout({
           <img src="/icon-512.png" alt="" width={96} height={96} />
           <div className="medinode-spin" />
         </div>
+        {/* スプラッシュ解除の保険。通常はハイドレーション時に PwaRuntime が app-ready を
+            付けるが、JSの読み込み失敗・極端な遅延でもスプラッシュに閉じ込めないよう、
+            Reactに依存しないインラインscriptで load時と最大5秒でも必ず解除する。
+            （setTimeout はバックグラウンドタブでも発火するので rAF より確実） */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){var c=function(){document.documentElement.classList.add('app-ready')};window.addEventListener('load',c);setTimeout(c,5000)})();",
+          }}
+        />
         <PwaRuntime />
         <AuthProvider>
           <PremiumSync />
