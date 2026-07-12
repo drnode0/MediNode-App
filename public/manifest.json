@@ -4,7 +4,7 @@
   "description": "医療知識・参考文献の高速検索",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#f0f9f5",
   "theme_color": "#196b4f",
   "icons": [
     {
