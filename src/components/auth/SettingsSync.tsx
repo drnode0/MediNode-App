@@ -12,6 +12,7 @@ import {
   saveSettings,
   getSettingsUpdatedAt,
   setSettingsUpdatedAt,
+  mergeSettings,
   type AppSettings,
 } from '@/lib/settings'
 
@@ -38,31 +39,39 @@ export function SettingsSync() {
         const local = getSettings()
         const localUpdated = getSettingsUpdatedAt()
 
-        // サーバーに設定がある場合: last-write-wins で新しい方を採用。
+        // サーバーに設定がある場合: 新しい側を優先しつつ、空欄は相手の値で埋める
+        // マージを採用（whole-object の last-write-wins だと、再インストール直後の
+        // 部分的なローカルがサーバーの完全な設定を消してしまうため）。
         if (data.settings) {
+          const server = data.settings as AppSettings
           const serverUpdated: string | undefined = data.updatedAt
           const serverNewer =
             !localUpdated ||
             (serverUpdated ? new Date(serverUpdated) > new Date(localUpdated) : false)
 
-          if (!local || serverNewer) {
-            const next = data.settings as AppSettings
-            const changed = JSON.stringify(local) !== JSON.stringify(next)
-            // サーバー値を反映。skipServer=true で echo POST を防ぎつつ、
-            // ローカルの更新時刻はサーバーの updatedAt に合わせる（再ログインで無限に新しくならないように）。
-            saveSettings(next, { skipServer: true })
-            if (serverUpdated) setSettingsUpdatedAt(serverUpdated)
-            // 値が実際に変わった時だけリロードして検索クライアントを作り直す（無限リロード防止）。
-            if (changed) window.location.reload()
-          } else if (local) {
-            // ローカルの方が新しい → サーバーへ反映（fire-and-forget）。
+          // 新しい側を primary に。空欄だけ相手から補完する（非空を空で潰さない）。
+          const merged = (serverNewer ? mergeSettings(server, local) : mergeSettings(local, server)) as AppSettings
+
+          const localChanged = JSON.stringify(local) !== JSON.stringify(merged)
+          const serverChanged = JSON.stringify(server) !== JSON.stringify(merged)
+
+          if (localChanged) {
+            // ローカルへ反映（echo POST を避けるため skipServer）。更新時刻は
+            // 新しい側に合わせて再ログインでの無限更新を防ぐ。
+            saveSettings(merged, { skipServer: true })
+            if (serverNewer && serverUpdated) setSettingsUpdatedAt(serverUpdated)
+          }
+          if (serverChanged) {
+            // マージで欠けを補完した分をサーバーへ戻す（完全な設定に復元）。
             void fetch('/api/user-settings', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(local),
+              body: JSON.stringify(merged),
               cache: 'no-store',
             }).catch(() => {})
           }
+          // ローカルの値が実際に変わった時だけリロードして検索クライアントを作り直す。
+          if (localChanged) window.location.reload()
           return
         }
 

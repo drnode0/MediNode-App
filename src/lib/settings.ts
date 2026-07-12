@@ -205,3 +205,27 @@ export function extractNotionDbId(input: string): string {
   // 抽出できなかった場合はそのまま返す
   return trimmed
 }
+
+// 端末間同期のマージ。primary（新しい側）を基本にしつつ、primaryが空の項目は
+// secondary（古い側）の値で埋める＝「空欄で非空を上書きしない」ユニオン。
+//
+// これが無いと、PWA再インストール直後の“部分的なローカル設定”（例: Algoliaだけ
+// 入力・Notion Tokenは空）が新しいタイムスタンプでサーバーの完全な設定を消して
+// しまい、ログインしてもNotion Tokenが戻らない、という事故が起きる。
+// 値が入っている項目どうしが衝突したときだけ primary（新しい側）を優先する。
+export function mergeSettings(
+  primary: AppSettings | null,
+  secondary: AppSettings | null,
+): AppSettings | null {
+  if (!primary) return secondary
+  if (!secondary) return primary
+  const isEmpty = (v: unknown) => v === undefined || v === null || v === ''
+  const out: Record<string, unknown> = { ...secondary, ...primary }
+  const keys = new Set([...Object.keys(secondary), ...Object.keys(primary)])
+  for (const k of keys) {
+    const pv = (primary as Record<string, unknown>)[k]
+    const sv = (secondary as Record<string, unknown>)[k]
+    out[k] = isEmpty(pv) ? sv : pv
+  }
+  return out as AppSettings
+}
