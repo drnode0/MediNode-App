@@ -22,12 +22,25 @@ import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { GenreBrowse } from '@/components/GenreBrowse'
-import { SetupWizard } from '@/components/SetupWizard'
+
 import { SyncPanel } from '@/components/SyncPanel'
-import { OnboardingScreen } from '@/components/OnboardingScreen'
+
 import { PremiumValueProps } from '@/components/PremiumValueProps'
 import { AccountButton } from '@/components/auth/AccountButton'
 import { useAuth } from '@/components/auth/AuthProvider'
+import dynamicImport from 'next/dynamic'
+import { AppSkeleton } from '@/components/AppSkeleton'
+
+// セットアップ・オンボーディングは「初回とやり直し時」しか使わないため、
+// 初期バンドルから分離して必要時にだけ読み込む（既存ユーザーの起動を軽くする）。
+const SetupWizard = dynamicImport(
+  () => import('@/components/SetupWizard').then((m) => m.SetupWizard),
+  { ssr: false, loading: () => <AppSkeleton /> },
+)
+const OnboardingScreen = dynamicImport(
+  () => import('@/components/OnboardingScreen').then((m) => m.OnboardingScreen),
+  { ssr: false, loading: () => <AppSkeleton /> },
+)
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
@@ -3110,11 +3123,8 @@ export default function Home() {
   }
 
   if (setupDone === null || onboardingDone === null) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="text-gray-400 text-sm">読み込み中...</div>
-      </div>
-    )
+    // JS到着前からサーバーHTMLとして描画される骨格。実画面と同寸なので切替時のガタつきもない。
+    return <AppSkeleton />
   }
 
   // 初回のみオンボーディング（setupが未完了の場合のみ表示）、またはSetupWizardから「使い方」ボタンで再表示
