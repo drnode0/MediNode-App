@@ -2658,19 +2658,29 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {/* ── Notion・Algolia接続設定 ── */}
           {section === 'notion' && (
             <div className="space-y-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400">変更後は「保存」してから再同期してください。</p>
+              {/* 手入力の前に: ログインで復元できることを最初に案内（再インストール後の
+                  「また入れ直し」を防ぐ。実機で最も多い詰まりどころ）。 */}
+              <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
+                💡 <strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">変更後は「保存」してから再同期してください。各項目の取得先は下のリンクから。</p>
               <div className="space-y-3">
                 <div>
                   <label className={labelCls}>Notion コネクトToken</label>
                   <input type="password" value={notionForm.notionToken} onChange={(e) => setNotionForm(f => ({ ...f, notionToken: e.target.value }))} placeholder="ntn_xxxxxxxxxxxx" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">
+                    取得先 <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline">notion.so/my-integrations</a> → 対象のコネクトを開き「アクセストークン」をコピー（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">ntn_</code> または <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_</code> で始まる文字列）
+                  </p>
                 </div>
                 <div>
                   <label className={labelCls}>Medical DB（URLまたはID）</label>
                   <input type="text" value={notionForm.notionMedicalDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionMedicalDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">NotionでDBページを開き、右上「共有」→「リンクをコピー」で貼り付け（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">?v=</code> 以降は自動で除去されます）</p>
                 </div>
                 <div>
                   <label className={labelCls}>Reference DB（URLまたはID・任意）</label>
                   <input type="text" value={notionForm.notionReferenceDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">論文・文献DB。使わなければ空でOK</p>
                 </div>
                 <div>
                   <label className={labelCls}>Manual DB（マニュアル・お知らせ・URLまたはID・任意）</label>
@@ -2680,24 +2690,39 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 {currentMode === 'algolia' && (
                   <>
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                      <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
+                        取得先 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline">Algolia → Settings → API Keys</a>。3つの値をコピーします。<strong className="text-amber-600 dark:text-amber-400">Search-Only と Admin は別物</strong>なので取り違えに注意。
+                      </div>
                       <label className={labelCls}>Algolia App ID</label>
                       <input type="text" value={notionForm.algoliaAppId} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAppId: e.target.value }))} placeholder="XXXXXXXXXX" className={inputCls} />
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">アプリの識別子（10文字程度の英大文字＋数字）。公開されても問題ない値です</p>
                     </div>
                     <div>
-                      <label className={labelCls}>Algolia Search-Only API Key</label>
+                      <label className={labelCls}>Algolia Search-Only API Key <span className="font-normal text-gray-400">＝検索用</span></label>
                       <input type="password" value={notionForm.algoliaSearchKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaSearchKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">検索専用（読み取りのみ）。API Keys一覧にそのまま表示されています</p>
                     </div>
                     <div>
-                      <label className={labelCls}>Algolia Admin API Key</label>
+                      <label className={labelCls}>Algolia Admin API Key <span className="font-normal text-gray-400">＝同期用</span></label>
                       <input type="password" value={notionForm.algoliaAdminKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAdminKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠️ 「🔒」を押して表示してからコピー。Search-Only ではなく <strong>Admin</strong> の方です</p>
                     </div>
                     <div>
                       <label className={labelCls}>インデックス名</label>
                       <input type="text" value={notionForm.algoliaIndex} onChange={(e) => setNotionForm(f => ({ ...f, algoliaIndex: e.target.value }))} placeholder="medical_knowledge" className={inputCls} />
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">初期値のままでOK。初回同期時にAlgolia側で自動作成されます</p>
                     </div>
                   </>
                 )}
               </div>
+              <a
+                href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 py-1"
+              >
+                📘 取得手順を詳しく見る（ガイド）
+              </a>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
                 onClick={() => saveSection({
