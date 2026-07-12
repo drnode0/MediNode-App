@@ -21,7 +21,7 @@ import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
-import { GenreBrowse, genreChipTone } from '@/components/GenreBrowse'
+import { GenreBrowse, genreChipTone, GenreHitsList } from '@/components/GenreBrowse'
 
 import { SyncPanel } from '@/components/SyncPanel'
 
@@ -1879,9 +1879,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           ) : displayRecords.length === 0 ? (
             <div className="text-center py-8 text-gray-400"><p>このジャンルにはまだエントリがありません</p></div>
           ) : (
-            <div className="space-y-3">
-              {displayRecords.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
-            </div>
+            <GenreHitsList hits={displayRecords} />
           )}
         </>
       )}
