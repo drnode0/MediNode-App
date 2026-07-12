@@ -294,7 +294,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
       </div>
 
       {/* フッター */}
-      <div className="px-6 pb-10 max-w-md mx-auto w-full">
+      <div className="px-6 max-w-md mx-auto w-full [padding-bottom:max(2.5rem,calc(1.25rem+env(safe-area-inset-bottom)))]">
         {/* ページインジケーター（現在の層内だけを数える） */}
         <div className="flex justify-center items-center gap-2 mb-6">
           {layer === 'detail' && (

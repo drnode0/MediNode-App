@@ -884,7 +884,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 [padding-bottom:calc(4rem+env(safe-area-inset-bottom))]">
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="relative text-center mb-8">

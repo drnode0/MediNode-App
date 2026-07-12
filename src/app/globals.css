@@ -49,3 +49,13 @@ mark {
     color: #f5f0dc;
   }
 }
+
+/* ── ビューポート高の実寸化 ──
+   iOSでは 100vh が実際の表示領域より高く計算され、画面下端のボタンが
+   見切れる（オンボーディングの「次へ」等）。dvh対応ブラウザでは
+   全ての min-h-screen を動的ビューポート高に置き換える。 */
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
