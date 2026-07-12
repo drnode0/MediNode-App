@@ -108,7 +108,6 @@ function hybridSort(a: string, b: string): number {
 
 // 番号プレフィックスを除いた表示名
 // ジャンルチップの巡回トーン（オンボーディングと同系のペール5色）。
-// ジャンル名のハッシュで決まるため、並び替えやフィルタで色が変わらない。
 // Notionモードのジャンルタブ（page.tsx）とも共有する。
 const CHIP_TONES = [
   { active: 'bg-brand-600 text-white border-transparent shadow-sm', idle: 'bg-brand-50 dark:bg-brand-900/25 border-brand-100 dark:border-brand-800 text-brand-900 dark:text-brand-200 hover:border-brand-300' },
@@ -117,7 +116,16 @@ const CHIP_TONES = [
   { active: 'bg-violet-500 text-white border-transparent shadow-sm', idle: 'bg-violet-50 dark:bg-violet-900/25 border-violet-100 dark:border-violet-800 text-violet-900 dark:text-violet-200 hover:border-violet-300' },
   { active: 'bg-rose-500 text-white border-transparent shadow-sm', idle: 'bg-rose-50 dark:bg-rose-900/25 border-rose-100 dark:border-rose-800 text-rose-900 dark:text-rose-200 hover:border-rose-300' },
 ]
+// 色の決め方: 「01.総論」「05.循環」のような番号プレフィックスがあれば、
+// その番号で5色を順に巡回する（01=常盤→02=琥珀→03=空→04=菫→05=薔薇→06=常盤…）。
+// 並び順どおりに色が回るので、隣り合うジャンルは必ず違う色になる。
+// 番号がないジャンルは名前のハッシュで安定的に決める（いつ見ても同じ色）。
 export function genreChipTone(genre: string): { active: string; idle: string } {
+  const m = genre.trim().match(/^(\d{1,2})[.．]/)
+  if (m) {
+    const n = parseInt(m[1], 10)
+    return CHIP_TONES[(((n - 1) % CHIP_TONES.length) + CHIP_TONES.length) % CHIP_TONES.length]
+  }
   let h = 0
   for (const ch of genre) h = (h + (ch.codePointAt(0) || 0)) % 997
   return CHIP_TONES[h % CHIP_TONES.length]
