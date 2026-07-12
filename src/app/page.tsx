@@ -15,7 +15,7 @@ import {
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
-import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial } from '@/lib/settings'
+import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
@@ -2385,10 +2385,40 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
   })
   const [saveMsg, setSaveMsg] = useState('')
 
+  // iOSのキーボード対策: この設定パネルは fixed bottom-0 のボトムシートなので、
+  // キーボードが立つと下端（保存ボタン）がキーボードの裏に隠れて押せなくなる。
+  // visualViewport でキーボードの高さを測り、スクロール領域の下余白として確保して、
+  // 保存ボタンをキーボードの上まで送り出せるようにする。
+  const [kbInset, setKbInset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      setKbInset(inset)
+    }
+    vv.addEventListener('resize', onResize)
+    vv.addEventListener('scroll', onResize)
+    onResize()
+    return () => {
+      vv.removeEventListener('resize', onResize)
+      vv.removeEventListener('scroll', onResize)
+    }
+  }, [])
+
   const saveSection = (patch: Partial<ReturnType<typeof getSettings>>) => {
+    // 既存設定が無くても保存できるようにする（以前は !cur で早期returnしており、
+    // 空状態だと保存ボタンが無反応になっていた）。欠けは既定値で補う。
     const cur = getSettings()
-    if (!cur) return
-    saveSettings({ ...cur, ...patch } as Parameters<typeof saveSettings>[0])
+    const base: AppSettings = cur ?? {
+      searchMode: currentMode === 'notion' ? 'notion' : 'algolia',
+      notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
+      algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
+      teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
+      subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
+      propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+    }
+    saveSettings({ ...base, ...patch } as Parameters<typeof saveSettings>[0])
     setSaveMsg('保存しました')
     setTimeout(() => setSaveMsg(''), 2000)
   }
@@ -2511,7 +2541,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
 
-        <div className="px-5 pb-8 pt-2 overflow-y-auto">
+        <div
+          className="px-5 pt-2 overflow-y-auto"
+          // キーボード表示中はその高さぶん下余白を足し、保存ボタンをキーボードの上へ。
+          style={{ paddingBottom: `calc(2rem + ${kbInset}px)` }}
+        >
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-4">
             {section ? (
