@@ -1181,10 +1181,29 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
 // Notionモード用コンポーネント（新規）
 // ============================================================
 
+// シンプルモードの体感ラグ対策: 同じ問い合わせの結果をセッション内でメモリ保持し、
+// タブ再訪・再検索のときは即座に前回結果を出す（stale-while-revalidate）。
+// 表示後に裏で最新を取り直して差し替えるので、鮮度も保たれる。
+// localStorageではなくメモリなので、セッションをまたいだ古いデータの残留は無い。
+const notionResultCache = new Map<string, Hit[]>()
+const NOTION_CACHE_MAX = 40
+function setNotionCache(key: string, records: Hit[]) {
+  notionResultCache.delete(key)
+  notionResultCache.set(key, records)
+  // 上限超過は古いものから捨てる（挿入順＝Mapの反復順）。
+  while (notionResultCache.size > NOTION_CACHE_MAX) {
+    const oldest = notionResultCache.keys().next().value
+    if (oldest === undefined) break
+    notionResultCache.delete(oldest)
+  }
+}
+
 function useNotionSearch(mode: Tab) {
   const settings = getSettings()
   const [records, setRecords] = useState<Hit[]>([])
   const [loading, setLoading] = useState(false)
+  // キャッシュを表示しつつ裏で最新取得中（大きなスピナーは出さず、控えめな表示に使える）
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 最新リクエストのみ反映するための世代カウンタ（古いレスポンスの上書きを防ぐ）
@@ -1205,8 +1224,30 @@ function useNotionSearch(mode: Tab) {
       return
     }
     const reqId = ++reqIdRef.current
-    setLoading(true)
     setError('')
+
+    // 問い合わせを一意化するキー（DB・チーム・キーワード・モード等が同じなら同一結果）。
+    const cacheKey = JSON.stringify({
+      m: settings.notionMedicalDbId,
+      r: settings.notionReferenceDbId || '',
+      man: settings.notionManualDbId || '',
+      t: settings.teamNotionMedicalDbId || '',
+      tr: settings.teamNotionReferenceDbId || '',
+      tm: settings.teamNotionManualDbId || '',
+      keyword,
+      ...extra,
+    })
+    // キャッシュがあれば即表示（大きなスピナーは出さず裏で更新）。無ければ通常のローディング。
+    const cached = notionResultCache.get(cacheKey)
+    if (cached) {
+      setRecords(cached)
+      setLoading(false)
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+      setRefreshing(false)
+    }
+
     try {
       const res = await window.fetch('/api/notion/search', {
         method: 'POST',
@@ -1229,11 +1270,14 @@ function useNotionSearch(mode: Tab) {
       // このレスポンスが最新リクエストでなければ破棄（race condition対策）
       if (reqId !== reqIdRef.current) return
       if (!res.ok) throw new Error(data.error || '検索に失敗しました')
-      setRecords(data.records as Hit[])
+      const fresh = data.records as Hit[]
+      setNotionCache(cacheKey, fresh)
+      setRecords(fresh)
     } catch (err) {
-      if (reqId === reqIdRef.current) setError(err instanceof Error ? err.message : '検索エラー')
+      // キャッシュ表示中の裏更新が失敗しても、既に出ている結果は消さない（エラーも出さない）。
+      if (reqId === reqIdRef.current && !cached) setError(err instanceof Error ? err.message : '検索エラー')
     } finally {
-      if (reqId === reqIdRef.current) setLoading(false)
+      if (reqId === reqIdRef.current) { setLoading(false); setRefreshing(false) }
     }
   }, [settings?.notionToken, settings?.notionMedicalDbId, settings?.notionManualDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId, settings?.teamNotionManualDbId])
 
@@ -1268,7 +1312,7 @@ function useNotionSearch(mode: Tab) {
     }, 600)
   }, [fetch, mode])
 
-  return { records, loading, error, search, refetch: fetch }
+  return { records, loading, refreshing, error, search, refetch: fetch }
 }
 
 // ============================================================
@@ -1351,7 +1395,7 @@ function useTeamNotionHits(mode: Tab, enabled: boolean) {
 
 // Notionモード：検索タブ
 function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
-  const { records, loading, error, search } = useNotionSearch('search')
+  const { records, loading, refreshing, error, search } = useNotionSearch('search')
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
@@ -1402,6 +1446,10 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>Notionを検索中...</div>}
+      {/* キャッシュ結果を表示中に裏で最新取得しているときの控えめな表示（一覧は消さない） */}
+      {refreshing && !loading && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-1 mb-2"><span className="animate-spin inline-block mr-1">⟳</span>最新の内容を確認中...</p>
+      )}
       {error && <SearchErrorNotice error={error} />}
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
