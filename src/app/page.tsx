@@ -1070,6 +1070,28 @@ function PersonalHitsCollector({ onHits }: { onHits: (hits: Hit[]) => void }) {
   return null
 }
 
+// 履歴ゼロ時の白紙防止＋「何を検索できるか」の提示。両モード（Algolia/Notion）で共有。
+const EXAMPLE_KEYWORDS = ['敗血症', '人工呼吸', '抗菌薬', '電解質', '鎮静']
+function ExampleKeywords({ onPick }: { onPick: (kw: string) => void }) {
+  return (
+    <div className="text-center py-10">
+      <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">例えばこんなキーワードで検索できます</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        {EXAMPLE_KEYWORDS.map((kw) => (
+          <button
+            key={kw}
+            onClick={() => onPick(kw)}
+            className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+          >
+            🔍 {kw}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-gray-300 dark:text-gray-600 mt-4">タイトルだけでなく要約・キーワードからもヒットします</p>
+    </div>
+  )
+}
+
 function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { refine, query } = useSearchBox()
   const { history, addHistory, clearHistory } = useSearchHistory()
@@ -1130,11 +1152,18 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
         />
       </div>
       {!query && !hasSearched ? (
-        <SearchHistoryList
-          history={history}
-          onSelect={handleSelect}
-          onClear={clearHistory}
-        />
+        <>
+          <SearchHistoryList
+            history={history}
+            onSelect={handleSelect}
+            onClear={clearHistory}
+          />
+          {/* 履歴ゼロ（初回）の白紙防止。パワーモードでも例示キーワードを出す
+              （以前はNotionモードだけにあり、パワーモードでは何も出なかった）。 */}
+          {history.length === 0 && (
+            <ExampleKeywords onPick={(kw) => { addHistory(kw); handleSelect(kw) }} />
+          )}
+        </>
       ) : ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
       ) : (
@@ -1381,21 +1410,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
           {/* 履歴ゼロ（初回）の白紙画面を防ぐ: 例示キーワードをタップで即検索できるようにする */}
           {history.length === 0 && (
-            <div className="text-center py-10">
-              <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">例えばこんなキーワードで検索できます</p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {['敗血症', '人工呼吸', '抗菌薬', '電解質', '鎮静'].map((kw) => (
-                  <button
-                    key={kw}
-                    onClick={() => { addHistory(kw); handleChange(kw) }}
-                    className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                  >
-                    🔍 {kw}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-300 dark:text-gray-600 mt-4">タイトルだけでなく要約・キーワードからもヒットします</p>
-            </div>
+            <ExampleKeywords onPick={(kw) => { addHistory(kw); handleChange(kw) }} />
           )}
         </>
       ) : !loading && !error && merged.length === 0 && query ? (
