@@ -83,9 +83,26 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               </button>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 mt-3 text-center">
-              {answered === 'ok' ? '記録しました。次回は後ろの方に出ます' : '記録しました。次回は優先して出ます'}
-            </p>
+            // 記録の小さな祝福。押した直後に弾んで表示され、学習の手応えを返す。
+            <div
+              className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold animate-pop ${
+                answered === 'ok'
+                  ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                  : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+              }`}
+            >
+              {answered === 'ok' ? (
+                <>
+                  <Check className="w-4 h-4" strokeWidth={2.5} />
+                  覚えた！次回は後ろの方に出ます
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" strokeWidth={2.5} />
+                  記録しました。次回は優先して出ます
+                </>
+              )}
+            </div>
           )}
           <div className="flex items-center justify-between mt-3">
             <button
