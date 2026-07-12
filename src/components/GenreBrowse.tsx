@@ -343,6 +343,49 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
   )
 }
 
+// ジャンル選択後のヒット一覧。「📋 まとめ」をジャンルの入り口として先頭に
+// ピン留めして表示する（まとめ＝そのジャンルの地図、という位置づけ。
+// クイズには出さない代わりに、ブラウズの起点でいちばん目立つ場所に置く）。
+// Notionモードのジャンルタブ（page.tsx）とも共有。
+export function GenreHitsList({ hits }: { hits: Hit[] }) {
+  const isMatome = (h: Hit) => (h.knowledgeLevel || '').includes('まとめ')
+  const matome = hits.filter(isMatome)
+  const rest = hits.filter((h) => !isMatome(h))
+  if (matome.length === 0) {
+    return (
+      <div className="space-y-3">
+        {hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+      </div>
+    )
+  }
+  return (
+    <>
+      <div className="mb-5">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-semibold text-brand-700 dark:text-brand-300">📋 このジャンルのまとめ</span>
+          <div className="flex-1 h-px bg-brand-200 dark:bg-brand-800" />
+          <span className="text-xs text-gray-300 dark:text-gray-600">{matome.length}件</span>
+        </div>
+        <div className="space-y-3">
+          {matome.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+        </div>
+      </div>
+      {rest.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">ノート</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs text-gray-300 dark:text-gray-600">{rest.length}件</span>
+          </div>
+          <div className="space-y-3">
+            {rest.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
 // 選択後の個人側ヒット取得（react-instantsearch経由）
 function PersonalHitsCollector({ onLoaded }: { onLoaded: (hits: Hit[]) => void }) {
   const { hits } = useHits()
@@ -440,11 +483,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
           <p>このジャンルにはまだエントリがありません</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {displayedHits.map((hit) => (
-            <ResultCard key={hit.objectID} hit={hit} />
-          ))}
-        </div>
+        <GenreHitsList hits={displayedHits} />
       )}
     </>
   )
