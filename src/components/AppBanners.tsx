@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
+import { Send, Zap } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -83,7 +84,7 @@ export function UpdateBanner() {
               </a>
             ))}
           </div>
-          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-2">過去のお知らせは ⚙️設定 →「お知らせ・更新履歴」から見返せます。</p>
+          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-2">過去のお知らせは 設定 →「お知らせ・更新履歴」から見返せます。</p>
         </div>
         <button onClick={dismiss} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200 shrink-0 text-lg leading-none" title="閉じる" aria-label="閉じる">×</button>
       </div>
@@ -133,7 +134,7 @@ export function FeedbackNudgeBanner() {
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
       <div className="bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
-        <span className="text-xl shrink-0">📮</span>
+        <Send className="w-5 h-5 text-brand-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">MediNodeの使い心地はどうですか？</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">2〜3分の匿名フォームです。いただいた声は次の改善に直結します。</p>
@@ -172,7 +173,7 @@ export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () 
   if (dismissed) return null
   return (
     <div className="mb-4 bg-gradient-to-br from-brand-50 to-brand-50 dark:from-brand-900/30 dark:to-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
-      <div className="text-2xl shrink-0">⚡</div>
+      <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">
           もっと速くしたい方はパワーモードへ

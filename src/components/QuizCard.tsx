@@ -1,4 +1,5 @@
 'use client'
+import { RotateCcw, Check } from 'lucide-react'
 import { useState } from 'react'
 import type { Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
@@ -72,18 +73,18 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
                 onClick={() => answer(false)}
                 className="flex-1 text-sm font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg py-2 transition-colors"
               >
-                🔁 まだ
+                <RotateCcw className="w-4 h-4 inline -mt-0.5 mr-1" />まだ
               </button>
               <button
                 onClick={() => answer(true)}
                 className="flex-1 text-sm font-semibold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg py-2 transition-colors"
               >
-                ✅ 覚えた
+                <Check className="w-4 h-4 inline -mt-0.5 mr-1" />覚えた
               </button>
             </div>
           ) : (
             <p className="text-xs text-gray-400 mt-3 text-center">
-              {answered === 'ok' ? '✅ 記録しました。次回は後ろの方に出ます' : '🔁 記録しました。次回は優先して出ます'}
+              {answered === 'ok' ? '記録しました。次回は後ろの方に出ます' : '記録しました。次回は優先して出ます'}
             </p>
           )}
           <div className="flex items-center justify-between mt-3">
