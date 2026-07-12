@@ -1,0 +1,249 @@
+'use client'
+
+// 臨床疑問（CQ）キャプチャ。
+// 「検索したけど無かった」「ふと疑問が湧いた」その場で、疑問文をそのまま
+// NotionのMedical DBに「❓ クリニカルクエスチョン」として残せる浮きボタン＋モーダル。
+// 知識ライフサイクル（❓CQ → 調べて💡ナレッジ → クイズ）の起点をアプリ内で閉じる。
+//
+// 使い方:
+//   <CqCaptureProvider> でタブ群を包む（個人のNotion設定が無いときは何も出さない）
+//   ゼロ件画面などからは useCqCapture() が返す open(prefill) を呼ぶ（nullなら非表示に）
+
+import { useState, useEffect, useCallback, createContext, useContext } from 'react'
+import { createPortal } from 'react-dom'
+import { MessageCircleQuestion, X, ExternalLink } from 'lucide-react'
+import { track } from '@vercel/analytics'
+import { getSettings } from '@/lib/settings'
+
+const CqCaptureContext = createContext<((prefill?: string) => void) | null>(null)
+
+// 開く関数を返す。個人のNotionが未設定（部署のみ／プレミアムのみ等）なら null。
+export function useCqCapture() {
+  return useContext(CqCaptureContext)
+}
+
+export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [prefill, setPrefill] = useState('')
+
+  const settings = getSettings()
+  const enabled = !!(settings?.notionToken && settings?.notionMedicalDbId)
+
+  const openCapture = useCallback((p?: string) => {
+    setPrefill(p || '')
+    setOpen(true)
+    track('cq_capture_open', { prefilled: p ? 'yes' : 'no' })
+  }, [])
+
+  return (
+    <CqCaptureContext.Provider value={enabled ? openCapture : null}>
+      {children}
+      {enabled && !open && (
+        <button
+          type="button"
+          onClick={() => openCapture()}
+          aria-label="疑問をCQとして残す"
+          title="疑問をCQとして残す"
+          className="fixed z-30 right-4 [bottom:max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] flex items-center gap-1.5 pl-3.5 pr-4 py-3 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-900/25 transition-colors animate-float"
+        >
+          <MessageCircleQuestion className="w-5 h-5" strokeWidth={2.2} />
+          <span className="text-sm font-bold">CQ</span>
+        </button>
+      )}
+      {enabled && open && (
+        <CqCaptureModal
+          initialTitle={prefill}
+          searchMode={settings?.searchMode || 'algolia'}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </CqCaptureContext.Provider>
+  )
+}
+
+function CqCaptureModal({
+  initialTitle,
+  searchMode,
+  onClose,
+}: {
+  initialTitle: string
+  searchMode: string
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState(initialTitle)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState<{ url: string } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    // モーダル表示中は背景スクロールをロック。
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [])
+
+  const handleSave = async () => {
+    const trimmed = title.trim()
+    if (!trimmed) {
+      setError('疑問文を入力してください')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const settings = getSettings()
+      const res = await fetch('/api/notion/create-cq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: settings?.notionToken,
+          notionMedicalDbId: settings?.notionMedicalDbId,
+          title: trimmed,
+          knowledgeLevelProp: settings?.propKnowledgeLevel || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setError(parseCqError(data.error || ''))
+        return
+      }
+      setDone({ url: data.url || '' })
+      track('cq_capture_saved')
+    } catch {
+      setError('ネットワークエラーが発生しました。接続を確認してください。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!mounted) return null
+
+  const modal = (
+    <div className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-lg mx-auto [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+        <div className="px-5 pt-2 pb-4">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+              <MessageCircleQuestion className="w-5 h-5 text-brand-600 dark:text-brand-300" />
+              疑問を残す
+            </h2>
+            <button
+              onClick={onClose}
+              aria-label="閉じる"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {!done ? (
+            <>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
+                あとで調べる疑問を、NotionのMedical DBに「❓ クリニカルクエスチョン」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。
+              </p>
+              <textarea
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  setError('')
+                }}
+                autoFocus
+                rows={3}
+                maxLength={200}
+                placeholder="例：敗血症性ショックでバソプレシンはいつから併用する？"
+                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
+              />
+              {error && (
+                <div className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                  {error}
+                </div>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving || !title.trim()}
+                className="mt-3 w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <span className="animate-spin">⟳</span>保存中...
+                  </>
+                ) : (
+                  'CQとして保存する'
+                )}
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center">
+                <p className="font-bold text-green-700 dark:text-green-400 text-sm">✅ 保存しました</p>
+                <p className="text-xs text-green-600 dark:text-green-500 mt-1 leading-relaxed">
+                  {searchMode === 'notion'
+                    ? '検索・新着にもすぐ反映されます。'
+                    : 'Notionには保存済みです。アプリの検索結果に出すには再同期してください。'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {done.url && (
+                  <a
+                    href={done.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-2.5 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    Notionで開く
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button
+                  onClick={() => {
+                    setDone(null)
+                    setTitle('')
+                  }}
+                  className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+                >
+                  続けて残す
+                </button>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1"
+              >
+                閉じる
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  // body直下にポータルで描画（sticky header や transform 祖先の影響を避ける）。
+  return createPortal(modal, document.body)
+}
+
+function parseCqError(msg: string): string {
+  if (msg.includes('API token is invalid') || msg.includes('unauthorized') || msg.includes('Unauthorized')) {
+    return 'NotionのTokenが無効です。設定 → 「Notion・Algolia接続設定」を確認してください。'
+  }
+  if (msg.includes('restricted_resource') || msg.includes('403') || msg.includes('Insufficient permissions')) {
+    return [
+      'NotionのDBに書き込めませんでした。',
+      '・DBに「コネクトを追加」済みか確認してください',
+      '・コネクトの機能で「コンテンツを挿入」が有効か確認してください（notion.so/my-integrations → 対象コネクト → 機能）',
+    ].join('\n')
+  }
+  if (msg.includes('object_not_found') || msg.includes('Could not find database')) {
+    return 'Medical DBが見つかりません。設定 → 「Notion・Algolia接続設定」のDB IDを確認してください。'
+  }
+  return `保存できませんでした: ${msg}`
+}
