@@ -12,7 +12,7 @@ import {
   Search, FolderOpen, Lightbulb, BookMarked, ClipboardList,
   UserRound, Building2, Star, RefreshCw, ArrowUpRight, FolderCheck,
   HeartPulse, Target, Compass, KeyRound, Rocket, ArrowRight,
-  Sparkles, Library, NotebookPen, Database, ChevronRight,
+  Sparkles, Library, NotebookPen, Database, ChevronRight, Leaf,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -21,11 +21,22 @@ type Props = {
   onSkip: () => void
 }
 
-type Feature = { Icon: LucideIcon; title: string; desc: string }
+// アイコンタイルの差し色。彩度を揃えたペールトーンで「カラフルだが騒がない」。
+type Tone = 'brand' | 'amber' | 'sky' | 'violet' | 'rose'
+const TONES: Record<Tone, string> = {
+  brand: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300',
+  amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+  sky: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300',
+  violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300',
+  rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300',
+}
+
+type Feature = { Icon: LucideIcon; title: string; desc: string; tone: Tone }
 type Page = {
   id: string
   badge: { Icon?: LucideIcon; label: string }
   title: string
+  accent?: string // タイトル中でブランド色にする決めフレーズ
   description?: string
   features?: Feature[]
   hero?: boolean // 1枚目のアイコンヒーロー
@@ -37,6 +48,7 @@ const PAGES: Page[] = [
     id: 'welcome',
     badge: { label: 'MediNode' },
     title: '移動中も、当直中も\n知識はすぐそこに',
+    accent: 'すぐそこに',
     description: 'Notionの医療知識を、スマホから即座に検索・復習。\n知識と現場をつなぐ、自分だけのナレッジベース。',
     hero: true,
   },
@@ -44,53 +56,58 @@ const PAGES: Page[] = [
     id: 'features',
     badge: { Icon: Sparkles, label: 'できること' },
     title: 'スマホで完結\n検索から復習まで',
+    accent: '検索から復習まで',
     features: [
-      { Icon: Search, title: 'キーワード検索', desc: '病名・薬名・キーワードで即絞り込み' },
-      { Icon: FolderOpen, title: 'ジャンル別ブラウズ', desc: '好きなカテゴリで知識を分類・ブラウズ' },
-      { Icon: Lightbulb, title: 'クイズモード', desc: 'フラッシュカードで隙間時間に反復学習' },
-      { Icon: BookMarked, title: '参考文献管理', desc: '文献・ソースをまとめて管理・参照' },
-      { Icon: ClipboardList, title: 'マニュアル・お知らせ', desc: '病院・部署の手順やお知らせも検索（任意）' },
+      { Icon: Search, title: 'キーワード検索', desc: '病名・薬名・キーワードで即絞り込み', tone: 'brand' },
+      { Icon: FolderOpen, title: 'ジャンル別ブラウズ', desc: '好きなカテゴリで知識を分類・ブラウズ', tone: 'amber' },
+      { Icon: Lightbulb, title: 'クイズモード', desc: 'フラッシュカードで隙間時間に反復学習', tone: 'violet' },
+      { Icon: BookMarked, title: '参考文献管理', desc: '文献・ソースをまとめて管理・参照', tone: 'sky' },
+      { Icon: ClipboardList, title: 'マニュアル・お知らせ', desc: '病院・部署の手順やお知らせも検索（任意）', tone: 'rose' },
     ],
   },
   {
     id: 'sources',
     badge: { Icon: Library, label: '3つの知識源' },
     title: '使いたい知識を\n選んで始められます',
+    accent: '選んで',
     features: [
-      { Icon: UserRound, title: '自分の知識（個人のNotion）', desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます' },
-      { Icon: Building2, title: 'みんなの知識（部署の共有DB）', desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ' },
-      { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます' },
+      { Icon: UserRound, title: '自分の知識（個人のNotion）', desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます', tone: 'brand' },
+      { Icon: Building2, title: 'みんなの知識（部署の共有DB）', desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ', tone: 'sky' },
+      { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます', tone: 'amber' },
     ],
   },
   {
     id: 'notion',
     badge: { Icon: NotebookPen, label: 'Notionと連携' },
     title: '書く場所は\nそのままでいい',
+    accent: 'そのままでいい',
     features: [
-      { Icon: RefreshCw, title: 'Notionに書くだけで即反映', desc: '追加・編集はいつものNotionで。MediNodeに自動で同期される' },
-      { Icon: ArrowUpRight, title: '詳細はNotionでそのまま確認', desc: 'タップするとNotionアプリで全文表示。書いた内容を活かせる' },
-      { Icon: FolderCheck, title: '既存DBもそのまま使える', desc: 'すでにNotionでまとめている人はテンプレート不要' },
+      { Icon: RefreshCw, title: 'Notionに書くだけで即反映', desc: '追加・編集はいつものNotionで。MediNodeに自動で同期される', tone: 'brand' },
+      { Icon: ArrowUpRight, title: '詳細はNotionでそのまま確認', desc: 'タップするとNotionアプリで全文表示。書いた内容を活かせる', tone: 'sky' },
+      { Icon: FolderCheck, title: '既存DBもそのまま使える', desc: 'すでにNotionでまとめている人はテンプレート不要', tone: 'amber' },
     ],
   },
   {
     id: 'dbs',
     badge: { Icon: Database, label: 'DBのかたち' },
     title: '知識本体と\n参考文献を分けて管理',
+    accent: '分けて管理',
     diagram: true,
     features: [
-      { Icon: HeartPulse, title: 'Medical DB（知識の本体）', desc: '病名・治療・手技などの本体ノート。検索・クイズの中心' },
-      { Icon: BookMarked, title: 'Reference DB（任意）', desc: '論文・書籍を別管理。Medical DBと相互リレーションで紐付け' },
-      { Icon: Target, title: '知識レベルで学びを育てる', desc: '疑問 → ナレッジ → まとめ。思考の深さに合わせて整理できる' },
+      { Icon: HeartPulse, title: 'Medical DB（知識の本体）', desc: '病名・治療・手技などの本体ノート。検索・クイズの中心', tone: 'brand' },
+      { Icon: BookMarked, title: 'Reference DB（任意）', desc: '論文・書籍を別管理。Medical DBと相互リレーションで紐付け', tone: 'amber' },
+      { Icon: Target, title: '知識レベルで学びを育てる', desc: '疑問 → ナレッジ → まとめ。思考の深さに合わせて整理できる', tone: 'violet' },
     ],
   },
   {
     id: 'setup',
     badge: { Icon: KeyRound, label: 'セットアップ' },
     title: '選んで設定するだけ\nすぐ使い始められます',
+    accent: 'すぐ使い始められます',
     features: [
-      { Icon: Compass, title: 'まず使う知識を選ぶ', desc: '自分／みんな／専門医の知識から使いたいものを選ぶ（複数OK）' },
-      { Icon: KeyRound, title: '選んだものを設定', desc: 'Notionを使うならコネクトTokenを入力。プレミアムだけなら設定はほぼ不要' },
-      { Icon: Rocket, title: '完了して検索開始', desc: 'あとは検索・新着・ジャンル・クイズをすぐ使えます' },
+      { Icon: Compass, title: 'まず使う知識を選ぶ', desc: '自分／みんな／専門医の知識から使いたいものを選ぶ（複数OK）', tone: 'sky' },
+      { Icon: KeyRound, title: '選んだものを設定', desc: 'Notionを使うならコネクトTokenを入力。プレミアムだけなら設定はほぼ不要', tone: 'violet' },
+      { Icon: Rocket, title: '完了して検索開始', desc: 'あとは検索・新着・ジャンル・クイズをすぐ使えます', tone: 'brand' },
     ],
   },
 ]
@@ -180,19 +197,43 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
 
         {/* タイトル */}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 text-center mb-5 leading-snug whitespace-pre-line [text-wrap:balance]">
-          {current.title}
+          {current.accent && current.title.includes(current.accent) ? (
+            <>
+              {current.title.split(current.accent)[0]}
+              <span className="text-brand-600 dark:text-brand-300">{current.accent}</span>
+              {current.title.split(current.accent)[1]}
+            </>
+          ) : (
+            current.title
+          )}
         </h1>
 
         {/* ヒーロー（1枚目: アイコンがゆっくり浮く） */}
         {current.hero && (
-          <div className="my-4 animate-float">
-            <img
-              src="/icon-512.png"
-              alt="MediNode"
-              width={144}
-              height={144}
-              className="w-36 h-36 rounded-[2rem] shadow-xl shadow-brand-900/10"
+          <div className="relative my-6">
+            {/* 光暈: アイコンの背後にブランド色のやわらかな光 */}
+            <div className="absolute -inset-10 rounded-full bg-brand-200/50 dark:bg-brand-500/15 blur-2xl" aria-hidden />
+            <div className="absolute -inset-2 rounded-[2.6rem] ring-1 ring-brand-200/60 dark:ring-brand-700/40" aria-hidden />
+            {/* ブランドの若葉が2枚、時間差でゆっくり漂う */}
+            <Leaf
+              className="absolute -top-7 -right-9 w-6 h-6 text-brand-400/80 rotate-12 animate-float"
+              style={{ animationDelay: '0.4s' }}
+              aria-hidden
             />
+            <Leaf
+              className="absolute -bottom-5 -left-10 w-4 h-4 text-brand-300/80 -rotate-45 animate-float"
+              style={{ animationDelay: '1.2s', animationDuration: '4s' }}
+              aria-hidden
+            />
+            <div className="animate-float relative">
+              <img
+                src="/icon-512.png"
+                alt="MediNode"
+                width={144}
+                height={144}
+                className="w-36 h-36 rounded-[2rem] shadow-xl shadow-brand-900/10"
+              />
+            </div>
           </div>
         )}
 
@@ -208,7 +249,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
                 className="flex items-center gap-3.5 bg-white dark:bg-gray-800 rounded-2xl ring-1 ring-gray-100 dark:ring-gray-700 px-4 py-3.5 shadow-sm animate-fade-in-up"
                 style={{ animationDelay: `${80 + i * 70}ms` }}
               >
-                <span className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 grid place-items-center shrink-0">
+                <span className={`w-10 h-10 rounded-xl grid place-items-center shrink-0 ${TONES[f.tone]}`}>
                   <f.Icon className="w-5 h-5" strokeWidth={2} />
                 </span>
                 <div className="min-w-0">
