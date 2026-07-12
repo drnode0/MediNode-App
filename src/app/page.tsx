@@ -501,8 +501,9 @@ function RefBrowseChips({
   }, [hits])
 
   if (years.length === 0 && genres.length < 2) return null
+  // 下マージンは付けない（sticky制御バー内に置くため。バーのpbで間隔を持つ）。
   return (
-    <div className="space-y-1.5 mb-3">
+    <div className="space-y-1.5">
       {years.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch]">
           <button
@@ -664,30 +665,34 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
           </select>
         </div>
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+        {/* 年代・ジャンルチップはsticky制御バーの中に置く。一覧の途中に非stickyで
+            挟むと、データ読み込み後にチップ2行が現れて一覧が下にズレる（文献タブ
+            だけで起きていた挙動）。バー内に畳めば一覧の起点が動かず、スクロール中も
+            絞り込みが手元に残る。 */}
+        {!(ownerFilter === 'subscription' && !hasSubscription) && (
+          <div className="mt-2">
+            <RefBrowseChips hits={mergedHits} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
+          </div>
+        )}
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+          {isFiltering ? (
+            <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
+          ) : (
+            <p>参考文献DBが設定されていないか、データがありません</p>
+          )}
+        </div>
       ) : (
         <>
-          <RefBrowseChips hits={mergedHits} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
-          {sorted.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-              {isFiltering ? (
-                <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
-              ) : (
-                <p>参考文献DBが設定されていないか、データがありません</p>
-              )}
-            </div>
-          ) : (
-            <>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
-              <div className="space-y-3">
-                {sorted.map((hit) => (
-                  <ResultCard key={hit.objectID} hit={hit} />
-                ))}
-              </div>
-            </>
-          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
+          <div className="space-y-3">
+            {sorted.map((hit) => (
+              <ResultCard key={hit.objectID} hit={hit} />
+            ))}
+          </div>
         </>
       )}
     </>
@@ -2077,6 +2082,13 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
         </select>
       </div>
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+      {/* 年代・ジャンルチップはsticky制御バー内に置く（一覧の途中に非stickyで挟むと
+          読み込み後にチップ2行が現れて一覧が下にズレるため。バー内なら起点が動かない）。 */}
+      {!(ownerFilter === 'subscription' && !hasSubscription) && (
+        <div className="mt-2">
+          <RefBrowseChips hits={merged} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
+        </div>
+      )}
     </div>
   )
 
@@ -2089,7 +2101,6 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   return (
     <>
       {ownerTabs}
-      <RefBrowseChips hits={merged} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
       {sorted.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           {isFiltering
