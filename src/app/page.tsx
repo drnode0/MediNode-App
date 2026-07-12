@@ -538,7 +538,7 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
     <>
       <Configure hitsPerPage={200} filters={refPersonalFilter} />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="flex-1">
             <SearchBox />
@@ -623,7 +623,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     <>
       <Configure hitsPerPage={300} filters={personalFilter || undefined} />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -729,7 +729,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
     <>
       <Configure hitsPerPage={200} filters={quizPersonalFilter} />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -973,7 +973,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <Configure hitsPerPage={20} filters={personalFilter || undefined} />
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} />
         <OwnerFilterTabs
           owner={ownerFilter}
@@ -1212,7 +1212,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <>
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <input
           type="search"
           value={query}
@@ -1304,7 +1304,7 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   }
 
   const ownerTabs = (
-    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
@@ -1396,7 +1396,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   }, [filteredCandidates.length, genreFilter.join('|')])
 
   const ownerTabs = (
-    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
@@ -1629,7 +1629,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <div>
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={(v) => { setOwnerFilter(v); setSelectedGenre(null); setGenreRecords([]); setSubGenreHits([]) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -1825,7 +1825,7 @@ function NotionManualTab() {
 
   return (
     <>
-      <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <input
           type="search"
           value={query}
@@ -1918,7 +1918,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   ]
 
   const ownerTabs = (
-    <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
       <div className="flex items-center gap-2 mb-2">
         <input
           type="search"
@@ -2744,7 +2744,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="pt-1"><strong>試し方は2通り：</strong></p>
                   <p>🎁 <strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
                   <p>💳 <strong>有料登録（月額980円・税込）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
-                  <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → ⭐ プレミアムDB設定」から行えます。</p>
+                  <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → プレミアムDB設定」から行えます。</p>
                 </div>
               </section>
               <section>
@@ -3263,13 +3263,13 @@ export default function Home() {
             <p className="font-bold text-amber-800 mb-2">Algoliaの設定が不完全です</p>
             <p className="text-sm text-amber-700 mb-4">
               Search API KeyまたはApp IDが設定されていません。<br />
-              ⚙️設定 → 「設定を変更する」から再入力してください。
+              右上の設定 → 「Notion・Algolia接続設定」から再入力してください。
             </p>
             <button
               onClick={() => setShowSettings(true)}
               className="bg-amber-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-amber-700 transition-colors"
             >
-              ⚙️ 設定を開く
+              設定を開く
             </button>
           </div>
         </div>
