@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom'
 import { MessageCircleQuestion, X, ExternalLink, Settings } from 'lucide-react'
 import { track } from '@vercel/analytics'
 import { getSettings } from '@/lib/settings'
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { OpenSettingsContext } from './SearchErrors'
 
 const CqCaptureContext = createContext<((prefill?: string) => void) | null>(null)
@@ -72,13 +73,9 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
 function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
   const openSettings = useContext(OpenSettingsContext)
   const [mounted, setMounted] = useState(false)
+  useBodyScrollLock()
   useEffect(() => {
     setMounted(true)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prevOverflow
-    }
   }, [])
   if (!mounted) return null
 
@@ -146,14 +143,10 @@ function CqCaptureModal({
   const [done, setDone] = useState<{ url: string } | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  // 背景スクロールをロック（iOSでキーボード後に画面がズレない fixed 方式）。
+  useBodyScrollLock()
   useEffect(() => {
     setMounted(true)
-    // モーダル表示中は背景スクロールをロック。
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prevOverflow
-    }
   }, [])
 
   const handleSave = async () => {

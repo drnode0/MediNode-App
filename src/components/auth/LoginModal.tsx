@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 
 type Props = {
   onClose: () => void
@@ -35,14 +36,10 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   // ポータル描画用のマウント判定（SSR時は document が無いため）。
   const [mounted, setMounted] = useState(false)
 
+  // 背景スクロールをロック（iOSでキーボード後に画面がズレない fixed 方式）。
+  useBodyScrollLock()
   useEffect(() => {
     setMounted(true)
-    // モーダル表示中は背景スクロールをロック（重さ・ズレ対策）。
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prevOverflow
-    }
   }, [])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
