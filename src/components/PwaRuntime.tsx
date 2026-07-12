@@ -12,6 +12,13 @@ export function PwaRuntime() {
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
+    // 起動スプラッシュ（#medinode-splash）を解除する。ハイドレーション完了＝
+    // JS・CSSが揃いアプリを描画できる状態なので、ここでフェードアウトさせる。
+    // 二重rAFで実UIの1フレーム描画を待ってから外し、白いチラつきを防ぐ。
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => document.documentElement.classList.add('app-ready'))
+    })
+
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/sw.js').catch(() => {
         // 登録失敗（プライベートブラウズ等）でもアプリ動作には影響させない。
