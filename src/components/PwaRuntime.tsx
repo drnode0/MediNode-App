@@ -12,12 +12,11 @@ export function PwaRuntime() {
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
-    // 起動スプラッシュ（#medinode-splash）を解除する。ハイドレーション完了＝
-    // JS・CSSが揃いアプリを描画できる状態なので、ここでフェードアウトさせる。
-    // 二重rAFで実UIの1フレーム描画を待ってから外し、白いチラつきを防ぐ。
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => document.documentElement.classList.add('app-ready'))
-    })
+    // 起動スプラッシュ（#medinode-splash）を解除する。この useEffect が動いた＝
+    // React のハイドレーションが完了しアプリが操作可能になった時点なので、ここで
+    // フェードアウトさせる（スプラッシュは「初回描画〜ハイドレーション」の間だけ出る）。
+    // JSが失敗しても閉じ込めないよう、layout.tsx 側のインラインscriptにタイマー保険がある。
+    document.documentElement.classList.add('app-ready')
 
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register('/sw.js').catch(() => {
