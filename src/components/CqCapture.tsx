@@ -11,9 +11,10 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircleQuestion, X, ExternalLink } from 'lucide-react'
+import { MessageCircleQuestion, X, ExternalLink, Settings } from 'lucide-react'
 import { track } from '@vercel/analytics'
 import { getSettings } from '@/lib/settings'
+import { OpenSettingsContext } from './SearchErrors'
 
 const CqCaptureContext = createContext<((prefill?: string) => void) | null>(null)
 
@@ -38,27 +39,96 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
   return (
     <CqCaptureContext.Provider value={enabled ? openCapture : null}>
       {children}
-      {enabled && !open && (
+      {/* FABは常時表示。個人Notion未設定の人には案内モーダルを出す
+          （出し分けで「ボタンが無い」と迷わせない）。
+          色は❓CQの意味色（琥珀）— 常盤基調の画面への差し色を兼ねる。 */}
+      {!open && (
         <button
           type="button"
           onClick={() => openCapture()}
           aria-label="疑問をCQとして残す"
           title="疑問をCQとして残す"
-          className="fixed z-30 right-4 [bottom:max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] flex items-center gap-1.5 pl-3.5 pr-4 py-3 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-900/25 transition-colors animate-float"
+          className="fixed z-30 right-4 [bottom:max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] flex items-center gap-1.5 pl-3.5 pr-4 py-3 rounded-full bg-amber-400 hover:bg-amber-300 text-amber-950 shadow-lg shadow-amber-900/30 ring-1 ring-amber-500/40 transition-colors animate-float"
         >
           <MessageCircleQuestion className="w-5 h-5" strokeWidth={2.2} />
           <span className="text-sm font-bold">CQ</span>
         </button>
       )}
-      {enabled && open && (
-        <CqCaptureModal
-          initialTitle={prefill}
-          searchMode={settings?.searchMode || 'algolia'}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      {open &&
+        (enabled ? (
+          <CqCaptureModal
+            initialTitle={prefill}
+            searchMode={settings?.searchMode || 'algolia'}
+            onClose={() => setOpen(false)}
+          />
+        ) : (
+          <CqSetupGuideModal onClose={() => setOpen(false)} />
+        ))}
     </CqCaptureContext.Provider>
   )
+}
+
+// 個人のNotionが未設定（部署のみ／プレミアムのみ）の人向けの案内。
+function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
+  const openSettings = useContext(OpenSettingsContext)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [])
+  if (!mounted) return null
+
+  const modal = (
+    <div className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-lg mx-auto [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+        <div className="px-5 pt-2 pb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+              <MessageCircleQuestion className="w-5 h-5 text-amber-500" />
+              疑問を残す
+            </h2>
+            <button
+              onClick={onClose}
+              aria-label="閉じる"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+            このボタンは、気になった疑問をあなたのNotion（Medical DB）に「❓ クリニカルクエスチョン」として書き込む機能です。ご利用には<strong>個人のNotion接続</strong>（コネクトTokenとMedical DB）の設定が必要です。
+          </p>
+          {openSettings ? (
+            <button
+              onClick={() => {
+                onClose()
+                openSettings('notion')
+              }}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Settings className="w-4 h-4" />
+              設定を開く
+            </button>
+          ) : (
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              右上の設定（⚙️）→「Notion・Algolia接続設定」から設定できます。
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+  return createPortal(modal, document.body)
 }
 
 function CqCaptureModal({
@@ -134,7 +204,7 @@ function CqCaptureModal({
         <div className="px-5 pt-2 pb-4">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-              <MessageCircleQuestion className="w-5 h-5 text-brand-600 dark:text-brand-300" />
+              <MessageCircleQuestion className="w-5 h-5 text-amber-500" />
               疑問を残す
             </h2>
             <button
@@ -184,7 +254,7 @@ function CqCaptureModal({
             </>
           ) : (
             <div className="space-y-3">
-              <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center">
+              <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center animate-pop">
                 <p className="font-bold text-green-700 dark:text-green-400 text-sm">✅ 保存しました</p>
                 <p className="text-xs text-green-600 dark:text-green-500 mt-1 leading-relaxed">
                   {searchMode === 'notion'

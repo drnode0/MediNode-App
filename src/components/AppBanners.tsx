@@ -31,6 +31,13 @@ export type Announcement = {
 }
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: '2026-07-12-cq-capture',
+    date: '2026-07-12',
+    emoji: '❓',
+    title: '疑問をその場で残せるようになりました',
+    body: '画面右下の「CQ」ボタンから、気になった疑問を書くだけで、NotionのMedical DBに「❓ クリニカルクエスチョン」として保存されます。検索して見つからなかったときは、その画面から検索語をそのまま残せます。答えが出たらNotionで「💡 ナレッジ」に変えると、クイズに加わります。',
+  },
+  {
     id: '2026-06-17-settings-sync',
     date: '2026-06-17',
     emoji: '🔄',

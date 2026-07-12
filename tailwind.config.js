@@ -36,10 +36,17 @@ module.exports = {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-7px)' },
         },
+        // 小さな祝福（クイズ「覚えた」・CQ保存成功など）: 弾んで収まる
+        pop: {
+          '0%': { opacity: '0', transform: 'scale(.6)' },
+          '60%': { opacity: '1', transform: 'scale(1.08)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
       },
       animation: {
         'fade-in-up': 'fade-in-up .22s ease-out both',
         float: 'float 3.2s ease-in-out infinite',
+        pop: 'pop .32s cubic-bezier(.34,1.56,.64,1) both',
       },
     },
   },
