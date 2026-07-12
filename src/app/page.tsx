@@ -21,7 +21,7 @@ import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
-import { GenreBrowse } from '@/components/GenreBrowse'
+import { GenreBrowse, genreChipTone } from '@/components/GenreBrowse'
 
 import { SyncPanel } from '@/components/SyncPanel'
 
@@ -924,8 +924,11 @@ function MergedSearchResults({ personalHits, ownerFilter, query }: {
     <div>
       <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>
       <div className="space-y-3">
-        {merged.map((hit) => (
-          <ResultCard key={hit.objectID} hit={hit} />
+        {merged.map((hit, i) => (
+          // 先頭数件だけ時間差で登場（検索が「返ってきた」手応え。以降は遅延なし）
+          <div key={hit.objectID} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(i, 6) * 45}ms` }}>
+            <ResultCard hit={hit} />
+          </div>
         ))}
       </div>
     </div>
@@ -1279,7 +1282,11 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <>
           {query && !error && <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>}
           <div className="space-y-3">
-            {merged.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+            {merged.map((hit, i) => (
+              <div key={hit.objectID} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(i, 6) * 45}ms` }}>
+                <ResultCard hit={hit} />
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -1692,14 +1699,13 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
               // 個人のみ／プレミアムのみ表示中は出さない（プレミアムの紫ドットと同じ思想）。
               const hasTeamDot = teamCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'subscription'
               const isActive = selectedGenre === genre
+              const tone = genreChipTone(genre)
               return (
                 <button
                   key={genre}
                   onClick={() => handleGenreSelect(genre)}
-                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
-                    isActive
-                      ? 'bg-brand-600 text-white border-transparent shadow-sm'
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:shadow-sm hover:border-brand-300'
+                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
+                    isActive ? tone.active : tone.idle
                   }`}
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
@@ -1719,7 +1725,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
                       />
                     )}
                   </span>
-                  <span className={`text-xs shrink-0 ${isActive ? 'text-brand-100' : 'text-gray-400'}`}>{total}</span>
+                  <span className={`text-xs shrink-0 ${isActive ? 'text-white/70' : 'opacity-50'}`}>{total}</span>
                 </button>
               )
             })}
@@ -3170,6 +3176,17 @@ export default function Home() {
   // マニュアルタブはオプトイン：個人 or 部署のマニュアルDBが設定されている時のみ表示。
   const hasManual = !!(settings?.notionManualDbId || settings?.teamNotionManualDbId)
 
+  // タブごとの機能色（オンボーディングのタイル配色と対応）。
+  // アクティブなタブにだけ色が乗り、「いまどの機能にいるか」が色でもわかる。
+  // 常盤一色の単調さをほどく差し色でもある（ペールトーンで騒がない）。
+  const TAB_TONES: Record<Tab, string> = {
+    search: 'bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300',
+    recent: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300',
+    browse: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+    reference: 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300',
+    quiz: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300',
+    manual: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+  }
   const tabs: { id: Tab; label: string; Icon: LucideIcon }[] = [
     { id: 'search', label: '検索', Icon: Search },
     { id: 'recent', label: '新着', Icon: Clock },
@@ -3221,7 +3238,7 @@ export default function Home() {
               }}
               className={`shrink-0 flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
                 tab === t.id
-                  ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300'
+                  ? TAB_TONES[t.id]
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
