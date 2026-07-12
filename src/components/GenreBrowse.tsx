@@ -107,6 +107,22 @@ function hybridSort(a: string, b: string): number {
 }
 
 // 番号プレフィックスを除いた表示名
+// ジャンルチップの巡回トーン（オンボーディングと同系のペール5色）。
+// ジャンル名のハッシュで決まるため、並び替えやフィルタで色が変わらない。
+// Notionモードのジャンルタブ（page.tsx）とも共有する。
+const CHIP_TONES = [
+  { active: 'bg-brand-600 text-white border-transparent shadow-sm', idle: 'bg-brand-50 dark:bg-brand-900/25 border-brand-100 dark:border-brand-800 text-brand-900 dark:text-brand-200 hover:border-brand-300' },
+  { active: 'bg-amber-500 text-white border-transparent shadow-sm', idle: 'bg-amber-50 dark:bg-amber-900/25 border-amber-100 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:border-amber-300' },
+  { active: 'bg-sky-500 text-white border-transparent shadow-sm', idle: 'bg-sky-50 dark:bg-sky-900/25 border-sky-100 dark:border-sky-800 text-sky-900 dark:text-sky-200 hover:border-sky-300' },
+  { active: 'bg-violet-500 text-white border-transparent shadow-sm', idle: 'bg-violet-50 dark:bg-violet-900/25 border-violet-100 dark:border-violet-800 text-violet-900 dark:text-violet-200 hover:border-violet-300' },
+  { active: 'bg-rose-500 text-white border-transparent shadow-sm', idle: 'bg-rose-50 dark:bg-rose-900/25 border-rose-100 dark:border-rose-800 text-rose-900 dark:text-rose-200 hover:border-rose-300' },
+]
+export function genreChipTone(genre: string): { active: string; idle: string } {
+  let h = 0
+  for (const ch of genre) h = (h + (ch.codePointAt(0) || 0)) % 997
+  return CHIP_TONES[h % CHIP_TONES.length]
+}
+
 function displayGenreName(g: string): string {
   return g.replace(/^\d+\./, '')
 }
@@ -270,14 +286,13 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
         const hasSub = subCount > 0 && owner !== 'personal' && owner !== 'team'
         const hasTeam = teamCount > 0 && owner !== 'personal' && owner !== 'subscription'
         const isActive = selectedGenre === genre
+        const tone = genreChipTone(genre)
         return (
           <button
             key={genre}
             onClick={() => onGenreSelect(isActive ? null : genre)}
-            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 ${
-              isActive
-                ? 'bg-brand-600 text-white border-transparent shadow-sm'
-                : 'bg-white dark:bg-gray-800 border-gray-200 text-gray-700 dark:text-gray-300 hover:shadow-sm hover:border-brand-300'
+            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
+              isActive ? tone.active : tone.idle
             }`}
           >
             <span className="flex items-center gap-1.5 min-w-0">
@@ -301,7 +316,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
                 />
               )}
             </span>
-            <span className={`text-xs shrink-0 ${isActive ? 'text-brand-100' : 'text-gray-400'}`}>
+            <span className={`text-xs shrink-0 ${isActive ? 'text-white/70' : 'opacity-50'}`}>
               {total}
             </span>
           </button>
