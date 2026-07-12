@@ -59,3 +59,16 @@ mark {
     min-height: 100dvh;
   }
 }
+
+/* ── iOSの入力フォーカス自動ズームを止める ──
+   iOSはfont-sizeが16px未満の input/textarea/select にフォーカスすると
+   画面を自動ズームし、キーボードを閉じた後もズーム/パンが残って
+   「画面が少し横にズレた」状態になる。タッチ端末に限り入力系の文字を
+   16pxに引き上げ、ズーム自体を発生させない（見た目の差はわずか）。 */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
