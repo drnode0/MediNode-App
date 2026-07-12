@@ -45,6 +45,7 @@ import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUES
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
+import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -866,6 +867,22 @@ function SubscriptionPromoPanel() {
   )
 }
 
+// 検索ゼロ件のとき、その疑問をそのままCQとして残す静かな導線。
+// 「検索したのに無かった」＝疑問が生まれた瞬間なので、ここが最短の入口になる。
+function CqCaptureSuggestion({ query }: { query: string }) {
+  const openCq = useCqCapture()
+  if (!openCq || !query.trim()) return null
+  return (
+    <button
+      type="button"
+      onClick={() => openCq(query.trim())}
+      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+    >
+      ❓ この疑問をCQとして残す
+    </button>
+  )
+}
+
 // マージ済みhitsを表示する検索結果コンポーネント
 function MergedSearchResults({ personalHits, ownerFilter, query }: {
   personalHits: Hit[]
@@ -898,6 +915,7 @@ function MergedSearchResults({ personalHits, ownerFilter, query }: {
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
           別のキーワードで試してみてください
         </p>
+        <CqCaptureSuggestion query={query} />
       </div>
     )
   }
@@ -1254,7 +1272,8 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       ) : !loading && !error && merged.length === 0 && query ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <p className="text-lg">該当なし</p>
-          <p className="text-sm mt-1">別のキーワードで試してください</p>
+          <p className="text-sm mt-1 mb-5">別のキーワードで試してください</p>
+          <CqCaptureSuggestion query={query} />
         </div>
       ) : (
         <>
@@ -3231,6 +3250,7 @@ export default function Home() {
     return (
       <SubscriptionSearchProvider enableBridge={true}>
       <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
+      <CqCaptureProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <UpdateBanner />
@@ -3246,6 +3266,7 @@ export default function Home() {
         </div>
         {settingsModal}
       </div>
+      </CqCaptureProvider>
       </OpenSettingsContext.Provider>
       </SubscriptionSearchProvider>
     )
@@ -3284,6 +3305,7 @@ export default function Home() {
   return (
     <SubscriptionSearchProvider enableBridge={true}>
     <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
+    <CqCaptureProvider>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
@@ -3309,6 +3331,7 @@ export default function Home() {
       </div>
       {settingsModal}
     </InstantSearch>
+    </CqCaptureProvider>
     </OpenSettingsContext.Provider>
     </SubscriptionSearchProvider>
   )
