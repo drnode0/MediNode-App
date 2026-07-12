@@ -1,8 +1,9 @@
 'use client'
+import { CircleUserRound } from 'lucide-react'
 
 // ヘッダー左に置くアカウントボタン。
 // 未ログイン: 「ログイン」を表示 → タップでLoginModal。
-// ログイン中: 👤アイコン → タップでメールアドレス＋ログアウトの小メニュー。
+// ログイン中: アイコン → タップでメールアドレス＋ログアウトの小メニュー。
 // Supabase未設定時は何も表示しない（従来通りの見た目を保つ）。
 
 import { useState, useEffect } from 'react'
@@ -112,7 +113,7 @@ export function AccountButton() {
         className="text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
         title="アカウント"
       >
-        👤
+        <CircleUserRound className="w-6 h-6" />
       </button>
       {menu}
     </>

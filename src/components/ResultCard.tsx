@@ -1,4 +1,5 @@
 'use client'
+import { ChevronDown, ChevronUp, BookMarked } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { useState } from 'react'
 
@@ -48,7 +49,7 @@ const OWNER_BADGE: Record<string, { label: string; style: string }> = {
 export function ResultCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
-  const sourceLabel = isMedical ? '🚑 Medical' : '📖 Ref'
+  const sourceLabel = isMedical ? 'Medical' : 'Ref'
   const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
   const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
   const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300') : ''
@@ -87,7 +88,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
               {sourceLabel}
             </span>
             {hasExpandable && (
-              <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>
+              <span className="text-gray-300 text-xs">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>
             )}
           </div>
         </div>
@@ -156,7 +157,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
           <div className="mt-2 flex flex-wrap gap-1">
             {hit.relatedRefTitles.map((ref, i) => (
               <span key={i} className="text-xs bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-200 leading-snug">
-                📖 {ref}
+                <BookMarked className="w-3 h-3 inline -mt-0.5 mr-1" />{ref}
               </span>
             ))}
           </div>

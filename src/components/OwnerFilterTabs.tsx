@@ -5,6 +5,7 @@
 import { useContext } from 'react'
 import { getSettings } from '@/lib/settings'
 import { OpenSettingsContext } from './SearchErrors'
+import { Star, Lock } from 'lucide-react'
 
 export type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
 
@@ -29,7 +30,7 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
     ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: !hasTeam }] : []),
-    { id: 'subscription' as OwnerFilter, label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
+    { id: 'subscription' as OwnerFilter, label: 'プレミアム', inactive: !hasSubscription },
   ]
   const openSettings = useContext(OpenSettingsContext)
   return (
@@ -49,6 +50,11 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
+            {o.id === 'subscription' && (
+              hasSubscription
+                ? <Star className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+                : <Lock className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+            )}
             {o.label}
           </button>
         ))}
@@ -56,7 +62,7 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
       {/* 部署未接続のまま部署フィルタを選んだ場合の案内（全タブ共通でここに一元実装） */}
       {owner === 'team' && !hasTeam && (
         <div className="mt-2 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3 space-y-2">
-          <p className="text-xs font-semibold text-brand-700 dark:text-brand-300">🏥 部署の共有DBは未接続です</p>
+          <p className="text-xs font-semibold text-brand-700 dark:text-brand-300">部署の共有DBは未接続です</p>
           <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
             職場で共有しているNotionDBをつなぐと、部署の知識もここで検索できます。代表者から共有された接続情報（トークンとDBのURL）を設定に登録してください。
           </p>
@@ -65,7 +71,7 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
               onClick={() => openSettings('team')}
               className="text-xs font-semibold bg-white dark:bg-gray-800 text-brand-600 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700 px-3 py-1.5 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
             >
-              ⚙️ 部署DB設定を開く
+              部署DB設定を開く
             </button>
           )}
         </div>

@@ -6,6 +6,7 @@
 //     （アプリシェルはSWキャッシュで起動できるが、検索・同期はできないため）
 
 import { useEffect, useState } from 'react'
+import { WifiOff } from 'lucide-react'
 
 export function PwaRuntime() {
   const [offline, setOffline] = useState(false)
@@ -30,7 +31,7 @@ export function PwaRuntime() {
   if (!offline) return null
   return (
     <div className="sticky top-0 z-50 bg-amber-500 text-white text-xs text-center py-1.5 px-3">
-      📡 オフラインです — 検索・同期はインターネット接続後にご利用いただけます
+      <WifiOff className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />オフラインです — 検索・同期はインターネット接続後にご利用いただけます
     </div>
   )
 }
