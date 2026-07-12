@@ -14,13 +14,18 @@ type Props = {
   onSuccess?: () => void
   // ログインを促す理由（例: プレミアム契約を端末間で引き継ぐため）。
   reason?: string
+  // 'register' にすると見出し・ボタンが「アカウント登録」表現になる。
+  // 仕組みは同じマジックリンクだが、「はじめて使う方」に「ログイン」と
+  // 表示すると「アカウントを持っていないのに？」と迷わせるため。
+  purpose?: 'login' | 'register'
 }
 
 // 6桁コード（OTP）入力UIの有効/無効。
 // Resend(SMTP)接続済み＋メールテンプレートに {{ .Token }} を追加したため有効化。
 const OTP_ENABLED = true
 
-export function LoginModal({ onClose, onSuccess, reason }: Props) {
+export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Props) {
+  const isRegister = purpose === 'register'
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [phase, setPhase] = useState<'email' | 'sent'>('email')
@@ -113,9 +118,9 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
       >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isRegister ? 'アカウント登録' : 'ログイン'}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {reason || 'メールアドレスだけでログインできます（パスワード不要）'}
+              {reason || (isRegister ? 'メールアドレスだけで登録できます（パスワード不要）' : 'メールアドレスだけでログインできます（パスワード不要）')}
             </p>
           </div>
           <button
@@ -146,7 +151,7 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
               disabled={loading || !emailValid}
               className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              {loading ? '送信中...' : 'ログインリンクを送る'}
+              {loading ? '送信中...' : isRegister ? '登録用リンクを送る' : 'ログインリンクを送る'}
             </button>
             <p className="text-[11px] text-gray-400 leading-relaxed">
               どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。
@@ -161,8 +166,8 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
             </div>
 
             <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              📩 <span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
-              <span className="font-medium">同じブラウザで開いているこの画面に戻って</span>、メール内の6桁コードを入力するのが確実です。リンクをタップした場合は、別のブラウザが開いてもログイン自体は完了しています。
+              📩 <span className="font-medium">{email}</span> 宛に{isRegister ? '登録用' : 'ログイン用'}メールを送りました。<br />
+              <span className="font-medium">同じブラウザで開いているこの画面に戻って</span>、メール内の6桁コードを入力するのが確実です。リンクをタップした場合は、別のブラウザが開いても{isRegister ? '登録' : 'ログイン'}自体は完了しています。
               <br />
               <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。</span>
               <br />
@@ -192,7 +197,7 @@ export function LoginModal({ onClose, onSuccess, reason }: Props) {
                   disabled={loading || code.length !== 6}
                   className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
                 >
-                  {loading ? '確認中...' : 'コードでログイン'}
+                  {loading ? '確認中...' : isRegister ? 'コードで登録を完了' : 'コードでログイン'}
                 </button>
               </>
             )}
