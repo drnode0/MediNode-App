@@ -474,9 +474,108 @@ function ReferenceHits({ sort }: { sort: RefSort }) {
   )
 }
 
+// 文献タブの「棚を眺める」ための絞り込みチップ（年代＋ジャンル）。
+// 検索窓に何も打たなくても、タップだけで拾い読みできるようにする。
+// 年代は文献の発行年から、ジャンルは文献に付いたタグから動的に生成。
+function RefBrowseChips({
+  hits, year, onYear, genre, onGenre,
+}: {
+  hits: Hit[]
+  year: string | null
+  onYear: (y: string | null) => void
+  genre: string | null
+  onGenre: (g: string | null) => void
+}) {
+  const years = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of hits) {
+      const y = String(h.year || '').slice(0, 4)
+      if (/^\d{4}$/.test(y)) set.add(y)
+    }
+    return [...set].sort().reverse()
+  }, [hits])
+  const genres = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of hits) for (const g of getHitGenres(h)) set.add(g)
+    return [...set].sort()
+  }, [hits])
+
+  if (years.length === 0 && genres.length < 2) return null
+  return (
+    <div className="space-y-1.5 mb-3">
+      {years.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch]">
+          <button
+            onClick={() => onYear(null)}
+            className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+              !year
+                ? 'bg-gray-700 dark:bg-gray-200 text-white dark:text-gray-900 border-transparent'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+            }`}
+          >
+            全期間
+          </button>
+          {years.map((y) => (
+            <button
+              key={y}
+              onClick={() => onYear(year === y ? null : y)}
+              className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                year === y
+                  ? 'bg-gray-700 dark:bg-gray-200 text-white dark:text-gray-900 border-transparent'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+              }`}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      )}
+      {genres.length >= 2 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch]">
+          {genres.map((g) => {
+            const tone = genreChipTone(g)
+            return (
+              <button
+                key={g}
+                onClick={() => onGenre(genre === g ? null : g)}
+                className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  genre === g ? tone.active : tone.idle
+                }`}
+              >
+                {displayGenreName(g)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 文献のクライアント側絞り込み（キーワード・年・ジャンル）。両モード共通。
+function filterRefHits(hits: Hit[], query: string, year: string | null, genre: string | null): Hit[] {
+  const q = query.trim().toLowerCase()
+  return hits.filter((h) => {
+    if (year && String(h.year || '').slice(0, 4) !== year) return false
+    if (genre && !getHitGenres(h).includes(genre)) return false
+    if (q) {
+      const match = [h.title, h.author, h.journal, h.aiKeywords, h.summary]
+        .filter(Boolean)
+        .some((f) => (f as string).toLowerCase().includes(q))
+      if (!match) return false
+    }
+    return true
+  })
+}
+
 function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const [sort, setSort] = useState<RefSort>('year_desc')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  // 文献タブ専用の絞り込み。検索タブのキーワードとは独立させる
+  // （以前は検索タブのクエリが残ったまま文献に効いて「該当なし」に見えるバグ的挙動があった）。
+  const [query, setQuery] = useState('')
+  const [refYear, setRefYear] = useState<string | null>(null)
+  const [refGenre, setRefGenre] = useState<string | null>(null)
   const ctx = useSubscriptionHits()
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
   // 部署(team)はAlgoliaに無いためNotionから直読み（文献のみ採用）
@@ -529,21 +628,31 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
     return merged
   }, [ownerFilter, personalAndTeam, subHits])
 
-  const sorted = [...mergedHits].sort((a, b) => {
+  const filtered = useMemo(
+    () => filterRefHits(mergedHits, query, refYear, refGenre),
+    [mergedHits, query, refYear, refGenre],
+  )
+  const sorted = [...filtered].sort((a, b) => {
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
     if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
   })
+  const isFiltering = !!(query.trim() || refYear || refGenre)
 
   return (
     <>
-      <Configure hitsPerPage={200} filters={refPersonalFilter} />
+      {/* query="" : 検索タブで入力したキーワードをこのタブに持ち込まない（常に全文献から始める） */}
+      <Configure hitsPerPage={200} filters={refPersonalFilter} query="" />
       <PersonalHitsCollector onHits={setPersonalHits} />
       <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1">
-            <SearchBox />
-          </div>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="文献を絞り込み..."
+            className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+          />
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as RefSort)}
@@ -558,17 +667,28 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
-      ) : sorted.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-          <p className="text-lg">該当なし</p>
-          <p className="text-sm mt-1">別のキーワードで試してください</p>
-        </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map((hit) => (
-            <ResultCard key={hit.objectID} hit={hit} />
-          ))}
-        </div>
+        <>
+          <RefBrowseChips hits={mergedHits} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
+          {sorted.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+              {isFiltering ? (
+                <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
+              ) : (
+                <p>参考文献DBが設定されていないか、データがありません</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
+              <div className="space-y-3">
+                {sorted.map((hit) => (
+                  <ResultCard key={hit.objectID} hit={hit} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
     </>
   )
@@ -622,7 +742,8 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
   return (
     <>
-      <Configure hitsPerPage={300} filters={personalFilter || undefined} />
+      {/* query="" : 検索タブのキーワードを新着に持ち込まない（常に全件の時系列で表示） */}
+      <Configure hitsPerPage={300} filters={personalFilter || undefined} query="" />
       <PersonalHitsCollector onHits={setPersonalHits} />
       <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
@@ -1902,6 +2023,8 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   const [sort, setSort] = useState<RefSort>('year_desc')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const [query, setQuery] = useState('')
+  const [refYear, setRefYear] = useState<string | null>(null)
+  const [refGenre, setRefGenre] = useState<string | null>(null)
   const ctx = useSubscriptionHits()
 
   // 個人records は medical+reference 混在。reference のみ抽出
@@ -1919,16 +2042,11 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     [refRecords, subHits, ownerFilter],
   )
 
-  // タイトル・著者・ジャーナル・キーワードで絞り込み（取得済みレコードに対するクライアント側フィルタ）
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return merged
-    return merged.filter((h) =>
-      [h.title, h.author, h.journal, h.aiKeywords]
-        .filter(Boolean)
-        .some((f) => (f as string).toLowerCase().includes(q)),
-    )
-  }, [merged, query])
+  // キーワード・年・ジャンルで絞り込み（取得済みレコードに対するクライアント側フィルタ）
+  const filtered = useMemo(
+    () => filterRefHits(merged, query, refYear, refGenre),
+    [merged, query, refYear, refGenre],
+  )
 
   const sorted = [...filtered].sort((a, b) => {
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
@@ -1964,6 +2082,8 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     </div>
   )
 
+  const isFiltering = !!(query.trim() || refYear || refGenre)
+
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
   if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
@@ -1971,10 +2091,11 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   return (
     <>
       {ownerTabs}
+      <RefBrowseChips hits={merged} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
       {sorted.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          {query.trim()
-            ? <><p className="text-lg">該当なし</p><p className="text-sm mt-1">別のキーワードで試してください</p></>
+          {isFiltering
+            ? <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
             : <p>参考文献DBが設定されていないか、データがありません</p>}
         </div>
       ) : (
