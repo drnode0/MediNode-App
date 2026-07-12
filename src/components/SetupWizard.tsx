@@ -192,6 +192,66 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
   )
 }
 
+// パスワード型入力欄。
+// 重要: SetupWizard の中で定義すると、親が再レンダーするたびに「別のコンポーネント」と
+// 見なされて再マウントされ、1文字入力するごとにフォーカスが外れる
+// （スマホではキーボードが閉じる）。必ずトップレベルに置くこと。
+function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+  required = false,
+  show,
+  onToggle,
+}: {
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  placeholder?: string
+  className?: string
+  required?: boolean
+  show: boolean
+  onToggle: () => void
+}) {
+  const isEmpty = !value.trim()
+  const showError = required && isEmpty
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
+          showError
+            ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
+            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
+        } ${className || ''}`}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-base leading-none px-1"
+        tabIndex={-1}
+        title={show ? '非表示にする' : '表示する'}
+      >
+        {show ? (
+          // 非表示：斜線付き目アイコン（Heroicons EyeSlash）
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+          </svg>
+        ) : (
+          // 表示：目アイコン（Heroicons Eye）
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        )}
+      </button>
+    </div>
+  )
+}
+
 function parseErrorMessage(msg: string): string {
   // Algolia側のエラー（プレフィックスで明示）
   if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
@@ -200,7 +260,7 @@ function parseErrorMessage(msg: string): string {
       '【対処法】',
       '① Algolia Dashboard → Settings → API Keys を開く',
       '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
-      '③「← 戻る」でStep 2に戻り、再入力してください',
+      '③「← 戻る」で「Algolia」の入力画面に戻り、再入力してください',
     ].join('\n')
   }
   // Notion: APIトークン無効（"API token is invalid" など）
@@ -217,7 +277,7 @@ function parseErrorMessage(msg: string): string {
       '① notion.so/my-integrations → コネクトを開き「OAuth」セクションの「アクセストークン」を再コピー',
       '② 「ntn_xxx...」または「secret_xxx...」という形式になっているか確認',
       '③ コピー時に前後の空白が混入していないか確認',
-      '④「← 戻る」でStep 1に戻り、再入力してください',
+      '④「← 戻る」で「Notion」の入力画面に戻り、再入力してください',
     ].join('\n')
   }
   // Notion: DBが見つからない
@@ -231,7 +291,7 @@ function parseErrorMessage(msg: string): string {
       '【対処法】',
       '① NotionのDBページURLからIDをコピー（32桁の英数字）',
       '② URLの「?v=」以降は含めないでください',
-      '③「← 戻る」でStep 1に戻り、URLを貼り直してください',
+      '③「← 戻る」で「Notion」の入力画面に戻り、URLを貼り直してください',
     ].join('\n')
   }
   // Notion: DBにコネクトが接続されていない
@@ -257,7 +317,7 @@ function parseErrorMessage(msg: string): string {
       '【対処法】',
       '① Algolia Dashboard → Settings → API Keys を開く',
       '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
-      '③「← 戻る」でStep 2に戻り、再入力してください',
+      '③「← 戻る」で「Algolia」の入力画面に戻り、再入力してください',
     ].join('\n')
   }
   // 必須キー不足
@@ -542,11 +602,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔌 接続テストでエラーが出たら</p>
           <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
             <p><strong>「API token is invalid」</strong></p>
-            <p className="text-gray-600 dark:text-gray-300">→ Notion Tokenが間違っています。Step 1に戻って再入力してください</p>
+            <p className="text-gray-600 dark:text-gray-300">→ Notion Tokenが間違っています。「Notion」の画面に戻って再入力してください</p>
             <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
             <p className="text-gray-600 dark:text-gray-300">→ DBにコネクトが接続されていません。NotionのDB右上「…」→「コネクトを追加」</p>
             <p className="mt-2"><strong>「Algolia / Admin Key エラー」</strong></p>
-            <p className="text-gray-600 dark:text-gray-300">→ Admin API Keyが間違っています。Step 2に戻って再入力してください</p>
+            <p className="text-gray-600 dark:text-gray-300">→ Admin API Keyが間違っています。「Algolia」の画面に戻って再入力してください</p>
           </div>
         </section>
         <section>
@@ -640,6 +700,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [error, setError] = useState('')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null)
+  // Notionステップの接続テスト（シンプルモードでは唯一の事前確認になる）
+  const [notionTesting, setNotionTesting] = useState(false)
+  const [notionTest, setNotionTest] = useState<{ status: 'ok' | 'warn'; missing: string[] } | null>(null)
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
 
   // 既存設定またはドラフトを復元（再設定時は保存済み設定をプリフィル）
@@ -673,65 +736,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     saveDraft(next) // 入力のたびに途中保存
     setError('')
     setTestResult(null)
+    setNotionTest(null)
   }
 
   const togglePassword = (field: string) => {
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }))
-  }
-
-  // パスワードフィールド用のInputレンダリング関数
-  const PasswordInput = ({
-    field,
-    value,
-    onChange,
-    placeholder,
-    className,
-    required = false,
-  }: {
-    field: string
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-    placeholder?: string
-    className?: string
-    required?: boolean
-  }) => {
-    const isEmpty = !value.trim()
-    const showError = required && isEmpty
-    return (
-    <div className="relative">
-      <input
-        type={showPassword[field] ? 'text' : 'password'}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={`w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
-          showError
-            ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
-        } ${className || ''}`}
-      />
-      <button
-        type="button"
-        onClick={() => togglePassword(field)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-base leading-none px-1"
-        tabIndex={-1}
-        title={showPassword[field] ? '非表示にする' : '表示する'}
-      >
-        {showPassword[field] ? (
-          // 非表示：斜線付き目アイコン（Heroicons EyeSlash）
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-          </svg>
-        ) : (
-          // 表示：目アイコン（Heroicons Eye）
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        )}
-      </button>
-    </div>
-    )
   }
 
   const handleNotionNext = () => {
@@ -751,6 +760,83 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       setStep('algolia')
     }
   }
+
+  // Notionステップの接続テスト。Token・DBアクセス権（コネクト追加漏れ＝403）・
+  // 必須プロパティ名をその場で確認する。シンプルモードはこの後に同期ステップが無く
+  // 完了まで一度も接続確認が入らないため、ここでの確認が特に効く。
+  const handleNotionTest = async () => {
+    setNotionTesting(true)
+    setNotionTest(null)
+    setError('')
+    try {
+      const res = await fetch('/api/notion/check-props', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: form.notionToken,
+          notionMedicalDbId: form.notionMedicalDbId,
+          notionReferenceDbId: form.notionReferenceDbId || undefined,
+          propMap: {
+            summary: form.propSummary || undefined,
+            keywords: form.propKeywords || undefined,
+            genre: form.propGenre || undefined,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        // parseErrorMessage は同期ステップと共用のため「← 戻る」で戻る前提の文面。
+        // ここは既にNotion入力画面なので、その場で直せる表現に読み替える。
+        setError(parseErrorMessage(data.error || '').replace(/「← 戻る」で「Notion」の入力画面に戻り、/g, 'この画面で'))
+        return
+      }
+      const missing: string[] = [
+        ...((data.medical?.missing || []) as string[]).map((p) => `Medical DB: 「${p}」`),
+        ...((data.reference?.missing || []) as string[]).map((p) => `Reference DB: 「${p}」`),
+      ]
+      setNotionTest(missing.length > 0 ? { status: 'warn', missing } : { status: 'ok', missing: [] })
+    } catch {
+      setError('ネットワークエラーが発生しました。接続を確認してください。')
+    } finally {
+      setNotionTesting(false)
+    }
+  }
+
+  // 接続テストのボタン＋結果表示（テンプレ複製・既存DB連携の両モードで使う）
+  const renderNotionTestBlock = () => (
+    <div className="space-y-2">
+      {notionTest?.status === 'ok' && (
+        <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center font-medium">
+          ✅ Notionに接続できました（必須プロパティもOK）
+        </div>
+      )}
+      {notionTest?.status === 'warn' && (
+        <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1.5">
+          <p className="text-sm font-semibold">⚠️ 接続はOK。ただし次のプロパティが見つかりません</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {notionTest.missing.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+          <p>このまま進むこともできますが、検索・ジャンル・クイズを正しく動かすには、Notion側でプロパティ名を上記に合わせてください（名前は完全一致）。</p>
+        </div>
+      )}
+      {!notionTest && (
+        <button
+          type="button"
+          onClick={handleNotionTest}
+          disabled={notionTesting || !form.notionToken.trim() || !form.notionMedicalDbId.trim()}
+          className="w-full border border-brand-300 text-brand-600 dark:text-brand-300 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {notionTesting ? (
+            <><span className="animate-spin">⟳</span>接続確認中...</>
+          ) : (
+            '🔌 接続テスト（推奨）'
+          )}
+        </button>
+      )}
+    </div>
+  )
 
   const handleAlgoliaNext = () => {
     if (!form.algoliaAppId.trim()) {
@@ -1038,6 +1124,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   設定より先にログインを済ませることで、後続のトライアルコード入力で弾かれないようにする。 */}
               <button
                 onClick={() => {
+                  // すでにログイン済み（登録直後に戻ってきた等）なら再登録を求めず、そのまま選択へ。
+                  if (user) {
+                    setStep('start')
+                    return
+                  }
                   setLoginPurpose('register-first')
                   setShowLogin(true)
                 }}
@@ -1209,11 +1300,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">ntn_</code> または <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_</code>で始まる文字列）</span>
                 </label>
                 <PasswordInput
-                  field="notionToken"
                   value={form.notionToken}
                   onChange={(e) => update('notionToken', e.target.value)}
                   placeholder="ntn_xxxxxxxxxxxx"
                   required
+                  show={!!showPassword['notionToken']}
+                  onToggle={() => togglePassword('notionToken')}
                 />
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1361,6 +1453,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
                     </div>
                   </div>
+
+                  {renderNotionTestBlock()}
 
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
@@ -1582,6 +1676,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     </div>
                   </div>
 
+                  {renderNotionTestBlock()}
+
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
                       <p className="font-semibold mb-1">⚠️ エラー</p>
@@ -1648,11 +1744,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（読み取り専用）</span>
                   </label>
                   <PasswordInput
-                    field="algoliaSearchKey"
                     value={form.algoliaSearchKey}
                     onChange={(e) => update('algoliaSearchKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     required
+                    show={!!showPassword['algoliaSearchKey']}
+                    onToggle={() => togglePassword('algoliaSearchKey')}
                   />
                 </div>
                 <div>
@@ -1661,11 +1758,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（同期・書き込み用）</span>
                   </label>
                   <PasswordInput
-                    field="algoliaAdminKey"
                     value={form.algoliaAdminKey}
                     onChange={(e) => update('algoliaAdminKey', e.target.value)}
                     placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                     required
+                    show={!!showPassword['algoliaAdminKey']}
+                    onToggle={() => togglePassword('algoliaAdminKey')}
                   />
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠️ Search-Only KeyではなくAdmin Keyを入力してください</p>
                 </div>
@@ -1835,7 +1933,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 )}
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">オプション設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ほとんどの方はスキップしてOKです。後から設定画面で変更できます。
+                  「部署用DB」「プレミアム」を使う方はここで設定します。使わない方はそのまま進んでOKです（後から設定画面で変更できます）。
                 </p>
               </div>
 
@@ -1871,10 +1969,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         部署用 コネクトToken
                       </label>
                       <PasswordInput
-                        field="teamNotionToken"
                         value={form.teamNotionToken}
                         onChange={(e) => update('teamNotionToken', e.target.value)}
                         placeholder="ntn_xxxxxxxxxxxx"
+                        show={!!showPassword['teamNotionToken']}
+                        onToggle={() => togglePassword('teamNotionToken')}
                       />
                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 space-y-1">
                         <p>・<strong>受け取る人</strong>：代表者からもらった Token とDBのURLを貼るだけでOK（自分で作る必要はありません）。</p>
@@ -2038,6 +2137,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             // restore はサーバー保存済み設定が AuthProvider 経由で復元される。
             onComplete()
           }}
+          purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
             loginPurpose === 'register-first'
               ? '最初にメールアドレスでアカウントを登録します（パスワード不要）。以降の設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
