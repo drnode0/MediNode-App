@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom'
 import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2 } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { track } from '@vercel/analytics'
-import { getSettings } from '@/lib/settings'
+import { getSettings, saveSettings } from '@/lib/settings'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { OpenSettingsContext } from './SearchErrors'
 
@@ -28,15 +28,32 @@ export function useCqCapture() {
 export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [prefill, setPrefill] = useState('')
+  // 案内モーダルの「このボタンを使わない」で即時に消すためのローカル状態。
+  // 永続化は settings.hideCqButton（設定の「表示のカスタマイズ」で戻せる）。
+  const [hiddenNow, setHiddenNow] = useState(false)
 
   const settings = getSettings()
   const enabled = !!(settings?.notionToken && settings?.notionMedicalDbId)
+  const hidden = hiddenNow || !!settings?.hideCqButton
 
   const openCapture = useCallback((p?: string) => {
     setPrefill(p || '')
     setOpen(true)
     track('cq_capture_open', { prefilled: p ? 'yes' : 'no' })
   }, [])
+
+  const hideForever = useCallback(() => {
+    const cur = getSettings()
+    if (cur) saveSettings({ ...cur, hideCqButton: true })
+    setHiddenNow(true)
+    setOpen(false)
+    track('cq_capture_hidden')
+  }, [])
+
+  // 非表示設定中はFAB・モーダルとも出さない（ゼロ件画面などからの open導線も無効化）。
+  if (hidden) {
+    return <CqCaptureContext.Provider value={null}>{children}</CqCaptureContext.Provider>
+  }
 
   return (
     <CqCaptureContext.Provider value={enabled ? openCapture : null}>
@@ -64,14 +81,14 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
             onClose={() => setOpen(false)}
           />
         ) : (
-          <CqSetupGuideModal onClose={() => setOpen(false)} />
+          <CqSetupGuideModal onClose={() => setOpen(false)} onHide={hideForever} />
         ))}
     </CqCaptureContext.Provider>
   )
 }
 
 // 個人のNotionが未設定（部署のみ／プレミアムのみ）の人向けの案内。
-function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
+function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: () => void }) {
   const openSettings = useContext(OpenSettingsContext)
   const [mounted, setMounted] = useState(false)
   useBodyScrollLock()
@@ -104,7 +121,10 @@ function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-            このボタンは、気になった疑問をあなたのNotion（Medical DB）に「❓ クリニカルクエスチョン」として書き込む機能です。ご利用には<strong>個人のNotion接続</strong>（コネクトTokenとMedical DB）の設定が必要です。
+            このボタンは、気になった疑問を<strong>あなた自身のNotion</strong>（Medical DB）に「❓ クリニカルクエスチョン」として書き込む機能です。ご利用には<strong>個人のNotion接続</strong>（コネクトTokenとMedical DB）の設定が必要です。
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+            部署DBやプレミアムのみでお使いの場合は対象外の機能なので、このボタンは非表示にして問題ありません。
           </p>
           {openSettings ? (
             <button
@@ -122,6 +142,12 @@ function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
               右上の設定（歯車アイコン）→「Notion・Algolia接続設定」から設定できます。
             </p>
           )}
+          <button
+            onClick={onHide}
+            className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1.5"
+          >
+            このボタンを使わないので非表示にする（設定の「表示のカスタマイズ」で戻せます）
+          </button>
         </div>
       </div>
     </div>
