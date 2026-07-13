@@ -455,6 +455,19 @@ function QuizHits() {
   )
 }
 
+// 検索・絞り込みの空状態（0件）表示。タブごとにバラバラだった「該当なし」の
+// 一言表示を、アイコン＋見出し＋寄り添う一行に統一する。
+function EmptyNotice({ Icon, title, hint, children }: { Icon: LucideIcon; title: string; hint?: string; children?: React.ReactNode }) {
+  return (
+    <div className="text-center py-12 px-4 text-gray-400 dark:text-gray-500">
+      <div className="mb-3 flex justify-center text-gray-300 dark:text-gray-600"><Icon className="h-10 w-10" /></div>
+      <p className="text-base font-semibold text-gray-600 dark:text-gray-300">{title}</p>
+      {hint && <p className="text-sm mt-1">{hint}</p>}
+      {children}
+    </div>
+  )
+}
+
 type RefSort = 'year_desc' | 'year_asc' | 'lastEdited'
 function ReferenceHits({ sort }: { sort: RefSort }) {
   const { hits } = useHits()
@@ -464,12 +477,7 @@ function ReferenceHits({ sort }: { sort: RefSort }) {
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
   })
   if (sorted.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-        <p className="text-lg">該当なし</p>
-        <p className="text-sm mt-1">別のキーワードで試してください</p>
-      </div>
-    )
+    return <EmptyNotice Icon={BookMarked} title="文献が見つかりませんでした" hint="別のキーワードで試してください" />
   }
   return (
     <div className="space-y-3">
@@ -684,13 +692,11 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
       ) : sorted.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-          {isFiltering ? (
-            <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
-          ) : (
-            <p>参考文献DBが設定されていないか、データがありません</p>
-          )}
-        </div>
+        isFiltering ? (
+          <EmptyNotice Icon={BookMarked} title="この条件の文献はありません" hint="絞り込みを変えて試してください" />
+        ) : (
+          <EmptyNotice Icon={BookMarked} title="参考文献DBが設定されていないか、データがありません" />
+        )
       ) : (
         <>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
@@ -1468,11 +1474,9 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           )}
         </>
       ) : !loading && !error && merged.length === 0 && query ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-          <p className="text-lg">該当なし</p>
-          <p className="text-sm mt-1 mb-5">別のキーワードで試してください</p>
-          <CqCaptureSuggestion query={query} />
-        </div>
+        <EmptyNotice Icon={Search} title={`「${query}」が見つかりませんでした`} hint="別のキーワードで試してください">
+          <div className="mt-5"><CqCaptureSuggestion query={query} /></div>
+        </EmptyNotice>
       ) : (
         <>
           {query && !error && <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{merged.length}件</p>}
@@ -2072,11 +2076,11 @@ function NotionManualTab() {
       {loading && <div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div>}
       {error && <SearchErrorNotice error={error} />}
       {!loading && !error && filtered.length === 0 ? (
-        <div className="text-center py-14 px-4">
-          <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><ClipboardList className="h-12 w-12" /></div>
-          <p className="text-gray-600 dark:text-gray-300 font-semibold">{query ? '該当なし' : 'マニュアルがありません'}</p>
-          <p className="text-sm text-gray-400 mt-1">{query ? '別のキーワードで試してください' : 'マニュアルDBにデータを追加してください'}</p>
-        </div>
+        <EmptyNotice
+          Icon={ClipboardList}
+          title={query ? `「${query}」が見つかりませんでした` : 'マニュアルがありません'}
+          hint={query ? '別のキーワードで試してください' : 'マニュアルDBにデータを追加してください'}
+        />
       ) : (
         <>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{filtered.length}件{query ? '' : '（新着順）'}</p>
@@ -2171,11 +2175,9 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     <>
       {ownerTabs}
       {sorted.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          {isFiltering
-            ? <><p className="text-lg">該当なし</p><p className="text-sm mt-1">絞り込みを変えて試してください</p></>
-            : <p>参考文献DBが設定されていないか、データがありません</p>}
-        </div>
+        isFiltering
+          ? <EmptyNotice Icon={BookMarked} title="この条件の文献はありません" hint="絞り込みを変えて試してください" />
+          : <EmptyNotice Icon={BookMarked} title="参考文献DBが設定されていないか、データがありません" />
       ) : (
         <>
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">{sorted.length}件</p>
