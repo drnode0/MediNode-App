@@ -248,6 +248,23 @@ function PasswordInput({
   )
 }
 
+// DB URL入力の即時フィードバック。extractNotionDbId は抽出に失敗すると入力値を
+// そのまま保持するため、32桁のIDになっていれば緑、非空なのに抽出できていなければ
+// 「取り出せませんでした」を出して無言の詰まり（原因が接続テストまで分からない）を防ぐ。
+function DbIdStatus({ value }: { value: string | undefined }) {
+  const v = (value || '').trim()
+  if (!v) return null
+  if (v.length === 32) {
+    return <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
+  }
+  return (
+    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+      <AlertTriangle className="inline-block h-3 w-3 align-text-bottom mr-1.5" />
+      このURLからIDを取り出せませんでした。DBページ右上の「共有 → リンクをコピー」で取得したURL全体を貼ってください
+    </p>
+  )
+}
+
 function parseErrorMessage(msg: string): string {
   // Algolia側のエラー（プレフィックスで明示）
   if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
@@ -419,6 +436,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <strong>Tokenは絶対に公開しないでください。</strong>GitHub・SNS・スクリーンショット等に含めないこと。
             漏れた場合は同じ画面の「<strong>再生成（Refresh）</strong>」で即座に無効化できます。
           </div>
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <strong>「新規コネクト」を押せない・作成できないとき</strong>は、職場や大学のNotionで管理者が連携作成を制限している可能性があります。
+            その場合は、ご自身の<strong>個人ワークスペース</strong>で作るか、管理者に作成を依頼してください。
+            設定なしで使える<strong>プレミアム（専門医の知識）</strong>だけでも始められます。
+          </div>
         </section>
 
         <section>
@@ -443,7 +465,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🆔 DB URLの入力方法</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DB URLの入力方法</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">NotionのDBページURLをそのままコピー&ペーストしてください。IDは自動抽出されます。</p>
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 mt-2 text-xs text-gray-500 dark:text-gray-400 break-all">
             例: https://www.notion.so/myworkspace/<span className="font-bold text-gray-700 dark:text-gray-200">abc123def456789012345678901234</span>?v=...
@@ -506,7 +528,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-5 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🆕 はじめてAlgoliaを使う方へ</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Sparkles className="inline-block h-4 w-4 align-text-bottom mr-1.5" />はじめてAlgoliaを使う方へ</p>
           <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
             Algoliaは高速検索のクラウドサービスです。本アプリは「Build」プラン（無料）の枠内で動作するように設計しています。
           </p>
@@ -700,6 +722,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // Notionステップの接続テスト（シンプルモードでは唯一の事前確認になる）
   const [notionTesting, setNotionTesting] = useState(false)
   const [notionTest, setNotionTest] = useState<{ status: 'ok' | 'warn'; missing: string[] } | null>(null)
+  // シンプルモードで接続未確認のまま「次へ」を押したとき、一度だけ確認を促すためのフラグ。
+  const [notionNextConfirm, setNotionNextConfirm] = useState(false)
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
 
   // 既存設定またはドラフトを復元（再設定時は保存済み設定をプリフィル）
@@ -734,6 +758,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     setError('')
     setTestResult(null)
     setNotionTest(null)
+    setNotionNextConfirm(false) // 入力が変わったら接続未確認の警告を再度出す
   }
 
   const togglePassword = (field: string) => {
@@ -764,7 +789,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       setError('Medical DBのIDを入力してください')
       return
     }
+    // シンプルモードはこの後に同期ステップが無く、完了まで一度も接続確認が入らない。
+    // 未確認のまま完了して「最初の検索で初めて失敗」する離脱を防ぐため、接続テストが
+    // 成功していない場合は一度だけ確認を促す（ハードブロックはしない＝もう一度押せば進める）。
+    if (form.searchMode === 'notion' && notionTest?.status !== 'ok' && !notionNextConfirm) {
+      setNotionNextConfirm(true)
+      setError('まだ接続を確認していません。上の「接続をテスト」で確認することを強くおすすめします（コネクト未追加やトークンの誤りがあると、検索できません）。このまま進む場合は、もう一度「次へ」を押してください。')
+      return
+    }
     setError('')
+    setNotionNextConfirm(false)
     // Notionモードの場合はAlgoliaをスキップしてオプションへ
     if (form.searchMode === 'notion') {
       setStep('options')
@@ -1409,6 +1443,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
                       </li>
                     </ol>
+                    <p className="text-[11px] text-brand-600/80 dark:text-brand-300/80 leading-relaxed pt-1 border-t border-brand-200/60 dark:border-brand-700/60 mt-1">
+                      複製したDBの<strong>プロパティ名（列名）は変更しないでください</strong>。「要約」などを別の名前に変えると、エラーは出ませんが検索・ジャンルに反映されなくなります。
+                    </p>
                   </div>
 
                   <div className="space-y-3">
@@ -1427,9 +1464,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                             : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
                         }`}
                       />
-                      {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionMedicalDbId} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1442,9 +1477,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/..."
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionReferenceDbId} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1457,9 +1490,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/..."
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.notionManualDbId && form.notionManualDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionManualDbId} />
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
                     </div>
                   </div>
@@ -1511,7 +1542,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
-                    <p className="font-semibold text-gray-700 dark:text-gray-200">🆔 DB URLの入力方法</p>
+                    <p className="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />DB URLの入力方法</p>
                     <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
                     <p className="text-gray-400 break-all">例: https://notion.so/workspace/<strong>abc123def456...</strong>?v=...</p>
                   </div>
@@ -1649,9 +1680,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                             : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
                         }`}
                       />
-                      {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionMedicalDbId} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1664,9 +1693,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/... またはID32桁"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionReferenceDbId} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1679,9 +1706,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/... またはID32桁"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.notionManualDbId && form.notionManualDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.notionManualDbId} />
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                     </div>
                   </div>
@@ -1775,7 +1800,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     show={!!showPassword['algoliaAdminKey']}
                     onToggle={() => togglePassword('algoliaAdminKey')}
                   />
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Search-Only KeyではなくAdmin Keyを入力してください</p>
+                  {form.algoliaAdminKey.trim() && form.algoliaAdminKey.trim() === form.algoliaSearchKey.trim() ? (
+                    <p className="text-xs text-red-500 mt-1 font-medium"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />Search KeyとAdmin Keyが同じ値です。Admin Keyは「鍵アイコン」を押して表示される別の値です</p>
+                  ) : (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Search-Only KeyではなくAdmin Keyを入力してください</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -2002,9 +2031,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/... またはID32桁"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.teamNotionMedicalDbId} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -2017,9 +2044,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         placeholder="https://www.notion.so/... またはID32桁"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
-                      {form.teamNotionReferenceDbId && form.teamNotionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
-                      )}
+                      <DbIdStatus value={form.teamNotionReferenceDbId} />
                     </div>
                   </div>
                 )}

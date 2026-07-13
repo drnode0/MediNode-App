@@ -10,7 +10,11 @@ export function useSearchHistory() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(HISTORY_KEY)
-      if (stored) setHistory(JSON.parse(stored))
+      if (stored) {
+        // 壊れた値（配列でないJSON）が入っていても .map/.filter で落ちないよう検証する。
+        const parsed = JSON.parse(stored)
+        setHistory(Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [])
+      }
     } catch {}
   }, [])
 

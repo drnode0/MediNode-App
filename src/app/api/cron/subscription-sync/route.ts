@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { runSubscriptionSync } from '../../subscription/sync/_core'
 
 /**
@@ -20,7 +21,16 @@ function isCronAuthorized(req: NextRequest): boolean {
   const expected = process.env.CRON_SECRET
   if (!expected) return false // 未設定なら一切実行させない
   const authHeader = req.headers.get('authorization')
-  return authHeader === `Bearer ${expected}`
+  if (!authHeader) return false
+  // 定数時間比較（タイミング攻撃対策）。
+  const a = Buffer.from(authHeader)
+  const b = Buffer.from(`Bearer ${expected}`)
+  if (a.length !== b.length) return false
+  try {
+    return timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
 }
 
 export async function GET(req: NextRequest) {

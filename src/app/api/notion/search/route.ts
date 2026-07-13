@@ -452,11 +452,13 @@ export async function POST(req: NextRequest) {
     // の順で records に詰める。
     if (mode === 'recent') {
       // 新着：最新50件（keyword不要）
+      // 部署（共有）DBは個別に .catch で握りつぶし、片方が壊れても個人結果を守る。
+      // 個人DBの失敗は本人の設定問題なので従来どおり伝播させる（要再設定のサイン）。
       const [med, ref, teamMed, teamRef] = await Promise.all([
         !teamOnly ? queryDb(notion!, notionMedicalDbId, 'medical', '', 50) : null,
         !teamOnly && notionReferenceDbId ? queryDb(notion!, notionReferenceDbId, 'reference', '', 20) : null,
-        teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', '', 50, undefined, 'team') : null,
-        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', '', 20, undefined, 'team') : null,
+        teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', '', 50, undefined, 'team').catch(() => null) : null,
+        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', '', 20, undefined, 'team').catch(() => null) : null,
       ])
       for (const r of [med, ref, teamMed, teamRef]) {
         if (r) records.push(...r.records)
@@ -467,7 +469,7 @@ export async function POST(req: NextRequest) {
       // クイズ：知識レベルが「ナレッジ系」かつ要約ありのもの
       const [personalQuiz, teamQuiz] = await Promise.all([
         !teamOnly ? fetchQuizRecords(notion!, notionMedicalDbId, 'personal') : null,
-        teamNotion && teamNotionMedicalDbId ? fetchQuizRecords(teamNotion, teamNotionMedicalDbId, 'team') : null,
+        teamNotion && teamNotionMedicalDbId ? fetchQuizRecords(teamNotion, teamNotionMedicalDbId, 'team').catch(() => null) : null,
       ])
       if (personalQuiz) records.push(...personalQuiz)
       if (teamQuiz) records.push(...teamQuiz)
@@ -477,8 +479,8 @@ export async function POST(req: NextRequest) {
       const [pMed, pRef, tMed, tRef] = await Promise.all([
         !teamOnly ? fetchBrowseRecords(notion!, notionMedicalDbId, genre, pageSize, 'personal', 'medical', cursor) : null,
         !teamOnly && notionReferenceDbId ? fetchBrowseRecords(notion!, notionReferenceDbId, genre, pageSize, 'personal', 'reference') : null,
-        teamNotion && teamNotionMedicalDbId ? fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team', 'medical') : null,
-        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? fetchBrowseRecords(teamNotion, teamNotionReferenceDbId, genre, pageSize, 'team', 'reference') : null,
+        teamNotion && teamNotionMedicalDbId ? fetchBrowseRecords(teamNotion, teamNotionMedicalDbId, genre, pageSize, 'team', 'medical').catch(() => null) : null,
+        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? fetchBrowseRecords(teamNotion, teamNotionReferenceDbId, genre, pageSize, 'team', 'reference').catch(() => null) : null,
       ])
       for (const r of [pMed, pRef, tMed, tRef]) {
         if (r) records.push(...r)
@@ -523,8 +525,8 @@ export async function POST(req: NextRequest) {
         const [med, ref, teamMed, teamRef] = await Promise.all([
           !teamOnly ? queryDb(notion!, notionMedicalDbId, 'medical', keyword, pageSize, cursor) : null,
           !teamOnly && notionReferenceDbId ? queryDb(notion!, notionReferenceDbId, 'reference', keyword, 20) : null,
-          teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', keyword, pageSize, undefined, 'team') : null,
-          teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', keyword, 20, undefined, 'team') : null,
+          teamNotion && teamNotionMedicalDbId ? queryDb(teamNotion, teamNotionMedicalDbId, 'medical', keyword, pageSize, undefined, 'team').catch(() => null) : null,
+          teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? queryDb(teamNotion, teamNotionReferenceDbId, 'reference', keyword, 20, undefined, 'team').catch(() => null) : null,
         ])
         for (const r of [med, ref, teamMed, teamRef]) {
           if (r) records.push(...r.records)
