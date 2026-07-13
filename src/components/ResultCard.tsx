@@ -1,6 +1,7 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
+import { stripLeadingEmoji } from '@/lib/labels'
 import { useState } from 'react'
 
 export type Hit = {
@@ -81,7 +82,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
             )}
             {hit.hasAttachment && (
               <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="ファイル添付あり">
-                📎
+                <Paperclip className="h-3.5 w-3.5" />
               </span>
             )}
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${sourceBg}`}>
@@ -96,7 +97,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         <div className="flex flex-wrap gap-1 mb-2">
           {hit.knowledgeLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelStyle}`}>
-              {hit.knowledgeLevel}
+              {stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
           {!isMedical && hit.evidenceLevel && (
@@ -146,8 +147,8 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {!isMedical && hit.relatedCQTitles && hit.relatedCQTitles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {hit.relatedCQTitles.map((cq, i) => (
-              <span key={i} className="text-xs bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
-                ❓ {cq}
+              <span key={i} className="inline-flex items-center gap-1 text-xs bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
+                <HelpCircle className="h-3 w-3 shrink-0" />{cq}
               </span>
             ))}
           </div>

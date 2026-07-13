@@ -3,6 +3,7 @@ import { RotateCcw, Check } from 'lucide-react'
 import { useState } from 'react'
 import type { Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
+import { stripLeadingEmoji } from '@/lib/labels'
 
 const LEVEL_STYLE: Record<string, string> = {
   '❓ クリニカルクエスチョン': 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
@@ -45,7 +46,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         <div className="flex flex-wrap gap-1 mt-1.5">
           {hit.knowledgeLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelStyle}`}>
-              {hit.knowledgeLevel}
+              {stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
           {hit.genre && (

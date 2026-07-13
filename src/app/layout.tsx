@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { PremiumSync } from '@/components/auth/PremiumSync'
 import { SettingsSync } from '@/components/auth/SettingsSync'
+import { AuthNotice } from '@/components/auth/AuthNotice'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
 import { PwaRuntime } from '@/components/PwaRuntime'
@@ -113,6 +114,7 @@ export default function RootLayout({
         <AuthProvider>
           <PremiumSync />
           <SettingsSync />
+          <AuthNotice />
           {children}
         </AuthProvider>
         <Analytics />

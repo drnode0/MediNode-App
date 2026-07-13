@@ -4,6 +4,7 @@
 // 生の英語APIエラーを対処つき日本語に変換し、設定パネルへの導線を出す。
 
 import { createContext, useContext } from 'react'
+import { AlertTriangle, Settings } from 'lucide-react'
 import { useInstantSearch } from 'react-instantsearch'
 
 // 設定パネルのセクション識別子（SettingsPanel と共有）。
@@ -74,14 +75,14 @@ export function SearchErrorNotice({ error }: { error: string }) {
   const { message, hint, action } = humanizeSearchError(error)
   return (
     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 space-y-2">
-      <p className="text-sm font-semibold text-red-700 dark:text-red-300">⚠️ {message}</p>
+      <p className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" />{message}</p>
       {hint && <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{hint}</p>}
       {action === 'settings' && openSettings && (
         <button
           onClick={() => openSettings('notion')}
           className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
         >
-          ⚙️ 接続設定を確認する
+          <Settings className="inline-block h-4 w-4 align-text-bottom mr-1" />接続設定を確認する
         </button>
       )}
     </div>
@@ -113,14 +114,14 @@ export function AlgoliaSearchErrorNotice() {
   }
   return (
     <div className="mb-4 bg-red-50 dark:bg-red-900/30 rounded-xl p-4 space-y-2">
-      <p className="text-sm font-semibold text-red-700 dark:text-red-300">⚠️ {message}</p>
+      <p className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" />{message}</p>
       {hint && <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{hint}</p>}
       {showSettings && openSettings && (
         <button
           onClick={() => openSettings('notion')}
           className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
         >
-          ⚙️ 接続設定を確認する
+          <Settings className="inline-block h-4 w-4 align-text-bottom mr-1" />接続設定を確認する
         </button>
       )}
     </div>

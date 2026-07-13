@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
+import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Loader2, Settings } from 'lucide-react'
+import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
@@ -62,7 +63,7 @@ function PremiumCheckoutButton() {
     <div className="space-y-2">
       {testMode && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-left">
-          <p className="text-xs font-bold text-amber-700 dark:text-amber-300">🧪 これはテスト決済です</p>
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-300"><FlaskConical className="inline-block h-4 w-4 align-text-bottom mr-1.5" />これはテスト決済です</p>
           <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed mt-0.5">
             現在は体験用のテストモードのため、<strong>実際の課金は発生しません</strong>。
             決済画面ではテストカード番号「4242 4242 4242 4242」（有効期限は任意の未来日付・CVCは任意の3桁）をご利用ください。
@@ -75,7 +76,7 @@ function PremiumCheckoutButton() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 1週間無料で試す →'}
+        {loading ? <><Loader2 className="inline-block h-4 w-4 animate-spin align-text-bottom mr-1" />読み込み中...</> : <><Star className="inline-block h-4 w-4 align-text-bottom mr-1" />1週間無料で試す<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -143,7 +144,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
   if (!applied && hasUsedTrial()) {
     return (
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
-        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
           この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
         </p>
@@ -155,7 +156,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
   if (applied) {
     return (
       <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-3 space-y-1">
-        <p className="text-xs font-bold text-green-700 dark:text-green-400">🎁 無料トライアルを開始しました！（{trialDays}日間）</p>
+        <p className="text-xs font-bold text-green-700 dark:text-green-400"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルを開始しました！（{trialDays}日間）</p>
         <p className="text-[11px] text-green-600 dark:text-green-500 leading-relaxed">
           プレミアムコンテンツにアクセスできます。下の「設定を保存して検索を開始する」で完了してください。
         </p>
@@ -165,7 +166,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
 
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
-      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方</p>
+      <p className="text-xs font-bold text-purple-700 dark:text-purple-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
         note記事に記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
@@ -334,11 +335,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-4 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📲 アカウントをお持ちの方</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Smartphone className="inline-block h-4 w-4 align-text-bottom mr-1.5" />アカウントをお持ちの方</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">別の端末ですでに設定済みの方は、メールアドレスを入力してログインするだけ。Notion接続・Algolia・プレミアム契約などの設定がこの端末にそのまま復元されます。</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">✨ はじめて使う方</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Sparkles className="inline-block h-4 w-4 align-text-bottom mr-1.5" />はじめて使う方</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">使いたい知識を選んでDB設定を行います。設定の最後にメールアドレスでアカウント登録を行うと、設定が暗号化のうえ保存され、他の端末でもログインだけで引き継げます。</p>
         </section>
       </div>
@@ -349,15 +350,15 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-4 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🧑 自分の知識を使う（個人のNotion）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><User className="inline-block h-4 w-4 align-text-bottom mr-1.5" />自分の知識を使う（個人のNotion）</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">あなた自身のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🏥 みんなの知識を使う（部署の共有DB）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Users className="inline-block h-4 w-4 align-text-bottom mr-1.5" />みんなの知識を使う（部署の共有DB）</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">職場で共有しているNotionDBを検索します。代表者からもらったTokenとDBのURLを使います（自分でNotionを持っていなくてもOK）。</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ 専門医の知識を使う（プレミアム）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />専門医の知識を使う（プレミアム）</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">作者（専門医）が配信する医療ナレッジを検索します。自分のNotionやAlgoliaの設定は不要で、すぐ使い始められます。</p>
         </section>
         <p className="text-xs text-gray-500 dark:text-gray-400">複数を選んでもOK。あとから「設定」でいつでも追加できます。</p>
@@ -369,11 +370,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-4 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📋 シンプルモードとは？</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />シンプルモードとは？</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">Notionに直接問い合わせて検索します。Algoliaアカウントは不要で、Notion Tokenを入力するだけで使い始められます。検索のたびにNotionへアクセスするため、結果表示まで1〜3秒かかります。</p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⚡ パワーモードとは？</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />パワーモードとは？</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">Algoliaという高速検索エンジンを使います。検索は0.1秒以下で完了し、日本語の部分一致も得意です。ただしAlgoliaのアカウント作成（無料）が必要で、<strong>Notionの記事を更新するたびに再同期</strong>すると最新内容が検索に反映されます。</p>
         </section>
       </div>
@@ -384,7 +385,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-5 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🧭 全体の流れ</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Compass className="inline-block h-4 w-4 align-text-bottom mr-1.5" />全体の流れ</p>
           <ol className="text-xs text-gray-600 dark:text-gray-300 list-decimal list-inside space-y-0.5">
             <li><strong>コネクト（旧称: インテグレーション）を作成</strong> → Tokenを取得</li>
             <li>NotionでDBに <strong>「コネクトを追加」</strong> してアクセス許可</li>
@@ -396,7 +397,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 コネクトを作ってTokenを取得する</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />コネクトを作ってTokenを取得する</p>
           <ol className="space-y-2 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>
               <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">notion.so/my-integrations</a> を開く（要ログイン）
@@ -414,19 +415,19 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>作成後のページの「<strong>アクセストークン</strong>」の「<strong>表示</strong>」→「<strong>コピー</strong>」をクリック</li>
           </ol>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-            <p>💡 <strong>Tokenの形式について</strong></p>
+            <p><strong>Tokenの形式について</strong></p>
             <p>・新規作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">ntn_xxxxx...</code> で始まります</p>
             <p>・以前に作成したTokenは <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">secret_xxxxx...</code> で始まります</p>
             <p>・<strong>どちらの形式でも問題なく動作します</strong></p>
           </div>
           <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-2 mt-2 text-xs text-red-700 dark:text-red-300">
-            ⚠️ <strong>Tokenは絶対に公開しないでください。</strong>GitHub・SNS・スクリーンショット等に含めないこと。
+            <strong>Tokenは絶対に公開しないでください。</strong>GitHub・SNS・スクリーンショット等に含めないこと。
             漏れた場合は同じ画面の「<strong>再生成（Refresh）</strong>」で即座に無効化できます。
           </div>
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔗 DBにコネクトを追加する（必須）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DBにコネクトを追加する（必須）</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
             コネクトを作っただけではDBへアクセスできません。<strong>DB(ページ)ごとに接続を許可する操作</strong>が必要です。
           </p>
@@ -439,10 +440,10 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>Reference DBがある場合も同じ手順で接続</li>
           </ol>
           <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
-            💡 <strong>親ページに接続すると、配下の全ページ・DBにアクセスできます。</strong>個別に接続するのが面倒な場合は、両DBの親ページに接続するのが便利です。
+            <strong>親ページに接続すると、配下の全ページ・DBにアクセスできます。</strong>個別に接続するのが面倒な場合は、両DBの親ページに接続するのが便利です。
           </div>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
-            ⚠️ 接続しないと「アクセス権限エラー（403 / restricted_resource）」が発生します
+            接続しないと「アクセス権限エラー（403 / restricted_resource）」が発生します
           </p>
         </section>
 
@@ -460,14 +461,14 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📋 プロパティの考え方</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />プロパティの考え方</p>
           <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 space-y-2 mb-2">
             <p className="font-semibold">テンプレ複製でも、既存DBへの接続でもOK</p>
             <p className="text-brand-700 dark:text-brand-300">どちらの方法でも、下記のプロパティ名さえ揃っていれば動きます。すでにNotionで知識を貯めている人は<strong>そのDBをそのまま使えます</strong>。ゼロから始める人は無料テンプレートを複製すると最初から揃っています。</p>
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
             <div className="bg-red-50 dark:bg-red-900/30 px-3 py-2 border-b border-gray-200 dark:border-gray-600">
-              <p className="text-xs font-semibold text-red-700 dark:text-red-300">🚨 これだけは必須（Medical DB）</p>
+              <p className="text-xs font-semibold text-red-700 dark:text-red-300"><Siren className="inline-block h-4 w-4 align-text-bottom mr-1.5" />これだけは必須（Medical DB）</p>
             </div>
             <div className="p-3 text-xs space-y-1 text-gray-700 dark:text-gray-300">
               <p><code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">名前</code> / <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">要約</code> / <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">キーワード</code> / <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">ジャンル</code></p>
@@ -493,14 +494,14 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
                 </ul>
               </div>
               <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 text-brand-700 dark:text-brand-300">
-                💡 作成日プロパティは不要（Notionが自動で持っています）
+                作成日プロパティは不要（Notionが自動で持っています）
               </div>
             </div>
           </details>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300">
-            ⚠️ 上記のプロパティ名と<strong>完全一致</strong>している必要があります。「要約」を「サマリー」に変えると認識されません。
+            上記のプロパティ名と<strong>完全一致</strong>している必要があります。「要約」を「サマリー」に変えると認識されません。
           </div>
-          <p className="text-xs text-green-700 dark:text-green-400 mt-1">✅ 必須プロパティが揃っていれば、それ以外のプロパティの追加・並び替えは自由です</p>
+          <p className="text-xs text-green-700 dark:text-green-400 mt-1"><CheckCircle2 className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />必須プロパティが揃っていれば、それ以外のプロパティの追加・並び替えは自由です</p>
         </section>
       </div>
     ),
@@ -515,7 +516,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             Algoliaは高速検索のクラウドサービスです。本アプリは「Build」プラン（無料）の枠内で動作するように設計しています。
           </p>
           <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-2 mt-2 text-xs text-green-700 dark:text-green-300 space-y-1">
-            <p>💰 <strong>無料枠（Build プラン）</strong></p>
+            <p><strong>無料枠（Build プラン）</strong></p>
             <p>・最大 <strong>100万レコード</strong> まで保存可能</p>
             <p>・月 <strong>10,000 検索リクエスト</strong> まで無料</p>
             <p>・<strong>クレジットカード登録は不要</strong></p>
@@ -523,7 +524,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📝 アカウント作成手順</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Pencil className="inline-block h-4 w-4 align-text-bottom mr-1.5" />アカウント作成手順</p>
           <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>
               <a href="https://dashboard.algolia.com/users/sign_up" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">サインアップページ</a> を開く
@@ -535,21 +536,21 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <li>登録完了後、<strong>Buildプランで自動的に開始</strong>されます（プラン選択画面が出ない場合もあります）</li>
           </ol>
           <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
-            💡 ダッシュボードは英語ですが、ブラウザの翻訳機能でも問題なく使えます
+            ダッシュボードは英語ですが、ブラウザの翻訳機能でも問題なく使えます
           </div>
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔐 2回目以降のログイン</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Lock className="inline-block h-4 w-4 align-text-bottom mr-1.5" />2回目以降のログイン</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">
             <a href="https://dashboard.algolia.com/users/sign_in" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">dashboard.algolia.com</a> から登録時のメール／SSOでログインしてください。
           </p>
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔑 APIキー（3つの値）の取得方法</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />APIキー（3つの値）の取得方法</p>
           <ol className="space-y-1.5 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
-            <li>ダッシュボード <strong>左サイドバー一番下の「⚙ Settings（歯車）」</strong> をクリック</li>
+            <li>ダッシュボード <strong>左サイドバー一番下の「Settings（歯車）」</strong> をクリック</li>
             <li>「<strong>Team and Access</strong>」セクション内の「<strong>API Keys</strong>」を開く</li>
             <li>または直接 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">API Keys画面</a> へアクセスしてもOK</li>
             <li>下記3つの値が一覧表示されます（各行にコピーボタンあり）</li>
@@ -567,24 +568,24 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
             <p className="text-gray-500 dark:text-gray-400">検索専用キー（読み取りのみ）。ブラウザに置いても安全な公開用キー</p>
           </div>
           <div>
-            <p className="font-semibold text-gray-700 dark:text-gray-200">③ Admin API Key ⚠️ <span className="font-normal text-gray-400">＝同期用</span></p>
-            <p className="text-gray-500 dark:text-gray-400">同期・書き込みに使う管理者キー。<strong>「🔒（鍵アイコン）」をクリックして表示</strong>してからコピーします。<strong className="text-red-500">Search KeyではなくAdmin Keyの方</strong>を入力してください</p>
+            <p className="font-semibold text-gray-700 dark:text-gray-200">③ Admin API Key <span className="font-normal text-gray-400">＝同期用</span></p>
+            <p className="text-gray-500 dark:text-gray-400">同期・書き込みに使う管理者キー。<strong>「鍵アイコン」をクリックして表示</strong>してからコピーします。<strong className="text-red-500">Search KeyではなくAdmin Keyの方</strong>を入力してください</p>
           </div>
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">📦 インデックスについて</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Package className="inline-block h-4 w-4 align-text-bottom mr-1.5" />インデックスについて</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">
             インデックスは「データの保存先」です。<strong>事前にAlgolia側で手動作成する必要はありません。</strong>
             アプリで初回同期を実行すると、設定した名前（初期値: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">medical_knowledge</code>）のインデックスが自動的に作成され、Notionのデータが入ります。
           </p>
           <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 mt-2 text-xs text-brand-700 dark:text-brand-300">
-            💡 同期後、ダッシュボード左サイドバーの「<strong>Search</strong>」→「<strong>Index</strong>」を開くとデータを確認できます
+            同期後、ダッシュボード左サイドバーの「<strong>Search</strong>」→「<strong>Index</strong>」を開くとデータを確認できます
           </div>
         </section>
 
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔒 キーの取り扱い注意</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Lock className="inline-block h-4 w-4 align-text-bottom mr-1.5" />キーの取り扱い注意</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">
             特に <strong>Admin API Key</strong> は他人に渡るとデータを書き換え・削除されてしまいます。
             SNS・GitHub・スクリーンショットなどに含めないよう注意してください。
@@ -599,7 +600,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-4 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🔌 接続テストでエラーが出たら</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Plug className="inline-block h-4 w-4 align-text-bottom mr-1.5" />接続テストでエラーが出たら</p>
           <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
             <p><strong>「API token is invalid」</strong></p>
             <p className="text-gray-600 dark:text-gray-300">→ Notion Tokenが間違っています。「Notion」の画面に戻って再入力してください</p>
@@ -610,7 +611,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           </div>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">💾 同期とは？</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Save className="inline-block h-4 w-4 align-text-bottom mr-1.5" />同期とは？</p>
           <p className="text-xs text-gray-600 dark:text-gray-300">NotionのデータをAlgoliaに取り込む作業です。Notionを更新したときは、検索画面から再同期できます（セットアップをやり直す必要はありません）。</p>
         </section>
       </div>
@@ -621,7 +622,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-4 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">🏥 部署用DB</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Users className="inline-block h-4 w-4 align-text-bottom mr-1.5" />部署用DB</p>
           <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
             病院・医局・研究室など、職場のメンバー全員で共有しているNotion DBを追加で接続できます。
             個人DBと並べて統合検索でき、自分のノートと組織のナレッジを横断できます。
@@ -637,7 +638,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           </p>
         </section>
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2">⭐ プレミアム</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />プレミアム</p>
           <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
             <p className="text-xs text-purple-800 dark:text-purple-200 leading-relaxed">
               現役集中治療医が<strong>定期的に更新するナレッジ＋参考文献</strong>を閲覧できます。
@@ -656,7 +657,8 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
   // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
   const [step, setStep] = useState<Step>(initialStep || 'entry')
-  // 「何から始めるか」の選択。初期値は個人のみ（従来挙動に近い）。start画面で更新。
+  // 「何から始めるか」の選択。初期値は個人のみ（従来挙動に近い。handleRedo が 'mode' へ
+  // 直行する際も targets.personal=true 前提のため、この初期値は変更しない）。start画面で更新。
   const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   const [showHelp, setShowHelp] = useState(false)
@@ -743,6 +745,21 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }))
   }
 
+  // 完了時の最終ガード。saveSettings 済みの内容が isSetupComplete() を満たすときだけ
+  // ドラフトを片付けてホームへ遷移させる。満たさない場合はエラーを出して options に留め、
+  // 空設定のままホームへ抜ける事故（トークン/キー未入力での完了）を防ぐ。
+  // ※ 呼ぶ前に必ず saveSettings(form) を済ませておくこと（isSetupComplete は保存済み設定を読む）。
+  const finishSetup = (): boolean => {
+    if (!isSetupComplete()) {
+      setStep('options')
+      setError('あと少しです。選んだ知識源の接続情報（個人Notionのトークン＋DB、部署DBのトークン＋DB、またはプレミアムのコード）を入力してから「検索を開始」してください。')
+      return false
+    }
+    clearDraft()
+    onComplete()
+    return true
+  }
+
   const handleNotionNext = () => {
     if (!form.notionToken.trim()) {
       setError('NotionコネクトのTokenを入力してください')
@@ -807,12 +824,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     <div className="space-y-2">
       {notionTest?.status === 'ok' && (
         <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center font-medium">
-          ✅ Notionに接続できました（必須プロパティもOK）
+          <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Notionに接続できました（必須プロパティもOK）
         </div>
       )}
       {notionTest?.status === 'warn' && (
         <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1.5">
-          <p className="text-sm font-semibold">⚠️ 接続はOK。ただし次のプロパティが見つかりません</p>
+          <p className="text-sm font-semibold"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />接続はOK。ただし次のプロパティが見つかりません</p>
           <ul className="list-disc list-inside space-y-0.5">
             {notionTest.missing.map((m) => (
               <li key={m}>{m}</li>
@@ -831,7 +848,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {notionTesting ? (
             <><span className="animate-spin">⟳</span>接続確認中...</>
           ) : (
-            '🔌 接続テスト（推奨）'
+            <><Plug className="inline-block h-4 w-4 align-text-bottom mr-1" />接続テスト（推奨）</>
           )}
         </button>
       )}
@@ -1004,7 +1021,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-gray-200 dark:ring-gray-700 transition-colors text-xs font-semibold"
               title="詳しい説明書（ガイド）を別タブで開く"
             >
-              📘 ガイド
+              <Book className="inline-block h-4 w-4 align-text-bottom mr-1.5" />ガイド
             </a>
             <button
               onClick={() => setShowHelp(true)}
@@ -1034,7 +1051,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={() => setShowHelp(false)}
                     className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg"
                   >
-                    ✕
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto pr-1">
@@ -1060,7 +1077,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                   }`}
                 >
-                  {i < stepIndex ? '✓' : i + 1}
+                  {i < stepIndex ? <Check className="h-3.5 w-3.5" /> : i + 1}
                 </div>
                 <span className={`text-[10px] font-medium leading-none ${i === stepIndex ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'}`}>
                   {s.label}
@@ -1112,7 +1129,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 text-left hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">📲</span>
+                  <Smartphone className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
                   <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">アカウントをお持ちの方</p>
                 </div>
                 <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed pl-7">
@@ -1135,7 +1152,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">✨</span>
+                  <Sparkles className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-300" />
                   <p className="text-sm font-bold text-brand-800 dark:text-brand-200">はじめて使う方</p>
                 </div>
                 <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
@@ -1160,9 +1177,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </div>
 
               {([
-                { key: 'personal' as const, icon: '🧑', title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
-                { key: 'team' as const, icon: '🏥', title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
-                { key: 'premium' as const, icon: '⭐', title: '専門医の知識を使う', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
+                { key: 'personal' as const, Icon: User, title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
+                { key: 'team' as const, Icon: Users, title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
+                { key: 'premium' as const, Icon: Star, title: '専門医の知識を使う', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
               ]).map((opt) => {
                 const selected = targets[opt.key]
                 return (
@@ -1176,8 +1193,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}>✓</span>
-                      <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{opt.icon} {opt.title}</p>
+                      <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}><Check className="h-3.5 w-3.5" /></span>
+                      <p className="text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center gap-1.5"><opt.Icon className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-300" />{opt.title}</p>
                       <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{opt.sub}</span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pl-7">{opt.desc}</p>
@@ -1207,13 +1224,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 disabled={!targets.personal && !targets.team && !targets.premium}
                 className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
-                次へ →
+                次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
               </button>
               <button
                 onClick={() => { setError(''); setStep('entry') }}
                 className="w-full text-gray-400 dark:text-gray-500 text-xs py-1 hover:text-gray-600 dark:hover:text-gray-300"
               >
-                ← 入口（アカウントの有無）に戻る
+                <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />入口（アカウントの有無）に戻る
               </button>
               {error && (
                 <p className="text-xs text-red-500 text-center">{error}</p>
@@ -1229,7 +1246,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   onClick={goPrevStep}
                   className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
                 >
-                  ← 戻る
+                  <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                 </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">接続モードを選択</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1245,7 +1262,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full border-2 border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-left hover:border-green-400 dark:hover:border-green-500 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-sm font-bold text-green-700 dark:text-green-300">📋 シンプルモード</p>
+                  <p className="text-sm font-bold text-green-700 dark:text-green-300"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />シンプルモード</p>
                   <span className="text-xs font-semibold bg-green-600 text-white px-2 py-0.5 rounded-full">まず試す方へ</span>
                 </div>
                 <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
@@ -1262,7 +1279,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <p className="text-sm font-bold text-brand-700 dark:text-brand-300">⚡ パワーモード</p>
+                  <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />パワーモード</p>
                   <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">本格利用に</span>
                 </div>
                 <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
@@ -1272,7 +1289,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </button>
 
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-1">
-                💡 あとから「設定」画面でいつでも切り替えできます
+                あとから「設定」画面でいつでも切り替えできます
               </p>
             </div>
           )}
@@ -1285,7 +1302,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   onClick={goPrevStep}
                   className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
                 >
-                  ← 戻る
+                  <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                 </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1312,13 +1329,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    💡 ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
+                    ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
                   </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
                   )}
                   {form.notionToken && (form.notionToken.startsWith('ntn_') || form.notionToken.startsWith('secret_')) && (
-                    <p className="text-xs text-green-600 dark:text-green-400">✓ 形式OK</p>
+                    <p className="text-xs text-green-600 dark:text-green-400"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />形式OK</p>
                   )}
                 </div>
               </div>
@@ -1345,7 +1362,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     className="w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-brand-700 dark:text-brand-300">📋 テンプレートを複製して使う</p>
+                      <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />テンプレートを複製して使う</p>
                       <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
                     </div>
                     <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
@@ -1364,7 +1381,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     }}
                     className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   >
-                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">🔗 既存のDBに連携する</p>
+                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存のDBに連携する</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。</p>
                   </button>
                 </div>
@@ -1378,7 +1395,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       onClick={() => { setNotionSetupMode('choose'); setError('') }}
                       className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
-                      ← 戻る
+                      <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                     </button>
                   </div>
 
@@ -1418,7 +1435,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         }`}
                       />
                       {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                     <div>
@@ -1433,7 +1450,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                     <div>
@@ -1448,9 +1465,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionManualDbId && form.notionManualDbId.length === 32 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
                     </div>
                   </div>
 
@@ -1458,7 +1475,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                      <p className="font-semibold mb-1">⚠️ エラー</p>
+                      <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
                       {error.split('\n').map((line, i) => (
                         <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
                       ))}
@@ -1469,7 +1486,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={handleNotionNext}
                     className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
-                    次へ →
+                    次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
                   </button>
                 </div>
               )}
@@ -1482,14 +1499,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       onClick={() => { setNotionSetupMode('choose'); setError('') }}
                       className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
-                      ← 選択に戻る
+                      <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />選択に戻る
                     </button>
-                    <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold">🔗 既存DB連携</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存DB連携</span>
                   </div>
 
                   {/* Integration接続手順 */}
                   <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-700 dark:text-brand-300 space-y-2">
-                    <p className="font-semibold">🔑 コネクト（旧称: インテグレーション）をDBに接続する（必須）</p>
+                    <p className="font-semibold"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />コネクト（旧称: インテグレーション）をDBに接続する（必須）</p>
                     <ol className="space-y-1 list-decimal list-inside text-brand-700 dark:text-brand-300">
                       <li>NotionでMedical DBのページを開く</li>
                       <li>右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
@@ -1497,7 +1514,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <li>作成したコネクト名を選択して接続</li>
                       <li>Reference DBがある場合も同様に接続する</li>
                     </ol>
-                    <p className="text-amber-600 dark:text-amber-400 font-medium">⚠️ この接続を忘れると「403エラー」になります</p>
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">この接続を忘れると「403エラー」になります</p>
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
@@ -1508,16 +1525,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   {/* DBの役割説明（トグルで畳める：入力欄まで早く到達できるように） */}
                   <details className="bg-brand-50 dark:bg-brand-900/30 rounded-xl text-xs text-brand-700 dark:text-brand-300">
-                    <summary className="font-semibold cursor-pointer p-3 select-none">📚 Medical DB / Reference DB / 📋 Manual DB ってなに？（タップで開く）</summary>
+                    <summary className="font-semibold cursor-pointer p-3 select-none"><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB / Reference DB / Manual DB ってなに？（タップで開く）</summary>
                     <div className="space-y-1.5 px-3 pb-3">
-                      <p><strong>🚑 Medical DB</strong>（メイン・必須）<br/>
+                      <p><strong><Ambulance className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB</strong>（メイン・必須）<br/>
                         <span className="text-brand-600 dark:text-brand-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
                       </p>
-                      <p><strong>📖 Reference DB</strong>（参考文献・任意）<br/>
+                      <p><strong><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Reference DB</strong>（参考文献・任意）<br/>
                         <span className="text-brand-600 dark:text-brand-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
                       </p>
-                      <p><strong>📋 Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
-                        <span className="text-brand-600 dark:text-brand-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定すると📋マニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
+                      <p><strong><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
+                        <span className="text-brand-600 dark:text-brand-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定するとマニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
                       </p>
                     </div>
                   </details>
@@ -1525,12 +1542,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   {/* プロパティ名ガイダンス（トグルで畳める） */}
                   <details className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
                     <summary className="bg-gray-50 dark:bg-gray-700 px-3 py-2 cursor-pointer select-none">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">📋 このアプリを効果的に使うためのプロパティ（タップで開く）</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-200"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />このアプリを効果的に使うためのプロパティ（タップで開く）</span>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">名前は<strong>完全一致</strong>させてください（型は柔軟）</p>
                     </summary>
                     <div className="p-3 space-y-3">
                       <div>
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">🚑 Medical DB</p>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5"><Ambulance className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB</p>
                         <div className="space-y-1">
                           {[
                             { name: '名前', type: 'タイトル型', note: '最初から存在', level: 'required' as const },
@@ -1555,7 +1572,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">📖 Reference DB <span className="font-normal text-gray-400">（DB自体が任意・使う場合のみ）</span></p>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5"><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Reference DB <span className="font-normal text-gray-400">（DB自体が任意・使う場合のみ）</span></p>
                         <div className="space-y-1">
                           {[
                             { name: '名前', type: 'タイトル型', note: '最初から存在', level: 'required' as const },
@@ -1585,7 +1602,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">📋 Manual DB <span className="font-normal text-gray-400">（DB自体が任意・マニュアル/お知らせ用）</span></p>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Manual DB <span className="font-normal text-gray-400">（DB自体が任意・マニュアル/お知らせ用）</span></p>
                         <div className="space-y-1">
                           {[
                             { name: '名前', type: 'タイトル型', note: '最初から存在', level: 'required' as const },
@@ -1613,12 +1630,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">※ 新着順は Notion の「最終更新日時」（自動）を使うため、専用プロパティは不要です。</p>
                       </div>
                       <div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-2 text-xs text-brand-700 dark:text-brand-300">
-                        💡 作成日プロパティは不要（Notionが自動で持っています）
+                        作成日プロパティは不要（Notionが自動で持っています）
                       </div>
                       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
-                        <p>⚠️ <strong>名前が異なると</strong>同期・検索が正しく動作しません（例: 「要約」を「サマリー」に変えるとNG）</p>
-                        <p>✅ 上記以外のプロパティは自由に追加・変更できます</p>
-                        <p>💡 ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
+                        <p><strong>名前が異なると</strong>同期・検索が正しく動作しません（例: 「要約」を「サマリー」に変えるとNG）</p>
+                        <p><CheckCircle2 className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />上記以外のプロパティは自由に追加・変更できます</p>
+                        <p>ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                       </div>
                     </div>
                   </details>
@@ -1640,7 +1657,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         }`}
                       />
                       {form.notionMedicalDbId && form.notionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                     <div>
@@ -1655,7 +1672,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionReferenceDbId && form.notionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                     <div>
@@ -1670,9 +1687,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.notionManualDbId && form.notionManualDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                     </div>
                   </div>
 
@@ -1680,7 +1697,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                      <p className="font-semibold mb-1">⚠️ エラー</p>
+                      <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
                       {error.split('\n').map((line, i) => (
                         <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
                       ))}
@@ -1691,7 +1708,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={handleNotionNext}
                     className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
-                    次へ →
+                    次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
                   </button>
                 </div>
               )}
@@ -1765,7 +1782,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     show={!!showPassword['algoliaAdminKey']}
                     onToggle={() => togglePassword('algoliaAdminKey')}
                   />
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠️ Search-Only KeyではなくAdmin Keyを入力してください</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Search-Only KeyではなくAdmin Keyを入力してください</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1787,7 +1804,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
               {error && (
                 <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                  <p className="font-semibold mb-1">⚠️ エラー</p>
+                  <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
                   {error.split('\n').map((line, i) => (
                     <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
                   ))}
@@ -1799,13 +1816,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   onClick={goPrevStep}
                   className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
-                  ← 戻る
+                  <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                 </button>
                 <button
                   onClick={handleAlgoliaNext}
                   className="flex-1 bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                 >
-                  次へ →
+                  次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
                 </button>
               </div>
             </div>
@@ -1835,7 +1852,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   {/* 接続テストボタン */}
                   {testResult === 'ok' ? (
                     <div className="bg-green-50 rounded-xl p-3 text-sm text-green-700 text-center font-medium">
-                      ✅ 接続確認OK！同期を開始できます
+                      <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />接続確認OK！同期を開始できます
                     </div>
                   ) : (
                     <button
@@ -1846,14 +1863,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       {testing ? (
                         <><span className="animate-spin">⟳</span>接続確認中...</>
                       ) : (
-                        '🔌 接続テスト（推奨）'
+                        <><Plug className="inline-block h-4 w-4 align-text-bottom mr-1" />接続テスト（推奨）</>
                       )}
                     </button>
                   )}
 
                   {error && (
                     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                      <p className="font-semibold mb-1">⚠️ エラー</p>
+                      <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
                       {error.split('\n').map((line, i) => (
                         <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
                       ))}
@@ -1874,7 +1891,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       disabled={syncing}
                       className="flex-1 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
-                      ← 戻る
+                      <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                     </button>
                     <button
                       onClick={handleSync}
@@ -1890,7 +1907,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               ) : (
                 <div className="space-y-4">
                   <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-5 text-center">
-                    <div className="text-3xl mb-2">✅</div>
+                    <div className="mb-2 flex justify-center text-brand-600 dark:text-brand-300"><CheckCircle2 className="h-8 w-8" /></div>
                     <p className="font-bold text-green-700 dark:text-green-400 text-lg">同期完了！</p>
                     <div className="mt-3 text-sm text-green-600 dark:text-green-400 space-y-1">
                       <p>医療知識: {syncResult.medical} 件</p>
@@ -1899,12 +1916,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     </div>
                   </div>
                   <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400 space-y-1">
-                    <p className="font-semibold">⚠️ ご注意</p>
+                    <p className="font-semibold"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />ご注意</p>
                     <p>APIキーはこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
                     <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">※ データの再同期は不要です。詳しくはプライバシーポリシーをご確認ください。</p>
                   </div>
                   <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1">
-                    <p className="font-semibold">🔒 このアプリのURLについて</p>
+                    <p className="font-semibold"><Lock className="inline-block h-4 w-4 align-text-bottom mr-1.5" />このアプリのURLについて</p>
                     <p>このURLはあなた専用の検索アプリです。あなた自身のNotionデータベースに接続されています。</p>
                     <p className="text-xs text-brand-600 dark:text-brand-400 mt-1">URLを第三者に共有すると、あなたのデータが閲覧できる状態になります。信頼できる方のみに共有してください。</p>
                   </div>
@@ -1912,7 +1929,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={() => setStep('options')}
                     className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
                   >
-                    次へ（オプション設定） →
+                    次へ（オプション設定）<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
                   </button>
                 </div>
               )}
@@ -1928,7 +1945,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     onClick={goPrevStep}
                     className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
                   >
-                    ← 戻る
+                    <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                   </button>
                 )}
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">オプション設定</h2>
@@ -1945,7 +1962,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   className="w-full flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">🏥 部署用DB</p>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200"><Users className="inline-block h-4 w-4 align-text-bottom mr-1.5" />部署用DB</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">職場の共有NotionDBを接続する</p>
                   </div>
                   <span className="text-gray-400 dark:text-gray-500 text-xs ml-4">{openSection === 'team' ? '▲' : '▼'}</span>
@@ -1978,7 +1995,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 space-y-1">
                         <p>・<strong>受け取る人</strong>：代表者からもらった Token とDBのURLを貼るだけでOK（自分で作る必要はありません）。</p>
                         <p>・<strong>代表者の方</strong>：共有用に<strong>個人用とは別のToken</strong>を新しく作り、部署DBにだけ「コネクトを追加」してから配ってください。</p>
-                        <p className="text-amber-600 dark:text-amber-400">⚠️ このTokenはメンバーに渡るため、つながっているDBが全員に見えます。個人用Tokenは共有せず、共有用Tokenは部署DB以外につながないでください。</p>
+                        <p className="text-amber-600 dark:text-amber-400">このTokenはメンバーに渡るため、つながっているDBが全員に見えます。個人用Tokenは共有せず、共有用Tokenは部署DB以外につながないでください。</p>
                       </div>
                     </div>
                     <div>
@@ -1993,7 +2010,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.teamNotionMedicalDbId && form.teamNotionMedicalDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                     <div>
@@ -2008,7 +2025,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
                       {form.teamNotionReferenceDbId && form.teamNotionReferenceDbId.length === 32 && (
-                        <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>
+                        <p className="text-xs text-green-600 mt-1"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />DB IDを認識しました</p>
                       )}
                     </div>
                   </div>
@@ -2023,7 +2040,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   className="w-full flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-left hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300">⭐ プレミアム</p>
+                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300"><Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />プレミアム</p>
                     <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジにアクセス</p>
                   </div>
                   <span className="text-purple-400 dark:text-purple-500 text-xs ml-4">{openSection === 'subscription' ? '▲' : '▼'}</span>
@@ -2033,7 +2050,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     {form.subscriptionSearchKey && form.subscriptionAppId ? (
                       /* 既にプレミアム登録済み */
                       <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 space-y-2">
-                        <p className="text-xs font-semibold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
+                        <p className="text-xs font-semibold text-green-700 dark:text-green-400"><CheckCircle2 className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />プレミアム登録済み</p>
                         <p className="text-xs text-green-600 dark:text-green-500">プレミアムコンテンツにアクセスできます。</p>
                         <button
                           type="button"
@@ -2049,7 +2066,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong>🎁 まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額980円（税込）・いつでも解約可）へ。
+                          <strong><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額980円（税込）・いつでも解約可）へ。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -2073,7 +2090,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                          <strong>💳 有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                          <strong><CreditCard className="inline-block h-4 w-4 align-text-bottom mr-1.5" />有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                         </p>
                         <PremiumCheckoutButton />
                       </div>
@@ -2089,8 +2106,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 onClick={() => {
                   if (user) {
                     saveSettings(form)
-                    clearDraft()
-                    onComplete()
+                    finishSetup() // 設定不足ならホームへ抜けさせず options に留める
                   } else {
                     saveDraft(form) // モーダル中の離脱に備えて途中保存
                     setLoginPurpose('register')
@@ -2099,12 +2115,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 }}
                 className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
-                {user ? '設定を保存して検索を開始する →' : 'メールを登録して検索を開始する →'}
+                {user ? <>設定を保存して検索を開始する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></> : <>メールを登録して検索を開始する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
               </button>
               {!user && (
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
                   メールアドレスの登録（パスワード不要）が必要です。設定が暗号化のうえ保存され、別の端末でも引き継げます。
                 </p>
+              )}
+              {error && (
+                <p className="text-xs text-red-500 text-center leading-relaxed">{error}</p>
               )}
             </div>
           )}
@@ -2132,9 +2151,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             if (loginPurpose === 'register') {
               // フォールバック（options末尾で未ログインだった場合）。設定をローカル保存し、サーバー同期はログイン後に走る。
               saveSettings(form)
-              clearDraft()
+              // 新規登録の完了時のみ最終ガード。設定不足ならホームへ抜けさせず options に戻す。
+              if (!finishSetup()) { setShowLogin(false); return }
+              setShowLogin(false)
+              return
             }
-            // restore はサーバー保存済み設定が AuthProvider 経由で復元される。
+            // restore はサーバー保存済み設定が AuthProvider 経由で復元される（未同期の瞬間があるためガードしない）。
+            clearDraft()
             onComplete()
           }}
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}

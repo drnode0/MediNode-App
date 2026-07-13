@@ -4,6 +4,8 @@
 // プレミアムタブの未登録画面と、初回セットアップ/設定のプレミアム欄で共通利用し、二重管理を防ぐ。
 // 価格・ボタン・コード入力などのアクション部分は含めない（呼び出し側で配置する）。
 
+import { Star, Search, Sparkles, Lightbulb, HelpCircle, Stethoscope } from 'lucide-react'
+
 const PREMIUM_ROLES = [
   '医学生', '研修医', '医師（救急・集中治療に関わる全科）', '看護師', '薬剤師',
   '管理栄養士', '臨床工学技士', '診療放射線技師', '臨床検査技師',
@@ -26,8 +28,10 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
     <div className="space-y-3">
       {showHeader && (
         <div className="text-center">
-          <div className="text-4xl">⭐</div>
-          <p className="text-base font-bold text-purple-700 dark:text-purple-300 mt-1">プレミアム会員限定コンテンツ</p>
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300">
+            <Star className="h-6 w-6" />
+          </div>
+          <p className="text-base font-bold text-purple-700 dark:text-purple-300 mt-1.5">プレミアム会員限定コンテンツ</p>
           <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">
             現役集中治療医が定期的に更新する<br />
             医療ナレッジ＋参考文献を閲覧できます
@@ -37,7 +41,7 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
 
       {/* 最大の強み：串刺し検索 */}
       <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 text-left space-y-1.5">
-        <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🔍 あなたのNotionと、専門医のナレッジを“串刺し検索”</p>
+        <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5"><Search className="h-4 w-4 shrink-0" />あなたのNotionと、専門医のナレッジを“串刺し検索”</p>
         <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
           ツールを切り替える必要はもうありません。<strong>あなた自身のNotionデータベース</strong>と
           <strong>現役集中治療専門医が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。
@@ -47,7 +51,7 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
 
       {/* 含まれるコンテンツ */}
       <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-3 text-left text-[11px] text-gray-600 dark:text-gray-400 space-y-1">
-        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1.5">✨ 含まれるコンテンツ・できること</p>
+        <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5"><Sparkles className="h-4 w-4 shrink-0 text-purple-500" />含まれるコンテンツ・できること</p>
         <p>• あなたのNotion＋専門医のナレッジを<strong>横断検索</strong></p>
         <p>• 救急・集中治療領域の臨床ナレッジ</p>
         <p>• エビデンスに基づく参考文献</p>
@@ -57,11 +61,11 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
 
       {/* こんな疑問に答えます（多職種・若手向けのCQ例） */}
       <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-3 text-left space-y-2">
-        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">💡 例えば、こんな“ちょっとした疑問”に答えます</p>
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 shrink-0 text-purple-500" />例えば、こんな“ちょっとした疑問”に答えます</p>
         <div className="space-y-1.5">
           {PREMIUM_SAMPLE_CQS.map((cq) => (
             <p key={cq} className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed flex gap-1.5">
-              <span className="shrink-0">❓</span>
+              <HelpCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-purple-400" />
               <span>{cq}</span>
             </p>
           ))}
@@ -73,7 +77,7 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
 
       {/* こんな方におすすめ */}
       <div className="bg-white/60 dark:bg-gray-800/40 rounded-xl p-3 text-left space-y-2">
-        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">👩‍⚕️ こんな方におすすめ</p>
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Stethoscope className="h-4 w-4 shrink-0 text-purple-500" />こんな方におすすめ</p>
         <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
           救急・集中治療は、<strong>多くの診療科と多職種が連携するチーム医療</strong>。
           職種や専門の垣根を越えて、現場に関わるすべての方へ。
