@@ -51,6 +51,7 @@ function LevelFilter() {
 }
 
 function EmptyState({ query }: { query: string }) {
+  const { refine } = useSearchBox()
   const suggestions = ['疾患名', '薬剤名', '検査値', '治療', 'ガイドライン']
 
   if (!query) {
@@ -93,15 +94,17 @@ function EmptyState({ query }: { query: string }) {
         </ul>
 
         <div className="mt-4">
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">例えばこんな言葉で</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">例えばこんな言葉で（タップで検索）</p>
           <div className="flex gap-2 flex-wrap justify-center">
             {suggestions.map((s) => (
-              <span
+              <button
                 key={s}
-                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full text-xs"
+                type="button"
+                onClick={() => refine(s)}
+                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full text-xs hover:bg-brand-50 dark:hover:bg-brand-900/40 hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
               >
                 {s}
-              </span>
+              </button>
             ))}
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 import { useSearchBox } from 'react-instantsearch'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { track } from '@vercel/analytics'
 import { Search } from 'lucide-react'
 
@@ -10,6 +10,12 @@ export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {})
   const [inputValue, setInputValue] = useState(query)
   const composingRef = useRef(false)
   const trackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 外部からのクエリ変更（0件画面の例示キーワードタップ等の refine）を入力欄へ反映する。
+  // IME変換中は composingRef ガードで上書きしない（変換テキストが消えるのを防ぐ）。
+  useEffect(() => {
+    if (!composingRef.current) setInputValue(query)
+  }, [query])
 
   // Algolia検索の実行計測。refineはキーストローク毎に走るため、
   // 入力が1.2秒止まったら「1回の検索」としてカウントする（キーワードは送らない）。
