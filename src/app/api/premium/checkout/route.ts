@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 /**
  * プレミアム サブスク Checkout Session 作成
@@ -32,6 +33,15 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Stripe Checkout セッションの無制限量産（APIレート枠・ダッシュボード汚染）を抑止。
+  // 正規ユーザーの購入は数回で足りるため、IP単位で 10回/10分に制限する。
+  if (!rateLimit(`checkout:${clientIp(req)}`, 10, 10 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: '試行回数が多すぎます。しばらく待ってからお試しください' },
+      { status: 429 },
+    )
+  }
+
   const stripeKey = process.env.STRIPE_SECRET_KEY
   const priceId = process.env.STRIPE_PRICE_ID
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'

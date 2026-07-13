@@ -8,26 +8,22 @@ import { runSubscriptionSync, isSyncSecretValid } from './_core'
  * （既定: Medical Knowledge_DB（サブスク用））へ同期する。
  *
  * 認証:
- *   - x-sync-secret ヘッダー or ?secret=xxx クエリで SUBSCRIPTION_SYNC_SECRET と一致確認
+ *   - x-sync-secret ヘッダーで SUBSCRIPTION_SYNC_SECRET と一致確認（定数時間比較）
  *   - 設定されていない or 不一致の場合は 401
+ *   - セキュリティ: シークレットは「ヘッダーのみ」で受け取る。?secret= のクエリ受理は
+ *     アクセスログ・ブラウザ履歴・Referer に秘密が残るため廃止した。手動実行は
+ *     `curl -X POST -H "x-sync-secret: ***" .../api/subscription/sync` で行う。
  *
  * 実際の同期ロジックと環境変数は ./_core.ts に集約。
  * Vercel Cron（/api/cron/subscription-sync）も同じ _core を使う。
  */
 
-function getRequestSecret(req: NextRequest): string | null {
-  const headerSecret = req.headers.get('x-sync-secret')
-  if (headerSecret) return headerSecret
-  const url = new URL(req.url)
-  return url.searchParams.get('secret')
-}
-
 export async function POST(req: NextRequest) {
   try {
-    // 認証チェック
-    if (!isSyncSecretValid(getRequestSecret(req))) {
+    // 認証チェック（ヘッダーのみ）
+    if (!isSyncSecretValid(req.headers.get('x-sync-secret'))) {
       return NextResponse.json(
-        { error: 'Unauthorized: 有効な x-sync-secret が必要です' },
+        { error: 'Unauthorized: 有効な x-sync-secret ヘッダーが必要です' },
         { status: 401 },
       )
     }
@@ -43,9 +39,4 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : '不明なエラーが発生しました'
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
-
-// GETでも実行可能にしておく（ブラウザURLから叩けるように）
-export async function GET(req: NextRequest) {
-  return POST(req)
 }

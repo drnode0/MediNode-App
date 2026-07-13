@@ -56,7 +56,12 @@ export function SyncPanel() {
       const data = await res.json()
       if (!res.ok) {
         const msg = data.error || ''
-        if (
+        if (msg === 'login_required' || res.status === 401) {
+          setError(
+            'ログインの有効期限が切れています。\n' +
+            '【対処法】右上のアカウントからログインし直してから、もう一度同期してください。'
+          )
+        } else if (
           msg.includes('API token is invalid') ||
           msg.includes('invalid_token') ||
           msg.includes('unauthorized') ||

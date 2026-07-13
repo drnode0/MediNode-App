@@ -33,9 +33,16 @@ describe('rateLimit', () => {
 })
 
 describe('clientIp', () => {
-  it('x-forwarded-for の先頭を返す', () => {
+  it('x-real-ip を最優先する（プラットフォームが設定する詐称困難な値）', () => {
+    const req = new Request('http://x/', {
+      headers: { 'x-real-ip': '203.0.113.9', 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
+    })
+    expect(clientIp(req)).toBe('203.0.113.9')
+  })
+  it('x-real-ip が無ければ x-forwarded-for の末尾（信頼できるプロキシ付与側）を返す', () => {
+    // 先頭はクライアントが詐称できるため、末尾を採用してレート制限回避を防ぐ。
     const req = new Request('http://x/', { headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' } })
-    expect(clientIp(req)).toBe('1.2.3.4')
+    expect(clientIp(req)).toBe('10.0.0.1')
   })
   it('ヘッダが無ければ unknown', () => {
     expect(clientIp(new Request('http://x/'))).toBe('unknown')

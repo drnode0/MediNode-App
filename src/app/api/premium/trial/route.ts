@@ -76,55 +76,60 @@ export async function POST(req: NextRequest) {
     // 前後の空白を除去し、大文字小文字を無視して照合（入力ミスを吸収）。
     const normalized = code.trim().toLowerCase()
 
-    // (B) 招待コード → 無期限comp。ログイン必須でサーバー(subscriptions)に紐付ける。
-    if (inviteCodes.includes(normalized)) {
-      const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
-      if (!supabaseReady) {
-        return NextResponse.json({ error: 'サーバー設定が不足しています' }, { status: 500 })
-      }
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        // 端末またぎ・無期限のためログインが前提。
-        return NextResponse.json({ error: 'login_required' }, { status: 401 })
-      }
-      await grantComplimentaryByUserId(user.id)
-      // オーナー通知＆棚卸し台帳への記録（best-effort。失敗しても付与は成功扱い）。
-      await notifyCompGranted({ userId: user.id, email: user.email ?? null, code: normalized })
-      return NextResponse.json({
-        ok: true,
-        comp: true,
-        trialEndsAt: null, // 無期限（キー自体は短命。ログイン中は PremiumSync が自動更新する）
-        algolia: {
-          appId: algoliaAppId,
-          searchKey: issuePremiumSearchKey({
-            appId: algoliaAppId,
-            parentSearchKey: algoliaSearchKey,
-            index: algoliaIndex,
-          }),
-          index: algoliaIndex,
-        },
-      })
-    }
+    const isInvite = inviteCodes.includes(normalized)
+    const isTrial = trialCodes.includes(normalized)
+    const isPlain = !!trialCode && normalized === trialCode.trim().toLowerCase()
 
-    // (C) 期限付きトライアルコード（note特典など一般向け）→ サーバー保存・自動失効。
-    //     comp と同じくログイン必須（端末またぎ＆サーバー失効のため）だが、plan=trial で
-    //     trial_ends_at を入れる点が異なる。サーバーの getActiveStatusByUserId が期限を見て失効させる。
-    if (trialCodes.includes(normalized)) {
+    // オラクル対策（総当たり防止）: 招待/期限付きトライアルコードはログイン必須。
+    // ここで「有効コードだがログインが必要(401)」と「無効コード(403)」を区別できると、
+    // 未ログインの攻撃者が応答コードの違いだけで有効コードを特定できてしまう。
+    // そこで、ログイン不要の (A) 通常トライアルコード以外は、コードの当否を判定する前に
+    // ログインを要求し、未ログインには常に同一の 401 を返す（当否を漏らさない）。
+    if (!isPlain) {
       const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+      const supabase = await createClient()
+      const { data: { user } } = supabaseReady
+        ? await supabase.auth.getUser()
+        : { data: { user: null } }
+      if (!user) {
+        // 有効な招待/トライアルコードでも、無効コードでも、未ログインなら同じ応答。
+        return NextResponse.json({ error: 'login_required' }, { status: 401 })
+      }
+
+      // ここから先はログイン済み。コード種別で分岐する。
+      if (!isInvite && !isTrial) {
+        return NextResponse.json({ error: 'コードが正しくありません' }, { status: 403 })
+      }
       if (!supabaseReady) {
         return NextResponse.json({ error: 'サーバー設定が不足しています' }, { status: 500 })
       }
-      const supabase = await createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        // 端末またぎ＆サーバー失効のためログインが前提。
-        return NextResponse.json({ error: 'login_required' }, { status: 401 })
+
+      // (B) 招待コード → 無期限comp。ログイン必須でサーバー(subscriptions)に紐付ける。
+      if (isInvite) {
+        await grantComplimentaryByUserId(user.id)
+        // オーナー通知＆棚卸し台帳への記録（best-effort。失敗しても付与は成功扱い）。
+        await notifyCompGranted({ userId: user.id, email: user.email ?? null, code: normalized })
+        return NextResponse.json({
+          ok: true,
+          comp: true,
+          trialEndsAt: null, // 無期限（キー自体は短命。ログイン中は PremiumSync が自動更新する）
+          algolia: {
+            appId: algoliaAppId,
+            searchKey: issuePremiumSearchKey({
+              appId: algoliaAppId,
+              parentSearchKey: algoliaSearchKey,
+              index: algoliaIndex,
+            }),
+            index: algoliaIndex,
+          },
+        })
       }
+
+      // (C) 期限付きトライアルコード（note特典など一般向け）→ サーバー保存・自動失効。
+      //     plan=trial で trial_ends_at を入れる。getActiveStatusByUserId が期限を見て失効させる。
       const days = Number.isFinite(trialPeriodDays) && trialPeriodDays > 0 ? trialPeriodDays : 14
       const trialEndsAt = await grantTrialByUserId(user.id, days)
-      // オーナー通知＆棚卸し台帳への記録（best-effort。失敗しても付与は成功扱い）。
-      // plan='trial' の付与であることを通知側に伝え、台帳で無期限compと区別できるようにする。
+      // plan='trial' であることを通知側に伝え、台帳で無期限compと区別できるようにする。
       await notifyCompGranted({ userId: user.id, email: user.email ?? null, code: normalized, plan: 'trial', trialEndsAt })
       return NextResponse.json({
         ok: true,
@@ -144,7 +149,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // (A) 通常のトライアルコード（期限付き・従来動作）。
+    // (A) 通常のトライアルコード（期限付き・従来動作・ログイン不要）。
+    // ここに来る時点で isPlain===true が確定しているが、防御的に再照合する。
     if (!trialCode || normalized !== trialCode.trim().toLowerCase()) {
       return NextResponse.json({ error: 'コードが正しくありません' }, { status: 403 })
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * プレミアム サブスク 検証 & Algoliaキー配布
@@ -70,6 +71,19 @@ export async function POST(req: NextRequest) {
       (session.metadata && session.metadata.user_id) ||
       undefined
     const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+    // セキュリティ: 決済 session_id が第三者に漏れても本人以外がプレミアムキーを
+    // 受け取れないようにする。checkout はログイン必須で client_reference_id に user_id を
+    // 埋めるため、呼び出し元のセッションが同一ユーザーであることを確認する。
+    // （webhook が別途サーバー保存するため、ここで弾いても本人の引き継ぎには影響しない）
+    if (supabaseReady && userId) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || user.id !== userId) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+      }
+    }
+
     if (supabaseReady && userId) {
       try {
         const { upsertSubscriptionByUserId } = await import('@/lib/supabase/subscriptions')

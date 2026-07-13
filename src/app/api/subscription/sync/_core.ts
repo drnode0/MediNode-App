@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
+import { timingSafeEqual } from 'crypto'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -183,7 +184,17 @@ async function syncReferenceDb(
 export function isSyncSecretValid(secret: string | null): boolean {
   const expected = process.env.SUBSCRIPTION_SYNC_SECRET
   if (!expected) return false
-  return secret === expected
+  if (!secret) return false
+  // タイミング攻撃対策の定数時間比較。長さが違うと timingSafeEqual は throw するため
+  // 先に長さを揃える（長さ差自体は秘匿性に大きく影響しない）。
+  const a = Buffer.from(secret)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) return false
+  try {
+    return timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
 }
 
 /**

@@ -75,15 +75,25 @@ export function getSettings(): AppSettings | null {
   }
 }
 
-export function saveSettings(settings: AppSettings, opts?: { skipServer?: boolean }): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  const now = new Date().toISOString()
-  localStorage.setItem(SETTINGS_UPDATED_KEY, now)
+// ローカル保存が成功したかを返す（false=プライベートモード/容量超過等で書けなかった）。
+// 呼び出し側は戻り値を無視してもよいが、セットアップ完了処理などは false を見て
+// 「この端末には保存できませんでした（ログインすればサーバーに保存されます）」を案内できる。
+export function saveSettings(settings: AppSettings, opts?: { skipServer?: boolean }): boolean {
+  if (typeof window === 'undefined') return false
+  // localStorage への書き込みは iOS プライベートブラウズや容量超過で throw することがある。
+  // ここで throw すると呼び出し元（セットアップ完了・プレミアム確定）の処理が中断するため、
+  // 例外を飲み込んでサーバー保存の継続に委ねる。
+  let localOk = true
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    localStorage.setItem(SETTINGS_UPDATED_KEY, new Date().toISOString())
+  } catch {
+    localOk = false
+  }
 
   // ログイン中ならサーバーにも保存して端末間同期する（fire-and-forget・失敗は次回保存に委ねる）。
   // skipServer は、SettingsSync がサーバー値をローカルへ復元した直後の echo POST を防ぐためのフラグ。
-  if (opts?.skipServer) return
+  if (opts?.skipServer) return localOk
   try {
     void fetch('/api/user-settings', {
       method: 'POST',
@@ -95,6 +105,7 @@ export function saveSettings(settings: AppSettings, opts?: { skipServer?: boolea
   } catch {
     // 未ログイン・ネットワーク失敗等は無視（API側で401を返すだけ）。次回 saveSettings で再送される。
   }
+  return localOk
 }
 
 // ローカル設定の最終更新時刻（端末間同期の last-write-wins 比較用）。
@@ -106,7 +117,11 @@ export function getSettingsUpdatedAt(): string | null {
 // サーバー由来の更新時刻をローカルの基準として記録する（SettingsSync が復元時に使う）。
 export function setSettingsUpdatedAt(iso: string): void {
   if (typeof window === 'undefined') return
-  localStorage.setItem(SETTINGS_UPDATED_KEY, iso)
+  try {
+    localStorage.setItem(SETTINGS_UPDATED_KEY, iso)
+  } catch {
+    // プライベートモード/容量超過。同期の基準時刻が書けないだけで致命的ではない。
+  }
 }
 
 export function clearSettings(): void {
@@ -141,10 +156,14 @@ export function isSetupComplete(): boolean {
   return true
 }
 
-// セットアップ途中の一時保存
+// セットアップ途中の一時保存（best-effort。書けなくても入力は続けられる）。
 export function saveDraft(draft: Partial<AppSettings>): void {
   if (typeof window === 'undefined') return
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  } catch {
+    // プライベートモード/容量超過。下書きが残らないだけで完了処理には影響しない。
+  }
 }
 
 export function getDraft(): Partial<AppSettings> | null {

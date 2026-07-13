@@ -31,9 +31,18 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   return bucket.count <= limit
 }
 
-// Vercel/プロキシ環境でのクライアントIP取得。x-forwarded-for の先頭が実クライアント。
+// Vercel/プロキシ環境でのクライアントIP取得。
+// x-forwarded-for の「先頭」はクライアントが自由に詐称でき、リクエストごとに
+// 別IPを名乗ればレート制限のバケットを回避できてしまう。Vercel はプラットフォーム側で
+// x-real-ip を実接続元に設定する（クライアント値を上書き）ため、こちらを優先する。
+// フォールバックの x-forwarded-for も、末尾（最も信頼できるプロキシが付与する側）を採る。
 export function clientIp(req: Request): string {
+  const realIp = req.headers.get('x-real-ip')
+  if (realIp) return realIp.trim()
   const fwd = req.headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  return req.headers.get('x-real-ip') || 'unknown'
+  if (fwd) {
+    const parts = fwd.split(',').map((s) => s.trim()).filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
+  return 'unknown'
 }
