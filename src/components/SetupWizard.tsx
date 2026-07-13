@@ -1310,8 +1310,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">本格利用に</span>
                 </div>
                 <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-                  Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<br />
-                  Algoliaアカウント（無料）が必要です。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日検索するなら、こちらが向いています。
+                  Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日検索するなら、こちらが向いています。<br />
+                  <span className="text-amber-600 dark:text-amber-400">※ Algoliaアカウント（無料）の作成と、APIキー3項目の入力が追加で必要です。未入力のままだと検索を始められません</span>
                 </p>
               </button>
 

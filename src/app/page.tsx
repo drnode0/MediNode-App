@@ -2473,6 +2473,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
     teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
+  // 表示のカスタマイズ（トグルは保存ボタンなしで即保存する）。
+  const [displayForm, setDisplayForm] = useState({
+    hideQuizTab: !!s0?.hideQuizTab,
+    hideCqButton: !!s0?.hideCqButton,
+  })
 
   // iOSのキーボード対策: この設定パネルは fixed bottom-0 のボトムシートなので、
   // キーボードが立つと下端（保存ボタン）がキーボードの裏に隠れて押せなくなる。
@@ -2702,6 +2707,17 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップをやり直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">モード切替・DBの新規作成／接続（今の設定は保持）</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
+
+              {/* ── 表示 ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">表示</p>
+              <button onClick={() => setSection('display')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <SlidersHorizontal className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">表示のカスタマイズ</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">クイズタブ・CQボタンの表示/非表示</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
@@ -3240,6 +3256,56 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             </div>
           )}
 
+          {/* ── 表示のカスタマイズ ── */}
+          {section === 'display' && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                使わない機能を画面から外せます。切り替えは即保存され、いつでも戻せます。
+              </p>
+              {([
+                {
+                  key: 'hideQuizTab' as const,
+                  label: 'クイズタブ',
+                  desc: '登録したナレッジからの出題。検索・まとめ用途だけで使う場合はオフに。',
+                },
+                {
+                  key: 'hideCqButton' as const,
+                  label: 'CQ登録ボタン（右下の浮きボタン）',
+                  desc: '疑問を自分のNotionに残す機能。個人のNotion接続を使わない場合はオフに。',
+                },
+              ]).map(({ key, label, desc }) => {
+                const visible = !displayForm[key]
+                return (
+                  <button
+                    key={key}
+                    role="switch"
+                    aria-checked={visible}
+                    onClick={() => {
+                      const next = { ...displayForm, [key]: !displayForm[key] }
+                      setDisplayForm(next)
+                      saveSection(next)
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{label}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{desc}</p>
+                    </div>
+                    <span
+                      className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition-colors ${visible ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span
+                        className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${visible ? 'translate-x-5' : 'translate-x-0'}`}
+                      />
+                    </span>
+                  </button>
+                )
+              })}
+              {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
+              <p className="text-xs text-gray-400 dark:text-gray-500 text-center">変更は設定を閉じたときに画面へ反映されます</p>
+            </div>
+          )}
+
           {/* ── セットアップやり直し（モード変更・DBセットアップの統合入口） ── */}
           {section === 'setup-redo' && (
             <div className="space-y-4">
@@ -3282,6 +3348,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('search')
+  // Algolia未設定画面の「シンプルモードに切り替える」直後に getSettings() を読み直させる更新カウンタ。
+  const [, bumpSettingsVersion] = useState(0)
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -3475,10 +3543,13 @@ export default function Home() {
     { id: 'recent', label: '新着', Icon: Clock },
     { id: 'browse', label: 'ジャンル', Icon: FolderOpen },
     { id: 'reference', label: '文献', Icon: BookMarked },
-    { id: 'quiz', label: 'クイズ', Icon: Lightbulb },
+    // クイズはオプトアウト：検索・まとめ用途だけで使う人は設定の「表示のカスタマイズ」で外せる。
+    ...(settings?.hideQuizTab ? [] : [{ id: 'quiz' as Tab, label: 'クイズ', Icon: Lightbulb }]),
     // マニュアルDBが設定されている時のみタブを表示（オプトイン）。
     ...(hasManual ? [{ id: 'manual' as Tab, label: 'マニュアル', Icon: ClipboardList }] : []),
   ]
+  // 選択中のタブが非表示化された場合（クイズをオフ・マニュアルDB解除）は検索へ退避する。
+  const activeTab: Tab = tabs.some((t) => t.id === tab) ? tab : 'search'
 
   const header = (
     <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm [padding-top:env(safe-area-inset-top)]">
@@ -3520,7 +3591,7 @@ export default function Home() {
                 track('tab_switch', { tab: t.id })
               }}
               className={`shrink-0 flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
-                tab === t.id
+                activeTab === t.id
                   ? TAB_TONES[t.id]
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
@@ -3557,12 +3628,12 @@ export default function Home() {
         <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
-          {tab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'manual' && <NotionManualTab />}
+          {activeTab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'manual' && <NotionManualTab />}
         </div>
         {settingsModal}
       </div>
@@ -3573,25 +3644,52 @@ export default function Home() {
   }
 
   // ========== Algoliaモード ==========
-  // Search KeyまたはApp IDが未設定の場合はエラー表示
+  // Search KeyまたはApp IDが未設定の場合の案内画面。
+  // セットアップでパワーモードを選んだままキー未入力の人が主に到達する。
+  // 「なぜこの画面が出たか」と「2つの出口（キーを入力する／シンプルモードに切り替える）」を明示する。
   if (!settings?.algoliaSearchKey || !settings?.algoliaAppId) {
+    // シンプルモード（Notion直結）は個人か部署どちらかのNotion接続があれば追加設定なしで動く。
+    const canUseSimpleMode = !!(
+      (settings?.notionToken && settings?.notionMedicalDbId) ||
+      (settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
+    )
     return (
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
-        <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-6">
-            <p className="mb-3 flex justify-center"><AlertTriangle className="h-6 w-6 text-amber-500" /></p>
-            <p className="font-bold text-amber-800 dark:text-amber-200 mb-2">Algoliaの設定が不完全です</p>
-            <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
-              Search API KeyまたはApp IDが設定されていません。<br />
-              右上の設定 → 「Notion・Algolia接続設定」から再入力してください。
-            </p>
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-6 space-y-4">
+            <div className="text-center">
+              <p className="mb-3 flex justify-center"><AlertTriangle className="h-6 w-6 text-amber-500" /></p>
+              <p className="font-bold text-amber-800 dark:text-amber-200 mb-2">パワーモードの追加設定が必要です</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 leading-relaxed">
+                現在<strong>パワーモード（Algolia検索）</strong>が選ばれていますが、AlgoliaのApp ID・Search API Keyが未入力のため、検索を始められません。
+              </p>
+            </div>
             <button
-              onClick={() => setShowSettings(true)}
-              className="bg-amber-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-amber-700 transition-colors"
+              onClick={() => { setSettingsInitialSection('notion'); setShowSettings(true) }}
+              className="w-full bg-amber-600 text-white rounded-xl px-5 py-3 text-sm font-semibold hover:bg-amber-700 transition-colors"
             >
-              設定を開く
+              Algoliaのキーを入力する
             </button>
+            {canUseSimpleMode && (
+              <div className="border-t border-amber-200 dark:border-amber-700 pt-4 space-y-2.5">
+                <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                  Algoliaを使わない場合は、<strong>シンプルモード（Notion直結検索）</strong>に切り替えると追加設定なしでこのまま使えます。入力済みの設定は保持され、あとから戻せます。
+                </p>
+                <button
+                  onClick={() => {
+                    const cur = getSettings()
+                    if (!cur) return
+                    saveSettings({ ...cur, searchMode: 'notion' })
+                    track('mode_switch', { to: 'notion', from: 'algolia_missing_keys' })
+                    bumpSettingsVersion((n) => n + 1)
+                  }}
+                  className="w-full bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-200 ring-1 ring-amber-300 dark:ring-amber-700 rounded-xl px-5 py-3 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                >
+                  シンプルモードに切り替えて始める
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {settingsModal}
@@ -3616,17 +3714,17 @@ export default function Home() {
         </div>
         <div className="max-w-2xl mx-auto px-4 py-4">
           <AlgoliaSearchErrorNotice />
-          {tab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'recent' && (
+          {activeTab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'recent' && (
             <RecentTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
-          {tab === 'browse' && <GenreBrowse hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'reference' && <ReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {tab === 'quiz' && (
+          {activeTab === 'browse' && <GenreBrowse hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'reference' && <ReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'quiz' && (
             <QuizTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
           )}
           {/* マニュアルはMVPではNotion直読みで動かす（Algoliaモードでも同じコンポーネント） */}
-          {tab === 'manual' && <NotionManualTab />}
+          {activeTab === 'manual' && <NotionManualTab />}
         </div>
       </div>
       {settingsModal}

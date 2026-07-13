@@ -40,6 +40,11 @@ export type AppSettings = {
   propKeywords: string      // デフォルト: キーワード
   propKnowledgeLevel: string // デフォルト: 知識レベル
   propGenre: string         // デフォルト: ジャンル
+
+  // 表示のカスタマイズ（任意・未設定=表示）。
+  // 検索・まとめ用途で使う人向けに、学習系のUIを消せるようにする。
+  hideQuizTab?: boolean   // クイズタブを非表示
+  hideCqButton?: boolean  // CQ登録の浮きボタンを非表示（個人Notionを使わない人向け）
 }
 
 const STORAGE_KEY = 'medical_search_settings'
