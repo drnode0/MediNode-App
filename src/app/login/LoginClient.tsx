@@ -10,7 +10,7 @@
 //   - マジックリンクにも next を渡し、auth/confirm 経由で同じ場所へ戻す。
 // 既にログイン済みでこのページに来た場合は next へ即リダイレクトする。
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Mail } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -47,6 +47,14 @@ export function LoginClient() {
   }, [authLoading, user, next, router])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  // フェーズごとに主入力へ自動フォーカス（メール欄→送信後は6桁コード欄）。
+  const emailRef = useRef<HTMLInputElement>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (phase === 'email') emailRef.current?.focus()
+    if (phase === 'sent') codeRef.current?.focus()
+  }, [phase])
 
   const sendLink = async () => {
     if (!emailValid) {
@@ -139,6 +147,7 @@ export function LoginClient() {
               メールアドレス
             </label>
             <input
+              ref={emailRef}
               type="email"
               inputMode="email"
               autoComplete="email"
@@ -190,6 +199,7 @@ export function LoginClient() {
                   6桁コードでログイン（アプリ・PWAはこちらが確実）
                 </label>
                 <input
+                  ref={codeRef}
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"

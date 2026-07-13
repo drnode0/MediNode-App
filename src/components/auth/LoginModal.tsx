@@ -5,9 +5,9 @@
 // フォールバック: 同じメールに届く6桁コードを入力（リンクが別ブラウザで開く問題への対策）。
 // これにより「使えない人」を限りなくゼロにする。
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { UserPlus, CheckCircle2, Mail } from 'lucide-react'
+import { UserPlus, CheckCircle2, Mail, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 
@@ -45,6 +45,21 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Escapeキーで閉じる（キーボード操作者向け。背景タップと同等の脱出手段）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // フェーズごとに主入力へ自動フォーカス（メール欄→送信後は6桁コード欄）。
+  const emailRef = useRef<HTMLInputElement>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (phase === 'email') emailRef.current?.focus()
+    if (phase === 'sent') codeRef.current?.focus()
+  }, [phase, mounted])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 
@@ -124,6 +139,9 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={isRegister ? 'アカウント登録' : 'ログイン'}
         className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -136,10 +154,10 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 -m-2 shrink-0"
             aria-label="閉じる"
           >
-            ×
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -148,6 +166,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">メールアドレス</label>
               <input
+                ref={emailRef}
                 type="email"
                 inputMode="email"
                 autoComplete="email"
@@ -193,6 +212,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
                     6桁コード（リンクが開けないとき）
                   </label>
                   <input
+                    ref={codeRef}
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
