@@ -185,7 +185,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
       {/* コンテンツ（ページ切替でフェード） */}
       <div
         key={`${layer}-${page}`}
-        className="flex-1 flex flex-col items-center justify-center px-6 pb-4 max-w-md mx-auto w-full animate-fade-in-up"
+        className="flex-1 flex flex-col items-center justify-center px-6 pb-10 max-w-md mx-auto w-full animate-fade-in-up"
       >
         {/* バッジ */}
         <div className="mb-4">

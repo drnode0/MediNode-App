@@ -41,9 +41,9 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
 
       {/* 最大の強み：串刺し検索 */}
       <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 text-left space-y-1.5">
-        <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5"><Search className="h-4 w-4 shrink-0" />あなたのNotionと、専門医のナレッジを“串刺し検索”</p>
+        <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5"><Search className="h-4 w-4 shrink-0" />あなたのNotionと、専門医のナレッジをまとめて検索</p>
         <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-          ツールを切り替える必要はもうありません。<strong>あなた自身のNotionデータベース</strong>と
+          <strong>あなた自身のNotionデータベース</strong>と
           <strong>現役集中治療専門医が公開する医療ナレッジ</strong>を、ひとつの検索ボックスでまとめて検索できます。
           自分のメモも、専門医の知見も、同じ画面で一度に引けます。
         </p>
@@ -55,7 +55,7 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
         <p>• あなたのNotion＋専門医のナレッジを<strong>横断検索</strong></p>
         <p>• 救急・集中治療領域の臨床ナレッジ</p>
         <p>• エビデンスに基づく参考文献</p>
-        <p>• 現役集中治療専門医による定期アップデート（常に最新）</p>
+        <p>• 現役集中治療専門医による定期アップデート</p>
         <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
       </div>
 

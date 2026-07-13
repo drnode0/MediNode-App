@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
 import { Sparkles, AlertTriangle, Search, X, Clock, FileText, ClipboardList, Hospital, BookOpen, CheckCircle2, PartyPopper, Check } from 'lucide-react'
+import { Spinner } from './Spinner'
 
 const RECENT_PAGE_KEY = 'notion_db_creator_recent_pages'
 
@@ -187,7 +188,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {/* loading_pages */}
       {phase === 'loading_pages' && (
         <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          <span className="animate-spin inline-block text-xl mr-2">⟳</span>
+          <Spinner className="w-5 h-5 mr-1.5" />
           Notionのページ一覧を取得中...
         </div>
       )}
@@ -298,7 +299,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {/* creating_medical */}
       {phase === 'creating_medical' && (
         <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          <span className="animate-spin inline-block text-xl mr-2">⟳</span>
+          <Spinner className="w-5 h-5 mr-1.5" />
           Medical DBを作成中...
         </div>
       )}
@@ -348,7 +349,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {/* creating_reference */}
       {phase === 'creating_reference' && (
         <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-          <span className="animate-spin inline-block text-xl mr-2">⟳</span>
+          <Spinner className="w-5 h-5 mr-1.5" />
           Reference DBを作成中...
         </div>
       )}

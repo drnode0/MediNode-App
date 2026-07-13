@@ -1,5 +1,5 @@
 'use client'
-import { RotateCcw, Check } from 'lucide-react'
+import { RotateCcw, Check, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import type { Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
@@ -64,7 +64,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
             {displaySummary ? (
               <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{displaySummary}</p>
             ) : (
-              <p className="text-sm text-gray-400 italic">要約なし</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic">要約なし</p>
             )}
           </div>
           {/* 自己申告（簡易・間隔反復）: 記録すると次回の出題順で「まだ」が優先される */}
@@ -119,9 +119,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
             >
               Notionで開く
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>

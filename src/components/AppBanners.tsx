@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -72,12 +72,12 @@ export function UpdateBanner() {
   }
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
-      <div className="bg-gradient-to-r from-emerald-50 to-brand-50 dark:from-emerald-900/30 dark:to-brand-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-start gap-3">
+      <div className="bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl px-4 py-3 flex items-start gap-3">
         <span className="shrink-0"><LATEST_ANNOUNCEMENT.Icon className="h-5 w-5" /></span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
+          <p className="text-sm font-bold text-brand-800 dark:text-brand-200">{LATEST_ANNOUNCEMENT.title}</p>
           {/* line-clamp-2: 長文お知らせが初回画面を占拠しないよう2行まで。全文は設定→お知らせ・更新履歴で読める */}
-          <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 leading-relaxed line-clamp-2">{LATEST_ANNOUNCEMENT.body}</p>
+          <p className="text-xs text-brand-700 dark:text-brand-300 mt-0.5 leading-relaxed line-clamp-2">{LATEST_ANNOUNCEMENT.body}</p>
           <div className="flex flex-wrap gap-2 mt-2">
             {(LATEST_ANNOUNCEMENT.links || []).map((lk) => (
               <a
@@ -85,15 +85,15 @@ export function UpdateBanner() {
                 href={lk.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-white/70 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-emerald-900/60 transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-200 bg-white/70 dark:bg-brand-900/40 border border-brand-300 dark:border-brand-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-brand-900/60 transition-colors"
               >
                 {lk.label}
               </a>
             ))}
           </div>
-          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-2">過去のお知らせは 設定 →「お知らせ・更新履歴」から見返せます。</p>
+          <p className="text-[11px] text-brand-600/70 dark:text-brand-400/70 mt-2">過去のお知らせは 設定 →「お知らせ・更新履歴」から見返せます。</p>
         </div>
-        <button onClick={dismiss} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200 shrink-0 text-lg leading-none" title="閉じる" aria-label="閉じる">×</button>
+        <button onClick={dismiss} className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
       </div>
     </div>
   )
@@ -179,14 +179,14 @@ export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () 
   }, [])
   if (dismissed) return null
   return (
-    <div className="mb-4 bg-gradient-to-br from-brand-50 to-brand-50 dark:from-brand-900/30 dark:to-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
+    <div className="mb-4 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
       <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">
-          もっと速くしたい方はパワーモードへ
+          検索の待ち時間が気になるときは、パワーモードへ
         </p>
         <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5 leading-relaxed">
-          Algolia（無料）を使うと検索が<strong>0.1秒以下</strong>に。日本語の部分一致やジャンル絞り込みも快適です。
+          Algolia（無料）を使うと、待たずに検索結果が返ります。日本語の部分一致やジャンル絞り込みにも対応します。
         </p>
         <div className="flex items-center gap-3 mt-2">
           <button
