@@ -1,6 +1,6 @@
 'use client'
 import { useHits, Configure } from 'react-instantsearch'
-import { Lightbulb, ClipboardList, X } from 'lucide-react'
+import { Lightbulb, ClipboardList, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import {
   createSearchClient,
@@ -309,7 +309,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
               {hasTeam && (
                 <span
                   className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isActive ? 'bg-green-200' : 'bg-green-50 dark:bg-green-900/300'
+                    isActive ? 'bg-green-200' : 'bg-green-500'
                   }`}
                   title="部署にもあります"
                   aria-label="部署にもあります"
@@ -335,9 +335,11 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     {(hiddenCount > 0 || showAll) && sortedGenres.length > GENRE_SHOW_LIMIT && (
       <button
         onClick={() => setShowAll((v) => !v)}
-        className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:text-brand-300 py-2 mb-4"
+        className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 py-2 mb-4 inline-flex items-center justify-center gap-1"
       >
-        {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${hiddenCount} 件）`}
+        {showAll
+          ? <><ChevronUp className="w-3.5 h-3.5" />折りたたむ</>
+          : <><ChevronDown className="w-3.5 h-3.5" />すべて表示（残り {hiddenCount} 件）</>}
       </button>
     )}
     </>

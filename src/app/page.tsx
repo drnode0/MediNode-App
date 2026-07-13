@@ -7,10 +7,10 @@ import { stripLeadingEmoji } from '@/lib/labels'
 import {
   Search, Clock, FolderOpen, BookOpen, Lightbulb, ClipboardList, SlidersHorizontal,
   Link2, Building2, Star, Wrench, Megaphone, Send, HelpCircle, Trash2, Shuffle, BookMarked,
-  Gift, CheckCircle2, AlarmClock, Loader2, ArrowRight,
+  Gift, CheckCircle2, AlarmClock, ArrowRight,
   Inbox, Brain, X, FlaskConical, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
-  ExternalLink,
+  ExternalLink, ChevronRight, ChevronUp, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -23,6 +23,8 @@ import {
 import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { Spinner } from '@/components/Spinner'
+import { SkeletonCards } from '@/components/SkeletonCards'
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
@@ -310,9 +312,11 @@ function QuizGenreFilter({
       {allGenres.length > GENRE_SHOW_LIMIT && (
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 mt-1.5"
+          className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 mt-1.5 inline-flex items-center gap-1"
         >
-          {showAll ? '▲ 折りたたむ' : `▼ すべてのジャンル（残り ${allGenres.length - GENRE_SHOW_LIMIT} 件）`}
+          {showAll
+            ? <><ChevronUp className="w-3.5 h-3.5" />折りたたむ</>
+            : <><ChevronDown className="w-3.5 h-3.5" />すべてのジャンル（残り {allGenres.length - GENRE_SHOW_LIMIT} 件）</>}
         </button>
       )}
     </div>
@@ -984,7 +988,7 @@ function SubscriptionPromoPanel() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><Loader2 className="h-4 w-4 animate-spin" />読み込み中...</> : <><Star className="h-4 w-4" />1週間無料で試す<ArrowRight className="h-4 w-4" /></>}
+        {loading ? <><Spinner className="h-4 w-4" />読み込み中...</> : <><Star className="h-4 w-4" />1週間無料で試す<ArrowRight className="h-4 w-4" /></>}
       </button>
       <p className="text-[11px] text-gray-400 dark:text-gray-500">
         トライアル期間中は無料。終了後に月額料金980円（税込）が課金されます。いつでも解約できます。
@@ -1457,7 +1461,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         />
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
-      {loading && <div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />Notionを検索中...</div>}
+      {loading && <SkeletonCards label="Notionを検索中..." />}
       {/* キャッシュ結果を表示中に裏で最新取得しているときの控えめな表示（一覧は消さない） */}
       {refreshing && !loading && (
         <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-1 mb-2"><Spinner className="w-3.5 h-3.5 mr-1" />最新の内容を確認中...</p>
@@ -1535,7 +1539,7 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   )
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
+  if (loading) return <>{ownerTabs}<SkeletonCards /></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
   if (merged.length === 0) return (
     <>
@@ -1631,7 +1635,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   )
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
+  if (loading) return <>{ownerTabs}<SkeletonCards /></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
   if (quizCandidates.length === 0) return (
     <>
@@ -1932,9 +1936,11 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           {sortedGenres.length > GENRE_SHOW_LIMIT && (
             <button
               onClick={() => setShowAll((v) => !v)}
-              className="w-full text-xs text-gray-400 hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400 py-2 transition-colors"
+              className="w-full text-xs text-gray-400 hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400 py-2 transition-colors inline-flex items-center justify-center gap-1"
             >
-              {showAll ? '▲ 折りたたむ' : `▼ すべて表示（残り ${sortedGenres.length - GENRE_SHOW_LIMIT} 件）`}
+              {showAll
+                ? <><ChevronUp className="w-3.5 h-3.5" />折りたたむ</>
+                : <><ChevronDown className="w-3.5 h-3.5" />すべて表示（残り {sortedGenres.length - GENRE_SHOW_LIMIT} 件）</>}
             </button>
           )}
         </>
@@ -1951,7 +1957,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
             </button>
           </div>
           {genreLoading ? (
-            <div className="text-center py-8 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div>
+            <SkeletonCards count={3} />
           ) : genreError ? (
             <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genreError}</div>
           ) : displayRecords.length === 0 ? (
@@ -1997,7 +2003,7 @@ function ManualCard({ hit }: { hit: Hit }) {
             {hit.manualType && (
               <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeStyle}`}>{stripLeadingEmoji(hit.manualType)}</span>
             )}
-            {hasExpandable && <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>}
+            {hasExpandable && <span className="text-gray-300">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>}
           </div>
         </div>
         {!expanded && (
@@ -2073,7 +2079,7 @@ function NotionManualTab() {
           ))}
         </div>
       </div>
-      {loading && <div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div>}
+      {loading && <SkeletonCards />}
       {error && <SearchErrorNotice error={error} />}
       {!loading && !error && filtered.length === 0 ? (
         <EmptyNotice
@@ -2168,7 +2174,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   const isFiltering = !!(query.trim() || refYear || refGenre)
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
+  if (loading) return <>{ownerTabs}<SkeletonCards /></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
 
   return (
@@ -2417,7 +2423,7 @@ function PremiumCheckoutButtonInline() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><Loader2 className="h-4 w-4 animate-spin" />読み込み中...</> : <><Star className="h-4 w-4" />プレミアムに登録する<ArrowRight className="h-4 w-4" /></>}
+        {loading ? <><Spinner className="h-4 w-4" />読み込み中...</> : <><Star className="h-4 w-4" />プレミアムに登録する<ArrowRight className="h-4 w-4" /></>}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -2436,6 +2442,16 @@ type SettingsPanelProps = {
 function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode, initialSection = null }: SettingsPanelProps) {
   type Section = SettingsPanelSection
   const [section, setSection] = useState<Section>(initialSection)
+
+  // シート表示中は背景スクロールをロック（LoginModalと同じ挙動に統一）。
+  useBodyScrollLock()
+
+  // Escapeキーで閉じる（背景タップと同等の脱出手段をキーボードにも）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   // セクション別編集フォーム
   const s0 = getSettings()
@@ -2609,7 +2625,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-2xl mx-auto max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-label="設定" className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-2xl mx-auto max-h-[90vh] flex flex-col">
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
@@ -2626,9 +2642,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             ) : (
               <h2 className="text-base font-bold text-gray-900 dark:text-white">設定</h2>
             )}
-            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-              {currentMode === 'notion' ? 'シンプルモード' : 'パワーモード'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                {currentMode === 'notion' ? 'シンプルモード' : 'パワーモード'}
+              </span>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 -m-1" aria-label="設定を閉じる">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* ── メインメニュー ── */}
@@ -2658,7 +2679,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">いま使っているAPIキー・DBのURLをその場で修正</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('team')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <Building2 className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -2666,7 +2687,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">部署DB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">チームで共有するNotionDBを接続</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <Star className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -2674,7 +2695,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアムDB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">作者提供のナレッジ・参考文献を追加</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('setup-redo')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <Wrench className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -2682,7 +2703,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップをやり直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">モード切替・DBの新規作成／接続（今の設定は保持）</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
 
               {/* ── サポート ── */}
@@ -2693,7 +2714,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <a
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
@@ -2706,7 +2727,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップ＆運用ガイド</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">困ったときはこちらを参照</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">↗</span>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
               <a
                 href={FEEDBACK_FORM_URL}
@@ -2719,7 +2740,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">↗</span>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
               {hasSubscriptionConfig() && (
                 <a
@@ -2733,7 +2754,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">専門医が回答し、プレミアムナレッジに反映されます</p>
                   </div>
-                  <span className="text-gray-300 dark:text-gray-600">↗</span>
+                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
                 </a>
               )}
               <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
@@ -2742,7 +2763,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・診断ツール</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
 
               {/* ── 危険ゾーン ── */}
@@ -2757,7 +2778,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定を完全に削除する</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">全データを消去してゼロから再設定</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
             </div>
           )}
@@ -3233,7 +3254,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">モードを切り替える</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">シンプル↔パワーモードの変更（モード選択画面へ）</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => { onClose(); onRedoFromNotion() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-brand-300 transition-all text-left">
                 <ClipboardList className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -3241,7 +3262,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">NotionDBを作り直す・つなぎ直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">テンプレート複製 or 既存DBの接続（DB選択画面へ）</p>
                 </div>
-                <span className="text-gray-300 dark:text-gray-600">›</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('notion')} className="w-full text-center text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 py-1">
                 APIキーやDBのURLを直すだけなら → 接続設定へ

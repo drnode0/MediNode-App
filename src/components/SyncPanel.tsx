@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { RefreshCw, CheckCircle2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { getSettings, saveLastSynced, getLastSynced, formatLastSynced } from '@/lib/settings'
 
@@ -131,7 +131,7 @@ export function SyncPanel() {
             </span>
           )}
         </span>
-        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+        <span className="text-gray-400">{open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
       </button>
 
       {open && (
