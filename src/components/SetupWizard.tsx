@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import type React from 'react'
 import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Loader2, Settings } from 'lucide-react'
+import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
@@ -846,7 +847,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           className="w-full border border-brand-300 text-brand-600 dark:text-brand-300 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {notionTesting ? (
-            <><span className="animate-spin">⟳</span>接続確認中...</>
+            <><Spinner className="w-4 h-4 mr-1" />接続確認中...</>
           ) : (
             <><Plug className="inline-block h-4 w-4 align-text-bottom mr-1" />接続テスト（推奨）</>
           )}
@@ -1126,13 +1127,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   setLoginPurpose('restore')
                   setShowLogin(true)
                 }}
-                className="w-full border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 text-left hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
+                className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <Smartphone className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">アカウントをお持ちの方</p>
+                  <Smartphone className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-300" />
+                  <p className="text-sm font-bold text-brand-800 dark:text-brand-200">アカウントをお持ちの方</p>
                 </div>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed pl-7">
+                <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
                   メールアドレスを入力してログインするだけ。別の端末で保存したNotion接続・Algolia・プレミアム設定がそのまま復元されます。
                 </p>
               </button>
@@ -1284,7 +1285,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </div>
                 <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
                   Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<br />
-                  Algoliaアカウント（無料）が必要です。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日の検索ならこちらが圧倒的に快適です。
+                  Algoliaアカウント（無料）が必要です。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日検索するなら、こちらが向いています。
                 </p>
               </button>
 
@@ -1861,7 +1862,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       className="w-full border border-brand-300 text-brand-600 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {testing ? (
-                        <><span className="animate-spin">⟳</span>接続確認中...</>
+                        <><Spinner className="w-4 h-4 mr-1" />接続確認中...</>
                       ) : (
                         <><Plug className="inline-block h-4 w-4 align-text-bottom mr-1" />接続テスト（推奨）</>
                       )}
@@ -1880,7 +1881,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   {/* 同期中の進捗 */}
                   {syncing && syncProgress && (
                     <div className="bg-brand-50 rounded-xl p-3 text-sm text-brand-600 text-center">
-                      <span className="animate-spin inline-block mr-2">⟳</span>
+                      <Spinner className="w-4 h-4 mr-1.5" />
                       {syncProgress}
                     </div>
                   )}
@@ -1899,7 +1900,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       className="flex-1 bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                     >
                       {syncing ? (
-                        <><span className="animate-spin">⟳</span>同期中...</>
+                        <><Spinner className="w-4 h-4 mr-1" />同期中...</>
                       ) : '同期開始'}
                     </button>
                   </div>

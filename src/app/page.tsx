@@ -10,6 +10,7 @@ import {
   Gift, CheckCircle2, AlarmClock, Loader2, ArrowRight,
   Inbox, Brain, X, FlaskConical, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
+  ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -21,6 +22,7 @@ import {
 } from '@/lib/algolia'
 import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
+import { Spinner } from '@/components/Spinner'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
@@ -419,7 +421,7 @@ function QuizHits() {
               <li>「要約」プロパティに結論を入力</li>
               <li>アプリで再同期 → クイズに出題されます</li>
             </ol>
-            <p className="text-xs text-amber-500 dark:text-amber-500 mt-1">❓ CQ（調査中）と 📋 まとめはクイズ除外されます</p>
+            <p className="text-xs text-amber-500 dark:text-amber-500 mt-1">❓ CQ（まだ答えの出ていない疑問）と 📋 まとめは、クイズには出ません</p>
           </div>
         )}
       </div>
@@ -649,7 +651,7 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
       {/* query="" : 検索タブで入力したキーワードをこのタブに持ち込まない（常に全文献から始める） */}
       <Configure hitsPerPage={200} filters={refPersonalFilter} query="" />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="flex items-center gap-2 mb-2">
           <input
             type="search"
@@ -754,7 +756,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
       {/* query="" : 検索タブのキーワードを新着に持ち込まない（常に全件の時系列で表示） */}
       <Configure hitsPerPage={300} filters={personalFilter || undefined} query="" />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -860,7 +862,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
     <>
       <Configure hitsPerPage={200} filters={quizPersonalFilter} />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -1146,7 +1148,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <Configure hitsPerPage={20} filters={personalFilter || undefined} />
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} />
         <OwnerFilterTabs
           owner={ownerFilter}
@@ -1436,7 +1438,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <>
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <input
           type="search"
           value={query}
@@ -1449,10 +1451,10 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         />
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
-      {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>Notionを検索中...</div>}
+      {loading && <div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />Notionを検索中...</div>}
       {/* キャッシュ結果を表示中に裏で最新取得しているときの控えめな表示（一覧は消さない） */}
       {refreshing && !loading && (
-        <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-1 mb-2"><span className="animate-spin inline-block mr-1">⟳</span>最新の内容を確認中...</p>
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-1 mb-2"><Spinner className="w-3.5 h-3.5 mr-1" />最新の内容を確認中...</p>
       )}
       {error && <SearchErrorNotice error={error} />}
       {ownerFilter === 'subscription' && !hasSubscription ? (
@@ -1523,13 +1525,13 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   }
 
   const ownerTabs = (
-    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+    <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
   if (merged.length === 0) return (
     <>
@@ -1615,7 +1617,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   }, [filteredCandidates.length, genreFilter.join('|')])
 
   const ownerTabs = (
-    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+    <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
     </div>
   )
@@ -1625,7 +1627,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
   )
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
   if (quizCandidates.length === 0) return (
     <>
@@ -1848,13 +1850,13 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <div>
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
         <OwnerFilterTabs owner={ownerFilter} onChange={(v) => { setOwnerFilter(v); setSelectedGenre(null); setGenreRecords([]); setSubGenreHits([]) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
       ) : genresLoading ? (
-        <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>ジャンルを読み込み中...</div>
+        <div className="text-center py-8 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />ジャンルを読み込み中...</div>
       ) : genresError ? (
         <SearchErrorNotice error={genresError} />
       ) : sortedGenres.length === 0 ? (
@@ -1945,7 +1947,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
             </button>
           </div>
           {genreLoading ? (
-            <div className="text-center py-8 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>
+            <div className="text-center py-8 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div>
           ) : genreError ? (
             <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{genreError}</div>
           ) : displayRecords.length === 0 ? (
@@ -1980,7 +1982,7 @@ function ManualCard({ hit }: { hit: Hit }) {
     ? new Date(hit.publishedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
     : ''
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-emerald-400 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-brand-400 overflow-hidden">
       <div className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`} onClick={() => hasExpandable && setExpanded((v) => !v)}>
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-snug flex-1">{hit.title}</h3>
@@ -1997,27 +1999,27 @@ function ManualCard({ hit }: { hit: Hit }) {
         {!expanded && (
           displaySummary
             ? <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{displaySummary}</p>
-            : <p className="text-xs text-gray-300 italic">要約なし</p>
+            : <p className="text-xs text-gray-400 dark:text-gray-500 italic">要約なし</p>
         )}
         {publishedLabel && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">掲載: {publishedLabel}</p>
         )}
       </div>
       {expanded && displaySummary && (
-        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in-up">
           <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed pt-3 whitespace-pre-wrap">{displaySummary}</p>
           {hit.aiKeywords && <p className="text-xs text-gray-300 mt-3 leading-relaxed">{hit.aiKeywords}</p>}
           <div className="flex justify-end mt-3">
             <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-800">
               Notionで開く
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>
       )}
       {!hasExpandable && (
-        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="block px-4 pb-3 text-xs text-brand-500 hover:text-brand-700">Notionで開く →</a>
+        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 hover:text-brand-700">Notionで開く<ExternalLink className="w-3.5 h-3.5" /></a>
       )}
     </div>
   )
@@ -2041,7 +2043,7 @@ function NotionManualTab() {
 
   return (
     <>
-      <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+      <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <input
           type="search"
           value={query}
@@ -2049,7 +2051,7 @@ function NotionManualTab() {
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
           placeholder="マニュアル・お知らせを検索..."
-          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 mb-2"
+          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 mb-2"
         />
         <div className="flex gap-1 overflow-x-auto">
           {TYPE_TABS.map((t) => (
@@ -2058,7 +2060,7 @@ function NotionManualTab() {
               onClick={() => setTypeFilter(t)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                 typeFilter === t
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-brand-500 text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
@@ -2067,7 +2069,7 @@ function NotionManualTab() {
           ))}
         </div>
       </div>
-      {loading && <div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div>}
+      {loading && <div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div>}
       {error && <SearchErrorNotice error={error} />}
       {!loading && !error && filtered.length === 0 ? (
         <div className="text-center py-14 px-4">
@@ -2131,7 +2133,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   ]
 
   const ownerTabs = (
-    <div className="sticky top-[120px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
+    <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
       <div className="flex items-center gap-2 mb-2">
         <input
           type="search"
@@ -2162,7 +2164,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
   const isFiltering = !!(query.trim() || refYear || refGenre)
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
-  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><span className="animate-spin inline-block mr-2">⟳</span>取得中...</div></>
+  if (loading) return <>{ownerTabs}<div className="text-center py-12 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />取得中...</div></>
   if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
 
   return (
@@ -3456,7 +3458,7 @@ export default function Home() {
   ]
 
   const header = (
-    <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
+    <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm [padding-top:env(safe-area-inset-top)]">
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
         <div className="flex items-center justify-between mb-3">
           <div className="w-16 flex items-center">
@@ -3551,13 +3553,13 @@ export default function Home() {
   // Search KeyまたはApp IDが未設定の場合はエラー表示
   if (!settings?.algoliaSearchKey || !settings?.algoliaAppId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-8 text-center">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-6">
             <p className="mb-3 flex justify-center"><AlertTriangle className="h-6 w-6 text-amber-500" /></p>
-            <p className="font-bold text-amber-800 mb-2">Algoliaの設定が不完全です</p>
-            <p className="text-sm text-amber-700 mb-4">
+            <p className="font-bold text-amber-800 dark:text-amber-200 mb-2">Algoliaの設定が不完全です</p>
+            <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
               Search API KeyまたはApp IDが設定されていません。<br />
               右上の設定 → 「Notion・Algolia接続設定」から再入力してください。
             </p>

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Spinner } from './Spinner'
 import { getSettings, saveLastSynced, getLastSynced, formatLastSynced } from '@/lib/settings'
 
 export function SyncPanel() {
@@ -155,7 +156,7 @@ export function SyncPanel() {
                   </p>
                 )}
                 <p className="text-xs mt-2 text-green-600 dark:text-green-500 flex items-center justify-center gap-1">
-                  <span className="animate-spin inline-block">⟳</span>
+                  <Spinner className="w-4 h-4" />
                   まもなく最新データに更新されます…
                 </p>
               </div>
@@ -186,7 +187,7 @@ export function SyncPanel() {
           >
             {syncing ? (
               <>
-                <span className="animate-spin inline-block">⟳</span>
+                <Spinner className="w-4 h-4" />
                 同期中...
               </>
             ) : (

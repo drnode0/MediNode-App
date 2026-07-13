@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2 } from 'lucide-react'
+import { Spinner } from './Spinner'
 import { track } from '@vercel/analytics'
 import { getSettings } from '@/lib/settings'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -238,7 +239,7 @@ function CqCaptureModal({
               >
                 {saving ? (
                   <>
-                    <span className="animate-spin">⟳</span>保存中...
+                    <Spinner className="w-4 h-4 mr-1" />保存中...
                   </>
                 ) : (
                   'CQとして保存する'

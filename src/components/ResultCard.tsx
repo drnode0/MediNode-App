@@ -1,8 +1,8 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
-import { useState } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 
 export type Hit = {
   objectID: string
@@ -43,8 +43,8 @@ const LEVEL_STYLE: Record<string, string> = {
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
   personal: { label: '個人', style: 'bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300' },
-  team: { label: '部署', style: 'bg-teal-50 text-teal-700' },
-  subscription: { label: 'プレミアム', style: 'bg-purple-50 text-purple-700' },
+  team: { label: '部署', style: 'bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300' },
+  subscription: { label: 'プレミアム', style: 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' },
 }
 
 export function ResultCard({ hit }: { hit: Hit }) {
@@ -63,10 +63,23 @@ export function ResultCard({ hit }: { hit: Hit }) {
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
-      {/* メイン部分：タップで展開（要約ありの場合のみ） */}
+      {/* メイン部分：タップ／キーボードで展開（要約ありの場合のみ） */}
       <div
-        className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`}
+        className={`p-4 ${hasExpandable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-inset' : ''}`}
         onClick={() => hasExpandable && setExpanded((v) => !v)}
+        {...(hasExpandable
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': expanded,
+              onKeyDown: (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setExpanded((v) => !v)
+                }
+              },
+            }
+          : {})}
       >
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-snug flex-1">
@@ -122,7 +135,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
           displaySummary ? (
             <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{displaySummary}</p>
           ) : (
-            <p className="text-xs text-gray-300 italic">要約なし</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 italic">要約なし</p>
           )
         )}
 
@@ -165,9 +178,9 @@ export function ResultCard({ hit }: { hit: Hit }) {
         )}
       </div>
 
-      {/* 展開時：全文＋Notionリンク */}
+      {/* 展開時：全文＋Notionリンク（QuizCardと同じフェード表示） */}
       {expanded && displaySummary && (
-        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in-up">
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pt-3 whitespace-pre-wrap">
             {displaySummary}
           </p>
@@ -185,9 +198,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
               className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               Notionで開く
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>
@@ -199,9 +210,10 @@ export function ResultCard({ hit }: { hit: Hit }) {
           href={hit.notionUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700 dark:text-brand-300"
+          className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
         >
-          Notionで開く →
+          Notionで開く
+          <ExternalLink className="w-3.5 h-3.5" />
         </a>
       )}
     </div>

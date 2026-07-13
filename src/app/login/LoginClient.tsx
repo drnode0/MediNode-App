@@ -169,7 +169,7 @@ export function LoginClient() {
 
           <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
             <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
-            <span className="font-medium text-emerald-700 dark:text-emerald-300">
+            <span className="font-medium text-brand-700 dark:text-brand-300">
               ホーム画面に追加したアプリ（PWA）やこの画面でログインするときは、下の6桁コードを入力するのが確実です。
             </span>
             メールのリンクをタップすると別のブラウザが開いてしまい、このアプリ側ではログインされたままにならないことがあります（その場合は下のコード入力をご利用ください）。
@@ -178,7 +178,7 @@ export function LoginClient() {
               ※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。
             </span>
             <br />
-            <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+            <span className="text-[11px] text-brand-600 dark:text-brand-400">
               ※ ログインすると、NotionDBの接続設定やプレミアム契約が暗号化のうえ保存され、別の端末でもログインするだけで自動で引き継がれます。
             </span>
           </div>
