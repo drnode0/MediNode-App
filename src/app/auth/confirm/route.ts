@@ -32,7 +32,21 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // 新規登録だったか既存ログインだったかを、着地ページで一度だけ告知するための印。
+      // created_at の新しさで判定（LoginModal のOTP経路と同じ規則）。失敗しても遷移は妨げない。
+      let welcome = ''
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const createdAt = user?.created_at ? new Date(user.created_at).getTime() : 0
+        if (createdAt > 0) {
+          welcome = Date.now() - createdAt < 30 * 60 * 1000 ? 'new' : 'existing'
+        }
+      } catch {
+        // 判定に失敗しても告知を省くだけ（ログインは成立している）。
+      }
+      const sep = next.includes('?') ? '&' : '?'
+      const dest = welcome ? `${origin}${next}${sep}welcome=${welcome}` : `${origin}${next}`
+      return NextResponse.redirect(dest)
     }
     // 失敗の原因をURLに載せて切り分けできるようにする。
     console.error('auth/confirm verifyOtp error:', error.message)

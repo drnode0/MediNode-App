@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
+import { Sparkles, AlertTriangle, Search, X, Clock, FileText, ClipboardList, Hospital, BookOpen, CheckCircle2, PartyPopper, Check } from 'lucide-react'
 
 const RECENT_PAGE_KEY = 'notion_db_creator_recent_pages'
 
@@ -160,13 +161,13 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {phase === 'idle' && (
         <div className="space-y-4">
           <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1.5">
-            <p className="font-semibold">✨ DBを自動作成します</p>
+            <p className="font-semibold flex items-center gap-1.5"><Sparkles className="h-4 w-4 shrink-0" />DBを自動作成します</p>
             <p>Notionのどのページ配下にDBを作るか選ぶだけでOKです。</p>
             <p>必要なプロパティは自動でセットされます。</p>
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300">
-            ⚠️ コネクト（旧称: Integration）をNotionのページに接続する必要があります。<br />
-            ページを開き、右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。
+            <span className="flex items-start gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" /><span>コネクト（旧称: Integration）をNotionのページに接続する必要があります。<br />
+            ページを開き、右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。</span></span>
           </div>
           <button
             onClick={handleFetchPages}
@@ -204,7 +205,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
 
             {/* 検索ボックス */}
             <div className="relative mb-2">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Search className="h-4 w-4" /></span>
               <input
                 type="text"
                 value={pageSearch}
@@ -215,9 +216,9 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
               {pageSearch && (
                 <button
                   onClick={() => setPageSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  ✕
+                  <X className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -244,15 +245,15 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
                 <>
                   {sortedPages.recent.length > 0 && (
                     <>
-                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                        🕐 最近使ったページ
+                      <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 shrink-0" />最近使ったページ
                       </div>
                       {sortedPages.recent.map((p) => (
                         <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onSelect={setSelectedPageId} recent />
                       ))}
                       {sortedPages.others.length > 0 && (
-                        <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 border-t">
-                          📄 すべてのページ
+                        <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 border-t flex items-center gap-1.5">
+                          <FileText className="h-3.5 w-3.5 shrink-0" />すべてのページ
                         </div>
                       )}
                     </>
@@ -272,9 +273,9 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
           {selectedPageId && (
             <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
               <p className="font-semibold">作成されるDB:</p>
-              <p>📋 「{selectedPage?.title}」の中に</p>
-              <p>🏥 Medical Knowledge DB</p>
-              <p>📚 Reference DB（次のステップで選択）</p>
+              <p className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 shrink-0" />「{selectedPage?.title}」の中に</p>
+              <p className="flex items-center gap-1.5"><Hospital className="h-4 w-4 shrink-0" />Medical Knowledge DB</p>
+              <p className="flex items-center gap-1.5"><BookOpen className="h-4 w-4 shrink-0" />Reference DB（次のステップで選択）</p>
             </div>
           )}
 
@@ -306,7 +307,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {phase === 'medical_created' && medicalDb && (
         <div className="space-y-4">
           <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-400 space-y-1">
-            <p className="font-semibold">✅ Medical DBを作成しました！</p>
+            <p className="font-semibold flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 shrink-0" />Medical DBを作成しました！</p>
             <p className="text-xs break-all">
               <a
                 href={medicalDb.databaseUrl}
@@ -356,10 +357,10 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {phase === 'all_created' && medicalDb && (
         <div className="space-y-4">
           <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-sm text-green-700 dark:text-green-400 space-y-2">
-            <p className="font-bold text-base">🎉 DB作成完了！</p>
+            <p className="font-bold text-base flex items-center gap-1.5"><PartyPopper className="h-4 w-4 shrink-0" />DB作成完了！</p>
             <div className="space-y-1 text-xs">
               <p>
-                ✅ Medical DB:{' '}
+                <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1" />Medical DB:{' '}
                 <a
                   href={medicalDb.databaseUrl}
                   target="_blank"
@@ -371,7 +372,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
               </p>
               {referenceDb && (
                 <p>
-                  ✅ Reference DB:{' '}
+                  <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1" />Reference DB:{' '}
                   <a
                     href={referenceDb.databaseUrl}
                     target="_blank"
@@ -386,7 +387,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
           </div>
 
           <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-            <p className="font-semibold">⚠️ 次のステップ（重要）</p>
+            <p className="font-semibold"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />次のステップ（重要）</p>
             <p>作成されたDBページを開き、右上「…」→「コネクトを追加」でコネクトを接続してください。</p>
             <p>接続しないと同期時にエラーになります。</p>
           </div>
@@ -404,7 +405,7 @@ export function NotionDbCreator({ notionToken, onComplete, onCancel }: Props) {
       {phase === 'error' && (
         <div className="space-y-4">
           <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-            <p className="font-semibold mb-1">⚠️ エラー</p>
+            <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />エラー</p>
             {formatError(errorMessage).split('\n').map((line, i) => (
               <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
             ))}
@@ -436,9 +437,9 @@ function PageRow({ page, selected, onSelect, recent }: {
           : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
       }`}
     >
-      <span className="mr-1.5">{recent ? '🕐' : '📄'}</span>
+      <span className="mr-1.5">{recent ? <Clock className="inline-block h-4 w-4 align-text-bottom" /> : <FileText className="inline-block h-4 w-4 align-text-bottom" />}</span>
       {page.title}
-      {selected && <span className="float-right text-brand-500">✓</span>}
+      {selected && <span className="float-right text-brand-500"><Check className="h-4 w-4" /></span>}
     </button>
   )
 }

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
-import { Send, Zap } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -24,7 +24,7 @@ const ANNOUNCEMENT_SEEN_KEY = 'medinode_announcement_seen_v1'
 export type Announcement = {
   id: string
   date: string
-  emoji: string
+  Icon: LucideIcon
   title: string
   body: string
   links?: { label: string; url: string }[]
@@ -33,26 +33,26 @@ export const ANNOUNCEMENTS: Announcement[] = [
   {
     id: '2026-07-12-cq-capture',
     date: '2026-07-12',
-    emoji: '❓',
+    Icon: HelpCircle,
     title: '疑問をその場で残せるようになりました',
     body: '画面右下の「CQ」ボタンから、気になった疑問を書くだけで、NotionのMedical DBに「❓ クリニカルクエスチョン」として保存されます。検索して見つからなかったときは、その画面から検索語をそのまま残せます。答えが出たらNotionで「💡 ナレッジ」に変えると、クイズに加わります。',
   },
   {
     id: '2026-06-17-settings-sync',
     date: '2026-06-17',
-    emoji: '🔄',
+    Icon: RefreshCw,
     title: '別端末でもログインで設定を引き継げるようになりました',
     body: 'ログインすると、別のスマホ・PCでも、NotionトークンやDB ID・Algoliaキーなどの設定が自動で引き継がれます。端末ごとの再入力は不要です。設定は暗号化してサーバーに保存されます。ホーム画面に追加したアプリ（PWA）でログインするときは、メールのリンクではなく届いた6桁コードの入力が確実です。',
   },
   {
     id: '2026-06-16-manual',
     date: '2026-06-16',
-    emoji: '📋',
+    Icon: ClipboardList,
     title: 'マニュアルタブを追加しました',
-    body: '病院・部署のマニュアルやお知らせ、業務改善を検索・新着表示できます。⚙️設定の「Manual DB」にNotionのDBを登録すると📋タブが表示されます。',
+    body: '病院・部署のマニュアルやお知らせ、業務改善を検索・新着表示できます。設定の「Manual DB」にNotionのDBを登録するとマニュアルタブが表示されます。',
     links: [
-      { label: '📖 設定方法・必要なプロパティを見る', url: MANUAL_GUIDE_URL },
-      { label: '📋 テンプレを複製して始める', url: MANUAL_TEMPLATE_URL },
+      { label: '設定方法・必要なプロパティを見る', url: MANUAL_GUIDE_URL },
+      { label: 'テンプレを複製して始める', url: MANUAL_TEMPLATE_URL },
     ],
   },
 ]
@@ -73,7 +73,7 @@ export function UpdateBanner() {
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
       <div className="bg-gradient-to-r from-emerald-50 to-brand-50 dark:from-emerald-900/30 dark:to-brand-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-start gap-3">
-        <span className="text-xl shrink-0">{LATEST_ANNOUNCEMENT.emoji}</span>
+        <span className="shrink-0"><LATEST_ANNOUNCEMENT.Icon className="h-5 w-5" /></span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">{LATEST_ANNOUNCEMENT.title}</p>
           {/* line-clamp-2: 長文お知らせが初回画面を占拠しないよう2行まで。全文は設定→お知らせ・更新履歴で読める */}

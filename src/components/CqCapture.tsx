@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircleQuestion, X, ExternalLink, Settings } from 'lucide-react'
+import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2 } from 'lucide-react'
 import { track } from '@vercel/analytics'
 import { getSettings } from '@/lib/settings'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -118,7 +118,7 @@ function CqSetupGuideModal({ onClose }: { onClose: () => void }) {
             </button>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              右上の設定（⚙️）→「Notion・Algolia接続設定」から設定できます。
+              右上の設定（歯車アイコン）→「Notion・Algolia接続設定」から設定できます。
             </p>
           )}
         </div>
@@ -248,7 +248,7 @@ function CqCaptureModal({
           ) : (
             <div className="space-y-3">
               <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 text-center animate-pop">
-                <p className="font-bold text-green-700 dark:text-green-400 text-sm">✅ 保存しました</p>
+                <p className="font-bold text-green-700 dark:text-green-400 text-sm"><CheckCircle2 className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />保存しました</p>
                 <p className="text-xs text-green-600 dark:text-green-500 mt-1 leading-relaxed">
                   {searchMode === 'notion'
                     ? '検索・新着にもすぐ反映されます。'

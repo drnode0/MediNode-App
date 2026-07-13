@@ -1,5 +1,6 @@
 'use client'
 import { useHits, Configure } from 'react-instantsearch'
+import { Lightbulb, ClipboardList, X } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import {
   createSearchClient,
@@ -147,7 +148,7 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
     { id: 'team', label: teamLabel.trim() ? teamLabel.trim() : '部署', inactive: !hasTeam },
-    { id: 'subscription', label: hasSubscription ? '⭐ プレミアム' : '🔒 プレミアム', inactive: !hasSubscription },
+    { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription },
   ]
   return (
     <div className="flex gap-1 mb-3 flex-wrap">
@@ -262,7 +263,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
   if (sortedGenres.length === 0) {
     return (
       <div className="bg-brand-50 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-700 rounded-xl p-4 text-sm text-brand-800 leading-relaxed">
-        <p className="font-medium mb-2">💡 ジャンルを使ってみよう</p>
+        <p className="font-medium mb-2"><Lightbulb className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />ジャンルを使ってみよう</p>
         <p className="text-brand-700 dark:text-brand-300">
           Notion側の「ジャンル」プロパティにオプションを追加すると、ここに一覧表示されます。
         </p>
@@ -362,7 +363,7 @@ export function GenreHitsList({ hits }: { hits: Hit[] }) {
     <>
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-semibold text-brand-700 dark:text-brand-300">📋 このジャンルのまとめ</span>
+          <span className="text-xs font-semibold text-brand-700 dark:text-brand-300"><ClipboardList className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />このジャンルのまとめ</span>
           <div className="flex-1 h-px bg-brand-200 dark:bg-brand-800" />
           <span className="text-xs text-gray-300 dark:text-gray-600">{matome.length}件</span>
         </div>
@@ -470,7 +471,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
           onClick={onClear}
           className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 dark:text-gray-300 shrink-0"
         >
-          ✕ 解除
+          <X className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />解除
         </button>
       </div>
 

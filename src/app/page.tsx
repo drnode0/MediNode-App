@@ -3,9 +3,13 @@ import { InstantSearch, Configure, useHits, useSearchBox } from 'react-instantse
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from 'react'
 import { track } from '@vercel/analytics'
 import { weightedQuizOrder } from '@/lib/quiz-srs'
+import { stripLeadingEmoji } from '@/lib/labels'
 import {
   Search, Clock, FolderOpen, BookOpen, Lightbulb, ClipboardList, SlidersHorizontal,
   Link2, Building2, Star, Wrench, Megaphone, Send, HelpCircle, Trash2, Shuffle, BookMarked,
+  Gift, CheckCircle2, AlarmClock, Loader2, ArrowRight,
+  Inbox, Brain, X, FlaskConical, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
+  KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -340,10 +344,10 @@ function RecentHits() {
   if (hits.length === 0) {
     return (
       <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">📭</div>
+        <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
         <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
         <p className="text-sm text-gray-400 dark:text-gray-500">
-          画面下の「🔄 再同期」からデータを取り込んでください
+          画面下の「再同期」からデータを取り込んでください
         </p>
       </div>
     )
@@ -399,7 +403,7 @@ function QuizHits() {
   if (quizCandidates.length === 0) {
     return (
       <div className="text-center py-14 px-4 space-y-4">
-        <div className="text-5xl">🧠</div>
+        <div className="flex justify-center text-gray-300 dark:text-gray-600"><Brain className="h-12 w-12" /></div>
         <div>
           <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
           <p className="text-sm text-gray-400 dark:text-gray-500">
@@ -408,7 +412,7 @@ function QuizHits() {
         </div>
         {!hasAnyKnowledgeLevel && (
           <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
-            <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 クイズの使い方</p>
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 shrink-0" />クイズの使い方</p>
             <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
               <li>Notionで確認済みの知識ページを開く</li>
               <li>「知識レベル」プロパティを <strong>💡 ナレッジ</strong> に設定</li>
@@ -757,9 +761,9 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
         <SubscriptionPromoPanel />
       ) : mergedHits.length === 0 ? (
         <div className="text-center py-14 px-4">
-          <div className="text-5xl mb-4">📭</div>
+          <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
           <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500">画面下の「🔄 再同期」からデータを取り込んでください</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">画面下の「再同期」からデータを取り込んでください</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -863,14 +867,14 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
         <SubscriptionPromoPanel />
       ) : quizCandidates.length === 0 ? (
         <div className="text-center py-14 px-4 space-y-4">
-          <div className="text-5xl">🧠</div>
+          <div className="flex justify-center text-gray-300 dark:text-gray-600"><Brain className="h-12 w-12" /></div>
           <div>
             <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">クイズがありません</p>
             <p className="text-sm text-gray-400 dark:text-gray-500">知識レベルを「💡 ナレッジ」に設定し、要約を入れるとここに出題されます</p>
           </div>
           {!hasAnyKnowledgeLevel && (
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
-              <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 クイズの使い方</p>
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 shrink-0" />クイズの使い方</p>
               <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
                 <li>Notionで確認済みの知識ページを開く</li>
                 <li>「知識レベル」プロパティを <strong>💡 ナレッジ</strong> に設定</li>
@@ -885,7 +889,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
           <QuizGenreFilter allGenres={availableGenres} selected={genreFilter} onChange={updateGenreFilter} />
           {filteredCandidates.length === 0 ? (
             <div className="text-center py-12 px-4 space-y-3">
-              <div className="text-4xl">🔍</div>
+              <div className="flex justify-center text-gray-300 dark:text-gray-600"><Search className="h-10 w-10" /></div>
               <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
               <button
                 onClick={() => updateGenreFilter([])}
@@ -956,8 +960,8 @@ function SubscriptionPromoPanel() {
 
       {/* 価格 */}
       <div className="space-y-0.5">
-        <p className="inline-block text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2.5 py-0.5 mb-1">
-          🎁 最初の1週間は無料
+        <p className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2.5 py-0.5 mb-1">
+          <Gift className="h-3 w-3 shrink-0" />最初の1週間は無料
         </p>
         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
           月額980円<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
@@ -972,7 +976,7 @@ function SubscriptionPromoPanel() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ 1週間無料で試す →'}
+        {loading ? <><Loader2 className="h-4 w-4 animate-spin" />読み込み中...</> : <><Star className="h-4 w-4" />1週間無料で試す<ArrowRight className="h-4 w-4" /></>}
       </button>
       <p className="text-[11px] text-gray-400 dark:text-gray-500">
         トライアル期間中は無料。終了後に月額料金980円（税込）が課金されます。いつでも解約できます。
@@ -1004,7 +1008,7 @@ function CqCaptureSuggestion({ query }: { query: string }) {
       onClick={() => openCq(query.trim())}
       className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
     >
-      ❓ この疑問をCQとして残す
+      この疑問をCQとして残す
     </button>
   )
 }
@@ -1024,17 +1028,17 @@ function MergedSearchResults({ personalHits, ownerFilter, query }: {
     if (!query) {
       return (
         <div className="text-center py-14 px-4">
-          <div className="text-5xl mb-4">📭</div>
+          <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
           <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
-            まず画面下の「🔄 データを再同期する」から同期を行ってください
+            まず画面下の「データを再同期する」から同期を行ってください
           </p>
         </div>
       )
     }
     return (
       <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">🔍</div>
+        <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Search className="h-12 w-12" /></div>
         <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">
           「{query}」の検索結果がありません
         </p>
@@ -1083,7 +1087,7 @@ function ExampleKeywords({ onPick }: { onPick: (kw: string) => void }) {
             onClick={() => onPick(kw)}
             className="px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:ring-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
           >
-            🔍 {kw}
+            {kw}
           </button>
         ))}
       </div>
@@ -1531,7 +1535,7 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     <>
       {ownerTabs}
       <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">📭</div>
+        <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
         <p className="text-gray-600 dark:text-gray-300 font-semibold">データがありません</p>
         <p className="text-sm text-gray-400 mt-1">NotionのDBにデータを追加してください</p>
       </div>
@@ -1627,7 +1631,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
     <>
       {ownerTabs}
       <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">🧠</div>
+        <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Brain className="h-12 w-12" /></div>
         <p className="text-gray-600 dark:text-gray-300 font-semibold">クイズがありません</p>
         <p className="text-sm text-gray-400 mt-1">知識レベルを「💡 ナレッジ」にして要約を入れるとクイズに出題されます</p>
       </div>
@@ -1640,7 +1644,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
     {genreChips}
     {filteredCandidates.length === 0 ? (
       <div className="text-center py-12 px-4 space-y-3">
-        <div className="text-4xl">🔍</div>
+        <div className="flex justify-center text-gray-300 dark:text-gray-600"><Search className="h-10 w-10" /></div>
         <p className="text-sm text-gray-500 dark:text-gray-400">選択中のジャンルに出題できる問題がありません</p>
         <button
           onClick={() => updateGenreFilter([])}
@@ -1855,13 +1859,13 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <SearchErrorNotice error={genresError} />
       ) : sortedGenres.length === 0 ? (
         <div className="text-center py-14 px-4 space-y-4">
-          <div className="text-5xl">🗂</div>
+          <div className="flex justify-center text-gray-300 dark:text-gray-600"><FolderOpen className="h-12 w-12" /></div>
           <div>
             <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">ジャンルがまだありません</p>
             <p className="text-sm text-gray-400 dark:text-gray-500">NotionのMedical DBで「ジャンル」プロパティにタグを付けると、ここに一覧が表示されます</p>
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-left max-w-sm mx-auto space-y-2">
-            <p className="text-xs font-bold text-amber-700 dark:text-amber-300">💡 ジャンルの付け方</p>
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 shrink-0" />ジャンルの付け方</p>
             <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
               <li>Notionで知識ページを開く</li>
               <li>「ジャンル」プロパティにタグを追加（例: 循環・呼吸・感染）</li>
@@ -1937,7 +1941,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
               onClick={() => handleGenreSelect(null)}
               className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
             >
-              ✕ 解除
+              解除
             </button>
           </div>
           {genreLoading ? (
@@ -1985,7 +1989,7 @@ function ManualCard({ hit }: { hit: Hit }) {
               <span className="text-xs font-medium px-2 py-1 rounded-full bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">{ownerLabel}</span>
             )}
             {hit.manualType && (
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeStyle}`}>{hit.manualType}</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeStyle}`}>{stripLeadingEmoji(hit.manualType)}</span>
             )}
             {hasExpandable && <span className="text-gray-300 text-xs">{expanded ? '▲' : '▼'}</span>}
           </div>
@@ -2058,7 +2062,7 @@ function NotionManualTab() {
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
-              {t || 'すべて'}
+              {t ? stripLeadingEmoji(t) : 'すべて'}
             </button>
           ))}
         </div>
@@ -2067,7 +2071,7 @@ function NotionManualTab() {
       {error && <SearchErrorNotice error={error} />}
       {!loading && !error && filtered.length === 0 ? (
         <div className="text-center py-14 px-4">
-          <div className="text-5xl mb-4">📋</div>
+          <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><ClipboardList className="h-12 w-12" /></div>
           <p className="text-gray-600 dark:text-gray-300 font-semibold">{query ? '該当なし' : 'マニュアルがありません'}</p>
           <p className="text-sm text-gray-400 mt-1">{query ? '別のキーワードで試してください' : 'マニュアルDBにデータを追加してください'}</p>
         </div>
@@ -2266,7 +2270,7 @@ function PremiumCancelInfo({ trial = false }: { trial?: boolean }) {
       )}
       {mode?.testMode && (
         <p className="text-[11px] text-amber-600 dark:text-amber-400">
-          🧪 体験用のテストモードです。実際の課金・解約は発生しません。
+          体験用のテストモードです。実際の課金・解約は発生しません。
         </p>
       )}
     </div>
@@ -2335,7 +2339,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
   if (hasUsedTrial()) {
     return (
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
-        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">🎁 トライアルコードによる無料トライアルは利用済みです</p>
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><Gift className="h-4 w-4 shrink-0 text-purple-500" />トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
           この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
         </p>
@@ -2345,24 +2349,26 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
 
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
-      <p className="text-xs font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアルコードをお持ちの方（カード登録不要）</p>
+      <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5"><Gift className="h-4 w-4 shrink-0" />無料トライアルコードをお持ちの方（カード登録不要）</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事などに記載のコードを入力すると、<strong>カード登録なし</strong>でプレミアムをお試しいただけます（期間はコードにより異なります）。
+        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし</strong>でプレミアムをお試しいただけます（期間はコードにより異なります）。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。気に入った場合のみ、下の有料登録（1週間無料）で継続できます。
       </p>
-      <div className="flex gap-2">
+      {/* 入力欄と「無料で試す」を items-stretch で同じ高さに揃え、min-w-0 で
+          input が横にはみ出してボタンを押し出す（＝ズレる）のを防ぐ。 */}
+      <div className="flex items-stretch gap-2">
         <input
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="トライアルコード"
-          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+          className="min-w-0 flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
         />
         <button
           type="button"
           onClick={handleRedeem}
           disabled={loading}
-          className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+          className="shrink-0 whitespace-nowrap bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
         >
           {loading ? '確認中...' : '無料で試す'}
         </button>
@@ -2376,7 +2382,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
 function TestModeNotice() {
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
-      <p className="text-xs font-bold text-amber-700 dark:text-amber-300">🧪 これはテスト決済です</p>
+      <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5"><FlaskConical className="h-4 w-4 shrink-0" />これはテスト決済です</p>
       <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed mt-0.5">
         現在は体験用のテストモードのため、<strong>実際の課金は発生しません</strong>。
         決済画面ではテストカード番号「4242 4242 4242 4242」（有効期限は任意の未来日付・CVCは任意の3桁）をご利用ください。
@@ -2407,7 +2413,7 @@ function PremiumCheckoutButtonInline() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><span className="animate-spin">⟳</span>読み込み中...</> : '⭐ プレミアムに登録する →'}
+        {loading ? <><Loader2 className="h-4 w-4 animate-spin" />読み込み中...</> : <><Star className="h-4 w-4" />プレミアムに登録する<ArrowRight className="h-4 w-4" /></>}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
@@ -2617,7 +2623,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <h2 className="text-base font-bold text-gray-900 dark:text-white">設定</h2>
             )}
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-              {currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}
+              {currentMode === 'notion' ? 'シンプルモード' : 'パワーモード'}
             </span>
           </div>
 
@@ -2631,7 +2637,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 if (!isPremium) return null
                 return (
                   <div className="bg-gradient-to-r from-purple-50 to-brand-50 dark:from-purple-900/30 dark:to-brand-900/30 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 flex items-center gap-3 mb-2">
-                    <span className="text-2xl">⭐</span>
+                    <Star className="h-6 w-6 text-purple-500" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-purple-700 dark:text-purple-300">プレミアム会員</p>
                       <p className="text-xs text-purple-500 dark:text-purple-400">プレミアムコンテンツにアクセス中</p>
@@ -2720,7 +2726,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 >
                   <HelpCircle className="w-5 h-5 text-purple-400 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <span className="text-purple-500">⭐</span></p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">専門医が回答し、プレミアムナレッジに反映されます</p>
                   </div>
                   <span className="text-gray-300 dark:text-gray-600">↗</span>
@@ -2758,7 +2764,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* 手入力の前に: ログインで復元できることを最初に案内（再インストール後の
                   「また入れ直し」を防ぐ。実機で最も多い詰まりどころ）。 */}
               <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
-                💡 <strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
+                <Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" /><strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">変更後は「保存」してから再同期してください。各項目の取得先は下のリンクから。</p>
               <div className="space-y-3">
@@ -2782,7 +2788,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <div>
                   <label className={labelCls}>Manual DB（マニュアル・お知らせ・URLまたはID・任意）</label>
                   <input type="text" value={notionForm.notionManualDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                 </div>
                 {currentMode === 'algolia' && (
                   <>
@@ -2802,7 +2808,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                     <div>
                       <label className={labelCls}>Algolia Admin API Key <span className="font-normal text-gray-400">＝同期用</span></label>
                       <input type="password" value={notionForm.algoliaAdminKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAdminKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠️ 「🔒」を押して表示してからコピー。Search-Only ではなく <strong>Admin</strong> の方です</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>「鍵アイコン」を押して表示してからコピー。Search-Only ではなく <strong>Admin</strong> の方です</span></p>
                     </div>
                     <div>
                       <label className={labelCls}>インデックス名</label>
@@ -2818,7 +2824,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 py-1"
               >
-                📘 取得手順を詳しく見る（ガイド）
+                取得手順を詳しく見る（ガイド）
               </a>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
@@ -2851,18 +2857,18 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <div>
                   <label className={labelCls}>部署用 Medical DB（URLまたはID）</label>
                   <input type="text" value={teamForm.teamNotionMedicalDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionMedicalDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
-                  {teamForm.teamNotionMedicalDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
+                  {teamForm.teamNotionMedicalDbId.length === 32 && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3 shrink-0" />DB IDを認識しました</p>}
                 </div>
                 <div>
                   <label className={labelCls}>部署用 Reference DB（URLまたはID・任意）</label>
                   <input type="text" value={teamForm.teamNotionReferenceDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionReferenceDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
-                  {teamForm.teamNotionReferenceDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
+                  {teamForm.teamNotionReferenceDbId.length === 32 && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3 shrink-0" />DB IDを認識しました</p>}
                 </div>
                 <div>
                   <label className={labelCls}>部署用 Manual DB（マニュアル・お知らせ・URLまたはID・任意）</label>
                   <input type="text" value={teamForm.teamNotionManualDbId} onChange={(e) => setTeamForm(f => ({ ...f, teamNotionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
-                  {teamForm.teamNotionManualDbId.length === 32 && <p className="text-xs text-green-600 mt-1">✓ DB IDを認識しました</p>}
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定すると📋マニュアルタブが表示されます</p>
+                  {teamForm.teamNotionManualDbId.length === 32 && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><Check className="h-3 w-3 shrink-0" />DB IDを認識しました</p>}
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                 </div>
               </div>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
@@ -2911,7 +2917,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       {isTrial ? (
                         <>
                           <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-center space-y-1">
-                            <p className="text-sm font-bold text-purple-700 dark:text-purple-300">🎁 無料トライアル中</p>
+                            <p className="text-sm font-bold text-purple-700 dark:text-purple-300 flex items-center justify-center gap-1.5"><Gift className="h-4 w-4 shrink-0" />無料トライアル中</p>
                             <p className="text-xs text-purple-600 dark:text-purple-400">残り <strong>{daysLeft}日</strong>（{new Date(trialEnd!).toLocaleDateString('ja-JP')}まで）</p>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">期間終了後も使い続けるには、下のボタンから正式登録（月額980円・税込）へお進みください。</p>
                             <div className="pt-2"><PremiumCheckoutButtonInline /></div>
@@ -2924,7 +2930,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       ) : (
                         <>
                           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-center">
-                            <p className="text-sm font-bold text-green-700 dark:text-green-400">✅ プレミアム登録済み</p>
+                            <p className="text-sm font-bold text-green-700 dark:text-green-400 flex items-center justify-center gap-1.5"><CheckCircle2 className="h-4 w-4 shrink-0" />プレミアム登録済み</p>
                             <p className="text-xs text-green-600 dark:text-green-500 mt-1">プレミアムコンテンツにアクセスできます</p>
                           </div>
                           <PremiumCancelInfo />
@@ -2937,14 +2943,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <div className="space-y-3">
                     {trialExpired && (
                       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-center space-y-0.5">
-                        <p className="text-xs font-bold text-amber-700 dark:text-amber-300">⏰ 無料トライアルが終了しました</p>
+                        <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1.5"><AlarmClock className="h-3.5 w-3.5 shrink-0" />無料トライアルが終了しました</p>
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">引き続きプレミアムをご利用いただくには、下記から正式登録（月額980円・税込）へお進みください。</p>
                       </div>
                     )}
                     {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                     <PremiumValueProps showHeader={false} />
                     <div className="space-y-0.5">
-                      <p className="inline-block text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5">🎁 最初の1週間は無料</p>
+                      <p className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5"><Gift className="h-3 w-3 shrink-0" />最初の1週間は無料</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額980円<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・1週間の無料トライアル後に課金開始・いつでも解約可能</span></p>
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
@@ -2960,7 +2966,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                      <strong>💳 有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                      <strong>有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                     </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
@@ -2981,7 +2987,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {ANNOUNCEMENTS.map((a) => (
                 <div key={a.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-start gap-2">
-                    <span className="text-xl shrink-0">{a.emoji}</span>
+                    <span className="shrink-0 text-brand-600 dark:text-brand-300"><a.Icon className="h-5 w-5" /></span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-bold text-gray-900 dark:text-white">{a.title}</p>
@@ -3014,18 +3020,18 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {section === 'help' && (
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[60vh] overflow-y-auto pr-1">
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">⭐ プレミアムとは？</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Star className="h-4 w-4 shrink-0" />プレミアムとは？</h3>
                 <div className="text-xs bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 text-gray-700 dark:text-gray-300 space-y-1.5 leading-relaxed">
                   <p><strong>現役集中治療医が定期的に更新する医療ナレッジ＋参考文献</strong>を、あなた自身のNotionと同じ検索ボックスで横断検索できる機能です。</p>
-                  <p>🔍 ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
+                  <p>ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
                   <p className="pt-1"><strong>試し方は2通り：</strong></p>
-                  <p>🎁 <strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
-                  <p>💳 <strong>有料登録（月額980円・税込）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
+                  <p><strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
+                  <p><strong>有料登録（月額980円・税込）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
                   <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → プレミアムDB設定」から行えます。</p>
                 </div>
               </section>
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔄 同期エラーが出たときは</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><RefreshCw className="h-4 w-4 shrink-0" />同期エラーが出たときは</h3>
                 <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                   <p><strong>「API token is invalid」</strong></p>
                   <p>→ コネクトのTokenが間違っています。notion.so/my-integrations で再コピーし「Notion・Algolia接続設定」から更新してください。</p>
@@ -3040,14 +3046,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
               </section>
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">⚠️ プロパティ名について</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" />プロパティ名について</h3>
                 <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300 space-y-1.5">
                   <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
-                  <p>💡 ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
+                  <p><Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" />ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                 </div>
               </section>
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔍 DBプロパティ確認</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Search className="h-4 w-4 shrink-0" />DBプロパティ確認</h3>
                 <button
                   onClick={async () => {
                     const s = getSettings()
@@ -3075,11 +3081,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                       return (
                         <div key={db} className={`rounded-xl p-3 text-xs ${allOk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                           <p className={`font-semibold mb-1.5 ${allOk ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {db === 'medical' ? '🚑 Medical DB' : '📖 Reference DB'} — {allOk ? '✅ 全て一致' : '⚠️ 不一致あり'}
+                            {db === 'medical' ? 'Medical DB' : 'Reference DB'} — {allOk ? '全て一致' : '不一致あり'}
                           </p>
                           <div className="flex flex-wrap gap-1">
-                            {r.found.map((p) => <span key={p} className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">✓ {p}</span>)}
-                            {r.missing.map((p) => <span key={p} className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">✗ {p}</span>)}
+                            {r.found.map((p) => <span key={p} className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full"><Check className="h-3 w-3 shrink-0" />{p}</span>)}
+                            {r.missing.map((p) => <span key={p} className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full"><X className="h-3 w-3 shrink-0" />{p}</span>)}
                           </div>
                         </div>
                       )
@@ -3089,7 +3095,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               </section>
               {currentMode === 'algolia' && (
                 <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 Search Key動作確認</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />Search Key動作確認</h3>
                   <button
                     onClick={async () => {
                       const s = getSettings()
@@ -3109,8 +3115,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   </button>
                   {searchKeyCheck && (
                     <div className={`mt-2 rounded-xl p-3 text-xs ${searchKeyCheck.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
-                      {searchKeyCheck.ok ? <p>✅ Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p> : (
-                        <><p className="font-semibold mb-1">❌ Search Keyが機能していません</p><p className="mb-1">エラー: {searchKeyCheck.error}</p><p>「Notion・Algolia接続設定」からSearch API Keyを再入力してください。</p></>
+                      {searchKeyCheck.ok ? <p>Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p> : (
+                        <><p className="font-semibold mb-1 flex items-center gap-1.5"><XCircle className="h-4 w-4 shrink-0" />Search Keyが機能していません</p><p className="mb-1">エラー: {searchKeyCheck.error}</p><p>「Notion・Algolia接続設定」からSearch API Keyを再入力してください。</p></>
                       )}
                     </div>
                   )}
@@ -3118,7 +3124,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               )}
               {currentMode === 'algolia' && (
                 <section>
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔬 Algoliaインデックス診断</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Microscope className="h-4 w-4 shrink-0" />Algoliaインデックス診断</h3>
                   <button
                     onClick={async () => {
                       const s = getSettings()
@@ -3141,17 +3147,17 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   {algoliaDebug && (
                     <div className="mt-3 space-y-2 text-xs">
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📊 総レコード数: {algoliaDebug.totalHits}件</p>
+                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-1.5"><BarChart3 className="h-4 w-4 shrink-0" />総レコード数: {algoliaDebug.totalHits}件</p>
                         <p className="text-gray-500 dark:text-gray-400">attributesForFaceting: {algoliaDebug.settings.attributesForFaceting?.join(', ') || '未設定'}</p>
                       </div>
                       <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3">
-                        <p className="font-semibold text-brand-700 dark:text-brand-300 mb-1">💡 知識レベルの実際の値</p>
+                        <p className="font-semibold text-brand-700 dark:text-brand-300 mb-1 flex items-center gap-1.5"><Lightbulb className="h-4 w-4 shrink-0" />知識レベルの実際の値</p>
                         {algoliaDebug.knowledgeLevelValues.length === 0 ? <p className="text-red-500">値なし（再同期が必要）</p> : (
                           <div className="flex flex-wrap gap-1">{algoliaDebug.knowledgeLevelValues.map((v) => <span key={v} className="bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full">{v}</span>)}</div>
                         )}
                       </div>
                       <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1">📋 サンプルレコード</p>
+                        <p className="font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-1.5"><ClipboardList className="h-4 w-4 shrink-0" />サンプルレコード</p>
                         {algoliaDebug.samples.slice(0, 3).map((s) => (
                           <div key={s.objectID} className="text-gray-500 dark:text-gray-400 mb-1 border-b border-gray-100 dark:border-gray-700 pb-1">
                             <p>タイトル: {String(s.title)}</p>
@@ -3165,7 +3171,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </section>
               )}
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">🔑 ログインとは（プレミアムの引き継ぎ）</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />ログインとは（プレミアムの引き継ぎ）</h3>
                 <div className="text-xs bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3 space-y-1.5 text-gray-700 dark:text-gray-300">
                   <p><span className="font-semibold">ログインは、プレミアム契約をあなたのアカウントに紐づけて、スマホ・PCなど複数の端末で同じプレミアムを使えるようにするためのものです。</span></p>
                   <p>・メールアドレスだけでログインできます（パスワード不要）。届いたメールのリンクをタップするか、6桁コードを入力するだけ。</p>
@@ -3175,14 +3181,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
               </section>
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">📱 別のデバイスで使うには</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Smartphone className="h-4 w-4 shrink-0" />別のデバイスで使うには</h3>
                 <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1.5">
                   <p>Notionの接続設定（トークン等）はこの端末に保存され、ログイン後は暗号化のうえサーバーに保存して他の端末と同期します。別の端末ではログインするだけで設定が引き継がれます。</p>
                   <p>プレミアム契約についても、<span className="font-semibold">ログインすると端末をまたいで引き継げます</span>（上の「ログインとは」を参照）。</p>
                 </div>
               </section>
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2">📄 規約・法的情報</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><FileText className="h-4 w-4 shrink-0" />規約・法的情報</h3>
                 <div className="text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3 flex flex-col gap-2">
                   <a href="/terms" className="text-brand-600 dark:text-brand-400 hover:underline">免責事項・利用規約</a>
                   <a href="/legal" className="text-brand-600 dark:text-brand-400 hover:underline">特定商取引法に基づく表記</a>
@@ -3199,7 +3205,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {section === 'reset-confirm' && (
             <div className="space-y-4">
               <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
-                <p className="font-bold">⚠️ 本当に全て削除しますか？</p>
+                <p className="font-bold flex items-center justify-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" />本当に全て削除しますか？</p>
                 <p className="text-xs">入力したAPIキー・DB設定が全て消去されます。元に戻すことはできません。</p>
               </div>
               <div className="flex gap-3">
@@ -3213,9 +3219,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {section === 'setup-redo' && (
             <div className="space-y-4">
               <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1.5">
-                <p className="font-bold">🛠 何をやり直しますか？</p>
+                <p className="font-bold flex items-center justify-center gap-1.5"><Wrench className="h-4 w-4 shrink-0" />何をやり直しますか？</p>
                 <p className="text-xs">どちらもセットアップ画面へ移動します。現在のAPIキー・DB設定は保持されるので、必要な箇所だけ変更できます。</p>
-                <p className="text-xs">現在: <span className="font-semibold">{currentMode === 'notion' ? '📋 シンプルモード' : '⚡ パワーモード'}</span></p>
+                <p className="text-xs">現在: <span className="font-semibold">{currentMode === 'notion' ? 'シンプルモード' : 'パワーモード'}</span></p>
               </div>
               <button onClick={() => { onClose(); onRedo() }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-brand-300 transition-all text-left">
                 <Shuffle className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -3366,7 +3372,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
         <div className="text-center space-y-4">
-          <div className="text-5xl animate-bounce">⭐</div>
+          <div className="flex justify-center animate-bounce text-purple-500"><Star className="h-12 w-12" /></div>
           <p className="text-lg font-bold text-purple-700 dark:text-purple-300">プレミアム登録を確認中...</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">しばらくお待ちください</p>
         </div>
@@ -3379,7 +3385,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
         <div className="max-w-sm w-full text-center space-y-4">
-          <div className="text-5xl">{premiumMessage.type === 'success' ? '✅' : '⚠️'}</div>
+          <div className="flex justify-center">{premiumMessage.type === 'success' ? <CheckCircle2 className="h-12 w-12 text-green-500" /> : <AlertTriangle className="h-12 w-12 text-amber-500" />}</div>
           <p className={`text-base font-semibold ${premiumMessage.type === 'success' ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             {premiumMessage.text}
           </p>
@@ -3549,7 +3555,7 @@ export default function Home() {
         {header}
         <div className="max-w-2xl mx-auto px-4 py-8 text-center">
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-            <p className="text-2xl mb-3">⚠️</p>
+            <p className="mb-3 flex justify-center"><AlertTriangle className="h-6 w-6 text-amber-500" /></p>
             <p className="font-bold text-amber-800 mb-2">Algoliaの設定が不完全です</p>
             <p className="text-sm text-amber-700 mb-4">
               Search API KeyまたはApp IDが設定されていません。<br />

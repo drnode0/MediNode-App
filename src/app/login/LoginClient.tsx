@@ -11,6 +11,7 @@
 // 既にログイン済みでこのページに来た場合は next へ即リダイレクトする。
 
 import { useState, useEffect } from 'react'
+import { Mail } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/auth/AuthProvider'
@@ -167,7 +168,7 @@ export function LoginClient() {
           </div>
 
           <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-            📩 <span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
+            <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
             <span className="font-medium text-emerald-700 dark:text-emerald-300">
               ホーム画面に追加したアプリ（PWA）やこの画面でログインするときは、下の6桁コードを入力するのが確実です。
             </span>

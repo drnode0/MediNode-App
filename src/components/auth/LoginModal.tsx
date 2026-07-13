@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { UserPlus, CheckCircle2, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 
@@ -29,7 +30,10 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   const isRegister = purpose === 'register'
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [phase, setPhase] = useState<'email' | 'sent'>('email')
+  const [phase, setPhase] = useState<'email' | 'sent' | 'done'>('email')
+  // 認証成功後に「新規登録だったか／既存アカウントへのログインだったか」を告知するための状態。
+  // 判定は user.created_at の新しさで行う（サインアップ時に作成された直後かどうか）。
+  const [accountIsNew, setAccountIsNew] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -87,19 +91,29 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
     setError(null)
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token,
         type: 'email',
       })
       if (error) throw error
-      onSuccess?.()
-      onClose()
+      // 直近30分以内に作成されたアカウント＝この認証で新規登録されたとみなす。
+      // （signInWithOtp はコード送信時にユーザーを作成するため、既存ユーザーの
+      //  created_at は数日〜数週間前になり、確実に見分けられる。）
+      const createdAt = data.user?.created_at ? new Date(data.user.created_at).getTime() : 0
+      setAccountIsNew(createdAt > 0 && Date.now() - createdAt < 30 * 60 * 1000)
+      setPhase('done')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'コードの確認に失敗しました。期限切れの場合は再送してください。')
     } finally {
       setLoading(false)
     }
+  }
+
+  // 「続ける」で、呼び出し側の完了処理（設定保存・復元・完了遷移など）を実行して閉じる。
+  const finishDone = () => {
+    onSuccess?.()
+    onClose()
   }
 
   if (!mounted) return null
@@ -163,7 +177,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             </div>
 
             <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              📩 <span className="font-medium">{email}</span> 宛に{isRegister ? '登録用' : 'ログイン用'}メールを送りました。<br />
+              <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛に{isRegister ? '登録用' : 'ログイン用'}メールを送りました。<br />
               <span className="font-medium">同じブラウザで開いているこの画面に戻って</span>、メール内の6桁コードを入力するのが確実です。リンクをタップした場合は、別のブラウザが開いても{isRegister ? '登録' : 'ログイン'}自体は完了しています。
               <br />
               <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。</span>
@@ -207,6 +221,31 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
               メールを再送する
             </button>
           </>
+        )}
+
+        {phase === 'done' && (
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-300">
+              {accountIsNew ? <UserPlus className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                {accountIsNew ? 'アカウントを作成しました' : 'このメールアドレスは登録済みです'}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                {accountIsNew
+                  ? 'このメールアドレスで、Notion接続やプレミアム契約が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
+                  : '以前このアドレスで保存した設定（Notion接続・プレミアム）を、この端末に復元します。'}
+              </p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 break-all">{email.trim()}</p>
+            </div>
+            <button
+              onClick={finishDone}
+              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              続ける
+            </button>
+          </div>
         )}
 
         {error && (

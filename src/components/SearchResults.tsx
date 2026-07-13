@@ -1,5 +1,6 @@
 'use client'
 import { useHits, useStats, useRefinementList, useSearchBox } from 'react-instantsearch'
+import { Inbox, Search, ClipboardList, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { ResultCard, type Hit } from './ResultCard'
 
@@ -56,16 +57,16 @@ function EmptyState({ query }: { query: string }) {
     // データが0件の場合（まだ同期していない）
     return (
       <div className="text-center py-14 px-4">
-        <div className="text-5xl mb-4">📭</div>
+        <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
         <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
         <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
-          まず画面下の「🔄 データを再同期する」から同期を行ってください
+          まず画面下の「データを再同期する」から同期を行ってください
         </p>
         <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left text-sm text-brand-700 dark:text-brand-300 max-w-xs mx-auto">
-          <p className="font-semibold mb-2">📋 手順</p>
+          <p className="font-semibold mb-2"><ClipboardList className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />手順</p>
           <ol className="space-y-1 list-decimal list-inside text-xs">
             <li>NotionのDBにデータを入力</li>
-            <li>画面下の「🔄 再同期」をタップ</li>
+            <li>画面下の「再同期」をタップ</li>
             <li>「同期開始」ボタンをクリック</li>
           </ol>
         </div>
@@ -75,7 +76,7 @@ function EmptyState({ query }: { query: string }) {
 
   return (
     <div className="text-center py-14 px-4">
-      <div className="text-5xl mb-4">🔍</div>
+      <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Search className="h-12 w-12" /></div>
       <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">
         「{query}」の検索結果がありません
       </p>
@@ -107,7 +108,7 @@ function EmptyState({ query }: { query: string }) {
       </div>
 
       <div className="mt-8 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
-        <p className="font-semibold mb-1">🔄 データが少ない場合</p>
+        <p className="font-semibold mb-1"><RefreshCw className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />データが少ない場合</p>
         <p>Notionに新しいデータを追加した後は、画面下の「再同期」が必要です</p>
       </div>
     </div>
