@@ -10,7 +10,7 @@ import {
   Gift, CheckCircle2, AlarmClock, ArrowRight,
   Inbox, Brain, X, FlaskConical, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
-  ExternalLink, ChevronRight, ChevronUp, ChevronDown, Globe, NotebookPen,
+  ExternalLink, ChevronRight, ChevronUp, ChevronDown, Globe, NotebookPen, CircleUserRound,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -3280,11 +3280,11 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </section>
               )}
               <section>
-                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />ログインとは（プレミアムの引き継ぎ）</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />ログインとは（設定とプレミアムの引き継ぎ）</h3>
                 <div className="text-xs bg-brand-50 dark:bg-brand-900/20 rounded-xl p-3 space-y-1.5 text-gray-700 dark:text-gray-300">
-                  <p><span className="font-semibold">ログインは、プレミアム契約をあなたのアカウントに紐づけて、スマホ・PCなど複数の端末で同じプレミアムを使えるようにするためのものです。</span></p>
-                  <p>・メールアドレスだけでログインできます（パスワード不要）。届いたメールのリンクをタップするか、6桁コードを入力するだけ。</p>
-                  <p>・検索など基本機能は、ログインしなくても今まで通り使えます（ログインは必須ではありません）。</p>
+                  <p><span className="font-semibold">ログインは、設定（Notion接続・Algoliaキー）とプレミアム契約をあなたのアカウントに紐づけて、スマホ・PCなど複数の端末で同じ状態で使えるようにするためのものです。</span>アカウントは初回セットアップの最後にメールアドレスで登録します。</p>
+                  <p>・ログインはメール（届いたリンクをタップ、または6桁コードを入力）。アカウント（<CircleUserRound className="inline-block h-3.5 w-3.5 align-text-bottom" />）→「パスワードを設定・変更」でパスワードを作ると、メールなしのパスワードログインも使えます。</p>
+                  <p>・ログアウトしても、この端末の設定と検索はそのまま使えます（端末間の引き継ぎが止まるだけ）。</p>
                   <p>・集めるのはメールアドレスのみで、あなたのNotionの中身を運営が見ることはありません。</p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">※ セキュリティ上、メール受信箱を開ける人＝本人とみなされます。共有のPCでメールを開いたままにしないでください。</p>
                 </div>
