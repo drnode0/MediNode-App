@@ -35,13 +35,16 @@ export type Hit = {
   createdAt?: string
 }
 
-// 知識レベルのバッジ。色だけでは一瞥で見分けにくいため、レベルごとの
-// アイコンを添える（❓CQ=琥珀の?、💡ナレッジ=緑の電球、📋まとめ=常盤のリスト）。
-// Notion側で独自の選択肢を使っている場合はアイコンなしのグレーチップになる。
-const LEVEL_BADGE: Record<string, { style: string; Icon: LucideIcon }> = {
-  '❓ クリニカルクエスチョン': { style: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300', Icon: MessageCircleQuestion },
-  '💡 ナレッジ': { style: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300', Icon: Lightbulb },
-  '📋 まとめ': { style: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: ClipboardList },
+// 知識レベルの種別。一覧で「CQ／ナレッジ／まとめ」を一目で見分けられるよう、
+// ① 左端の帯（カード枠の左4px）の色、② 種別バッジの色、③ アイコン を種別ごとに
+// 揃える。色は4区分をはっきり離す（CQ=ローズ / ナレッジ=常盤 / まとめ=スカイ /
+// 参考文献Ref=琥珀）。CQを琥珀にすると種別なしでRef帯にフォールバックする文献と
+// 被るため、CQはローズに寄せる。Notion側で独自の選択肢の場合はアイコンなしの
+// グレーチップ＋既定の帯（Ref=琥珀/その他=常盤）になる。
+export const LEVEL_META: Record<string, { band: string; badge: string; Icon: LucideIcon }> = {
+  '❓ クリニカルクエスチョン': { band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
+  '💡 ナレッジ': { band: 'border-l-brand-400', badge: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: Lightbulb },
+  '📋 まとめ': { band: 'border-l-sky-400', badge: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300', Icon: ClipboardList },
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
@@ -55,9 +58,11 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const isMedical = hit.source === 'medical'
   const sourceLabel = isMedical ? 'Medical' : 'Ref'
   const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-  const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
-  const levelBadge = hit.knowledgeLevel ? LEVEL_BADGE[hit.knowledgeLevel] : undefined
-  const levelStyle = levelBadge?.style || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
+  const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
+  const levelStyle = levelMeta?.badge || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
+  // 左帯は「種別」を最優先で表す（CQ/ナレッジ/まとめ）。種別が無い場合のみ
+  // 情報源（Ref=琥珀 / それ以外=常盤）にフォールバック。
+  const borderColor = levelMeta?.band || (isMedical ? 'border-l-brand-400' : 'border-l-amber-400')
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
@@ -114,7 +119,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         <div className="flex flex-wrap gap-1 mb-2">
           {hit.knowledgeLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
-              {levelBadge && <levelBadge.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
+              {levelMeta && <levelMeta.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
               {stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
@@ -165,7 +170,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
         {!isMedical && hit.relatedCQTitles && hit.relatedCQTitles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {hit.relatedCQTitles.map((cq, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-xs bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full border border-yellow-200 leading-snug">
+              <span key={i} className="inline-flex items-center gap-1 text-xs bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800 leading-snug">
                 <HelpCircle className="h-3 w-3 shrink-0" />{cq}
               </span>
             ))}

@@ -1,15 +1,9 @@
 'use client'
 import { RotateCcw, Check, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
-import type { Hit } from './ResultCard'
+import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { stripLeadingEmoji } from '@/lib/labels'
-
-const LEVEL_STYLE: Record<string, string> = {
-  '❓ クリニカルクエスチョン': 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
-  '💡 ナレッジ': 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-  '📋 まとめ': 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300',
-}
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [revealed, setRevealed] = useState(false)
@@ -21,9 +15,11 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
     setAnswered(ok ? 'ok' : 'ng')
   }
   const isMedical = hit.source === 'medical'
-  const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
   const displaySummary = hit.aiSummary || hit.summary || null
-  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300') : ''
+  // 帯・バッジ・アイコンは ResultCard と同じ種別ルール（CQ/ナレッジ/まとめ）を共有する。
+  const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
+  const levelStyle = levelMeta?.badge || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
+  const borderColor = levelMeta?.band || (isMedical ? 'border-l-brand-400' : 'border-l-amber-400')
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
@@ -45,7 +41,8 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         </div>
         <div className="flex flex-wrap gap-1 mt-1.5">
           {hit.knowledgeLevel && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelStyle}`}>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
+              {levelMeta && <levelMeta.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
               {stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
