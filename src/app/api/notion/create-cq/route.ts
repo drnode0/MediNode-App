@@ -4,12 +4,12 @@ import { rateLimit, clientIp } from '@/lib/rate-limit'
 import { Client } from '@notionhq/client'
 
 // 臨床疑問（CQ）のワンタップ登録。
-// タイトルだけのページを Medical DB に作成し、「知識レベル」を
-// 「❓ クリニカルクエスチョン」に設定する（テンプレートと同じ値。
-// クイズの出題フィルタは「ナレッジを含む かつ クリニカルクエスチョンを含まない」
-// なので、この値なら自動的にクイズから除外される）。
+// タイトルだけのページを Medical DB に作成し、「知識レベル」を「❓ CQ」に設定する
+// （テンプレートと同じ値。旧「❓ クリニカルクエスチョン」から一本化）。
+// クイズの出題フィルタは「💡 ナレッジのみ通す」ホワイトリスト方式なので、
+// CQは自動的にクイズから除外される。
 
-const CQ_LEVEL_VALUE = '❓ クリニカルクエスチョン'
+const CQ_LEVEL_VALUE = '❓ CQ'
 const TITLE_MAX = 200
 
 export async function POST(req: NextRequest) {

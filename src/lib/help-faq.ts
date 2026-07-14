@@ -172,7 +172,7 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     id: 'cq-button',
     category: 'クイズ・CQ',
     q: '右下のCQボタンは何？誰が使える？',
-    a: '気になった疑問をあなた自身のNotion（Medical DB）に「❓ クリニカルクエスチョン」として書き込むボタンです。個人のNotion接続（TokenとMedical DB）を設定している人が対象で、部署DBやプレミアムのみの利用では対象外です（その場合は非表示にできます）。',
+    a: '気になった疑問をあなた自身のNotion（Medical DB）に「❓ CQ」として書き込むボタンです。個人のNotion接続（TokenとMedical DB）を設定している人が対象で、部署DBやプレミアムのみの利用では対象外です（その場合は非表示にできます）。',
     keywords: 'CQ ボタン 浮きボタン 疑問 登録 クリニカルクエスチョン',
   },
   {

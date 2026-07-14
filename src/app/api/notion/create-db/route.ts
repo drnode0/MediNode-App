@@ -16,7 +16,7 @@ const MEDICAL_DB_PROPERTIES = {
   '知識レベル': {
     select: {
       options: [
-        { name: '❓ クリニカルクエスチョン', color: 'yellow' as const },
+        { name: '❓ CQ', color: 'red' as const },
         { name: '💡 ナレッジ', color: 'blue' as const },
         { name: '📚 教科書知識', color: 'green' as const },
       ],

@@ -35,7 +35,7 @@ beforeEach(() => {
 })
 
 describe('POST /api/notion/create-cq', () => {
-  it('タイトル列を自動検出し、知識レベル=❓ クリニカルクエスチョンで作成する', async () => {
+  it('タイトル列を自動検出し、知識レベル=❓ CQで作成する', async () => {
     retrieveMock.mockResolvedValue({
       properties: {
         名前: { type: 'title' },
@@ -58,7 +58,7 @@ describe('POST /api/notion/create-cq', () => {
     const arg = createMock.mock.calls[0][0]
     expect(arg.parent).toEqual({ database_id: 'db1' })
     expect(arg.properties['名前'].title[0].text.content).toBe('疑問A') // trimされる
-    expect(arg.properties['知識レベル'].select.name).toBe('❓ クリニカルクエスチョン')
+    expect(arg.properties['知識レベル'].select.name).toBe('❓ CQ')
   })
 
   it('タイトル列が「Name」等でも動き、知識レベル列が無ければ設定しない', async () => {
@@ -92,7 +92,7 @@ describe('POST /api/notion/create-cq', () => {
       }),
     )
     const arg = createMock.mock.calls[0][0]
-    expect(arg.properties['Level'].select.name).toBe('❓ クリニカルクエスチョン')
+    expect(arg.properties['Level'].select.name).toBe('❓ CQ')
   })
 
   it('必須項目が欠けると400を返し、Notionを呼ばない', async () => {
