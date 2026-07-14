@@ -4,6 +4,7 @@ import type React from 'react'
 import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
+import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
@@ -1410,6 +1411,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   まずNotionコネクト（旧称: Integration）のTokenを入力してください。
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  Notion自体がはじめての方は、作者の
+                  <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門マガジン（note）</a>
+                  も参考にどうぞ。
                 </p>
               </div>
 

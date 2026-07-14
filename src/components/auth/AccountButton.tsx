@@ -10,11 +10,126 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from './AuthProvider'
 import { LoginModal } from './LoginModal'
+import { createClient } from '@/lib/supabase/client'
+
+// パスワードの設定・変更モーダル。
+// ログインは従来どおりメール（6桁コード／リンク）が基本で、パスワードは
+// 「毎回メールを開くのが手間」という人向けの近道。忘れてもメール方式で
+// ログインし直してここで再設定できるため、リセット専用フローは持たない。
+function PasswordSetModal({ onClose }: { onClose: () => void }) {
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  const save = async () => {
+    if (pw.length < 8) {
+      setError('8文字以上のパスワードを設定してください')
+      return
+    }
+    if (pw !== pw2) {
+      setError('確認用のパスワードが一致しません')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password: pw })
+      if (error) {
+        if (/should be different/i.test(error.message)) {
+          throw new Error('現在と同じパスワードは設定できません')
+        }
+        if (/weak|at least/i.test(error.message)) {
+          throw new Error('パスワードが短すぎます。8文字以上で設定してください')
+        }
+        throw error
+      }
+      setDone(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'パスワードの設定に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="パスワードを設定"
+        className="w-full max-w-xs rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-xl space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">パスワードを設定・変更</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none" aria-label="閉じる">
+            ×
+          </button>
+        </div>
+        {!done ? (
+          <>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              設定すると、次回から<strong>メールを開かずにパスワードでログイン</strong>できます（メール方式も引き続き使えます。忘れた場合はメールでログインしてここで再設定）。
+            </p>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">新しいパスワード（8文字以上）</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">確認のためもう一度</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={pw2}
+                onChange={(e) => setPw2(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void save() }}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+              />
+            </div>
+            {error && (
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/30 p-3 text-xs text-red-600 dark:text-red-300">{error}</div>
+            )}
+            <button
+              onClick={save}
+              disabled={loading || !pw || !pw2}
+              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {loading ? '設定中...' : 'このパスワードにする'}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+              パスワードを設定しました。次回のログインから、メールの代わりにパスワードが使えます。
+            </p>
+            <button
+              onClick={onClose}
+              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              閉じる
+            </button>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
 export function AccountButton() {
   const { configured, loading, user, signOut } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
@@ -84,9 +199,18 @@ export function AccountButton() {
                   // page.tsx 側がこのイベントを購読し、設定パネルのプレミアムタブを開く。
                   window.dispatchEvent(new CustomEvent('medinode:open-premium-settings'))
                 }}
-                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline underline-offset-2"
+                className="block text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline underline-offset-2"
               >
                 プレミアムの確認・管理
+              </button>
+              <button
+                onClick={() => {
+                  setShowMenu(false)
+                  setShowPassword(true)
+                }}
+                className="block text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline underline-offset-2"
+              >
+                パスワードを設定・変更（メールなしでログイン）
               </button>
               <button
                 onClick={async () => {
@@ -116,6 +240,7 @@ export function AccountButton() {
         <CircleUserRound className="w-6 h-6" />
       </button>
       {menu}
+      {showPassword && mounted && <PasswordSetModal onClose={() => setShowPassword(false)} />}
     </>
   )
 }
