@@ -1978,23 +1978,27 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   )
 }
 
-// マニュアルカード：種別バッジ・掲載日付きの軽量カード（ResultCardは医療/文献用なので別実装）
+// マニュアルカード：種別バッジ・掲載日付きの軽量カード（ResultCardは医療/文献用なので別実装）。
+// マニュアル系（マニュアル/お知らせ/業務改善）は出現頻度が低いので「1カテゴリ＝1色」で扱い、
+// 医療カード（CQ=ローズ/ナレッジ=常盤/まとめ=スカイ/Ref=琥珀）と一目で見分けが
+// つくようスレート（落ち着いた青みグレー）に統一する。サブ種別の違いはバッジの文字で示す。
+const MANUAL_BADGE_STYLE = 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300'
 const MANUAL_TYPE_STYLE: Record<string, string> = {
-  '📕 マニュアル': 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300',
-  '📢 お知らせ': 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-  '🔧 業務改善': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  '📕 マニュアル': MANUAL_BADGE_STYLE,
+  '📢 お知らせ': MANUAL_BADGE_STYLE,
+  '🔧 業務改善': MANUAL_BADGE_STYLE,
 }
 function ManualCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
-  const typeStyle = hit.manualType ? (MANUAL_TYPE_STYLE[hit.manualType] || 'bg-gray-50 text-gray-600') : ''
+  const typeStyle = hit.manualType ? (MANUAL_TYPE_STYLE[hit.manualType] || MANUAL_BADGE_STYLE) : ''
   const ownerLabel = hit.owner === 'team' ? (hit.teamLabel || '部署') : null
   const publishedLabel = hit.publishedAt
     ? new Date(hit.publishedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
     : ''
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-brand-400 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-slate-400 overflow-hidden">
       <div className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`} onClick={() => hasExpandable && setExpanded((v) => !v)}>
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-snug flex-1">{hit.title}</h3>
