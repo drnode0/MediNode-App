@@ -49,11 +49,12 @@ const OnboardingScreen = dynamicImport(
   () => import('@/components/OnboardingScreen').then((m) => m.OnboardingScreen),
   { ssr: false, loading: () => <AppSkeleton /> },
 )
-import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL } from '@/lib/app-links'
+import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -2679,7 +2680,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── 接続設定 ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-2 pb-1">接続設定</p>
               <button onClick={() => setSection('notion')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <Link2 className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><Link2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">いま使っているAPIキー・DBのURLをその場で修正</p>
@@ -2687,7 +2688,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('team')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <Building2 className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><Building2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">部署DB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">チームで共有するNotionDBを接続</p>
@@ -2695,7 +2696,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <Star className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300"><Star className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアムDB設定</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">作者提供のナレッジ・参考文献を追加</p>
@@ -2703,7 +2704,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               <button onClick={() => setSection('setup-redo')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <Wrench className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300"><Wrench className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップをやり直す</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">モード切替・DBの新規作成／接続（今の設定は保持）</p>
@@ -2714,7 +2715,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── 表示 ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">表示</p>
               <button onClick={() => setSection('display')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <SlidersHorizontal className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-violet-50 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300"><SlidersHorizontal className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">表示のカスタマイズ</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">クイズタブ・CQボタンの表示/非表示</p>
@@ -2725,7 +2726,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── サポート ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
               <button onClick={() => setSection('announcements')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <Megaphone className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-300"><Megaphone className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
@@ -2738,7 +2739,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 rel="noopener noreferrer"
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
               >
-                <BookOpen className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><BookOpen className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">セットアップ＆運用ガイド</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">困ったときはこちらを参照</p>
@@ -2751,30 +2752,29 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 rel="noopener noreferrer"
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
               >
-                <Send className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-500 dark:text-rose-300"><Send className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
+              {/* 臨床疑問の投稿（プレミアム限定）。
+                  投稿フォームの公開URLが未取得のため、取得までは「準備中」表示にする
+                  （プレースホルダURLはリンク切れでNotionの404に着地していた）。
+                  URLが確定したら app-links.ts の CLINICAL_QUESTION_FORM_URL を差し替えて
+                  この分岐を <a href> 版に戻す。 */}
               {hasSubscriptionConfig() && (
-                <a
-                  href={CLINICAL_QUESTION_FORM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
-                >
-                  <HelpCircle className="w-5 h-5 text-purple-400 shrink-0" />
+                <div className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left opacity-70">
+                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が回答し、プレミアムナレッジに反映されます</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /><span className="ml-1.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/40 px-1.5 py-0.5 rounded-full align-middle">準備中</span></p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">日々の疑問を投稿でき、専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                </a>
+                </div>
               )}
               <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <HelpCircle className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><HelpCircle className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・診断ツール</p>
@@ -2789,7 +2789,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   「📋 NotionDBをセットアップする」で完結する（ログイン不要）。 */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">その他</p>
               <button onClick={() => setSection('reset-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
-                <Trash2 className="w-5 h-5 text-red-400 shrink-0" />
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400"><Trash2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-red-500 dark:text-red-400">設定を完全に削除する</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">全データを消去してゼロから再設定</p>
@@ -3060,6 +3060,21 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           {/* ── ヘルプ ── */}
           {section === 'help' && (
             <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300 max-h-[60vh] overflow-y-auto pr-1">
+              {/* 初回に出す機能ツアーの再表示（page.tsx 側がイベントを購読）。 */}
+              <button
+                onClick={() => {
+                  onClose()
+                  window.dispatchEvent(new Event('medinode:show-feature-tour'))
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-100 dark:ring-brand-800 hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-white dark:bg-gray-800 text-brand-600 dark:text-brand-300"><Lightbulb className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">はじめてガイドをもう一度見る</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">ホーム画面の各ボタンの役割を紹介します</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Star className="h-4 w-4 shrink-0" />プレミアムとは？</h3>
                 <div className="text-xs bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 text-gray-700 dark:text-gray-300 space-y-1.5 leading-relaxed">
@@ -3358,6 +3373,17 @@ export default function Home() {
   const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsPanelSection>(null)
   const [premiumActivating, setPremiumActivating] = useState(false)
   const [premiumMessage, setPremiumMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // 機能ツアー（はじめてガイド）。セットアップ完了直後の一度だけ自動表示し、
+  // 設定 → ヘルプの「もう一度見る」からも呼び出せる。
+  const [showTour, setShowTour] = useState(false)
+
+  // 設定パネル（ヘルプ）からの機能ツアー再表示要求を購読。
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = () => setShowTour(true)
+    window.addEventListener('medinode:show-feature-tour', handler)
+    return () => window.removeEventListener('medinode:show-feature-tour', handler)
+  }, [])
 
   // アカウントメニューからのプレミアム設定オープン要求を購読。
   useEffect(() => {
@@ -3514,7 +3540,7 @@ export default function Home() {
   }
 
   if (!setupDone) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep={setupInitialStep} />
   }
 
   const settings = getSettings()
@@ -3522,7 +3548,7 @@ export default function Home() {
   // （ログイン復元の事故などで空設定のままホームへ来た場合の防御。
   //   放置すると searchMode が 'algolia' 扱いになり「追加設定が必要です」で行き止まる）。
   if (!settings) {
-    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep="entry" />
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep="entry" />
   }
   const searchMode = settings?.searchMode || 'algolia'
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
@@ -3622,6 +3648,15 @@ export default function Home() {
     />
   )
 
+  // はじめてガイド（機能ツアー）。CQステップは実際にボタンが出ている場合のみ。
+  const tourModal = showTour && (
+    <FeatureTour
+      searchMode={searchMode === 'notion' ? 'notion' : 'algolia'}
+      showCqStep={!!(settings?.notionToken && settings?.notionMedicalDbId) && !settings?.hideCqButton}
+      onClose={() => setShowTour(false)}
+    />
+  )
+
   // ========== Notionモード ==========
   if (searchMode === 'notion') {
     return (
@@ -3642,6 +3677,7 @@ export default function Home() {
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
         {settingsModal}
+        {tourModal}
       </div>
       </CqCaptureProvider>
       </OpenSettingsContext.Provider>
@@ -3736,6 +3772,7 @@ export default function Home() {
         </div>
       </div>
       {settingsModal}
+      {tourModal}
     </InstantSearch>
     </CqCaptureProvider>
     </OpenSettingsContext.Provider>
