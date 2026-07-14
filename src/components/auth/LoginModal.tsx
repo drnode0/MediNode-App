@@ -241,7 +241,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             )}
             <p className="text-[11px] text-gray-400 leading-relaxed">
               {method === 'password' && !isRegister
-                ? 'パスワードは、ログイン後にアカウント（👤）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
+                ? 'パスワードは、ログイン後にアカウント（左上の人型アイコン）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
                 : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。メールに届く6桁コードを、この画面に入力するだけ。'}
             </p>
           </>
