@@ -41,10 +41,13 @@ export type Hit = {
 // 参考文献Ref=琥珀）。CQを琥珀にすると種別なしでRef帯にフォールバックする文献と
 // 被るため、CQはローズに寄せる。Notion側で独自の選択肢の場合はアイコンなしの
 // グレーチップ＋既定の帯（Ref=琥珀/その他=常盤）になる。
-export const LEVEL_META: Record<string, { band: string; badge: string; Icon: LucideIcon }> = {
-  '❓ クリニカルクエスチョン': { band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
-  '💡 ナレッジ': { band: 'border-l-brand-400', badge: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: Lightbulb },
-  '📋 まとめ': { band: 'border-l-sky-400', badge: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300', Icon: ClipboardList },
+// label は表示名。CQは正規値「❓ CQ」に一本化したが、旧値「❓ クリニカルクエスチョン」
+// が残るデータ（プレミアムDB・未移行分）でも "CQ" と表示されるよう両キーを持つ。
+export const LEVEL_META: Record<string, { label: string; band: string; badge: string; Icon: LucideIcon }> = {
+  '❓ CQ': { label: 'CQ', band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
+  '❓ クリニカルクエスチョン': { label: 'CQ', band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
+  '💡 ナレッジ': { label: 'ナレッジ', band: 'border-l-brand-400', badge: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: Lightbulb },
+  '📋 まとめ': { label: 'まとめ', band: 'border-l-sky-400', badge: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300', Icon: ClipboardList },
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
@@ -120,7 +123,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
           {hit.knowledgeLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
               {levelMeta && <levelMeta.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
-              {stripLeadingEmoji(hit.knowledgeLevel)}
+              {levelMeta?.label ?? stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
           {!isMedical && hit.evidenceLevel && (

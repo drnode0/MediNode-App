@@ -2,7 +2,7 @@
 
 // 臨床疑問（CQ）キャプチャ。
 // 「検索したけど無かった」「ふと疑問が湧いた」その場で、疑問文をそのまま
-// NotionのMedical DBに「❓ クリニカルクエスチョン」として残せる浮きボタン＋モーダル。
+// NotionのMedical DBに「❓ CQ」として残せる浮きボタン＋モーダル。
 // 知識ライフサイクル（❓CQ → 調べて💡ナレッジ → クイズ）の起点をアプリ内で閉じる。
 //
 // 使い方:
@@ -121,7 +121,7 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
             </button>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-            このボタンは、気になった疑問を<strong>あなた自身のNotion</strong>（Medical DB）に「❓ クリニカルクエスチョン」として書き込む機能です。ご利用には<strong>個人のNotion接続</strong>（コネクトTokenとMedical DB）の設定が必要です。
+            このボタンは、気になった疑問を<strong>あなた自身のNotion</strong>（Medical DB）に「❓ CQ」として書き込む機能です。ご利用には<strong>個人のNotion接続</strong>（コネクトTokenとMedical DB）の設定が必要です。
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
             部署DBやプレミアムのみでお使いの場合は対象外の機能なので、このボタンは非表示にして問題ありません。
@@ -239,7 +239,7 @@ function CqCaptureModal({
           {!done ? (
             <>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-                あとで調べる疑問を、NotionのMedical DBに「❓ クリニカルクエスチョン」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。
+                あとで調べる疑問を、NotionのMedical DBに「❓ CQ」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。
               </p>
               <textarea
                 value={title}

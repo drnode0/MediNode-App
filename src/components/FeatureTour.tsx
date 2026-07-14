@@ -96,7 +96,7 @@ export function FeatureTour({ searchMode, showCqStep, onClose }: Props) {
               </div>
             ),
             title: '右下のCQボタンで、疑問をその場に残す',
-            body: '気になった疑問を書くだけで、あなたのNotionに「❓ クリニカルクエスチョン」として保存されます。あとで調べて答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。',
+            body: '気になった疑問を書くだけで、あなたのNotionに「❓ CQ」として保存されます。あとで調べて答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。',
           } satisfies TourStep,
         ]
       : []),
