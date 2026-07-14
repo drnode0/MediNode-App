@@ -30,6 +30,11 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   const isRegister = purpose === 'register'
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  // ログイン方式。既定はメール（6桁コード／リンク）。パスワードは
+  // 「アカウント → パスワードを設定」で設定済みの人向けの近道。
+  // 新規登録はメール確認を兼ねるため常にメール方式。
+  const [method, setMethod] = useState<'otp' | 'password'>('otp')
+  const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<'email' | 'sent' | 'done'>('email')
   // 認証成功後に「新規登録だったか／既存アカウントへのログインだったか」を告知するための状態。
   // 判定は user.created_at の新しさで行う（サインアップ時に作成された直後かどうか）。
@@ -91,6 +96,37 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
       )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'メール送信に失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // パスワードでログイン（設定済みの人向け）。失敗理由は日本語に整えて、
+  // 未設定の人がここで詰まらないよう6桁コードへの誘導を必ず添える。
+  const signInWithPassword = async () => {
+    if (!emailValid) {
+      setError('メールアドレスの形式が正しくありません')
+      return
+    }
+    if (!password) {
+      setError('パスワードを入力してください')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) {
+        if (/Invalid login credentials/i.test(error.message)) {
+          throw new Error('メールアドレスまたはパスワードが違います。パスワードを設定していない（または忘れた）場合は、下の「メールでログイン」に切り替えてください。')
+        }
+        throw error
+      }
+      setAccountIsNew(false)
+      setPhase('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ログインに失敗しました')
     } finally {
       setLoading(false)
     }
@@ -176,15 +212,41 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
               />
             </div>
+            {method === 'password' && !isRegister && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">パスワード</label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void signInWithPassword() }}
+                  placeholder="設定済みのパスワード"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+            )}
             <button
-              onClick={sendLink}
-              disabled={loading || !emailValid}
+              onClick={method === 'password' && !isRegister ? signInWithPassword : sendLink}
+              disabled={loading || !emailValid || (method === 'password' && !isRegister && !password)}
               className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              {loading ? '送信中...' : isRegister ? '登録用リンクを送る' : 'ログインリンクを送る'}
+              {loading
+                ? method === 'password' && !isRegister ? 'ログイン中...' : '送信中...'
+                : method === 'password' && !isRegister ? 'ログイン' : isRegister ? '登録用リンクを送る' : 'ログインリンクを送る'}
             </button>
+            {!isRegister && (
+              <button
+                onClick={() => { setMethod((m) => (m === 'otp' ? 'password' : 'otp')); setError(null) }}
+                className="w-full text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400"
+              >
+                {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード／リンク）でログインする'}
+              </button>
+            )}
             <p className="text-[11px] text-gray-400 leading-relaxed">
-              どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。
+              {method === 'password' && !isRegister
+                ? 'パスワードは、ログイン後にアカウント（👤）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
+                : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。'}
             </p>
           </>
         )}

@@ -10,7 +10,7 @@ import {
   Gift, CheckCircle2, AlarmClock, ArrowRight,
   Inbox, Brain, X, FlaskConical, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
-  ExternalLink, ChevronRight, ChevronUp, ChevronDown,
+  ExternalLink, ChevronRight, ChevronUp, ChevronDown, Globe, NotebookPen,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -49,7 +49,7 @@ const OnboardingScreen = dynamicImport(
   () => import('@/components/OnboardingScreen').then((m) => m.OnboardingScreen),
   { ssr: false, loading: () => <AppSkeleton /> },
 )
-import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL } from '@/lib/app-links'
+import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
@@ -2747,6 +2747,32 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
               <a
+                href={NOTION_MAGAZINE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300"><NotebookPen className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion入門マガジン（note）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Notionがはじめての方向けの、作者による導入・活用記事</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </a>
+              <a
+                href={TEASER_LP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><Globe className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">MediNodeについて（紹介ページ）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">アプリの概要・特徴のまとめ。人に紹介するときにも</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </a>
+              <a
                 href={FEEDBACK_FORM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -2759,19 +2785,21 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
-              {/* 臨床疑問の投稿（プレミアム限定）。
-                  投稿フォームの公開URLが未取得のため、取得までは「準備中」表示にする
-                  （プレースホルダURLはリンク切れでNotionの404に着地していた）。
-                  URLが確定したら app-links.ts の CLINICAL_QUESTION_FORM_URL を差し替えて
-                  この分岐を <a href> 版に戻す。 */}
+              {/* 臨床疑問の投稿（プレミアム限定）。Notionフォームの公開リンクへ。 */}
               {hasSubscriptionConfig() && (
-                <div className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left opacity-70">
+                <a
+                  href={CLINICAL_QUESTION_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+                >
                   <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /><span className="ml-1.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/40 px-1.5 py-0.5 rounded-full align-middle">準備中</span></p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">日々の疑問を投稿でき、専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
                   </div>
-                </div>
+                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </a>
               )}
               <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><HelpCircle className="w-5 h-5" /></span>
