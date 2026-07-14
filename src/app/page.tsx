@@ -2682,8 +2682,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <button onClick={() => setSection('notion')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><Link2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion・Algolia接続設定</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">いま使っているAPIキー・DBのURLをその場で修正</p>
+                  {/* シンプルモードではAlgolia欄が出ないため、名前も実態に合わせる（「Algoliaが無い」と迷わせない） */}
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{currentMode === 'algolia' ? 'Notion・Algolia接続設定' : 'Notion接続設定'}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{currentMode === 'algolia' ? 'いま使っているAPIキー・DBのURLをその場で修正' : 'いま使っているコネクトToken・DBのURLをその場で修正'}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
@@ -2872,6 +2873,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   <input type="text" value={notionForm.notionManualDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                 </div>
+                {/* シンプルモードでは「Algoliaの欄が無い」こと自体が疑問になるため、理由と切替導線を明記する */}
+                {currentMode !== 'algolia' && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                      現在は<strong>シンプルモード（Notion直結検索）</strong>のため、Algoliaは使いません＝この画面に入力欄もありません。高速検索の<strong>パワーモード</strong>に切り替えると、ここにAlgoliaのキー入力欄が表示されます（設定 → 「セットアップをやり直す」→「モードを切り替える」）。
+                    </div>
+                  </div>
+                )}
                 {currentMode === 'algolia' && (
                   <>
                     <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
@@ -3131,7 +3140,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><RefreshCw className="h-4 w-4 shrink-0" />同期エラーが出たときは</h3>
                 <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                   <p><strong>「API token is invalid」</strong></p>
-                  <p>→ コネクトのTokenが間違っています。notion.so/my-integrations で再コピーし「Notion・Algolia接続設定」から更新してください。</p>
+                  <p>→ コネクトのTokenが間違っています。notion.so/my-integrations で再コピーし、設定トップの「接続設定」から更新してください。</p>
                   <p className="mt-2"><strong>「restricted_resource / 403」</strong></p>
                   <p>→ DBにコネクトが接続されていません。NotionのDBページ右上「…」→「コネクトを追加」→ 作成したコネクトを選択してください。</p>
                   {currentMode === 'algolia' && (
@@ -3213,7 +3222,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                   {searchKeyCheck && (
                     <div className={`mt-2 rounded-xl p-3 text-xs ${searchKeyCheck.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
                       {searchKeyCheck.ok ? <p>Search Key正常 — インデックスに <strong>{searchKeyCheck.nbHits}件</strong> のデータが見えています</p> : (
-                        <><p className="font-semibold mb-1 flex items-center gap-1.5"><XCircle className="h-4 w-4 shrink-0" />Search Keyが機能していません</p><p className="mb-1">エラー: {searchKeyCheck.error}</p><p>「Notion・Algolia接続設定」からSearch API Keyを再入力してください。</p></>
+                        <><p className="font-semibold mb-1 flex items-center gap-1.5"><XCircle className="h-4 w-4 shrink-0" />Search Keyが機能していません</p><p className="mb-1">エラー: {searchKeyCheck.error}</p><p>設定トップの「接続設定」からSearch API Keyを再入力してください。</p></>
                       )}
                     </div>
                   )}

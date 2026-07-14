@@ -139,7 +139,7 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
             </button>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              右上の設定（歯車アイコン）→「Notion・Algolia接続設定」から設定できます。
+              右上の設定（歯車アイコン）→「接続設定」から設定できます。
             </p>
           )}
           <button
@@ -323,7 +323,7 @@ function CqCaptureModal({
 
 function parseCqError(msg: string): string {
   if (msg.includes('API token is invalid') || msg.includes('unauthorized') || msg.includes('Unauthorized')) {
-    return 'NotionのTokenが無効です。設定 → 「Notion・Algolia接続設定」を確認してください。'
+    return 'NotionのTokenが無効です。設定 → 「接続設定」を確認してください。'
   }
   if (msg.includes('restricted_resource') || msg.includes('403') || msg.includes('Insufficient permissions')) {
     return [
@@ -333,7 +333,7 @@ function parseCqError(msg: string): string {
     ].join('\n')
   }
   if (msg.includes('object_not_found') || msg.includes('Could not find database')) {
-    return 'Medical DBが見つかりません。設定 → 「Notion・Algolia接続設定」のDB IDを確認してください。'
+    return 'Medical DBが見つかりません。設定 → 「接続設定」のDB IDを確認してください。'
   }
   return `保存できませんでした: ${msg}`
 }
