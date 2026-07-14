@@ -49,7 +49,7 @@ const OnboardingScreen = dynamicImport(
   () => import('@/components/OnboardingScreen').then((m) => m.OnboardingScreen),
   { ssr: false, loading: () => <AppSkeleton /> },
 )
-import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL } from '@/lib/app-links'
+import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
@@ -2756,6 +2756,19 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion入門マガジン（note）</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Notionがはじめての方向けの、作者による導入・活用記事</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </a>
+              <a
+                href={PREMIUM_NOTE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><Gift className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアム体験の記事（note）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">14日間の無料トライアルコードの入手と使い方</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
