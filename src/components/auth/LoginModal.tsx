@@ -181,7 +181,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isRegister ? 'アカウント登録' : 'ログイン'}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {reason || (isRegister ? 'メールアドレスだけで登録できます（パスワード不要）' : 'メールに届く6桁コードでログインできます')}
+              {reason || (isRegister ? 'メールアドレスだけで登録できます（届く6桁コードで認証）' : 'メールに届く6桁コードでログインできます')}
             </p>
           </div>
           <button

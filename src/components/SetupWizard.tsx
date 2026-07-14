@@ -113,7 +113,7 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
       if (!res.ok || !data.ok || !data.algolia) {
         // 設定画面側の PremiumTrialRedeem と同じ401分岐（導線を揃えて混乱を防ぐ）。
         if (res.status === 401 || data.error === 'login_required') {
-          setError('コードのご利用にはアカウント登録（無料・パスワード不要）が必要です。')
+          setError('コードのご利用にはアカウント登録（無料・メールアドレスのみ）が必要です。')
           setNeedLogin(true)
           return
         }
@@ -206,7 +206,7 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
           onClick={onRequestLogin}
           className="w-full border border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300 rounded-lg py-2 text-xs font-semibold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
         >
-          アカウント登録してコードを使う（メールのみ・パスワード不要）
+          アカウント登録してコードを使う（メールアドレスのみ）
         </button>
       )}
     </div>
@@ -1267,7 +1267,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </button>
 
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-                ※ パスワードは不要です。メールアドレスに届くリンク／6桁コードで認証します。
+                ※ メールアドレスだけで始められます（届く6桁コードで認証）。パスワードは後から任意で設定できます。
               </p>
             </div>
           )}
@@ -2246,7 +2246,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </button>
               {!user && (
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-                  メールアドレスの登録（パスワード不要）が必要です。設定が暗号化のうえ保存され、別の端末でも引き継げます。
+                  メールアドレスの登録が必要です（届く6桁コードで認証）。設定が暗号化のうえ保存され、別の端末でも引き継げます。
                 </p>
               )}
               {error && (
@@ -2300,7 +2300,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
             loginPurpose === 'register-inline'
-              ? 'トライアルコードのご利用にはアカウント登録（無料・パスワード不要）が必要です。登録が終わったら、もう一度コードをお試しください。'
+              ? 'トライアルコードのご利用にはアカウント登録（無料・メールアドレスのみ）が必要です。登録が終わったら、もう一度コードをお試しください。'
               : loginPurpose === 'register'
               ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
               : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
