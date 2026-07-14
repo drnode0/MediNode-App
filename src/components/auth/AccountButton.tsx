@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom'
 import { useAuth } from './AuthProvider'
 import { LoginModal } from './LoginModal'
 import { createClient } from '@/lib/supabase/client'
+import { clearSettings } from '@/lib/settings'
 
 // パスワードの設定・変更モーダル。
 // ログインは従来どおりメール（6桁コード／リンク）が基本で、パスワードは
@@ -132,6 +133,25 @@ export function AccountButton() {
   const [showPassword, setShowPassword] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  // ログアウトは端末のデータを消すため、いきなり実行せず一度確認を挟む。
+  const [confirmLogout, setConfirmLogout] = useState(false)
+
+  // ログアウト＝この端末から自分の痕跡を消す。設定・検索履歴を消去して
+  // 最初のセットアップ画面に戻す（サーバーに保存済みの設定は再ログインで復元される）。
+  const handleLogout = async () => {
+    setSigningOut(true)
+    try {
+      await signOut()
+      clearSettings()
+      // 検索履歴（医療クエリ）も端末に残さない。
+      try { localStorage.removeItem('medical_search_history') } catch {}
+      // 完全なまっさら状態で再描画（未ログイン＋設定なし＝セットアップ入口）。
+      window.location.assign('/')
+    } catch {
+      // 失敗時は何も消さずログイン状態を維持（安全側）。
+      setSigningOut(false)
+    }
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -169,7 +189,7 @@ export function AccountButton() {
       ? createPortal(
           <div
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4"
-            onClick={() => setShowMenu(false)}
+            onClick={() => { setShowMenu(false); setConfirmLogout(false) }}
           >
             <div
               className="w-full max-w-xs rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-xl space-y-4"
@@ -178,7 +198,7 @@ export function AccountButton() {
               <div className="flex items-start justify-between">
                 <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">アカウント</h2>
                 <button
-                  onClick={() => setShowMenu(false)}
+                  onClick={() => { setShowMenu(false); setConfirmLogout(false) }}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
                   aria-label="閉じる"
                 >
@@ -212,23 +232,42 @@ export function AccountButton() {
               >
                 パスワードを設定・変更（メールなしでログイン）
               </button>
-              <button
-                onClick={async () => {
-                  setSigningOut(true)
-                  await signOut()
-                  setSigningOut(false)
-                  setShowMenu(false)
-                }}
-                disabled={signingOut}
-                className="w-full rounded-lg border border-red-200 dark:border-red-800 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
-              >
-                {signingOut ? 'ログアウト中...' : 'ログアウト'}
-              </button>
-              {/* ログアウト＝アカウント連携を切るだけで、端末の設定・検索はそのまま。
-                  共有端末で「設定ごと消したい」人は完全削除へ誘導する（挙動を明文化して迷いを防ぐ）。 */}
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-                ログアウトしても、この端末の設定と検索はそのまま使えます（端末間の引き継ぎが止まるだけ）。共有端末などで設定ごと消したい場合は、設定 → 「設定を完全に削除する」を使ってください。
-              </p>
+              {!confirmLogout ? (
+                <>
+                  <button
+                    onClick={() => setConfirmLogout(true)}
+                    className="w-full rounded-lg border border-red-200 dark:border-red-800 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  >
+                    ログアウト
+                  </button>
+                  {/* ログアウトは「この端末から自分の痕跡を消す」操作。再ログインで戻せることを添える。 */}
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                    ログアウトすると、この端末の設定・検索履歴を消して最初の画面に戻ります。もう一度ログインすれば元どおり復元されます。
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  {/* 忠告（データ消去）＋安心材料（再ログインで復元）をはっきり示してから実行させる。 */}
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <strong>この端末から、設定（Notion接続・Algoliaキー）と検索履歴を消去し、最初のセットアップ画面に戻ります。</strong><br />
+                    もう一度ログインすれば、サーバーに保存された設定は自動で元どおり復元されます。共有端末ではこれで安全に離席できます。
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    disabled={signingOut}
+                    className="w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    {signingOut ? 'ログアウト中...' : 'ログアウトする'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmLogout(false)}
+                    disabled={signingOut}
+                    className="w-full rounded-lg border border-gray-200 dark:border-gray-600 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              )}
             </div>
           </div>,
           document.body,
