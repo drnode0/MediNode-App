@@ -5,6 +5,7 @@ import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gi
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
+import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
@@ -691,6 +692,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // 直行する際も targets.personal=true 前提のため、この初期値は変更しない）。start画面で更新。
   const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
+  // 画面つきガイド（Token作成〜コネクト追加）。null=閉、数値=開始ステップ。
+  const [tokenGuideStep, setTokenGuideStep] = useState<number | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   // ログイン誘導（別端末で設定済みの人がログインで復元するため）
   const { user } = useAuth()
@@ -1433,9 +1436,17 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   show={!!showPassword['notionToken']}
                   onToggle={() => togglePassword('notionToken')}
                 />
+                <button
+                  type="button"
+                  onClick={() => setTokenGuideStep(0)}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl py-2.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  はじめての方へ：画面を見ながら進める
+                </button>
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    取得方法：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+                    慣れている方は：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
@@ -1525,6 +1536,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
                       </li>
                     </ol>
+                    <button
+                      type="button"
+                      onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
+                      className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      手順2「コネクトを接続」を画面で見る
+                    </button>
                     <p className="text-[11px] text-brand-600/80 dark:text-brand-300/80 leading-relaxed pt-1 border-t border-brand-200/60 dark:border-brand-700/60 mt-1">
                       複製したDBの<strong>プロパティ名（列名）は変更しないでください</strong>。「要約」などを別の名前に変えると、エラーは出ませんが検索・ジャンルに反映されなくなります。
                     </p>
@@ -1620,6 +1639,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       <li>作成したコネクト名を選択して接続</li>
                       <li>Reference DBがある場合も同様に接続する</li>
                     </ol>
+                    <button
+                      type="button"
+                      onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
+                      className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      この操作を画面で見る
+                    </button>
                     <p className="text-amber-600 dark:text-amber-400 font-medium">この接続を忘れると「403エラー」になります</p>
                   </div>
 
@@ -2279,6 +2306,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
           }
         />
+      )}
+
+      {/* Notion接続の画面つきステップガイド（Token作成〜コネクト追加） */}
+      {tokenGuideStep !== null && (
+        <NotionTokenGuide initialStep={tokenGuideStep} onClose={() => setTokenGuideStep(null)} />
       )}
     </div>
   )
