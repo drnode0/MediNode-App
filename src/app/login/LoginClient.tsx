@@ -34,7 +34,7 @@ export function LoginClient() {
 
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  // ログイン方式。既定はメール（6桁コード／リンク）。パスワードは
+  // ログイン方式。既定はメール（6桁コード）。パスワードは
   // アプリ内「アカウント → パスワードを設定・変更」で設定済みの人向け。
   const [method, setMethod] = useState<'otp' | 'password'>('otp')
   const [password, setPassword] = useState('')
@@ -80,11 +80,7 @@ export function LoginClient() {
       })
       if (error) throw error
       setPhase('sent')
-      setInfo(
-        OTP_ENABLED
-          ? 'メールを送信しました。届いたリンクをタップするか、メール内の6桁コードを入力してください。'
-          : 'ログイン用メールを送信しました。',
-      )
+      setInfo('メールを送信しました。')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'メール送信に失敗しました')
     } finally {
@@ -109,7 +105,7 @@ export function LoginClient() {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) {
         if (/Invalid login credentials/i.test(error.message)) {
-          throw new Error('メールアドレスまたはパスワードが違います。パスワードを設定していない（または忘れた）場合は、「メール（6桁コード／リンク）でログインする」に切り替えてください。')
+          throw new Error('メールアドレスまたはパスワードが違います。パスワードを設定していない（または忘れた）場合は、「メール（6桁コード）でログインする」に切り替えてください。')
         }
         throw error
       }
@@ -169,7 +165,7 @@ export function LoginClient() {
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          メール（6桁コード／リンク）でログインできます。パスワードを設定済みの方は、パスワードでもログインできます。
+          メールに届く6桁コードでログインできます。パスワードを設定済みの方は、パスワードでもログインできます。
         </p>
       </div>
 
@@ -211,18 +207,18 @@ export function LoginClient() {
           >
             {loading
               ? method === 'password' ? 'ログイン中...' : '送信中...'
-              : method === 'password' ? 'ログイン' : 'ログインリンクを送る'}
+              : method === 'password' ? 'ログイン' : 'ログインコードを送る'}
           </button>
           <button
             onClick={() => { setMethod((m) => (m === 'otp' ? 'password' : 'otp')); setError(null) }}
             className="w-full text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400"
           >
-            {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード／リンク）でログインする'}
+            {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード）でログインする'}
           </button>
           <p className="text-[11px] text-gray-400 leading-relaxed">
             {method === 'password'
               ? 'パスワードは、アプリ内のアカウント（👤）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
-              : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。'}
+              : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。メールに届く6桁コードを、この画面に入力するだけ。'}
           </p>
         </>
       )}
@@ -234,18 +230,10 @@ export function LoginClient() {
           </div>
 
           <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-            <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にログイン用メールを送りました。<br />
-            <span className="font-medium text-brand-700 dark:text-brand-300">
-              ホーム画面に追加したアプリ（PWA）やこの画面でログインするときは、下の6桁コードを入力するのが確実です。
-            </span>
-            メールのリンクをタップすると別のブラウザが開いてしまい、このアプリ側ではログインされたままにならないことがあります（その場合は下のコード入力をご利用ください）。
+            <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にメールを送りました。<span className="font-medium">メール内の6桁コード</span>を、下の欄に入力してください。
             <br />
             <span className="text-[11px] text-gray-400">
-              ※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。
-            </span>
-            <br />
-            <span className="text-[11px] text-brand-600 dark:text-brand-400">
-              ※ ログインすると、NotionDBの接続設定やプレミアム契約が暗号化のうえ保存され、別の端末でもログインするだけで自動で引き継がれます。
+              ※ 数分待っても届かない場合は、迷惑メールフォルダもご確認ください。
             </span>
           </div>
 
@@ -253,7 +241,7 @@ export function LoginClient() {
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  6桁コードでログイン（アプリ・PWAはこちらが確実）
+                  メールに届いた6桁コード
                 </label>
                 <input
                   ref={codeRef}

@@ -1,9 +1,9 @@
 'use client'
 
 // ログイン用モーダル。
-// 主軸: マジックリンク（メールに届いたリンクをタップ）。
-// フォールバック: 同じメールに届く6桁コードを入力（リンクが別ブラウザで開く問題への対策）。
-// これにより「使えない人」を限りなくゼロにする。
+// 主軸: メールに届く6桁コードを入力（PWA/モバイルでマジックリンクが別ブラウザで開く
+//       問題を避けるため、リンクは廃止しコード一本に統一。メールテンプレートからも
+//       確認リンクを外している）。設定済みならパスワードでもログインできる。
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -30,7 +30,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   const isRegister = purpose === 'register'
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  // ログイン方式。既定はメール（6桁コード／リンク）。パスワードは
+  // ログイン方式。既定はメール（6桁コード）。パスワードは
   // 「アカウント → パスワードを設定」で設定済みの人向けの近道。
   // 新規登録はメール確認を兼ねるため常にメール方式。
   const [method, setMethod] = useState<'otp' | 'password'>('otp')
@@ -89,11 +89,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
       })
       if (error) throw error
       setPhase('sent')
-      setInfo(
-        OTP_ENABLED
-          ? 'メールを送信しました。届いたリンクをタップするか、メール内の6桁コードを入力してください。'
-          : 'ログイン用メールを送信しました。',
-      )
+      setInfo('メールを送信しました。')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'メール送信に失敗しました')
     } finally {
@@ -185,7 +181,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isRegister ? 'アカウント登録' : 'ログイン'}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {reason || (isRegister ? 'メールアドレスだけで登録できます（パスワード不要）' : 'メールアドレスだけでログインできます（パスワード不要）')}
+              {reason || (isRegister ? 'メールアドレスだけで登録できます（パスワード不要）' : 'メールに届く6桁コードでログインできます')}
             </p>
           </div>
           <button
@@ -233,20 +229,20 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             >
               {loading
                 ? method === 'password' && !isRegister ? 'ログイン中...' : '送信中...'
-                : method === 'password' && !isRegister ? 'ログイン' : isRegister ? '登録用リンクを送る' : 'ログインリンクを送る'}
+                : method === 'password' && !isRegister ? 'ログイン' : isRegister ? '登録コードを送る' : 'ログインコードを送る'}
             </button>
             {!isRegister && (
               <button
                 onClick={() => { setMethod((m) => (m === 'otp' ? 'password' : 'otp')); setError(null) }}
                 className="w-full text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400"
               >
-                {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード／リンク）でログインする'}
+                {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード）でログインする'}
               </button>
             )}
             <p className="text-[11px] text-gray-400 leading-relaxed">
               {method === 'password' && !isRegister
                 ? 'パスワードは、ログイン後にアカウント（👤）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
-                : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。'}
+                : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。メールに届く6桁コードを、この画面に入力するだけ。'}
             </p>
           </>
         )}
@@ -258,20 +254,17 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             </div>
 
             <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛に{isRegister ? '登録用' : 'ログイン用'}メールを送りました。<br />
-              <span className="font-medium">同じブラウザで開いているこの画面に戻って</span>、メール内の6桁コードを入力するのが確実です。リンクをタップした場合は、別のブラウザが開いても{isRegister ? '登録' : 'ログイン'}自体は完了しています。
+              <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にメールを送りました。<span className="font-medium">メール内の6桁コード</span>を、下の欄に入力してください。
               <br />
-              <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は迷惑メールフォルダもご確認ください。</span>
-              <br />
-              <span className="text-[11px] text-brand-600 dark:text-brand-400">※ ログインすると、NotionDBの接続設定やプレミアム契約が暗号化のうえ保存され、別の端末でもログインするだけで自動で引き継がれます。</span>
+              <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は、迷惑メールフォルダもご確認ください。</span>
             </div>
 
-            {/* 6桁コード入力（SMTP接続後に OTP_ENABLED=true で復活） */}
+            {/* 6桁コード入力（メールのコードを入力＝主軸。マジックリンクは廃止） */}
             {OTP_ENABLED && (
               <>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    6桁コード（リンクが開けないとき）
+                    メールに届いた6桁コード
                   </label>
                   <input
                     ref={codeRef}
