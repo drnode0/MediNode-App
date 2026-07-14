@@ -3518,6 +3518,12 @@ export default function Home() {
   }
 
   const settings = getSettings()
+  // 完了フラグが立っていても設定の実体が無い場合はセットアップへ戻す
+  // （ログイン復元の事故などで空設定のままホームへ来た場合の防御。
+  //   放置すると searchMode が 'algolia' 扱いになり「追加設定が必要です」で行き止まる）。
+  if (!settings) {
+    return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry') }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep="entry" />
+  }
   const searchMode = settings?.searchMode || 'algolia'
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
   // プレミアム判定はキーの有無だけでなくトライアル期限切れも考慮する。
@@ -3648,10 +3654,12 @@ export default function Home() {
   // セットアップでパワーモードを選んだままキー未入力の人が主に到達する。
   // 「なぜこの画面が出たか」と「2つの出口（キーを入力する／シンプルモードに切り替える）」を明示する。
   if (!settings?.algoliaSearchKey || !settings?.algoliaAppId) {
-    // シンプルモード（Notion直結）は個人か部署どちらかのNotion接続があれば追加設定なしで動く。
+    // シンプルモード（Notion直結）は個人・部署のNotion接続、またはプレミアムの
+    // いずれかがあれば追加設定なしで動く（プレミアムのみの利用はシンプル固定が本来の姿）。
     const canUseSimpleMode = !!(
       (settings?.notionToken && settings?.notionMedicalDbId) ||
-      (settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
+      (settings?.teamNotionToken && settings?.teamNotionMedicalDbId) ||
+      hasSubscription
     )
     return (
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
