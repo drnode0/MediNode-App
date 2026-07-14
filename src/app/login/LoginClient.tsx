@@ -34,6 +34,10 @@ export function LoginClient() {
 
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  // ログイン方式。既定はメール（6桁コード／リンク）。パスワードは
+  // アプリ内「アカウント → パスワードを設定・変更」で設定済みの人向け。
+  const [method, setMethod] = useState<'otp' | 'password'>('otp')
+  const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<'email' | 'sent'>('email')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +92,35 @@ export function LoginClient() {
     }
   }
 
+  // パスワードでログイン（LoginModalと同じ流儀。失敗時は必ずメール方式へ誘導）。
+  const signInWithPassword = async () => {
+    if (!emailValid) {
+      setError('メールアドレスの形式が正しくありません')
+      return
+    }
+    if (!password) {
+      setError('パスワードを入力してください')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) {
+        if (/Invalid login credentials/i.test(error.message)) {
+          throw new Error('メールアドレスまたはパスワードが違います。パスワードを設定していない（または忘れた）場合は、「メール（6桁コード／リンク）でログインする」に切り替えてください。')
+        }
+        throw error
+      }
+      router.replace(next)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ログインに失敗しました')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const verifyCode = async () => {
     const token = code.trim()
     if (!/^\d{6}$/.test(token)) {
@@ -136,7 +169,7 @@ export function LoginClient() {
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          メールアドレスだけでログインできます（パスワード不要）
+          メール（6桁コード／リンク）でログインできます。パスワードを設定済みの方は、パスワードでもログインできます。
         </p>
       </div>
 
@@ -157,15 +190,39 @@ export function LoginClient() {
               className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
             />
           </div>
+          {method === 'password' && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">パスワード</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void signInWithPassword() }}
+                placeholder="設定済みのパスワード"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+              />
+            </div>
+          )}
           <button
-            onClick={sendLink}
-            disabled={loading || !emailValid}
+            onClick={method === 'password' ? signInWithPassword : sendLink}
+            disabled={loading || !emailValid || (method === 'password' && !password)}
             className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {loading ? '送信中...' : 'ログインリンクを送る'}
+            {loading
+              ? method === 'password' ? 'ログイン中...' : '送信中...'
+              : method === 'password' ? 'ログイン' : 'ログインリンクを送る'}
+          </button>
+          <button
+            onClick={() => { setMethod((m) => (m === 'otp' ? 'password' : 'otp')); setError(null) }}
+            className="w-full text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400"
+          >
+            {method === 'otp' ? 'パスワードでログインする' : 'メール（6桁コード／リンク）でログインする'}
           </button>
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。
+            {method === 'password'
+              ? 'パスワードは、アプリ内のアカウント（👤）→「パスワードを設定・変更」で作成したものです。忘れた場合はメール方式でログインし、同じ場所から再設定できます。'
+              : 'どの端末・どのメール（Gmail / iCloud / Yahoo 等）でも使えます。届いたリンクをタップするだけ。'}
           </p>
         </>
       )}
