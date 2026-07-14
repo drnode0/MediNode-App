@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import { AccountButton } from './auth/AccountButton'
 import {
-  Search, FolderOpen, Lightbulb, BookMarked, ClipboardList,
+  Search, Clock, FolderOpen, Lightbulb, BookMarked, ClipboardList,
   UserRound, Building2, Star, RefreshCw, ArrowUpRight, FolderCheck,
   HeartPulse, Target, Compass, KeyRound, Rocket, ArrowRight,
   Sparkles, Library, NotebookPen, Database, ChevronRight, Leaf,
@@ -234,6 +234,27 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
                 className="w-36 h-36 rounded-[2rem] shadow-xl shadow-brand-900/10"
               />
             </div>
+          </div>
+        )}
+
+        {/* 1枚目: アプリのタブ機能を色でチラ見せ（本編ホームの TAB_TONES と同じ配色）。
+            単色の常盤トーンだけだと単調になるため、機能色の予告編を置く。 */}
+        {current.hero && (
+          <div className="flex justify-center gap-3.5 mt-1 mb-2" aria-hidden>
+            {([
+              { Icon: Search, label: '検索', cls: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' },
+              { Icon: Clock, label: '新着', cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+              { Icon: FolderOpen, label: 'ジャンル', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+              { Icon: BookMarked, label: '文献', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
+              { Icon: Lightbulb, label: 'クイズ', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' },
+            ]).map(({ Icon, label, cls }, i) => (
+              <div key={label} className="flex flex-col items-center gap-1 animate-fade-in-up" style={{ animationDelay: `${240 + i * 80}ms` }}>
+                <span className={`w-9 h-9 rounded-xl grid place-items-center ${cls}`}>
+                  <Icon className="w-[18px] h-[18px]" strokeWidth={2} />
+                </span>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500">{label}</span>
+              </div>
+            ))}
           </div>
         )}
 

@@ -88,10 +88,11 @@ function PremiumCheckoutButton() {
 // 設定画面側の PremiumTrialRedeem と同じ /api/premium/trial を使う。導線を揃えて混乱を防ぐ。
 // 成功時はトライアルキーを保存し、その値を onApplied で親に渡して form を確実に更新する
 // （その後の「検索開始」での form 上書きでキーが消えないようにするため）。
-function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId: string; searchKey: string; index: string; trialEndsAt: string }) => void }) {
+function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (algolia: { appId: string; searchKey: string; index: string; trialEndsAt: string }) => void; onRequestLogin?: () => void }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [needLogin, setNeedLogin] = useState(false)
   const [trialDays, setTrialDays] = useState(0)
   const [applied, setApplied] = useState(false)
 
@@ -99,6 +100,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
     if (!code.trim()) { setError('コードを入力してください'); return }
     setLoading(true)
     setError('')
+    setNeedLogin(false)
     try {
       const res = await fetch('/api/premium/trial', {
         method: 'POST',
@@ -109,7 +111,8 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
       if (!res.ok || !data.ok || !data.algolia) {
         // 設定画面側の PremiumTrialRedeem と同じ401分岐（導線を揃えて混乱を防ぐ）。
         if (res.status === 401 || data.error === 'login_required') {
-          setError('このコードのご利用にはログインが必要です。先にアカウント登録（ログイン）を済ませてから、もう一度お試しください。')
+          setError('コードのご利用にはアカウント登録（無料・パスワード不要）が必要です。')
+          setNeedLogin(true)
           return
         }
         setError(data.error || 'コードを確認できませんでした')
@@ -174,7 +177,7 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        note記事に記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
+        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
       </p>
       <div className="flex gap-2">
@@ -195,6 +198,15 @@ function PremiumTrialRedeemButton({ onApplied }: { onApplied?: (algolia: { appId
         </button>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
+      {needLogin && onRequestLogin && (
+        <button
+          type="button"
+          onClick={onRequestLogin}
+          className="w-full border border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300 rounded-lg py-2 text-xs font-semibold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+        >
+          アカウント登録してコードを使う（メールのみ・パスワード不要）
+        </button>
+      )}
     </div>
   )
 }
@@ -683,11 +695,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const { user } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
   // ログインモーダルの用途。
-  // 'restore'        = 既存アカウントの設定復元（成功で即完了）
-  // 'register'       = 設定完了後（options末尾）に行うアカウント登録（成功で設定保存＋完了）※フォールバック
-  // 'register-first' = 「はじめて使う方」直後の早期登録（成功で start へ進むだけ。保存・完了はしない）。
-  //                    これにより以降の options でトライアルコードを入れても未ログイン弾き(login_required)が起きない。
-  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-first'>('restore')
+  // 'restore'         = 既存アカウントの設定復元（成功でサーバー設定を取得→完了判定）
+  // 'register'        = 設定完了時（options末尾）に行うアカウント登録（成功で設定保存＋完了）
+  // 'register-inline' = optionsの途中でトライアルコード利用に必要になった時の登録
+  //                     （成功でモーダルを閉じるだけ。ユーザーはコード入力に戻る）
+  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-inline'>('restore')
   // 'restore' ログイン成功後、サーバー設定の取得〜完了判定までの間の表示用。
   const [restoring, setRestoring] = useState(false)
   // optionsステップに直行した場合はプレミアムセクションを自動展開
@@ -780,6 +792,33 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     clearDraft()
     onComplete()
     return true
+  }
+
+  // サーバー保存済み設定を取得・復元してから完了判定する共通処理。
+  // 入口の「保存済みの設定を復元して始める」と、復元ログイン成功時の両方から呼ぶ。
+  // サーバーに設定が無いアカウントは空設定のままホームへ抜けさせず、知識選択へ案内する。
+  const restoreFromServerAndFinish = async () => {
+    setRestoring(true)
+    try {
+      const res = await fetch('/api/user-settings', { cache: 'no-store' })
+      const data = await res.json()
+      if (data?.settings) {
+        // サーバーを優先しつつ、ローカルの非空項目は温存（SettingsSyncと同じ流儀）。
+        const merged = mergeSettings(data.settings as AppSettings, getSettings()) as AppSettings
+        saveSettings(merged, { skipServer: true })
+        if (data.updatedAt) setSettingsUpdatedAt(data.updatedAt)
+      }
+    } catch {
+      // 取得失敗時は下の isSetupComplete 判定に委ねる（ローカルに設定があればそのまま入れる）。
+    }
+    setRestoring(false)
+    if (isSetupComplete()) {
+      clearDraft()
+      onComplete()
+    } else {
+      setError('このアカウントに保存済みの設定はまだありませんでした。ログインは完了しているので、このままセットアップを進めてください。')
+      setStep('start')
+    }
   }
 
   const handleNotionNext = () => {
@@ -1139,8 +1178,49 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         {/* カード */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
 
-          {/* 入口: アカウント作成済み / はじめて使う の分岐 */}
-          {step === 'entry' && (
+          {/* 入口: アカウント作成済み / はじめて使う の分岐。
+              ログイン済みで来た場合（PWA再インストール後・リセット後など）は
+              再ログインを求めず「復元して始める／新しくセットアップ」の2択にする。 */}
+          {step === 'entry' && user && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">おかえりなさい</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  ログイン済みです{user.email ? `（${user.email}）` : ''}。どちらから始めますか？
+                </p>
+              </div>
+
+              <button
+                onClick={() => { setError(''); void restoreFromServerAndFinish() }}
+                className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Smartphone className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-300" />
+                  <p className="text-sm font-bold text-brand-800 dark:text-brand-200">保存済みの設定で始める</p>
+                </div>
+                <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
+                  このアカウントに保存されたNotion接続・Algolia・プレミアム設定を復元して、すぐ使い始めます。
+                </p>
+              </button>
+
+              <button
+                onClick={() => { setError(''); setStep('start') }}
+                className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="h-5 w-5 shrink-0 text-gray-500 dark:text-gray-400" />
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100">新しくセットアップする</p>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pl-7">
+                  使いたい知識を選んで、接続をゼロから設定します。
+                </p>
+              </button>
+              {error && (
+                <p className="text-xs text-red-500 text-center leading-relaxed">{error}</p>
+              )}
+            </div>
+          )}
+          {step === 'entry' && !user && (
             <div className="space-y-5">
               <div className="text-center">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">MediNode を始める</h2>
@@ -1166,18 +1246,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </p>
               </button>
 
-              {/* 🅑 はじめて使う → まずメール登録（早期）→ 成功後に start へ。
-                  設定より先にログインを済ませることで、後続のトライアルコード入力で弾かれないようにする。 */}
+              {/* 🅑 はじめて使う → そのまま知識選択へ。アカウント登録（メール）は
+                  設定の最後に行う（先に登録を求めると説明文言とも食い違い、離脱点になる）。
+                  途中でトライアルコードを使う場合のみ、その場でログインを促す（register-inline）。 */}
               <button
-                onClick={() => {
-                  // すでにログイン済み（登録直後に戻ってきた等）なら再登録を求めず、そのまま選択へ。
-                  if (user) {
-                    setStep('start')
-                    return
-                  }
-                  setLoginPurpose('register-first')
-                  setShowLogin(true)
-                }}
+                onClick={() => setStep('start')}
                 className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -1185,12 +1258,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <p className="text-sm font-bold text-brand-800 dark:text-brand-200">はじめて使う方</p>
                 </div>
                 <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
-                  最初にメールアドレスでアカウントを登録してから、使いたい知識を選んでセットアップします。
+                  使いたい知識を選んでセットアップします。アカウント登録（メール）は、設定の最後に行います。
                 </p>
               </button>
 
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-                ※ どちらもパスワードは不要です。メールアドレスに届くリンク／6桁コードで認証します。
+                ※ パスワードは不要です。メールアドレスに届くリンク／6桁コードで認証します。
               </p>
             </div>
           )}
@@ -1206,9 +1279,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </div>
 
               {([
-                { key: 'personal' as const, Icon: User, title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
-                { key: 'team' as const, Icon: Users, title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
-                { key: 'premium' as const, Icon: Star, title: '専門医の知識を使う', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
+                // tone はオンボーディング「3つの知識源」と同じ配色（個人=常盤・部署=空・プレミアム=琥珀）。
+                { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', desc: '自分のNotionに作った医療メモを検索します。自分のコネクトTokenとDBを使います。' },
+                { key: 'team' as const, Icon: Users, tone: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300', title: 'みんなの知識を使う', sub: '部署の共有DB', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLでOK（自分のNotionは不要）。' },
+                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', desc: '作者（専門医）が配信する医療ナレッジを検索します。自分のNotion/Algolia設定は不要で、すぐ使えます。' },
               ]).map((opt) => {
                 const selected = targets[opt.key]
                 return (
@@ -1223,7 +1297,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center text-xs ${selected ? 'bg-brand-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-transparent'}`}><Check className="h-3.5 w-3.5" /></span>
-                      <p className="text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center gap-1.5"><opt.Icon className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-300" />{opt.title}</p>
+                      <p className="text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center gap-1.5"><span className={`w-7 h-7 rounded-lg grid place-items-center shrink-0 ${opt.tone}`}><opt.Icon className="h-4 w-4" /></span>{opt.title}</p>
                       <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{opt.sub}</span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pl-7">{opt.desc}</p>
@@ -2091,7 +2165,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
                             最後の1つしか反映されないため、setForm でまとめて更新する） */}
-                        <PremiumTrialRedeemButton onApplied={(algolia) => {
+                        <PremiumTrialRedeemButton onRequestLogin={() => { setLoginPurpose('register-inline'); setShowLogin(true) }} onApplied={(algolia) => {
                           setForm((prev) => {
                             const next = {
                               ...prev,
@@ -2171,11 +2245,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         <LoginModal
           onClose={() => setShowLogin(false)}
           onSuccess={() => {
-            if (loginPurpose === 'register-first') {
-              // 「はじめて使う方」の早期登録。まだ設定が無いので保存も完了もせず、知識選択へ進めるだけ。
-              // 以降は user=非null のため、optionsのコード入力で login_required が起きない。
+            if (loginPurpose === 'register-inline') {
+              // トライアルコード利用のための途中登録。保存も完了もせず、コード入力に戻すだけ。
               setShowLogin(false)
-              setStep('start')
               return
             }
             if (loginPurpose === 'register') {
@@ -2186,42 +2258,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               setShowLogin(false)
               return
             }
-            // restore: サーバー保存済み設定をこの場で取得・復元してから完了判定する。
-            // 以前は SettingsSync の非同期復元に任せて即 onComplete していたため、
-            // サーバーに設定が無いアカウント（登録だけして離脱・別メールでログイン等）だと
-            // 空設定のままホームへ抜け、「パワーモードの追加設定が必要です」画面で
-            // 立ち往生していた（モニター報告のエラーの正体）。
+            // restore: サーバー設定をこの場で取得・復元してから完了判定する。
+            // 即 onComplete すると、サーバーに設定が無いアカウントが空設定のまま
+            // ホームへ抜けて「パワーモードの追加設定が必要です」で立ち往生する。
             setShowLogin(false)
-            setRestoring(true)
-            void (async () => {
-              try {
-                const res = await fetch('/api/user-settings', { cache: 'no-store' })
-                const data = await res.json()
-                if (data?.settings) {
-                  // サーバーを優先しつつ、ローカルの非空項目は温存（SettingsSyncと同じ流儀）。
-                  const merged = mergeSettings(data.settings as AppSettings, getSettings()) as AppSettings
-                  saveSettings(merged, { skipServer: true })
-                  if (data.updatedAt) setSettingsUpdatedAt(data.updatedAt)
-                }
-              } catch {
-                // 取得失敗時は下の isSetupComplete 判定に委ねる（ローカルに設定があればそのまま入れる）。
-              }
-              setRestoring(false)
-              if (isSetupComplete()) {
-                clearDraft()
-                onComplete()
-              } else {
-                // 復元できる設定が無い＝実質はじめての利用。ホームへ抜けさせず、
-                // ログイン済みのままセットアップを続けてもらう。
-                setError('このアカウントに保存済みの設定はまだありませんでした。ログインは完了しているので、このままセットアップを進めてください。')
-                setStep('start')
-              }
-            })()
+            void restoreFromServerAndFinish()
           }}
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
-            loginPurpose === 'register-first'
-              ? '最初にメールアドレスでアカウントを登録します（パスワード不要）。以降の設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
+            loginPurpose === 'register-inline'
+              ? 'トライアルコードのご利用にはアカウント登録（無料・パスワード不要）が必要です。登録が終わったら、もう一度コードをお試しください。'
               : loginPurpose === 'register'
               ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
               : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
