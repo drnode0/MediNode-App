@@ -11,3 +11,5 @@ export const CLINICAL_QUESTION_FORM_URL = 'https://foregoing-feta-45b.notion.sit
 // 紹介ページ（ティザーLP）と、作者のNotion入門マガジン（note）。
 export const TEASER_LP_URL = 'https://medinode-lp.vercel.app'
 export const NOTION_MAGAZINE_URL = 'https://note.com/gifted_arnica594/m/mff52849ddbb3'
+// プレミアム体験（トライアルコード配布）のnote記事。PremiumTrialRedeemでも使用。
+export const PREMIUM_NOTE_URL = 'https://note.com/gifted_arnica594/n/n4d3997dad16e'
