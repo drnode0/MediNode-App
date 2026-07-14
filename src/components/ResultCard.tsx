@@ -1,5 +1,5 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, type LucideIcon } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { useState, type KeyboardEvent } from 'react'
@@ -35,10 +35,13 @@ export type Hit = {
   createdAt?: string
 }
 
-const LEVEL_STYLE: Record<string, string> = {
-  '❓ クリニカルクエスチョン': 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
-  '💡 ナレッジ': 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-  '📋 まとめ': 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300',
+// 知識レベルのバッジ。色だけでは一瞥で見分けにくいため、レベルごとの
+// アイコンを添える（❓CQ=琥珀の?、💡ナレッジ=緑の電球、📋まとめ=常盤のリスト）。
+// Notion側で独自の選択肢を使っている場合はアイコンなしのグレーチップになる。
+const LEVEL_BADGE: Record<string, { style: string; Icon: LucideIcon }> = {
+  '❓ クリニカルクエスチョン': { style: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300', Icon: MessageCircleQuestion },
+  '💡 ナレッジ': { style: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300', Icon: Lightbulb },
+  '📋 まとめ': { style: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: ClipboardList },
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
@@ -53,7 +56,8 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const sourceLabel = isMedical ? 'Medical' : 'Ref'
   const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
   const borderColor = isMedical ? 'border-l-brand-400' : 'border-l-amber-400'
-  const levelStyle = hit.knowledgeLevel ? (LEVEL_STYLE[hit.knowledgeLevel] || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300') : ''
+  const levelBadge = hit.knowledgeLevel ? LEVEL_BADGE[hit.knowledgeLevel] : undefined
+  const levelStyle = levelBadge?.style || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
@@ -109,7 +113,8 @@ export function ResultCard({ hit }: { hit: Hit }) {
 
         <div className="flex flex-wrap gap-1 mb-2">
           {hit.knowledgeLevel && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelStyle}`}>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
+              {levelBadge && <levelBadge.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
               {stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
