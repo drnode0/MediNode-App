@@ -224,6 +224,11 @@ export function AccountButton() {
               >
                 {signingOut ? 'ログアウト中...' : 'ログアウト'}
               </button>
+              {/* ログアウト＝アカウント連携を切るだけで、端末の設定・検索はそのまま。
+                  共有端末で「設定ごと消したい」人は完全削除へ誘導する（挙動を明文化して迷いを防ぐ）。 */}
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                ログアウトしても、この端末の設定と検索はそのまま使えます（端末間の引き継ぎが止まるだけ）。共有端末などで設定ごと消したい場合は、設定 → 「設定を完全に削除する」を使ってください。
+              </p>
             </div>
           </div>,
           document.body,
