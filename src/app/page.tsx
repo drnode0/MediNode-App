@@ -2767,8 +2767,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               >
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><Gift className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">プレミアム体験の記事（note）</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">14日間の無料トライアルコードの入手と使い方</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">これがAI時代の勉強術 ー集中治療医が実践する知識の育て方ー</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">作者のnote記事。プレミアム体験の無料コード（14日間）付き</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
