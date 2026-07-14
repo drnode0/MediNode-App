@@ -54,6 +54,7 @@ import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanne
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
@@ -2819,7 +2820,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><HelpCircle className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">エラーの対処法・診断ツール</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">使い方FAQの検索・エラーの対処法・診断ツール</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
@@ -3125,6 +3126,8 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
+              {/* ガイド同梱のFAQ検索。「Notionの長いガイドから探す」をアプリ内で完結させる */}
+              <HelpFaq />
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Star className="h-4 w-4 shrink-0" />プレミアムとは？</h3>
                 <div className="text-xs bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 text-gray-700 dark:text-gray-300 space-y-1.5 leading-relaxed">
