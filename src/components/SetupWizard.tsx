@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info } from 'lucide-react'
 import { Spinner } from './Spinner'
-import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, type AppSettings } from '@/lib/settings'
+import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
@@ -688,6 +688,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // 'register-first' = 「はじめて使う方」直後の早期登録（成功で start へ進むだけ。保存・完了はしない）。
   //                    これにより以降の options でトライアルコードを入れても未ログイン弾き(login_required)が起きない。
   const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-first'>('restore')
+  // 'restore' ログイン成功後、サーバー設定の取得〜完了判定までの間の表示用。
+  const [restoring, setRestoring] = useState(false)
   // optionsステップに直行した場合はプレミアムセクションを自動展開
   const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
@@ -2152,6 +2154,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         </p>
       </div>
 
+      {/* restore ログイン直後：サーバー設定の取得〜完了判定までの待ち表示 */}
+      {restoring && (
+        <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center px-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl px-6 py-5 shadow-xl flex items-center gap-3">
+            <Spinner className="w-5 h-5 text-brand-600 dark:text-brand-300" />
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">保存済みの設定を確認しています...</p>
+          </div>
+        </div>
+      )}
+
       {/* ログイン誘導モーダル。用途で挙動を切り替える。
           - restore: 既存アカウントの設定復元（成功で同期復元 → 完了）
           - register: 新規が設定完了後に行うアカウント登録（成功で設定保存 → 完了） */}
@@ -2174,9 +2186,37 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               setShowLogin(false)
               return
             }
-            // restore はサーバー保存済み設定が AuthProvider 経由で復元される（未同期の瞬間があるためガードしない）。
-            clearDraft()
-            onComplete()
+            // restore: サーバー保存済み設定をこの場で取得・復元してから完了判定する。
+            // 以前は SettingsSync の非同期復元に任せて即 onComplete していたため、
+            // サーバーに設定が無いアカウント（登録だけして離脱・別メールでログイン等）だと
+            // 空設定のままホームへ抜け、「パワーモードの追加設定が必要です」画面で
+            // 立ち往生していた（モニター報告のエラーの正体）。
+            setShowLogin(false)
+            setRestoring(true)
+            void (async () => {
+              try {
+                const res = await fetch('/api/user-settings', { cache: 'no-store' })
+                const data = await res.json()
+                if (data?.settings) {
+                  // サーバーを優先しつつ、ローカルの非空項目は温存（SettingsSyncと同じ流儀）。
+                  const merged = mergeSettings(data.settings as AppSettings, getSettings()) as AppSettings
+                  saveSettings(merged, { skipServer: true })
+                  if (data.updatedAt) setSettingsUpdatedAt(data.updatedAt)
+                }
+              } catch {
+                // 取得失敗時は下の isSetupComplete 判定に委ねる（ローカルに設定があればそのまま入れる）。
+              }
+              setRestoring(false)
+              if (isSetupComplete()) {
+                clearDraft()
+                onComplete()
+              } else {
+                // 復元できる設定が無い＝実質はじめての利用。ホームへ抜けさせず、
+                // ログイン済みのままセットアップを続けてもらう。
+                setError('このアカウントに保存済みの設定はまだありませんでした。ログインは完了しているので、このままセットアップを進めてください。')
+                setStep('start')
+              }
+            })()
           }}
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
