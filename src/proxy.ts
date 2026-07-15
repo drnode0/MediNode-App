@@ -11,9 +11,24 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { REQUIRE_LOGIN_COOKIE } from '@/lib/login-policy'
 
 // ログイン必須フラグ。明示的に 'true' のときだけ有効。
 const REQUIRE_LOGIN = process.env.REQUIRE_LOGIN === 'true'
+
+// REQUIRE_LOGIN の現在値をクライアントへ伝える cookie を全ページ応答に載せる。
+// トップ（'/'）は公開のためサーバー側では止められず、「設定済み端末×未ログイン」を
+// ホームに着地させない判定はクライアント（page.tsx）が この cookie を見て行う。
+// PWAはService Workerキャッシュから起動することがあるため、セッションcookieではなく
+// 30日持たせる（フラグ切替は次のネットワーク経由のページ表示で自然に追従する）。
+function withPolicyCookie(res: NextResponse): NextResponse {
+  res.cookies.set(REQUIRE_LOGIN_COOKIE, REQUIRE_LOGIN ? '1' : '0', {
+    path: '/',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  })
+  return res
+}
 
 // REQUIRE_LOGIN 有効時でもログイン無しでアクセスを許可するパス。
 // /login 自身・認証コールバック・法務ページ等（無限リダイレクト防止＆規約閲覧の確保）。
@@ -41,7 +56,7 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   // 環境変数が無い場合は何もしない（ローカルで未設定でもアプリが落ちないように）。
-  if (!url || !anonKey) return response
+  if (!url || !anonKey) return withPolicyCookie(response)
 
   // セッションCookieの有無（未ログイン判定にも、後段のセッション更新スキップにも使う）。
   const hasAuthCookie = request.cookies
@@ -65,7 +80,7 @@ export async function proxy(request: NextRequest) {
   // Supabase認証サーバーへの問い合わせ（getUser）を丸ごとスキップする。
   // モニター期間中は未ログインの初回アクセスが大半なので、初回表示の遅延を大きく減らせる。
   // （hasAuthCookie は上部で算出済み）
-  if (!hasAuthCookie) return response
+  if (!hasAuthCookie) return withPolicyCookie(response)
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
@@ -85,7 +100,7 @@ export async function proxy(request: NextRequest) {
   // セッションを更新（getUser を呼ぶとトークンのリフレッシュが走る）。
   await supabase.auth.getUser()
 
-  return response
+  return withPolicyCookie(response)
 }
 
 export const config = {

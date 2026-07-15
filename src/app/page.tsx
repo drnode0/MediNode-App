@@ -21,6 +21,7 @@ import {
   hasSubscriptionConfig,
 } from '@/lib/algolia'
 import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
+import { isLoginRequiredByServer } from '@/lib/login-policy'
 import { SearchBox } from '@/components/SearchBox'
 import { Spinner } from '@/components/Spinner'
 import { SkeletonCards } from '@/components/SkeletonCards'
@@ -3427,7 +3428,7 @@ export default function Home() {
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   // ログイン済みで端末に設定が無いとき、SettingsSync の復元チェックが決着するまで
   // セットアップ入口を出さない（入口が一瞬見えて復元リロードでホームへ飛ぶ現象の防止）。
-  const { configured: authConfigured, user: authUser } = useAuth()
+  const { configured: authConfigured, user: authUser, loading: authLoading } = useAuth()
   const [syncSettled, setSyncSettled] = useState(() => isSettingsSyncSettled())
   useEffect(() => {
     if (syncSettled) return
@@ -3634,6 +3635,17 @@ export default function Home() {
   if (!settings) {
     return <SetupWizard onComplete={() => { setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }} onShowOnboarding={() => setShowOnboardingFromSetup(true)} initialStep="entry" />
   }
+
+  // ログイン必須モード（REQUIRE_LOGIN=true・proxyがcookieで通知）では、設定済み端末でも
+  // 未ログインならホームを見せず /login ゲートへ送る。トップはセットアップのため公開して
+  // いるので、ここ（設定済み×未ログイン）だけがすり抜ける。全APIがログイン必須で何も
+  // 表示できないガワだけのホームに着地させない。オンボーディング・セットアップ動線
+  // （上の分岐で処理済み）とモニター期（cookie=0）には影響しない。
+  if (isLoginRequiredByServer() && authConfigured && (authLoading || !authUser)) {
+    if (!authLoading && typeof window !== 'undefined') window.location.replace('/login')
+    return <AppSkeleton />
+  }
+
   const searchMode = settings?.searchMode || 'algolia'
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
   // プレミアム判定はキーの有無だけでなくトライアル期限切れも考慮する。
