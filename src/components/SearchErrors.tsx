@@ -3,9 +3,10 @@
 // 検索系のエラー表示（page.tsx から分割）。
 // 生の英語APIエラーを対処つき日本語に変換し、設定パネルへの導線を出す。
 
-import { createContext, useContext } from 'react'
-import { AlertTriangle, Settings } from 'lucide-react'
+import { createContext, useContext, useState } from 'react'
+import { AlertTriangle, LogIn, Settings } from 'lucide-react'
 import { useInstantSearch } from 'react-instantsearch'
+import { LoginModal } from '@/components/auth/LoginModal'
 
 // 設定パネルのセクション識別子（SettingsPanel と共有）。
 export type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | 'display' | 'help' | 'announcements' | 'reset-confirm' | 'setup-redo'
@@ -16,11 +17,11 @@ export type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | '
 export const OpenSettingsContext = createContext<((section?: SettingsPanelSection) => void) | null>(null)
 
 // Notion API等の生エラー（英語）を、対処つきの日本語メッセージへ変換する。
-// action: 'settings' はエラー表示に「⚙️ 接続設定を確認する」ボタンを出す。
+// action: 'settings' は「接続設定を確認する」、'login' は「ログインする」ボタンを出す。
 export function humanizeSearchError(raw: string): {
   message: string
   hint: string | null
-  action: 'settings' | null
+  action: 'settings' | 'login' | null
 } {
   const msg = raw || ''
   if (/API token is invalid|invalid_token|unauthorized|401/i.test(msg)) {
@@ -47,8 +48,8 @@ export function humanizeSearchError(raw: string): {
   if (/login_required/.test(msg)) {
     return {
       message: 'ログインが必要です',
-      hint: '画面右上の「ログイン」からログインし直してください',
-      action: null,
+      hint: 'ログインし直すと、そのまま続きから使えます',
+      action: 'login',
     }
   }
   if (/rate.?limit|429|Too Many/i.test(msg)) {
@@ -70,8 +71,11 @@ export function humanizeSearchError(raw: string): {
 }
 
 // 検索系タブ共通のエラー表示。日本語の対処メッセージ＋接続設定への導線。
+// login_required はその場で LoginModal を開き、成功後は再読み込みで
+// 全タブのデータ取得をやり直す（フックはログイン状態を監視していないため）。
 export function SearchErrorNotice({ error }: { error: string }) {
   const openSettings = useContext(OpenSettingsContext)
+  const [showLogin, setShowLogin] = useState(false)
   const { message, hint, action } = humanizeSearchError(error)
   return (
     <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 space-y-2">
@@ -84,6 +88,20 @@ export function SearchErrorNotice({ error }: { error: string }) {
         >
           <Settings className="inline-block h-4 w-4 align-text-bottom mr-1" />接続設定を確認する
         </button>
+      )}
+      {action === 'login' && (
+        <button
+          onClick={() => setShowLogin(true)}
+          className="text-xs font-semibold bg-white dark:bg-gray-800 text-red-600 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+        >
+          <LogIn className="inline-block h-4 w-4 align-text-bottom mr-1" />ログインする
+        </button>
+      )}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onSuccess={() => window.location.reload()}
+        />
       )}
     </div>
   )

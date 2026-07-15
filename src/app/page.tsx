@@ -1543,7 +1543,7 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
   if (loading) return <>{ownerTabs}<SkeletonCards /></>
-  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+  if (error) return <>{ownerTabs}<SearchErrorNotice error={error} /></>
   if (merged.length === 0) return (
     <>
       {ownerTabs}
@@ -1639,7 +1639,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
   if (loading) return <>{ownerTabs}<SkeletonCards /></>
-  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+  if (error) return <>{ownerTabs}<SearchErrorNotice error={error} /></>
   if (quizCandidates.length === 0) return (
     <>
       {ownerTabs}
@@ -2182,7 +2182,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
   if (loading) return <>{ownerTabs}<SkeletonCards /></>
-  if (error) return <>{ownerTabs}<div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600">{error}</div></>
+  if (error) return <>{ownerTabs}<SearchErrorNotice error={error} /></>
 
   return (
     <>
