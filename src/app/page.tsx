@@ -31,6 +31,7 @@ import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
+import { StudyNoteCard } from '@/components/StudyNoteCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { GenreBrowse, genreChipTone, GenreHitsList } from '@/components/GenreBrowse'
 
@@ -463,6 +464,7 @@ function QuizHits() {
         {shuffled.map((hit, i) => (
           <QuizCard key={hit.objectID} hit={hit} index={i} />
         ))}
+        <StudyNoteCard />
       </div>
     </div>
   )
@@ -932,6 +934,7 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
               </div>
               <div className="space-y-3">
                 {shuffled.map((hit, i) => <QuizCard key={hit.objectID} hit={hit} index={i} />)}
+                <StudyNoteCard />
               </div>
             </div>
           )}
