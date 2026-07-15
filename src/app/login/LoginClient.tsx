@@ -165,7 +165,7 @@ export function LoginClient() {
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          メールに届く6桁コードでログインできます。パスワードを設定済みの方は、パスワードでもログインできます。
+          はじめての方も、メールアドレスだけで始められます（届く6桁コードで認証・アカウントは自動作成）。パスワードを設定済みの方はパスワードでも。
         </p>
       </div>
 

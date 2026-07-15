@@ -876,6 +876,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       })
       const data = await res.json()
       if (!res.ok) {
+        // ログイン必須運用（REQUIRE_LOGIN）でセッションが切れている場合の親切表示。
+        // 本来はログイン後にセットアップへ来る導線だが、セッション期限切れ等に備える。
+        if (res.status === 401 || data.error === 'login_required') {
+          setError('接続テストにはログインが必要です。画面を再読み込みしてログインし直してから、もう一度お試しください。')
+          return
+        }
         // parseErrorMessage は同期ステップと共用のため「← 戻る」で戻る前提の文面。
         // ここは既にNotion入力画面なので、その場で直せる表現に読み替える。
         setError(parseErrorMessage(data.error || '').replace(/「← 戻る」で「Notion」の入力画面に戻り、/g, 'この画面で'))
