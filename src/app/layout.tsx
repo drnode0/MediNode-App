@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { PremiumSync } from '@/components/auth/PremiumSync'
 import { SettingsSync } from '@/components/auth/SettingsSync'
+import { UsagePing } from '@/components/auth/UsagePing'
 import { AuthNotice } from '@/components/auth/AuthNotice'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
@@ -114,6 +115,7 @@ export default function RootLayout({
         <AuthProvider>
           <PremiumSync />
           <SettingsSync />
+          <UsagePing />
           <AuthNotice />
           {children}
         </AuthProvider>
