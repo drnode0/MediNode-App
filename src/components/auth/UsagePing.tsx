@@ -24,7 +24,12 @@ export function UsagePing() {
     }
 
     fetch('/api/usage/ping', { method: 'POST' })
-      .then(() => {
+      .then(async (res) => {
+        // サーバーが実際に記録できたときだけ「今日は送信済み」の印を残す。
+        // 失敗（テーブル未作成・一時エラー等）で印を残すと、その日はもう再試行されず
+        // 記録が丸1日抜けてしまう。
+        const data = (await res.json().catch(() => null)) as { ok?: boolean } | null
+        if (!data?.ok) return
         try {
           localStorage.setItem(STORAGE_KEY, mark)
         } catch {
