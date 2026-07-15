@@ -55,6 +55,18 @@ export async function GET() {
       (settings ?? []).map((s) => [s.user_id as string, s.updated_at as string | null]),
     )
 
+    // 最終利用日（app_usage.last_used_at）。アプリを開くと1日1回記録される（/api/usage/ping）。
+    // マイグレーション 0004 未適用の環境ではテーブルが無いので、失敗しても列を「—」にして続行する。
+    const usageByUser = new Map<string, string | null>()
+    try {
+      const { data: usage } = await admin.from('app_usage').select('user_id, last_used_at')
+      for (const u of usage ?? []) {
+        usageByUser.set(u.user_id as string, (u.last_used_at as string | null) ?? null)
+      }
+    } catch {
+      // テーブル未作成なら全員「—」のまま。
+    }
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -84,6 +96,7 @@ export async function GET() {
           trialEndsAt: summary?.trial_ends_at ?? null,
           subUpdatedAt: (s?.updated_at as string | undefined) ?? null,
           settingsUpdatedAt: settingsByUser.get(u.id) ?? null,
+          lastUsedAt: usageByUser.get(u.id) ?? null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))

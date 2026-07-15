@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Check,
   Copy,
+  CreditCard,
   Crown,
   Download,
   Gift,
@@ -37,6 +38,7 @@ type LedgerRow = {
   trialEndsAt: string | null
   subUpdatedAt: string | null
   settingsUpdatedAt: string | null
+  lastUsedAt: string | null
 }
 
 // 区分バッジの見た目。優先度の高い順（画面の並び・集計チップもこの順）。
@@ -44,6 +46,7 @@ const KIND_STYLE: Record<MemberKind, { badge: string; icon: typeof Crown }> = {
   admin: { badge: 'bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200', icon: ShieldCheck },
   comp: { badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200', icon: Gift },
   premium: { badge: 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300', icon: Crown },
+  stripe_trial: { badge: 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200', icon: CreditCard },
   trial: { badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200', icon: Hourglass },
   expired: { badge: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
   free: { badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Users },
@@ -162,7 +165,7 @@ export function AdminLedgerClient() {
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
-    const header = ['メール', '区分', '期限', '登録日', '最終ログイン', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
@@ -170,6 +173,7 @@ export function AdminLedgerClient() {
         csvCell(r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)),
         csvCell(fmtDate(r.createdAt)),
         csvCell(fmtDate(r.lastSignInAt)),
+        csvCell(fmtDate(r.lastUsedAt)),
         csvCell(fmtDate(r.settingsUpdatedAt)),
         csvCell(r.userId),
       ].join(','),
@@ -199,7 +203,7 @@ export function AdminLedgerClient() {
   }, [rows, query])
 
   const counts = useMemo(() => {
-    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, trial: 0, expired: 0, free: 0 }
+    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, expired: 0, free: 0 }
     for (const r of rows ?? []) c[r.kind]++
     return c
   }, [rows])
@@ -327,6 +331,7 @@ export function AdminLedgerClient() {
                     <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">最終利用</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">設定同期</th>
                     <th className="px-4 py-3 font-medium">操作</th>
                   </tr>
@@ -379,6 +384,9 @@ export function AdminLedgerClient() {
                           {fmtDate(r.lastSignInAt)}
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                          {fmtDate(r.lastUsedAt)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                           {fmtDate(r.settingsUpdatedAt)}
                         </td>
                         <td className="px-4 py-3">
@@ -419,7 +427,7 @@ export function AdminLedgerClient() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
                       </td>
                     </tr>
@@ -430,10 +438,12 @@ export function AdminLedgerClient() {
 
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
               区分 — 管理者: COMP_ADMIN_EMAILS のメール（常時無料）／永続無料: 招待コードまたはこの画面で付与（取り消し可）／
-              トライアル中: 期限付きコードで付与（期限で自動失効・取り消し可）／プレミアム: Stripe契約。
+              サブスク中: Stripeで課金中／トライアル中（カード登録）: Stripeの無料期間中（終了後は自動で課金開始）／
+              トライアル中（無料コード）: カード登録なし・期限で自動失効（取り消し可）。
               <br />
-              最終ログイン: 6桁コードやパスワードでログインが成立した日（検索などの利用では動きません）。
-              設定同期: 設定がサーバーに保存された最後の日（設定変更・別端末での復元時など。利用のおおまかな目安）。
+              最終ログイン: 6桁コードやパスワードでログインが成立した日（ログインしたままの端末では動きません）。
+              最終利用: ログイン中のユーザーがアプリを開いた日（1日1回記録・機能追加後の利用から）。
+              設定同期: 設定がサーバーに保存された最後の日。
             </p>
           </>
         )}

@@ -37,11 +37,26 @@ describe('deriveMemberKind', () => {
     expect(deriveMemberKind(false, sub({ plan: 'trial', status: 'canceled' }), NOW)).toBe('expired')
   })
 
-  it('Stripe 契約は premium（plan か customer 紐づけのどちらでも）', () => {
+  it('Stripe 課金中は premium（plan か customer 紐づけのどちらでも）', () => {
     expect(deriveMemberKind(false, sub({ plan: 'premium', status: 'active' }), NOW)).toBe('premium')
     expect(
       deriveMemberKind(false, sub({ status: 'active', stripe_customer_id: 'cus_123' }), NOW),
     ).toBe('premium')
+  })
+
+  it('Stripe のカード登録トライアル期間中は stripe_trial（無料コードの trial と区別）', () => {
+    expect(deriveMemberKind(false, sub({ plan: 'premium', status: 'trialing' }), NOW)).toBe('stripe_trial')
+    expect(
+      deriveMemberKind(false, sub({ status: 'trialing', stripe_customer_id: 'cus_123' }), NOW),
+    ).toBe('stripe_trial')
+    // Stripe トライアルでも trial_ends_at が過ぎていれば expired。
+    expect(
+      deriveMemberKind(
+        false,
+        sub({ plan: 'premium', status: 'trialing', trial_ends_at: '2026-07-01T00:00:00Z', stripe_customer_id: 'cus_123' }),
+        NOW,
+      ),
+    ).toBe('expired')
   })
 
   it('plan 不明の active 行は安全側で premium 扱い', () => {
