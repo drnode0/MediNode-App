@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom'
 import { useAuth } from './AuthProvider'
 import { LoginModal } from './LoginModal'
 import { createClient } from '@/lib/supabase/client'
-import { clearSettings } from '@/lib/settings'
+import { clearSettings, getSettings, mergeSettings, type AppSettings } from '@/lib/settings'
 
 // パスワードの設定・変更モーダル。
 // ログインは従来どおりメール（6桁コード／リンク）が基本で、パスワードは
@@ -135,12 +135,40 @@ export function AccountButton() {
   const [signingOut, setSigningOut] = useState(false)
   // ログアウトは端末のデータを消すため、いきなり実行せず一度確認を挟む。
   const [confirmLogout, setConfirmLogout] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
 
   // ログアウト＝この端末から自分の痕跡を消す。設定・検索履歴を消去して
   // 最初のセットアップ画面に戻す（サーバーに保存済みの設定は再ログインで復元される）。
+  //
+  // 消す前に、端末の設定をサーバーへ確実にバックアップする（マージ保存）。
+  // SettingsSync の自動アップロードは非同期のため、ログイン直後にログアウトすると
+  // ローカル設定が一度もサーバーに乗らないまま消え、「再ログインで復元される」の
+  // 約束が破れる（実例: 2026-07-15 オーナー端末）。バックアップに失敗したら
+  // 何も消さずに中止してエラーを表示する。
   const handleLogout = async () => {
     setSigningOut(true)
+    setLogoutError('')
     try {
+      const local = getSettings()
+      if (local) {
+        // サーバー側の設定と非空優先でマージしてから保存する
+        // （部分的なローカルでサーバーの完全な設定を潰さないため。SettingsSyncと同じ方針）。
+        let merged: AppSettings = local
+        try {
+          const res = await fetch('/api/user-settings', { cache: 'no-store' })
+          const data = await res.json()
+          if (data?.settings) merged = mergeSettings(local, data.settings as AppSettings) as AppSettings
+        } catch {
+          // サーバー設定の取得失敗はローカル全体の保存で続行（保存側の失敗は下で検知）。
+        }
+        const post = await fetch('/api/user-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged),
+          cache: 'no-store',
+        })
+        if (!post.ok) throw new Error('settings_backup_failed')
+      }
       await signOut()
       clearSettings()
       // 検索履歴（医療クエリ）も端末に残さない。
@@ -149,6 +177,7 @@ export function AccountButton() {
       window.location.assign('/')
     } catch {
       // 失敗時は何も消さずログイン状態を維持（安全側）。
+      setLogoutError('設定のバックアップ（サーバー保存）を確認できなかったため、ログアウトを中止しました。通信環境を確認して、もう一度お試しください。')
       setSigningOut(false)
     }
   }
@@ -250,8 +279,11 @@ export function AccountButton() {
                   {/* 忠告（データ消去）＋安心材料（再ログインで復元）をはっきり示してから実行させる。 */}
                   <div className="rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                     <strong>この端末から、設定（Notion接続・Algoliaキー）と検索履歴を消去し、最初のセットアップ画面に戻ります。</strong><br />
-                    もう一度ログインすれば、サーバーに保存された設定は自動で元どおり復元されます。共有端末ではこれで安全に離席できます。
+                    実行前にこの端末の設定をサーバーへ保存するので、もう一度ログインすれば自動で元どおり復元されます。共有端末ではこれで安全に離席できます。
                   </div>
+                  {logoutError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">{logoutError}</p>
+                  )}
                   <button
                     onClick={handleLogout}
                     disabled={signingOut}
