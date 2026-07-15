@@ -6,6 +6,7 @@ import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
+import AlgoliaKeyGuide from './AlgoliaKeyGuide'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
@@ -694,6 +695,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   // 画面つきガイド（Token作成〜コネクト追加）。null=閉、数値=開始ステップ。
   const [tokenGuideStep, setTokenGuideStep] = useState<number | null>(null)
+  const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   // ログイン誘導（別端末で設定済みの人がログインで復元するため）
   const { user } = useAuth()
@@ -1867,9 +1869,18 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-sm text-brand-700 dark:text-brand-300 space-y-1">
                 <p className="font-semibold">取得方法</p>
                 <p>① <a href="https://www.algolia.com" target="_blank" rel="noopener noreferrer" className="underline">algolia.com</a> でアカウント作成（無料）</p>
-                <p>② ダッシュボード → Settings → API Keys を開く</p>
-                <p>③ App ID / Search-Only API Key / Admin API Key をコピー</p>
+                <p>② ダッシュボードのトップで「API Keys」を開く</p>
+                <p>③ App ID / Search API Key / Admin API Key をコピー</p>
               </div>
+              {/* Notionステップと同じ「画面つきガイド」。Algoliaが初めてでも詰まらないように。 */}
+              <button
+                type="button"
+                onClick={() => setShowAlgoliaGuide(true)}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-brand-300 dark:border-brand-700 bg-white dark:bg-gray-800 py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+              >
+                <KeyRound className="h-4 w-4" />
+                はじめての方へ：画面を見ながら進める
+              </button>
 
               <div className="space-y-4">
                 <div>
@@ -2317,6 +2328,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       {/* Notion接続の画面つきステップガイド（Token作成〜コネクト追加） */}
       {tokenGuideStep !== null && (
         <NotionTokenGuide initialStep={tokenGuideStep} onClose={() => setTokenGuideStep(null)} />
+      )}
+      {showAlgoliaGuide && (
+        <AlgoliaKeyGuide onClose={() => setShowAlgoliaGuide(false)} />
       )}
     </div>
   )

@@ -79,8 +79,8 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     id: 'setup-algolia-keys',
     category: 'セットアップ',
     q: 'Algoliaのキー3つはどこで取得する？（パワーモード）',
-    a: 'algolia.com で無料アカウントを作成し、ダッシュボード → Settings → API Keys から「App ID」「Search-Only API Key」「Admin API Key」をコピーします。Search-OnlyとAdminは別物なので取り違えに注意（Adminは鍵アイコンを押して表示）。',
-    keywords: 'algolia app id search-only admin api key 取得 パワーモード',
+    a: 'algolia.com で無料アカウントを作成し、ダッシュボードのトップで「API Keys」を開いて「Application ID」「Search API Key」「Admin API Key」の3つをコピーします。間の「Write API Key」は使いません（Adminと間違えないよう注意）。セットアップのAlgolia画面にある「はじめての方へ：画面を見ながら進める」を押すと、実際のAlgolia画面のスクショで1枚ずつ確認できます。',
+    keywords: 'algolia app id search admin api key 取得 パワーモード 画面つき ガイド スクショ',
   },
   {
     id: 'setup-props',
