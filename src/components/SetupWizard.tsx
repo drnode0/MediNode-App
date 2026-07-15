@@ -1,12 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info } from 'lucide-react'
+import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
+import SetupVideoModal from './SetupVideoModal'
 import AlgoliaKeyGuide from './AlgoliaKeyGuide'
 import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
@@ -624,6 +625,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   // 画面つきガイド（Token作成〜コネクト追加）。null=閉、数値=開始ステップ。
   const [tokenGuideStep, setTokenGuideStep] = useState<number | null>(null)
+  // セットアップ動画（実機の通し操作）モーダル
+  const [showSetupVideo, setShowSetupVideo] = useState(false)
   const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   // ログイン誘導（別端末で設定済みの人がログインで復元するため）
@@ -1383,6 +1386,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   <BookOpen className="h-4 w-4" />
                   はじめての方へ：画面を見ながら進める
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSetupVideo(true)}
+                  className="mt-1.5 w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 rounded-xl py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                >
+                  <PlayCircle className="h-4 w-4" />
+                  動画で通しで見る（約3分・タップ箇所に赤枠つき）
                 </button>
                 <div className="mt-1.5 space-y-0.5">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -2260,6 +2271,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       {/* Notion接続の画面つきステップガイド（Token作成〜コネクト追加） */}
       {tokenGuideStep !== null && (
         <NotionTokenGuide initialStep={tokenGuideStep} onClose={() => setTokenGuideStep(null)} />
+      )}
+      {showSetupVideo && (
+        <SetupVideoModal onClose={() => setShowSetupVideo(false)} />
       )}
       {showAlgoliaGuide && (
         <AlgoliaKeyGuide onClose={() => setShowAlgoliaGuide(false)} />
