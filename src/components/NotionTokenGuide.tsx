@@ -6,14 +6,36 @@
 // 1枚ずつ見せ、「次へ」で進む。セットアップの入力欄を離れずに確認できる。
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, Link2, CheckCircle2 } from 'lucide-react'
+import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, Link2, CheckCircle2, Smartphone } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { SETUP_GUIDE_URL } from '@/lib/app-links'
 
 // トークン作成（phase: 'token'）と、DBへのコネクト追加（phase: 'connect'）の2部構成。
 // 画像は public/guide/ に同梱（幅1200px・JPEG圧縮済み）。width/heightは
 // レイアウトシフト防止用の実寸。
-const STEPS = [
+//
+// スマホ／パソコンの切り替え（2026-07-15）:
+// 利用者の多くはスマホだが、スクショ素材は現状PC画面のみ。mobileNote に
+// 「スマホではここが違う」を持たせ、スマホ表示のとき本文の下に出す。
+// スマホ実機のスクショが用意でき次第、imgMobile / widthMobile / heightMobile /
+// altMobile を該当ステップに足すだけで画像も切り替わる（コード変更不要）。
+type GuideStep = {
+  phase: 'token' | 'connect'
+  title: string
+  body: string
+  link?: { href: string; label: string }
+  img: string
+  width: number
+  height: number
+  alt: string
+  mobileNote?: string
+  imgMobile?: string
+  widthMobile?: number
+  heightMobile?: number
+  altMobile?: string
+}
+
+const STEPS: GuideStep[] = [
   {
     phase: 'token' as const,
     title: '「コネクト」ページを開く',
@@ -21,6 +43,7 @@ const STEPS = [
     link: { href: 'https://www.notion.so/my-integrations', label: 'notion.so/my-integrations を開く' },
     img: '/guide/token-0.jpg', width: 1200, height: 148,
     alt: 'Notionのコネクト一覧ページ。右上の＋新規コネクトボタンをクリックする',
+    mobileNote: 'このページはNotionアプリではなく、SafariやChromeなどのブラウザで開きます。画面の並びはPCとほぼ同じで、「＋新規コネクト」を探してタップしてください。',
   },
   {
     phase: 'token' as const,
@@ -42,6 +65,7 @@ const STEPS = [
     body: 'DBがページの中に埋め込まれている（インラインDB）場合は、先にフルページで開く必要があります。DBの左にマウスを乗せて出る「⋮⋮」をクリック →「ページとして開く」を選んでください。DBが最初から単独ページで開いている場合は、この手順は不要です。',
     img: '/guide/db-fullpage.jpg', width: 1200, height: 748,
     alt: 'インラインデータベースの左の⋮⋮メニューからページとして開くを選ぶ',
+    mobileNote: 'スマホアプリでは「⋮⋮」が出ないため、DBのタイトル部分をタップするとページとして開けます。',
   },
   {
     phase: 'connect' as const,
@@ -49,6 +73,7 @@ const STEPS = [
     body: 'フルページで開いたDBの右上にある「…（三点メニュー）」をクリックしてください。Reference DBなど他のDBも使う場合は、あとで同じ操作を繰り返します。',
     img: '/guide/token-3.jpg', width: 1200, height: 633,
     alt: 'Notionのデータベースの右上の三点メニューをクリックする',
+    mobileNote: 'スマホアプリでも同じく右上の「…」をタップします。',
   },
   {
     phase: 'connect' as const,
@@ -56,6 +81,7 @@ const STEPS = [
     body: 'メニューの中の「接続」（または「コネクト」）から「接続を追加」を選んでください。',
     img: '/guide/token-4.jpg', width: 1200, height: 633,
     alt: '三点メニューの接続から接続を追加を選ぶ',
+    mobileNote: 'スマホアプリではメニューを下のほうへスクロールすると「接続」が見つかります。',
   },
   {
     phase: 'connect' as const,
@@ -85,9 +111,16 @@ type Props = {
 export default function NotionTokenGuide({ initialStep = 0, onClose }: Props) {
   const [step, setStep] = useState(Math.min(Math.max(initialStep, 0), STEPS.length - 1))
   const [mounted, setMounted] = useState(false)
+  // スマホ／パソコンの表示切り替え。初期値はタッチ端末ならスマホ。
+  const [device, setDevice] = useState<'mobile' | 'pc'>('pc')
 
   useBodyScrollLock()
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    try {
+      if (window.matchMedia('(pointer: coarse)').matches) setDevice('mobile')
+    } catch {}
+  }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -141,7 +174,30 @@ export default function NotionTokenGuide({ initialStep = 0, onClose }: Props) {
 
         {/* 本文（スクロール領域） */}
         <div className="overflow-y-auto p-4 space-y-3">
+          {/* スマホ／パソコンの切り替え。設定に使っている端末に合わせて注記と画像を出し分ける。 */}
+          <div className="flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-gray-700/60 p-1 text-xs font-semibold" role="group" aria-label="設定に使う端末">
+            {([['mobile', 'スマホで設定中'], ['pc', 'パソコンで設定中']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setDevice(key)}
+                aria-pressed={device === key}
+                className={`flex-1 rounded-md py-1.5 transition-colors ${
+                  device === key
+                    ? 'bg-white dark:bg-gray-800 text-brand-700 dark:text-brand-300 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{s.body}</p>
+          {device === 'mobile' && s.mobileNote && (
+            <p className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
+              <Smartphone className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />
+              <strong>スマホでは：</strong>{s.mobileNote}
+            </p>
+          )}
           {s.link && (
             <a
               href={s.link.href}
@@ -156,14 +212,19 @@ export default function NotionTokenGuide({ initialStep = 0, onClose }: Props) {
           <div className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-50 dark:bg-gray-900/40">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={s.img}
-              width={s.width}
-              height={s.height}
-              alt={s.alt}
+              src={device === 'mobile' && s.imgMobile ? s.imgMobile : s.img}
+              width={device === 'mobile' && s.imgMobile ? s.widthMobile : s.width}
+              height={device === 'mobile' && s.imgMobile ? s.heightMobile : s.height}
+              alt={device === 'mobile' && s.imgMobile ? (s.altMobile || s.alt) : s.alt}
               className="w-full h-auto"
               loading="eager"
             />
           </div>
+          {device === 'mobile' && !s.imgMobile && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+              画像はパソコン画面です。スマホでもボタンの名前は同じです。
+            </p>
+          )}
           {isLast && (
             <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-700 dark:text-brand-300">
               <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />

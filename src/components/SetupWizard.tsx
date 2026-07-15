@@ -1281,6 +1281,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
                 ※ メールアドレスだけで始められます（届く6桁コードで認証）。パスワードは後から任意で設定できます。
               </p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
+                ※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定の最後にアカウント登録すると保存されるので、スマホではログインするだけで引き継げます。
+              </p>
             </div>
           )}
 

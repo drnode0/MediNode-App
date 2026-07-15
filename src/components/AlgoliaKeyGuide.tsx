@@ -5,7 +5,7 @@
 // Algolia入力欄で詰まらないよう、実際のAlgolia画面のスクショで案内する。
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, CheckCircle2 } from 'lucide-react'
+import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, CheckCircle2, Smartphone } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { SETUP_GUIDE_URL } from '@/lib/app-links'
 
@@ -33,9 +33,16 @@ type Props = {
 export default function AlgoliaKeyGuide({ onClose }: Props) {
   const [step, setStep] = useState(0)
   const [mounted, setMounted] = useState(false)
+  // タッチ端末ではスマホ向けの補足（画像はPC画面・横向き推奨）を出す。
+  const [isTouch, setIsTouch] = useState(false)
 
   useBodyScrollLock()
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    try {
+      if (window.matchMedia('(pointer: coarse)').matches) setIsTouch(true)
+    } catch {}
+  }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -86,6 +93,12 @@ export default function AlgoliaKeyGuide({ onClose }: Props) {
         {/* 本文（スクロール領域） */}
         <div className="overflow-y-auto p-4 space-y-3">
           <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{s.body}</p>
+          {isTouch && (
+            <p className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
+              <Smartphone className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />
+              <strong>スマホでは：</strong>手順は同じですが、Algoliaの画面はPC向けのため文字が小さめです。見づらいときは画面を横向きにするか、この設定だけパソコンで行うのもおすすめです（画像はPC画面）。
+            </p>
+          )}
           {s.link && (
             <a
               href={s.link.href}
