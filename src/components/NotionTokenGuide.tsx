@@ -17,8 +17,8 @@ import { SETUP_GUIDE_URL } from '@/lib/app-links'
 // スマホ／パソコンの切り替え（2026-07-15）:
 // 利用者の多くはスマホだが、スクショ素材は現状PC画面のみ。mobileNote に
 // 「スマホではここが違う」を持たせ、スマホ表示のとき本文の下に出す。
-// スマホ実機のスクショが用意でき次第、imgMobile / widthMobile / heightMobile /
-// altMobile を該当ステップに足すだけで画像も切り替わる（コード変更不要）。
+// スマホ画像は編集済みセットアップ動画からの切り出し（/guide/m2/・タップ位置の赤枠つき・
+// ステータスバーと字幕帯はクロップ済み）。動画を更新したら同じ手順で切り出し直す。
 type GuideStep = {
   phase: 'token' | 'connect'
   title: string
@@ -42,7 +42,7 @@ const STEPS: GuideStep[] = [
     body: 'Notionにログインした状態で下のリンクを開き、右上の「＋新規コネクト」をクリックしてください。',
     link: { href: 'https://www.notion.so/my-integrations', label: 'notion.so/my-integrations を開く' },
     img: '/guide/token-0.jpg', width: 1200, height: 148,
-    imgMobile: '/guide/m/m-token-0.jpg', widthMobile: 1200, heightMobile: 1174,
+    imgMobile: '/guide/m2/step-1.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホのブラウザで開いたNotionのコネクト一覧ページ。New connectionボタンをタップする',
     alt: 'Notionのコネクト一覧ページ。右上の＋新規コネクトボタンをクリックする',
     mobileNote: 'このページはNotionアプリではなく、SafariやChromeなどのブラウザで開きます。画面の並びはPCとほぼ同じで、「＋新規コネクト」を探してタップしてください。',
@@ -52,7 +52,7 @@ const STEPS: GuideStep[] = [
     title: '名前を付けて作成する',
     body: '名前は自分がわかればOKです（例: MediNode）。「認証方法」は「アクセストークン」を選び、「コネクトを作成」を押してください。',
     img: '/guide/token-1.jpg', width: 1200, height: 1184,
-    imgMobile: '/guide/m/m-token-1.jpg', widthMobile: 1200, heightMobile: 1622,
+    imgMobile: '/guide/m2/step-2.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホでの新規コネクト作成画面。名前を入力しAccess tokenを選ぶ',
     alt: 'Notionの新規コネクト作成画面。名前を入力し、認証方法でアクセストークンを選んで作成する',
   },
@@ -61,7 +61,7 @@ const STEPS: GuideStep[] = [
     title: 'アクセストークンをコピーする',
     body: '作成後の画面にある「アクセストークン」の「表示」→「コピー」を押してください。ntn_ で始まる文字列です。コピーできたら、この画面を閉じてアプリの「コネクトToken」欄に貼り付けてください。',
     img: '/guide/token-2.jpg', width: 1200, height: 1072,
-    imgMobile: '/guide/m/m-token-2.jpg', widthMobile: 1200, heightMobile: 1374,
+    imgMobile: '/guide/m2/step-3.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホでのIntegration token画面。Access tokenを表示してコピーする',
     alt: 'コネクト設定画面のアクセストークン欄。表示してコピーする',
   },
@@ -70,7 +70,7 @@ const STEPS: GuideStep[] = [
     title: 'まず、DBを「フルページ」で開く',
     body: 'DBがページの中に埋め込まれている（インラインDB）場合は、先にフルページで開く必要があります。DBの左にマウスを乗せて出る「⋮⋮」をクリック →「ページとして開く」を選んでください。DBが最初から単独ページで開いている場合は、この手順は不要です。',
     img: '/guide/db-fullpage.jpg', width: 1200, height: 748,
-    imgMobile: '/guide/m/m-db-cards.jpg', widthMobile: 1200, heightMobile: 1642,
+    imgMobile: '/guide/m2/step-4.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホのNotionアプリでテンプレートページ内のDBカードを表示。DBのタイトルをタップするとページとして開く',
     alt: 'インラインデータベースの左の⋮⋮メニューからページとして開くを選ぶ',
     mobileNote: 'スマホアプリでは「⋮⋮」が出ないため、DBのタイトル部分をタップするとページとして開けます。',
@@ -80,7 +80,7 @@ const STEPS: GuideStep[] = [
     title: 'DBの右上「…」をクリックする',
     body: 'フルページで開いたDBの右上にある「…（三点メニュー）」をクリックしてください。Reference DBなど他のDBも使う場合は、あとで同じ操作を繰り返します。',
     img: '/guide/token-3.jpg', width: 1200, height: 633,
-    imgMobile: '/guide/m/m-db-menu.jpg', widthMobile: 1200, heightMobile: 1374,
+    imgMobile: '/guide/m2/step-5.jpg', widthMobile: 1200, heightMobile: 2445,
     altMobile: 'スマホでフルページ表示したDB。右上の三点メニューをタップする',
     alt: 'Notionのデータベースの右上の三点メニューをクリックする',
     mobileNote: 'スマホアプリでも同じく右上の「…」をタップします。',
@@ -90,7 +90,7 @@ const STEPS: GuideStep[] = [
     title: '「接続」→「接続を追加」を選ぶ',
     body: 'メニューの中の「接続」（または「コネクト」）から「接続を追加」を選んでください。',
     img: '/guide/token-4.jpg', width: 1200, height: 633,
-    imgMobile: '/guide/m/m-connect-row.jpg', widthMobile: 1200, heightMobile: 1492,
+    imgMobile: '/guide/m2/step-6.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホの三点メニューを下へスクロールすると「接続」がある',
     alt: '三点メニューの接続から接続を追加を選ぶ',
     mobileNote: 'スマホアプリではメニューを下のほうへスクロールすると「接続」が見つかります。',
@@ -100,7 +100,7 @@ const STEPS: GuideStep[] = [
     title: '作ったコネクトを選ぶ',
     body: 'さきほど名前を付けたコネクト（例: MediNode）を一覧から探してクリックしてください。',
     img: '/guide/token-5.jpg', width: 1200, height: 633,
-    imgMobile: '/guide/m/m-connect-pick.jpg', widthMobile: 1200, heightMobile: 1144,
+    imgMobile: '/guide/m2/step-7.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: '接続先を探す画面で作成したコネクト（MediNode）を選ぶ',
     alt: '接続を追加の一覧から作成したコネクトを選ぶ',
   },
@@ -109,7 +109,7 @@ const STEPS: GuideStep[] = [
     title: '「ページに追加」で接続完了',
     body: '確認画面で「ページに追加」を押せば接続完了です。あとは、コピーしたトークンとDBページのURLをアプリの入力欄に貼り付けるだけです。',
     img: '/guide/token-6.jpg', width: 1200, height: 1314,
-    imgMobile: '/guide/m/m-add-page.jpg', widthMobile: 1200, heightMobile: 1344,
+    imgMobile: '/guide/m2/step-8.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: '確認ダイアログでページに追加をタップして接続完了',
     alt: '確認ダイアログでページに追加を押して接続を完了する',
   },
