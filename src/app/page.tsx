@@ -20,7 +20,7 @@ import {
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
-import { isSetupComplete, clearSettings, getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
+import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { SearchBox } from '@/components/SearchBox'
 import { Spinner } from '@/components/Spinner'
 import { SkeletonCards } from '@/components/SkeletonCards'
@@ -36,6 +36,7 @@ import { SyncPanel } from '@/components/SyncPanel'
 import { PremiumValueProps } from '@/components/PremiumValueProps'
 import { AccountButton } from '@/components/auth/AccountButton'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { isSettingsSyncSettled, onSettingsSyncSettled } from '@/components/auth/SettingsSync'
 import dynamicImport from 'next/dynamic'
 import { AppSkeleton } from '@/components/AppSkeleton'
 
@@ -3424,6 +3425,17 @@ export default function Home() {
   const [, bumpSettingsVersion] = useState(0)
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
+  // ログイン済みで端末に設定が無いとき、SettingsSync の復元チェックが決着するまで
+  // セットアップ入口を出さない（入口が一瞬見えて復元リロードでホームへ飛ぶ現象の防止）。
+  const { configured: authConfigured, user: authUser } = useAuth()
+  const [syncSettled, setSyncSettled] = useState(() => isSettingsSyncSettled())
+  useEffect(() => {
+    if (syncSettled) return
+    const off = onSettingsSyncSettled(() => setSyncSettled(true))
+    // 万一決着イベントが来ない場合の保険（10秒でセットアップ入口を出す）。
+    const failsafe = setTimeout(() => setSyncSettled(true), 10_000)
+    return () => { off(); clearTimeout(failsafe) }
+  }, [syncSettled])
   const [showSettings, setShowSettings] = useState(false)
   // 設定パネルを開くとき最初に表示するセクション（null=トップ一覧）。
   // アカウント(👤)メニューの「プレミアム設定・解約を開く」から 'subscription' で開く。
@@ -3584,6 +3596,21 @@ export default function Home() {
   if (setupDone === null || onboardingDone === null) {
     // JS到着前からサーバーHTMLとして描画される骨格。実画面と同寸なので切替時のガタつきもない。
     return <AppSkeleton />
+  }
+
+  // ログイン済みなのに端末へ設定が無い＝サーバーからの復元が走る可能性が高い状態。
+  // SettingsSync の決着（復元→リロード or 設定なし確定）まで、オンボーディングや
+  // セットアップ入口を出さずに確認中表示を出す（一瞬出て消える画面を防ぐ）。
+  // ※ 設定やセットアップ入力の途中経過（draft）がこの端末にある場合は掛けない。
+  //   セットアップ最後のアカウント登録でログイン状態になった瞬間にウィザードを
+  //   アンマウントしてしまい、完了処理（設定保存→完了）を巻き込む事故を防ぐため。
+  if (!setupDone && authConfigured && authUser && !syncSettled && !getSettings() && !getDraft()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-white dark:bg-gray-900">
+        <Spinner className="h-6 w-6 text-brand-500" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">保存された設定を確認しています…</p>
+      </div>
+    )
   }
 
   // 初回のみオンボーディング（setupが未完了の場合のみ表示）、またはSetupWizardから「使い方」ボタンで再表示
