@@ -255,11 +255,11 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     keywords: 'トライアル コード 無料 お試し note 14日',
   },
   {
-    id: 'premium-test-pay',
+    id: 'premium-payment-safe',
     category: 'プレミアム',
-    q: 'テスト決済って本当に課金されない？',
-    a: 'されません。画面に🧪テスト決済バナーが出ている間は実際の課金は一切発生せず、テストカード「4242 4242 4242 4242」で動作を試せます。',
-    keywords: 'テスト 決済 課金 カード 4242 stripe',
+    q: '決済は安全？カード情報はどう扱われる？',
+    a: '決済はすべてStripe（世界的な決済サービス）を通じて行われ、カード番号がMediNodeのサーバーに保存されることはありません。カード情報の入力・保管はStripeが安全に管理します。',
+    keywords: '決済 安全 カード 情報 セキュリティ stripe 課金',
   },
   {
     id: 'premium-cancel',
