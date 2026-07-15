@@ -20,11 +20,15 @@ const REQUIRE_LOGIN = process.env.REQUIRE_LOGIN === 'true'
 const PUBLIC_PREFIXES = ['/login', '/auth', '/privacy', '/terms', '/legal']
 
 function isPublicPath(pathname: string): boolean {
-  // ルート（'/'）は未ログインでもオンボーディング＋入口分岐（アカウント有無の選択）を
-  // 見せたいので公開扱い。検索などの実コンテンツはローカル設定が無い未ログイン端末では
-  // そもそも表示されず（クライアント側でオンボーディングを出す）、APIは各自で認証する。
-  // '/' は完全一致のみ許可（startsWith('/') は全パスに該当してしまうため別扱い）。
-  if (pathname === '/') return true
+  // REQUIRE_LOGIN=true のときは、トップ（'/'）も含めて全ページをログイン必須にする。
+  //
+  // 以前は '/' を公開扱い（未ログインでもオンボーディング＋セットアップを見せる）に
+  // していたが、それだとセットアップ途中の「接続テスト」「同期」など代理APIが
+  // REQUIRE_LOGIN で 401(login_required) になり、ログイン前のユーザーが詰まる。
+  // 「ログイン必須」なら順番も「ログイン → オンボーディング → セットアップ」に統一するのが正しい
+  // （ログイン後はセッションがあるので接続テスト・同期が通る。オンボーディングは
+  //  ログイン後の新規アカウントで従来どおり表示される。公開前の紹介はティザーLPが担う）。
+  // モニター期（REQUIRE_LOGIN 未設定）はこのゲート自体が動かないため、従来どおり '/' も見られる。
   return PUBLIC_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   )
