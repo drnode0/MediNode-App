@@ -4,17 +4,22 @@
 //
 // /api/admin/ledger から全ユーザー×契約状態を取得し、
 // 「誰がプレミアムで、誰が永続無料か」を1画面で見渡せるようにする。
-// comp / trial（コードによる無料解放）はこの画面から取り消せる（POST /api/premium/comp）。
+// - comp / trial（コードによる無料解放）はこの画面から取り消せる（POST /api/premium/comp）
+// - 無料のユーザーへは、コードを渡さずにその場で永続無料を付与できる（POST /api/admin/ledger）
 // 認可はサーバー側（requireAdmin）が行い、この画面は結果を表示するだけ。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Check,
+  Copy,
   Crown,
+  Download,
   Gift,
   Hourglass,
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Users,
   XCircle,
 } from 'lucide-react'
@@ -31,6 +36,7 @@ type LedgerRow = {
   status: string | null
   trialEndsAt: string | null
   subUpdatedAt: string | null
+  settingsUpdatedAt: string | null
 }
 
 // 区分バッジの見た目。優先度の高い順（画面の並び・集計チップもこの順）。
@@ -48,12 +54,19 @@ function fmtDate(iso: string | null): string {
   return iso.slice(0, 10)
 }
 
+// CSVの1セル。カンマ・引用符・改行を含んでも壊れないようにする。
+function csvCell(v: string | null): string {
+  const s = v ?? ''
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  const [revoking, setRevoking] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
+  const [copied, setCopied] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -90,7 +103,7 @@ export function AdminLedgerClient() {
         `${row.email ?? row.userId} の「${label}」を取り消しますか？\n（取り消すと通常の無料利用に戻ります。この操作で行は消えず、履歴として残ります）`,
       )
       if (!ok) return
-      setRevoking(row.userId)
+      setBusy(row.userId)
       try {
         const res = await fetch('/api/premium/comp', {
           method: 'POST',
@@ -103,11 +116,75 @@ export function AdminLedgerClient() {
       } catch (err) {
         window.alert(err instanceof Error ? err.message : '取り消しに失敗しました')
       } finally {
-        setRevoking(null)
+        setBusy(null)
       }
     },
     [load],
   )
+
+  // 永続無料（comp）をその場で付与。招待コードを渡す必要がない。
+  const grant = useCallback(
+    async (row: LedgerRow) => {
+      const ok = window.confirm(
+        `${row.email ?? row.userId} に「永続無料（プレミアム）」を付与しますか？\n（期限なしでプレミアム検索が使えるようになります。あとからこの画面で取り消せます）`,
+      )
+      if (!ok) return
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || '付与に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '付与に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
+  // ユーザーID（Supabaseの内部ID）をコピー。画面には出さず、必要なときだけ取り出す。
+  const copyId = useCallback(async (row: LedgerRow) => {
+    try {
+      await navigator.clipboard.writeText(row.userId)
+      setCopied(row.userId)
+      window.setTimeout(() => setCopied((c) => (c === row.userId ? null : c)), 1500)
+    } catch {
+      window.prompt('コピーできませんでした。このIDを選択してコピーしてください', row.userId)
+    }
+  }, [])
+
+  // CSVダウンロード（棚卸し・バックアップ用）。
+  const downloadCsv = useCallback(() => {
+    if (!rows) return
+    const header = ['メール', '区分', '期限', '登録日', '最終ログイン', '設定同期', 'ユーザーID']
+    const lines = rows.map((r) =>
+      [
+        csvCell(r.email),
+        csvCell(MEMBER_KIND_LABEL[r.kind]),
+        csvCell(r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)),
+        csvCell(fmtDate(r.createdAt)),
+        csvCell(fmtDate(r.lastSignInAt)),
+        csvCell(fmtDate(r.settingsUpdatedAt)),
+        csvCell(r.userId),
+      ].join(','),
+    )
+    // BOM付きUTF-8（Excelで文字化けさせない）。
+    const blob = new Blob(['﻿' + [header.join(','), ...lines].join('\r\n')], {
+      type: 'text/csv;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `medinode-accounts-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [rows])
 
   const filtered = useMemo(() => {
     if (!rows) return []
@@ -127,6 +204,13 @@ export function AdminLedgerClient() {
     return c
   }, [rows])
 
+  // 直近7日の新規登録数（登録の勢いをチップで一目に）。
+  const newLast7d = useMemo(() => {
+    if (!rows) return 0
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return rows.filter((r) => r.createdAt && new Date(r.createdAt).getTime() >= cutoff).length
+  }, [rows])
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
       <div className="max-w-5xl mx-auto">
@@ -135,15 +219,26 @@ export function AdminLedgerClient() {
             <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" aria-hidden />
             アカウント台帳
           </h1>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-            更新
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={downloadCsv}
+              disabled={loading || !rows}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" aria-hidden />
+              CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+              更新
+            </button>
+          </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           登録ユーザーと契約状態の一覧です（管理者のみ閲覧できます）
@@ -185,6 +280,12 @@ export function AdminLedgerClient() {
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
                 登録 {rows.length}人
               </span>
+              {newLast7d > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-white dark:bg-gray-800 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300">
+                  <Sparkles className="w-3.5 h-3.5" aria-hidden />
+                  直近7日の新規 {newLast7d}人
+                </span>
+              )}
               {(Object.keys(KIND_STYLE) as MemberKind[])
                 .filter((k) => counts[k] > 0)
                 .map((k) => {
@@ -226,6 +327,7 @@ export function AdminLedgerClient() {
                     <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">設定同期</th>
                     <th className="px-4 py-3 font-medium">操作</th>
                   </tr>
                 </thead>
@@ -233,17 +335,30 @@ export function AdminLedgerClient() {
                   {filtered.map((r) => {
                     const Icon = KIND_STYLE[r.kind].icon
                     const canRevoke = r.kind === 'comp' || r.kind === 'trial'
+                    const canGrant = r.kind === 'free' || r.kind === 'expired'
                     return (
                       <tr
                         key={r.userId}
                         className="border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
                       >
                         <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
-                          <div className="max-w-[240px] truncate" title={r.email ?? r.userId}>
-                            {r.email ?? '（メール不明）'}
-                          </div>
-                          <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate max-w-[240px]" title={r.userId}>
-                            {r.userId}
+                          <div className="flex items-center gap-1.5">
+                            <span className="max-w-[240px] truncate" title={r.email ?? undefined}>
+                              {r.email ?? '（メール不明）'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void copyId(r)}
+                              title={`ユーザーIDをコピー: ${r.userId}`}
+                              aria-label="ユーザーIDをコピー"
+                              className="shrink-0 p-1 rounded text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400"
+                            >
+                              {copied === r.userId ? (
+                                <Check className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" aria-hidden />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" aria-hidden />
+                              )}
+                            </button>
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -263,20 +378,37 @@ export function AdminLedgerClient() {
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                           {fmtDate(r.lastSignInAt)}
                         </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                          {fmtDate(r.settingsUpdatedAt)}
+                        </td>
                         <td className="px-4 py-3">
                           {canRevoke ? (
                             <button
                               type="button"
                               onClick={() => void revoke(r)}
-                              disabled={revoking === r.userId}
+                              disabled={busy === r.userId}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 whitespace-nowrap"
                             >
-                              {revoking === r.userId ? (
+                              {busy === r.userId ? (
                                 <Spinner className="w-3 h-3" />
                               ) : (
                                 <XCircle className="w-3.5 h-3.5" aria-hidden />
                               )}
                               取り消す
+                            </button>
+                          ) : canGrant ? (
+                            <button
+                              type="button"
+                              onClick={() => void grant(r)}
+                              disabled={busy === r.userId}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {busy === r.userId ? (
+                                <Spinner className="w-3 h-3" />
+                              ) : (
+                                <Gift className="w-3.5 h-3.5" aria-hidden />
+                              )}
+                              永続無料を付与
                             </button>
                           ) : (
                             <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
@@ -287,7 +419,7 @@ export function AdminLedgerClient() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
                       </td>
                     </tr>
@@ -297,8 +429,11 @@ export function AdminLedgerClient() {
             </div>
 
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-              区分の内訳 — 管理者: COMP_ADMIN_EMAILS のメール（常時無料）／永続無料: 招待コードで付与（取り消し可）／
+              区分 — 管理者: COMP_ADMIN_EMAILS のメール（常時無料）／永続無料: 招待コードまたはこの画面で付与（取り消し可）／
               トライアル中: 期限付きコードで付与（期限で自動失効・取り消し可）／プレミアム: Stripe契約。
+              <br />
+              最終ログイン: 6桁コードやパスワードでログインが成立した日（検索などの利用では動きません）。
+              設定同期: 設定がサーバーに保存された最後の日（設定変更・別端末での復元時など。利用のおおまかな目安）。
             </p>
           </>
         )}

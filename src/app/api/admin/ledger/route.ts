@@ -3,13 +3,18 @@
 //   GET /api/admin/ledger
 //     … 全登録ユーザー（auth.users）と契約状態（subscriptions）を突き合わせ、
 //       「誰がプレミアムで、誰が永続無料か」を1行1ユーザーで返す。/admin 画面のデータ源。
+//   POST /api/admin/ledger
+//     … 指定ユーザーへ永続無料（comp）をその場で付与する。Body: { userId }
+//       招待コードを渡さなくても、台帳から特定の人だけを解放できる。
+//       取り消しは従来どおり POST /api/premium/comp（revoke）。
 //
 // アクセス制御: requireAdmin（ログイン必須＋COMP_ADMIN_EMAILS のみ）。
 // service_role でRLSをバイパスして全件を読むため、認可はこのガードが唯一の砦。
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/admin-guard'
+import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
 
 export async function GET() {
@@ -40,6 +45,16 @@ export async function GET() {
 
     const subByUser = new Map((subs ?? []).map((s) => [s.user_id as string, s]))
 
+    // 設定同期の時刻（user_settings.updated_at）。ログインより実際の利用に近い目安として台帳に出す。
+    // 設定を変えた・別端末でログイン復元した等でサーバー保存が走った時刻（検索のたびには動かない）。
+    const { data: settings, error: setErr } = await admin
+      .from('user_settings')
+      .select('user_id, updated_at')
+    if (setErr) throw new Error(`設定同期時刻の取得に失敗: ${setErr.message}`)
+    const settingsByUser = new Map(
+      (settings ?? []).map((s) => [s.user_id as string, s.updated_at as string | null]),
+    )
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -68,11 +83,47 @@ export async function GET() {
           status: summary?.status ?? null,
           trialEndsAt: summary?.trial_ends_at ?? null,
           subUpdatedAt: (s?.updated_at as string | undefined) ?? null,
+          settingsUpdatedAt: settingsByUser.get(u.id) ?? null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 
     return NextResponse.json({ ok: true, count: rows.length, rows })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '不明なエラー'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+// 永続無料（comp）の付与。台帳画面の「永続無料を付与」ボタンから呼ばれる。
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+  try {
+    const { userId } = await req.json()
+    if (!userId || typeof userId !== 'string') {
+      return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    // 実在するユーザーかを確認してから付与する（誤ったIDで幽霊行を作らない）。
+    const admin = createAdminClient()
+    const { data, error } = await admin.auth.admin.getUserById(userId)
+    if (error || !data?.user) {
+      return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+    }
+    // 既にStripe契約の行がある場合は上書きしない（紐づけが切れるのを防ぐ安全弁）。
+    const { data: existing } = await admin
+      .from('subscriptions')
+      .select('stripe_customer_id, status')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (existing?.stripe_customer_id) {
+      return NextResponse.json(
+        { error: 'このユーザーはStripe契約の記録があるため、台帳からは付与できません' },
+        { status: 409 },
+      )
+    }
+    await grantComplimentaryByUserId(userId)
+    return NextResponse.json({ ok: true, userId, plan: 'comp' })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })
