@@ -120,6 +120,12 @@ async function syncMedicalDb(
       const title =
         extractText(props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {})
       if (!title) continue
+      // サブスク（プレミアム）へ移行済みの項目は、オーナー自身の個人インデックスから除外する。
+      // 公開版はプレミアムで配信されるため、自分の検索で二重に出るのを防ぐ。この
+      // 「サブスク移行済」チェックボックスはオーナーのDB固有で、一般ユーザーのDBには
+      // 存在しないため、その場合は除外が発生しない no-op となる。
+      const migratedProp = props['サブスク移行済'] as { checkbox?: boolean } | undefined
+      if (owner === 'personal' && migratedProp?.checkbox === true) continue
       records.push({
         objectID: `${owner}_${page.id}`,
         source: 'medical',
