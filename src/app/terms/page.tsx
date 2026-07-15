@@ -21,7 +21,7 @@ export default function TermsPage() {
           免責事項・利用規約
         </h1>
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-8">
-          最終更新日：2026年6月18日
+          最終更新日：2026年7月16日
         </p>
 
         <div className="space-y-8 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -121,8 +121,10 @@ export default function TermsPage() {
             </h2>
             <ul className="space-y-2 list-disc list-inside">
               <li>
-                本サービスの一部機能のご利用、または将来的に本サービス全体のご利用にあたって、
-                メールアドレスによるアカウント登録・ログインが必要となる場合があります。
+                本サービスの基本機能（検索・閲覧・記録など）は、アカウント登録やログインなしでご利用いただけます。
+              </li>
+              <li>
+                プレミアム機能など一部の機能のご利用にあたっては、メールアドレスによるログインが必要となります。
               </li>
               <li>
                 ログインはパスワードを設定しない方式（メールに送付されるリンクまたは確認コードによる認証）
