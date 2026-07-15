@@ -6,6 +6,7 @@ import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
 import { parseErrorMessage } from '@/lib/connection-errors'
+import { HelpFaq } from './HelpFaq'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import SetupVideoModal from './SetupVideoModal'
 import AlgoliaKeyGuide from './AlgoliaKeyGuide'
@@ -629,6 +630,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [showSetupVideo, setShowSetupVideo] = useState(false)
   const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  // ヘルプパネル内のFAQ検索（設定→ヘルプと同じもの）。ステップ別ヘルプで
+  // 解決しないときの受け皿として、セットアップ中からも引けるようにする。
+  const [showHelpFaq, setShowHelpFaq] = useState(false)
   // ログイン誘導（別端末で設定済みの人がログインで復元するため）
   const { user } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
@@ -1068,6 +1072,20 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto pr-1">
                   {STEP_HELP[step].content}
+                  {/* ステップ別ヘルプで解決しないとき: 設定→ヘルプと同じFAQ検索をその場で */}
+                  <div className="border-t border-gray-100 dark:border-gray-700 mt-4 pt-4">
+                    {showHelpFaq ? (
+                      <HelpFaq />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowHelpFaq(true)}
+                        className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 text-brand-700 dark:text-brand-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                      >
+                        <Compass className="h-4 w-4" />ここで解決しないときは：よくあるエラー・FAQを検索
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
