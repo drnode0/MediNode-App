@@ -14,35 +14,8 @@
 //   2) 個別revoke … このエンドポイントで、すでに付与済みユーザーの comp を取り消す
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { listComplimentary, revokeComplimentaryByUserId } from '@/lib/supabase/subscriptions'
-
-// ログインユーザーがオーナー（COMP_ADMIN_EMAILS）かどうかを判定する。
-async function requireAdmin(): Promise<
-  | { ok: true; email: string }
-  | { ok: false; response: NextResponse }
-> {
-  const supabaseReady = !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
-  if (!supabaseReady) {
-    return { ok: false, response: NextResponse.json({ error: 'サーバー設定が不足しています' }, { status: 500 }) }
-  }
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { ok: false, response: NextResponse.json({ error: 'login_required' }, { status: 401 }) }
-  }
-  const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-  const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
-  if (!isAdmin) {
-    return { ok: false, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
-  }
-  return { ok: true, email: user.email! }
-}
+import { requireAdmin } from '@/lib/admin-guard'
 
 // 棚卸し: comp 一覧を返す。
 export async function GET() {
