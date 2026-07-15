@@ -107,6 +107,8 @@ export const config = {
   matcher: [
     // 静的アセット・画像・API・認証コールバックを除く「ページ表示」リクエストでのみ実行。
     // API（/api/*）は各自で認証を処理するため、ここでのセッション更新は不要（無駄な往復を避ける）。
-    '/((?!_next/static|_next/image|api|auth/confirm|favicon.ico|manifest.json|sw.js|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // mp4 はセットアップ動画（/guide/setup-video.mp4）。未ログインのセットアップ中に再生するため、
+    // 画像と同様にゲート対象から除外する（除外しないと REQUIRE_LOGIN 時に 307 でリダイレクトされ再生不能）。
+    '/((?!_next/static|_next/image|api|auth/confirm|favicon.ico|manifest.json|sw.js|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)',
   ],
 }
