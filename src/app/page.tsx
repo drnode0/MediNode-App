@@ -22,6 +22,7 @@ import {
 } from '@/lib/algolia'
 import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { isLoginRequiredByServer } from '@/lib/login-policy'
+import { LoginGate } from '@/components/LoginGate'
 import { SearchBox } from '@/components/SearchBox'
 import { Spinner } from '@/components/Spinner'
 import { SkeletonCards } from '@/components/SkeletonCards'
@@ -3637,13 +3638,25 @@ export default function Home() {
   }
 
   // ログイン必須モード（REQUIRE_LOGIN=true・proxyがcookieで通知）では、設定済み端末でも
-  // 未ログインならホームを見せず /login ゲートへ送る。トップはセットアップのため公開して
-  // いるので、ここ（設定済み×未ログイン）だけがすり抜ける。全APIがログイン必須で何も
-  // 表示できないガワだけのホームに着地させない。オンボーディング・セットアップ動線
-  // （上の分岐で処理済み）とモニター期（cookie=0）には影響しない。
+  // 未ログインならホームを見せず、全画面のログインゲートを出す。トップはセットアップの
+  // ため公開しているので、ここ（設定済み×未ログイン）だけがすり抜ける。全APIがログイン
+  // 必須で何も表示できないガワだけのホームに着地させない。/loginへのリダイレクトではなく
+  // トップ上で出すのは、はじめての人がオンボーディング→セットアップへ入る導線を
+  // 残すため（リダイレクトだと/loginの「トップページへ」がここに跳ね返されて行き止まり）。
+  // オンボーディング・セットアップ動線（上の分岐で処理済み）とモニター期（cookie=0）には影響しない。
   if (isLoginRequiredByServer() && authConfigured && (authLoading || !authUser)) {
-    if (!authLoading && typeof window !== 'undefined') window.location.replace('/login')
-    return <AppSkeleton />
+    if (authLoading) return <AppSkeleton />
+    return (
+      <LoginGate
+        onStartSetup={() => {
+          // オンボーディングから始めて入口分岐→セットアップへ（初回動線と同じ順序）。
+          // 端末の保存済み設定は消さない（セットアップ完了時に上書きされる）。
+          setSetupInitialStep('entry')
+          setOnboardingDone(false)
+          setSetupDone(false)
+        }}
+      />
+    )
   }
 
   const searchMode = settings?.searchMode || 'algolia'

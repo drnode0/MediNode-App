@@ -334,14 +334,17 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
           </button>
         </div>
 
-        {/* コア最終ページにだけ、第2層への静かな入口 */}
+        {/* コア最終ページにだけ、第2層（詳しい仕組み）への入口。
+            以前は薄いテキストリンクだったが目に入らず押されないため、
+            主ボタンと並ぶセカンダリボタンに格上げ（主従は色の強弱で保つ）。 */}
         {layer === 'core' && isLast && (
           <button
             onClick={() => { setLayer('detail'); setPage(0) }}
-            className="w-full inline-flex items-center justify-center gap-0.5 text-xs text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300 mt-4 py-1 transition-colors"
+            className="w-full mt-3 py-3.5 rounded-2xl text-sm font-semibold text-brand-700 dark:text-brand-300 bg-white dark:bg-gray-800 ring-1 ring-brand-200 dark:ring-brand-700 hover:bg-brand-50 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center gap-1"
           >
+            <Library className="w-4 h-4" />
             Notionとつながる仕組みをのぞく
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         )}
       </div>
