@@ -16,6 +16,28 @@ import {
   type AppSettings,
 } from '@/lib/settings'
 
+// 復元チェックが「決着」したか（復元済み・サーバー設定なし・失敗のいずれか）。
+// ログイン直後にホーム('/')がセットアップ入口を描画してしまい、直後の復元リロードで
+// ホームへ飛ぶ「選ぶ前に画面が消える」現象を防ぐため、page.tsx がこれを見て
+// 決着までローディング表示を出す。モジュール変数＋イベントの最小構成。
+let syncSettled = false
+const SYNC_SETTLED_EVENT = 'medinode-settings-sync-settled'
+
+export function isSettingsSyncSettled(): boolean {
+  return syncSettled
+}
+
+export function onSettingsSyncSettled(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => {}
+  window.addEventListener(SYNC_SETTLED_EVENT, handler)
+  return () => window.removeEventListener(SYNC_SETTLED_EVENT, handler)
+}
+
+function settleSync() {
+  syncSettled = true
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SYNC_SETTLED_EVENT))
+}
+
 export function SettingsSync() {
   const { configured, user, loading } = useAuth()
   const lastSyncedUser = useRef<string | null>(null)
@@ -34,7 +56,7 @@ export function SettingsSync() {
         const res = await fetch('/api/user-settings', { cache: 'no-store' })
         const data = await res.json()
         if (cancelled) return
-        if (!data.loggedIn) return
+        if (!data.loggedIn) { settleSync(); return }
 
         const local = getSettings()
         const localUpdated = getSettingsUpdatedAt()
@@ -71,7 +93,12 @@ export function SettingsSync() {
             }).catch(() => {})
           }
           // ローカルの値が実際に変わった時だけリロードして検索クライアントを作り直す。
-          if (localChanged) window.location.reload()
+          // （リロードする場合は settle 不要＝ページごと生まれ変わり、復元済み設定で描画される）
+          if (localChanged) {
+            window.location.reload()
+          } else {
+            settleSync()
+          }
           return
         }
 
@@ -84,8 +111,10 @@ export function SettingsSync() {
             cache: 'no-store',
           }).catch(() => {})
         }
+        settleSync()
       } catch {
-        // ネットワーク失敗時は無視（次回ロードで再試行）。
+        // ネットワーク失敗時は無視（次回ロードで再試行）。決着だけは通知して画面を進める。
+        settleSync()
       }
     })()
 
