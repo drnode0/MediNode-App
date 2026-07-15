@@ -22,6 +22,7 @@ import {
 } from '@/lib/algolia'
 import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import { isLoginRequiredByServer } from '@/lib/login-policy'
+import { parseErrorMessage } from '@/lib/connection-errors'
 import { LoginGate } from '@/components/LoginGate'
 import { SearchBox } from '@/components/SearchBox'
 import { Spinner } from '@/components/Spinner'
@@ -52,6 +53,9 @@ const OnboardingScreen = dynamicImport(
   () => import('@/components/OnboardingScreen').then((m) => m.OnboardingScreen),
   { ssr: false, loading: () => <AppSkeleton /> },
 )
+// 画面つきガイド（設定パネルの接続設定から開く）。開くまで読み込まない。
+const NotionTokenGuide = dynamicImport(() => import('@/components/NotionTokenGuide'), { ssr: false })
+const AlgoliaKeyGuide = dynamicImport(() => import('@/components/AlgoliaKeyGuide'), { ssr: false })
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, bumpSearchCount } from '@/components/AppBanners'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
@@ -2482,6 +2486,124 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
     teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
+
+  // セクションを開くたびに保存済み設定からフォームを読み直す。
+  // パネルを開いたままログイン復元などで設定が入れ替わっても、古い（空の）スナップ
+  // ショットのまま「保存」して非空の設定を潰す事故を防ぐ。
+  useEffect(() => {
+    const s = getSettings()
+    if (!s) return
+    if (section === 'notion' || section === 'algolia') {
+      setNotionForm({
+        notionToken: s.notionToken || '',
+        notionMedicalDbId: s.notionMedicalDbId || '',
+        notionReferenceDbId: s.notionReferenceDbId || '',
+        notionManualDbId: s.notionManualDbId || '',
+        algoliaAppId: s.algoliaAppId || '',
+        algoliaSearchKey: s.algoliaSearchKey || '',
+        algoliaAdminKey: s.algoliaAdminKey || '',
+        algoliaIndex: s.algoliaIndex || '',
+      })
+    }
+    if (section === 'team') {
+      setTeamForm({
+        teamLabel: s.teamLabel || '',
+        teamNotionToken: s.teamNotionToken || '',
+        teamNotionMedicalDbId: s.teamNotionMedicalDbId || '',
+        teamNotionReferenceDbId: s.teamNotionReferenceDbId || '',
+        teamNotionManualDbId: s.teamNotionManualDbId || '',
+      })
+    }
+  }, [section])
+
+  // 接続テスト（Notion / Algolia 各セクション。保存前のフォーム値で試す）
+  const [notionTest, setNotionTest] = useState<null | { status: 'ok' | 'warn' | 'error'; detail: string[] }>(null)
+  const [notionTesting, setNotionTesting] = useState(false)
+  const [algoliaTest, setAlgoliaTest] = useState<null | { status: 'ok' | 'error'; detail: string[] }>(null)
+  const [algoliaTesting, setAlgoliaTesting] = useState(false)
+  // ガイドモーダル（セットアップと同じ画面つき手順書）
+  const [showTokenGuide, setShowTokenGuide] = useState(false)
+  const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
+
+  // セクション移動でテスト結果を持ち越さない。
+  useEffect(() => { setNotionTest(null); setAlgoliaTest(null) }, [section])
+
+  // 「← 戻る」前提のセットアップ用文面を、その場で直せる表現に読み替える。
+  const inPlace = (msg: string) => parseErrorMessage(msg).replace(/「← 戻る」で「(Notion|Algolia)」の入力画面に戻り、/g, 'この画面で')
+
+  // Notion接続テスト: フォームの値で Token・DBアクセス権（コネクト追加漏れ）・必須プロパティを確認。
+  const handleNotionConnTest = async () => {
+    setNotionTesting(true)
+    setNotionTest(null)
+    try {
+      const res = await fetch('/api/notion/check-props', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionToken: notionForm.notionToken,
+          notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
+          notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setNotionTest({ status: 'error', detail: inPlace(data.error || '').split('\n') })
+        return
+      }
+      const missing: string[] = [
+        ...((data.medical?.missing || []) as string[]).map((p) => `Medical DB: 「${p}」が見つかりません`),
+        ...((data.reference?.missing || []) as string[]).map((p) => `Reference DB: 「${p}」が見つかりません`),
+      ]
+      setNotionTest(missing.length > 0
+        ? { status: 'warn', detail: ['接続はOK。ただし必須プロパティに不足があります', ...missing, 'Notion側でプロパティ名を上記に合わせてください（名前は完全一致）'] }
+        : { status: 'ok', detail: [] })
+    } catch {
+      setNotionTest({ status: 'error', detail: ['ネットワークエラーが発生しました。通信環境を確認して、もう一度お試しください。'] })
+    } finally {
+      setNotionTesting(false)
+    }
+  }
+
+  // Algolia接続テスト: App ID＋Search キーで検索、Admin キーは権限つき呼び出しで検証し、
+  // 「どのキーで失敗したか」まで出し分ける。
+  const handleAlgoliaConnTest = async () => {
+    setAlgoliaTesting(true)
+    setAlgoliaTest(null)
+    try {
+      const res = await fetch('/api/verify-search-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          algoliaAppId: notionForm.algoliaAppId,
+          algoliaSearchKey: notionForm.algoliaSearchKey,
+          algoliaAdminKey: notionForm.algoliaAdminKey || undefined,
+          algoliaIndex: notionForm.algoliaIndex,
+        }),
+      })
+      const data = await res.json()
+      const detail: string[] = []
+      let failed = false
+      if (data.error) {
+        failed = true
+        detail.push('【App ID / Search-Only API Key】', ...inPlace(data.error).split('\n'))
+      } else {
+        detail.push(`App ID / Search-Only API Key: OK（インデックス「${data.indexName}」・${data.nbHits ?? 0}件）`)
+      }
+      if (data.admin) {
+        if (data.admin.ok) {
+          detail.push('Admin API Key: OK（同期に使えます）')
+        } else {
+          failed = true
+          detail.push('【Admin API Key】無効か、Search-Only キーを貼っています。Algolia → Settings → API Keys で「Admin API Key」（鍵アイコンで表示）をコピーし直してください。')
+        }
+      }
+      setAlgoliaTest(failed ? { status: 'error', detail } : { status: 'ok', detail })
+    } catch {
+      setAlgoliaTest({ status: 'error', detail: ['ネットワークエラーが発生しました。通信環境を確認して、もう一度お試しください。'] })
+    } finally {
+      setAlgoliaTesting(false)
+    }
+  }
   // 表示のカスタマイズ（トグルは保存ボタンなしで即保存する）。
   const [displayForm, setDisplayForm] = useState({
     hideQuizTab: !!s0?.hideQuizTab,
@@ -2690,12 +2812,23 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <button onClick={() => setSection('notion')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><Link2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
-                  {/* シンプルモードではAlgolia欄が出ないため、名前も実態に合わせる（「Algoliaが無い」と迷わせない） */}
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{currentMode === 'algolia' ? 'Notion・Algolia接続設定' : 'Notion接続設定'}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{currentMode === 'algolia' ? 'いま使っているAPIキー・DBのURLをその場で修正' : 'いま使っているコネクトToken・DBのURLをその場で修正'}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion接続設定</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">コネクトToken・DBのURLの修正と接続テスト</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
+              {/* Algoliaはパワーモードのときだけ独立セクションで出す（Notionと混ぜると
+                  どちらのキーで失敗したか分からない、というモニター指摘への対応）。 */}
+              {currentMode === 'algolia' && (
+                <button onClick={() => setSection('algolia')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300"><Zap className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Algolia接続設定</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">App ID・APIキーの修正と接続テスト</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </button>
+              )}
               <button onClick={() => setSection('team')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><Building2 className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
@@ -2835,7 +2968,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               {/* ── 危険ゾーン ── */}
               {/* 「🔄 セットアップをやり直す」は削除。動作が「🔀 モードを変更する」と
                   完全に同一（どちらも onRedo＝SetupWizard先頭へ）で重複していたため。
-                  DB接続の変更は上の「Notion・Algolia接続設定」または
+                  DB接続の変更は上の「Notion接続設定」「Algolia接続設定」または
                   「📋 NotionDBをセットアップする」で完結する（ログイン不要）。 */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">その他</p>
               <button onClick={() => setSection('reset-confirm')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left">
@@ -2849,7 +2982,7 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
             </div>
           )}
 
-          {/* ── Notion・Algolia接続設定 ── */}
+          {/* ── Notion接続設定 ── */}
           {section === 'notion' && (
             <div className="space-y-4">
               {/* 手入力の前に: ログインで復元できることを最初に案内（再インストール後の
@@ -2857,7 +2990,14 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
               <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
                 <Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" /><strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">変更後は「保存」してから再同期してください。各項目の取得先は下のリンクから。</p>
+              {/* 初回セットアップと同じ画面つき手順書をここからも開ける */}
+              <button
+                type="button"
+                onClick={() => setShowTokenGuide(true)}
+                className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 text-brand-700 dark:text-brand-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />画面を見ながら進める（Token取得・コネクト追加の手順書）
+              </button>
               <div className="space-y-3">
                 <div>
                   <label className={labelCls}>Notion コネクトToken</label>
@@ -2883,52 +3023,34 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 </div>
                 {/* シンプルモードでは「Algoliaの欄が無い」こと自体が疑問になるため、理由と切替導線を明記する */}
                 {currentMode !== 'algolia' && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                    <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                      現在は<strong>シンプルモード（Notion直結検索）</strong>のため、Algoliaは使いません＝この画面に入力欄もありません。高速検索の<strong>パワーモード</strong>に切り替えると、ここにAlgoliaのキー入力欄が表示されます（設定 → 「セットアップをやり直す」→「モードを切り替える」）。
-                    </div>
+                  <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    現在は<strong>シンプルモード（Notion直結検索）</strong>のため、Algoliaは使いません。高速検索の<strong>パワーモード</strong>に切り替えると、設定メニューに「Algolia接続設定」が表示されます（設定 → 「セットアップをやり直す」→「モードを切り替える」）。
                   </div>
                 )}
-                {currentMode === 'algolia' && (
-                  <>
-                    <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                      <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
-                        取得先 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline">Algolia → Settings → API Keys</a>。3つの値をコピーします。<strong className="text-amber-600 dark:text-amber-400">Search-Only と Admin は別物</strong>なので取り違えに注意。
-                      </div>
-                      <label className={labelCls}>Algolia App ID</label>
-                      <input type="text" value={notionForm.algoliaAppId} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAppId: e.target.value }))} placeholder="XXXXXXXXXX" className={inputCls} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">アプリの識別子（10文字程度の英大文字＋数字）。公開されても問題ない値です</p>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Algolia Search-Only API Key <span className="font-normal text-gray-400">＝検索用</span></label>
-                      <input type="password" value={notionForm.algoliaSearchKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaSearchKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">検索専用（読み取りのみ）。API Keys一覧にそのまま表示されています</p>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Algolia Admin API Key <span className="font-normal text-gray-400">＝同期用</span></label>
-                      <input type="password" value={notionForm.algoliaAdminKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAdminKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>「鍵アイコン」を押して表示してからコピー。Search-Only ではなく <strong>Admin</strong> の方です</span></p>
-                    </div>
-                    <div>
-                      <label className={labelCls}>インデックス名</label>
-                      <input type="text" value={notionForm.algoliaIndex} onChange={(e) => setNotionForm(f => ({ ...f, algoliaIndex: e.target.value }))} placeholder="medical_knowledge" className={inputCls} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">初期値のままでOK。初回同期時にAlgolia側で自動作成されます</p>
-                    </div>
-                  </>
-                )}
               </div>
-              <a
-                href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 py-1"
+              {/* 接続テスト: 保存前のフォーム値で確認できる（どこで失敗したかをその場で把握） */}
+              {notionTest?.status === 'ok' && (
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center font-medium">
+                  <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Notionに接続できました（必須プロパティもOK）
+                </div>
+              )}
+              {notionTest && notionTest.status !== 'ok' && (
+                <div className={`rounded-xl p-3 text-xs space-y-1 ${notionTest.status === 'warn' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300'}`}>
+                  {notionTest.detail.map((line, i) => <p key={i} className={i === 0 ? 'font-semibold text-sm' : ''}>{line}</p>)}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleNotionConnTest}
+                disabled={notionTesting || !notionForm.notionToken.trim() || !notionForm.notionMedicalDbId.trim()}
+                className="w-full border border-brand-300 dark:border-brand-700 text-brand-600 dark:text-brand-300 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                取得手順を詳しく見る（ガイド）
-              </a>
+                {notionTesting ? <><Spinner className="w-4 h-4" />接続確認中...</> : <><Link2 className="h-4 w-4" />接続テスト</>}
+              </button>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
                 onClick={() => saveSection({
-                  ...notionForm,
+                  notionToken: notionForm.notionToken,
                   notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
                   notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
                   notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
@@ -2936,6 +3058,86 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
                 className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 保存する
+              </button>
+              {/* 解決しないときの出口: アプリ内FAQ検索へ */}
+              <button
+                type="button"
+                onClick={() => setSection('help')}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 py-1"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />解決しないときは：ヘルプ・よくあるエラーを検索
+              </button>
+            </div>
+          )}
+
+          {/* ── Algolia接続設定（パワーモードのみ） ── */}
+          {section === 'algolia' && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                取得先 <a href="https://dashboard.algolia.com/account/api-keys/" target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline">Algolia → Settings → API Keys</a>。3つの値をコピーします。<strong className="text-amber-600 dark:text-amber-400">Search-Only と Admin は別物</strong>なので取り違えに注意。
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAlgoliaGuide(true)}
+                className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 text-brand-700 dark:text-brand-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />画面を見ながら進める（APIキー取得の手順書）
+              </button>
+              <div className="space-y-3">
+                <div>
+                  <label className={labelCls}>Algolia App ID</label>
+                  <input type="text" value={notionForm.algoliaAppId} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAppId: e.target.value }))} placeholder="XXXXXXXXXX" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">アプリの識別子（10文字程度の英大文字＋数字）。公開されても問題ない値です</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Algolia Search-Only API Key <span className="font-normal text-gray-400">＝検索用</span></label>
+                  <input type="password" value={notionForm.algoliaSearchKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaSearchKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">検索専用（読み取りのみ）。API Keys一覧にそのまま表示されています</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Algolia Admin API Key <span className="font-normal text-gray-400">＝同期用</span></label>
+                  <input type="password" value={notionForm.algoliaAdminKey} onChange={(e) => setNotionForm(f => ({ ...f, algoliaAdminKey: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-start gap-1.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>「鍵アイコン」を押して表示してからコピー。Search-Only ではなく <strong>Admin</strong> の方です</span></p>
+                </div>
+                <div>
+                  <label className={labelCls}>インデックス名</label>
+                  <input type="text" value={notionForm.algoliaIndex} onChange={(e) => setNotionForm(f => ({ ...f, algoliaIndex: e.target.value }))} placeholder="medical_knowledge" className={inputCls} />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">初期値のままでOK。初回同期時にAlgolia側で自動作成されます</p>
+                </div>
+              </div>
+              {/* 接続テスト: Search用とAdmin用を別々に検証し、どちらで失敗したかを出し分ける */}
+              {algoliaTest && (
+                <div className={`rounded-xl p-3 text-xs space-y-1 ${algoliaTest.status === 'ok' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300'}`}>
+                  {algoliaTest.status === 'ok' && <p className="font-semibold text-sm"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Algoliaに接続できました</p>}
+                  {algoliaTest.detail.map((line, i) => <p key={i} className={algoliaTest.status !== 'ok' && i === 0 ? 'font-semibold text-sm' : ''}>{line}</p>)}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleAlgoliaConnTest}
+                disabled={algoliaTesting || !notionForm.algoliaAppId.trim() || !notionForm.algoliaSearchKey.trim()}
+                className="w-full border border-brand-300 dark:border-brand-700 text-brand-600 dark:text-brand-300 rounded-xl py-2.5 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {algoliaTesting ? <><Spinner className="w-4 h-4" />接続確認中...</> : <><Zap className="h-4 w-4" />接続テスト</>}
+              </button>
+              {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
+              <button
+                onClick={() => saveSection({
+                  algoliaAppId: notionForm.algoliaAppId,
+                  algoliaSearchKey: notionForm.algoliaSearchKey,
+                  algoliaAdminKey: notionForm.algoliaAdminKey,
+                  algoliaIndex: notionForm.algoliaIndex,
+                })}
+                className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
+              >
+                保存する
+              </button>
+              <button
+                type="button"
+                onClick={() => setSection('help')}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 py-1"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />解決しないときは：ヘルプ・よくあるエラーを検索
               </button>
             </div>
           )}
@@ -3413,6 +3615,9 @@ function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode
           )}
         </div>
       </div>
+      {/* 画面つきガイド（セットアップと同じもの。パネルより後に描画して手前に出す） */}
+      {showTokenGuide && <NotionTokenGuide onClose={() => setShowTokenGuide(false)} />}
+      {showAlgoliaGuide && <AlgoliaKeyGuide onClose={() => setShowAlgoliaGuide(false)} />}
     </>
   )
 }

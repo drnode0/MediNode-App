@@ -277,6 +277,13 @@ export const FAQ_ENTRIES: FaqEntry[] = [
   },
   // ── エラー対処 ──
   {
+    id: 'err-connection-test',
+    category: 'エラー対処',
+    q: '接続がうまくいかない。どこで失敗しているか調べたい',
+    a: '設定 → 「Notion接続設定」「Algolia接続設定」（Algoliaはパワーモードのみ）それぞれに「接続テスト」があります。Notion側はToken・DBへのアクセス権・必須プロパティを、Algolia側はSearch用とAdmin用のキーを別々に確認し、失敗した箇所と対処法を表示します。初回セットアップと同じ画面つき手順書（「画面を見ながら進める」）も各画面から開けます。',
+    keywords: '接続テスト 接続確認 診断 どこで失敗 つながらない 設定 手順書 ガイド',
+  },
+  {
     id: 'err-token',
     category: 'エラー対処',
     q: '「API token is invalid」と出る',

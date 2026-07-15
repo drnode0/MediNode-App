@@ -5,6 +5,7 @@ import { User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gi
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
+import { parseErrorMessage } from '@/lib/connection-errors'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import AlgoliaKeyGuide from './AlgoliaKeyGuide'
 import { PremiumValueProps } from './PremiumValueProps'
@@ -280,84 +281,8 @@ function DbIdStatus({ value }: { value: string | undefined }) {
   )
 }
 
-function parseErrorMessage(msg: string): string {
-  // Algolia側のエラー（プレフィックスで明示）
-  if (msg.startsWith('[Algolia]') || msg.includes('Invalid Application-ID') || msg.includes('Valid appId') || msg.includes('invalid_api_key')) {
-    return [
-      'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。',
-      '【対処法】',
-      '① Algolia Dashboard → Settings → API Keys を開く',
-      '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
-      '③「← 戻る」で「Algolia」の入力画面に戻り、再入力してください',
-    ].join('\n')
-  }
-  // Notion: APIトークン無効（"API token is invalid" など）
-  if (
-    msg.includes('API token is invalid') ||
-    msg.includes('invalid_token') ||
-    msg.includes('unauthorized') ||
-    msg.includes('Unauthorized') ||
-    msg.includes('401')
-  ) {
-    return [
-      'コネクト（旧称: Integration）のTokenが無効です。',
-      '【対処法】',
-      '① notion.so/my-integrations → コネクトを開き「OAuth」セクションの「アクセストークン」を再コピー',
-      '② 「ntn_xxx...」または「secret_xxx...」という形式になっているか確認',
-      '③ コピー時に前後の空白が混入していないか確認',
-      '④「← 戻る」で「Notion」の入力画面に戻り、再入力してください',
-    ].join('\n')
-  }
-  // Notion: DBが見つからない
-  if (
-    msg.includes('object_not_found') ||
-    msg.includes('Could not find database') ||
-    msg.includes('404')
-  ) {
-    return [
-      'データベースIDが見つかりません。',
-      '【対処法】',
-      '① NotionのDBページURLからIDをコピー（32桁の英数字）',
-      '② URLの「?v=」以降は含めないでください',
-      '③「← 戻る」で「Notion」の入力画面に戻り、URLを貼り直してください',
-    ].join('\n')
-  }
-  // Notion: DBにコネクトが接続されていない
-  if (msg.includes('restricted_resource') || msg.includes('403')) {
-    return [
-      'NotionのDBへのアクセス権がありません。',
-      '【対処法】',
-      '① NotionでMedical DBページを開く',
-      '② 右上「…」→「コネクトを追加」→ 作成したコネクトを選択',
-      '③ Reference DBも同様に接続する',
-      '④ 接続後、再度「接続テスト」を押してください',
-    ].join('\n')
-  }
-  // Algolia: App IDまたはAdmin Keyが無効
-  if (
-    msg.includes('Invalid Application-ID') ||
-    msg.includes('Invalid API key') ||
-    msg.includes('invalid_api_key') ||
-    msg.includes('Valid appId')
-  ) {
-    return [
-      'AlgoliaのApp IDまたはAdmin API Keyが正しくありません。',
-      '【対処法】',
-      '① Algolia Dashboard → Settings → API Keys を開く',
-      '② 「Admin API Key」を使用（Search API KeyではなくAdminを使うこと）',
-      '③「← 戻る」で「Algolia」の入力画面に戻り、再入力してください',
-    ].join('\n')
-  }
-  // 必須キー不足
-  if (msg.includes('必要なキー')) {
-    return '入力が不足しています。前の手順に戻って全ての必須項目を入力してください。'
-  }
-  // セットアップ中の接続テスト・同期のIPレート制限（api-guard.ts）に達した場合
-  if (msg.includes('rate_limited') || msg.includes('429')) {
-    return 'アクセスが集中しています。少し時間をおいてから（10〜30分ほど）、もう一度お試しください。'
-  }
-  return `エラーが発生しました: ${msg}`
-}
+// parseErrorMessage は設定パネルの接続テストと共用するため
+// src/lib/connection-errors.ts へ移設（文面は不変・import で利用）。
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {

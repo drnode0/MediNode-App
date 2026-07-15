@@ -9,7 +9,7 @@ import { useInstantSearch } from 'react-instantsearch'
 import { LoginModal } from '@/components/auth/LoginModal'
 
 // 設定パネルのセクション識別子（SettingsPanel と共有）。
-export type SettingsPanelSection = null | 'notion' | 'team' | 'subscription' | 'display' | 'help' | 'announcements' | 'reset-confirm' | 'setup-redo'
+export type SettingsPanelSection = null | 'notion' | 'algolia' | 'team' | 'subscription' | 'display' | 'help' | 'announcements' | 'reset-confirm' | 'setup-redo'
 
 // エラー表示から設定パネルを開くためのコンテキスト。
 // タブコンポーネントが深いため、propsのバケツリレーを避けて配布する。
