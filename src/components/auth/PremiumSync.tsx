@@ -3,10 +3,17 @@
 // ログイン状態に応じて、サーバーの契約状態をlocalStorageに反映する。
 // これにより別端末でログインしただけでプレミアムが復元される（端末またぎ解決の仕上げ）。
 // 画面表示は持たない（副作用のみ）。
+//
+// ⚠️ 実行順序が重要: 必ず SettingsSync（全設定の復元）の決着後に動くこと。
+// ログイン直後にローカル設定が空の状態で走ると、DEFAULT_SETTINGS＋プレミアムキーだけの
+// 塊を saveSettings（サーバーPOST込み）してしまい、サーバーに保存された本来の設定
+// （Notion接続等）を空で上書きする（実害: 2026-07-15 オーナー端末で
+// 「ログインし直したら接続設定が全部空」。ログイン2秒後にPOSTの痕跡）。
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthProvider'
 import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
+import { isSettingsSyncSettled, onSettingsSyncSettled } from './SettingsSync'
 
 const DEFAULT_SETTINGS: AppSettings = {
   searchMode: 'algolia',
@@ -21,10 +28,25 @@ export function PremiumSync() {
   const { configured, user, loading } = useAuth()
   const lastSyncedUser = useRef<string | null>(null)
 
+  // SettingsSync の決着（復元済み・サーバー設定なし・失敗のいずれか）を待つ。
+  // SettingsSync が復元リロードを選んだ場合はページごと生まれ変わるので、
+  // タイムアウトで見切り発車はしない（イベントが来るまで動かないのが安全側。
+  // 全コードパスで settle かリロードのどちらかに必ず到達する）。
+  const [syncSettled, setSyncSettled] = useState(() => isSettingsSyncSettled())
+  useEffect(() => {
+    if (syncSettled) return
+    const off = onSettingsSyncSettled(() => setSyncSettled(true))
+    // 購読前に決着していた場合の取りこぼし防止。
+    if (isSettingsSyncSettled()) setSyncSettled(true)
+    return off
+  }, [syncSettled])
+
   useEffect(() => {
     if (!configured || loading) return
     // ログインしている時だけサーバーに問い合わせる。
     if (!user) return
+    // 全設定の復元（SettingsSync）が決着するまで動かない（冒頭コメント参照）。
+    if (!syncSettled) return
     // 同じユーザーで二重実行しない。
     if (lastSyncedUser.current === user.id) return
     lastSyncedUser.current = user.id
@@ -69,7 +91,7 @@ export function PremiumSync() {
     return () => {
       cancelled = true
     }
-  }, [configured, user, loading])
+  }, [configured, user, loading, syncSettled])
 
   return null
 }
