@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 // REQUIRE_LOGIN=true なら Supabase セッションを検証し、未ログインは 401 を返す。
 // 通過時は null を返す（呼び出し側は `const denied = await requireSessionIfLoginRequired(); if (denied) return denied` の形で使う）。
@@ -25,6 +26,37 @@ export async function requireSessionIfLoginRequired(): Promise<NextResponse | nu
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'login_required' }, { status: 401 })
+  }
+  return null
+}
+
+// セットアップ専用の緩和ガード（requireSessionIfLoginRequired の代替）。
+//
+// REQUIRE_LOGIN=true でも、初回導線は「オンボーディング → 設定 → 最後にアカウント登録」
+// （オーナー決定 2026-07-15）のため、セットアップ途中に呼ばれるルート
+// （接続テスト /api/notion/check-props・初回同期 /api/sync）だけは未ログインを許可する。
+// ただしオープンプロキシ化（任意トークンの代理リクエスト悪用）を防ぐため、
+// 未ログイン呼び出しには IP 単位のレート制限をかける。ログイン済みは従来どおり素通し。
+// 上限は「1人のセットアップ＋やり直し数回」が収まる値にし、機械的な連打だけを弾く。
+export async function requireSessionOrSetupRateLimit(
+  req: Request,
+  routeKey: string,
+  limit: number,
+  windowMs: number,
+): Promise<NextResponse | null> {
+  if (process.env.REQUIRE_LOGIN !== 'true') return null
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) return null
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) return null
+
+  // 未ログイン＝セットアップ中の呼び出しとみなし、IPレート制限だけで通す。
+  if (!rateLimit(`setup:${routeKey}:${clientIp(req)}`, limit, windowMs)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
   return null
 }

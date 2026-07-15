@@ -165,7 +165,10 @@ export function LoginClient() {
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">ログイン</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          はじめての方も、メールアドレスだけで始められます（届く6桁コードで認証・アカウントは自動作成）。パスワードを設定済みの方はパスワードでも。
+          登録済みのメールアドレスに届く6桁コードで認証します。パスワードを設定済みの方はパスワードでも。
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+          はじめての方は、<a href="/" className="text-brand-600 dark:text-brand-400 font-medium underline underline-offset-2">トップページ</a>からセットアップを始めてください（アカウント登録は設定の最後にあります）。
         </p>
       </div>
 

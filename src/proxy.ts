@@ -20,15 +20,16 @@ const REQUIRE_LOGIN = process.env.REQUIRE_LOGIN === 'true'
 const PUBLIC_PREFIXES = ['/login', '/auth', '/privacy', '/terms', '/legal']
 
 function isPublicPath(pathname: string): boolean {
-  // REQUIRE_LOGIN=true のときは、トップ（'/'）も含めて全ページをログイン必須にする。
+  // トップ（'/'）は REQUIRE_LOGIN=true でも公開する（オーナー決定 2026-07-15）。
   //
-  // 以前は '/' を公開扱い（未ログインでもオンボーディング＋セットアップを見せる）に
-  // していたが、それだとセットアップ途中の「接続テスト」「同期」など代理APIが
-  // REQUIRE_LOGIN で 401(login_required) になり、ログイン前のユーザーが詰まる。
-  // 「ログイン必須」なら順番も「ログイン → オンボーディング → セットアップ」に統一するのが正しい
-  // （ログイン後はセッションがあるので接続テスト・同期が通る。オンボーディングは
-  //  ログイン後の新規アカウントで従来どおり表示される。公開前の紹介はティザーLPが担う）。
-  // モニター期（REQUIRE_LOGIN 未設定）はこのゲート自体が動かないため、従来どおり '/' も見られる。
+  // 初回導線は「オンボーディング → 入口分岐（アカウントあり=ログイン／はじめて=設定）
+  // → 設定の最後にアカウント登録」。オンボーディングとセットアップは未ログインのまま進む。
+  // セットアップ途中に必要な代理API（接続テスト /api/notion/check-props・初回同期 /api/sync）は
+  // requireSessionOrSetupRateLimit（api-guard.ts）で「未ログインはIPレート制限つき許可」に
+  // 緩和してあるため、以前あった login_required(401) で詰まる問題は起きない。
+  // その他のページ・APIは従来どおりログイン必須（オープンプロキシ化の防止は維持）。
+  // ログアウト（端末リセット→'/'）も、この公開トップ＝セットアップ入口に着地する。
+  if (pathname === '/') return true
   return PUBLIC_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   )
