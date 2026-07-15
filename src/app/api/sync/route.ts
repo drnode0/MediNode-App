@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSessionIfLoginRequired } from '@/lib/api-guard'
+import { requireSessionOrSetupRateLimit } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 
@@ -200,9 +200,11 @@ async function syncReferenceDb(
 }
 
 export async function POST(req: NextRequest) {
-  // REQUIRE_LOGIN 有効時はセッション必須（S-3: middlewareに依存しない二重ゲート。
-  // 未ログインで叩ける「任意トークンの代理リクエスト」＝オープンプロキシ化を防ぐ）。
-  const denied = await requireSessionIfLoginRequired()
+  // 同期はパワーモードの初回セットアップ（未ログイン）中に接続テスト＋初回同期として
+  // 呼ばれるため、REQUIRE_LOGIN 有効時も未ログインを許可し、代わりにIPレート制限で
+  // 機械的な連打（オープンプロキシ悪用・計算資源の浪費）を抑止する。
+  // 上限=30分あたり10回/IP（テスト＋本同期＋やり直し数回ぶん）。
+  const denied = await requireSessionOrSetupRateLimit(req, 'sync', 10, 30 * 60_000)
   if (denied) return denied
 
   try {

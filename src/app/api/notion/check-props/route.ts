@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSessionIfLoginRequired } from '@/lib/api-guard'
+import { requireSessionOrSetupRateLimit } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 
 // 必須プロパティは現行ポリシー（SetupWizardの案内と同じ）に合わせる:
@@ -9,9 +9,10 @@ import { Client } from '@notionhq/client'
 // propMap でユーザー独自のプロパティ名に読み替えられる（未指定は既定名）。
 
 export async function POST(req: NextRequest) {
-  // REQUIRE_LOGIN 有効時はセッション必須（S-3: middlewareに依存しない二重ゲート。
-  // 未ログインで叩ける「任意トークンの代理リクエスト」＝オープンプロキシ化を防ぐ）。
-  const denied = await requireSessionIfLoginRequired()
+  // 接続テストは初回セットアップ（未ログイン）中に呼ばれるため、REQUIRE_LOGIN 有効時も
+  // 未ログインを許可し、代わりにIPレート制限で機械的な連打（オープンプロキシ悪用）を抑止する。
+  // 上限=10分あたり20回/IP（1人のやり直しには十分・総当たりには足りない値）。
+  const denied = await requireSessionOrSetupRateLimit(req, 'check-props', 20, 10 * 60_000)
   if (denied) return denied
 
   try {

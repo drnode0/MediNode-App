@@ -352,6 +352,10 @@ function parseErrorMessage(msg: string): string {
   if (msg.includes('必要なキー')) {
     return '入力が不足しています。前の手順に戻って全ての必須項目を入力してください。'
   }
+  // セットアップ中の接続テスト・同期のIPレート制限（api-guard.ts）に達した場合
+  if (msg.includes('rate_limited') || msg.includes('429')) {
+    return 'アクセスが集中しています。少し時間をおいてから（10〜30分ほど）、もう一度お試しください。'
+  }
   return `エラーが発生しました: ${msg}`
 }
 
@@ -878,10 +882,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       })
       const data = await res.json()
       if (!res.ok) {
-        // ログイン必須運用（REQUIRE_LOGIN）でセッションが切れている場合の親切表示。
-        // 本来はログイン後にセットアップへ来る導線だが、セッション期限切れ等に備える。
+        // セットアップ中の接続テストは未ログインでも通る（api-guard.tsのセットアップ緩和）。
+        // それでも401が返る異常時（セッションの中途半端な破損等）への保険表示。
         if (res.status === 401 || data.error === 'login_required') {
-          setError('接続テストにはログインが必要です。画面を再読み込みしてログインし直してから、もう一度お試しください。')
+          setError('認証の確認に失敗しました。画面を再読み込みしてから、もう一度お試しください。')
           return
         }
         // parseErrorMessage は同期ステップと共用のため「← 戻る」で戻る前提の文面。
