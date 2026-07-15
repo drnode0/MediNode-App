@@ -4,7 +4,8 @@
 // プレミアムタブの未登録画面と、初回セットアップ/設定のプレミアム欄で共通利用し、二重管理を防ぐ。
 // 価格・ボタン・コード入力などのアクション部分は含めない（呼び出し側で配置する）。
 
-import { Star, Search, Sparkles, Lightbulb, HelpCircle, Stethoscope } from 'lucide-react'
+import { Star, Search, Sparkles, Lightbulb, HelpCircle, Stethoscope, BookOpen } from 'lucide-react'
+import { PREMIUM_NOTE_URL } from '@/lib/app-links'
 
 const PREMIUM_ROLES = [
   '医学生', '研修医', '医師（救急・集中治療に関わる全科）', '看護師', '薬剤師',
@@ -94,6 +95,22 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
           それぞれの日々の学びと、現場の意思決定をサポートします。
         </p>
       </div>
+
+      {/* 出典：このナレッジの育て方（note）。売り込みではなく“方法ごと持ち帰れる”ことを静かに示す */}
+      <a
+        href={PREMIUM_NOTE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-xl border border-dashed border-purple-200 dark:border-purple-800 bg-white/50 dark:bg-gray-800/30 p-3 text-left hover:border-solid hover:border-purple-300 dark:hover:border-purple-600 transition-colors"
+      >
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed flex gap-1.5">
+          <BookOpen className="h-3.5 w-3.5 shrink-0 mt-0.5 text-purple-400" />
+          <span>
+            このナレッジは、note<span className="font-semibold text-gray-600 dark:text-gray-300">『これがAI時代の勉強術』</span>の方法で日々育てられています。
+            方法そのものを読み物として持ち帰ることもできます →
+          </span>
+        </p>
+      </a>
     </div>
   )
 }
