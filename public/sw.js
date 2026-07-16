@@ -13,9 +13,9 @@
 // バージョンを上げると旧キャッシュは activate 時に削除される。
 // ★ デプロイのたびにこの数字を上げること（＝sw.js の中身が変わり、ブラウザが更新を検知して
 //    再インストール→新ビルドの全チャンク先読みが走る）。
-//    上げ忘れても /precache.json による全チャンク先読みでシェルは自己完結に保たれる
+//    上げ忘れても推移的先読みでシェルは自己完結に保たれる
 //    （旧キャッシュが残って肥大するだけで、動作は壊れない）。
-const CACHE_VERSION = 'medinode-v8'
+const CACHE_VERSION = 'medinode-v9'
 const NAV_NETWORK_TIMEOUT = 4000 // 初回起動でネットワークを待つ上限（ms）
 const APP_SHELL = [
   '/',
@@ -25,24 +25,61 @@ const APP_SHELL = [
   '/apple-touch-icon.png',
 ]
 
-// 与えられたHTMLが参照する /_next/static の JS/CSS を先読みキャッシュする。
-// これが無いと、オフライン起動時に「シェルHTMLはあるがJSが取れず白画面」になりうる。
-// best-effort（失敗しても致命的にしない）。
+// HTMLから到達可能な /_next/static の JS/CSS を「推移的に」先読みキャッシュする。
+// HTMLが直接参照する初期チャンクに加え、そのJSの中身を走査して遅延チャンク
+// （設定パネル・オンボーディング等、動的importで後から読まれるもの）も発見して先読みする。
+//
+// なぜ推移的か:
+//   デプロイ後、キャッシュ済みの旧HTMLが旧ハッシュの遅延チャンクを要求すると、
+//   新サーバに旧URLは無く404 → 動的import失敗 → エラー画面になる。
+//   「そのHTMLから到達可能な全チャンク」をキャッシュしておけばシェルは常に自己完結。
+//   ビルド時のマニフェスト生成に頼らないので、どのデプロイ経路でも壊れない
+//   （Vercelはビルド後に出力へ足したファイルを収集しないため、manifest方式は不可だった）。
+//
+// best-effort（個々の失敗は無視。オフライン時はfetchハンドラがオンデマンドで拾う）。
+const CHUNK_REF_PATTERN = /static\/chunks\/[A-Za-z0-9_.-]+?\.(?:js|css)/g
 async function precacheReferencedAssets(cache, html) {
-  const assets = [...html.matchAll(/\/_next\/static\/[^"']+?\.(?:css|js)/g)].map((m) => m[0])
-  const unique = [...new Set(assets)]
-  await Promise.all(
-    unique.map(async (u) => {
-      // 既にキャッシュ済みなら再取得しない（ハッシュ付きで不変）。
-      if (await cache.match(u)) return
-      try {
-        const r = await fetch(u)
-        if (r.ok) await cache.put(u, r)
-      } catch {
-        /* オフライン等。best-effort */
+  const seen = new Set()
+  const extract = (text) => {
+    const found = []
+    for (const m of text.matchAll(CHUNK_REF_PATTERN)) {
+      const u = '/_next/' + m[0]
+      if (!seen.has(u)) {
+        seen.add(u)
+        found.push(u)
       }
-    }),
-  )
+    }
+    return found
+  }
+
+  // 取得してキャッシュし、JSなら中身のテキストを返す（さらに走査するため）。
+  const fetchAndCache = async (u) => {
+    try {
+      const hit = await cache.match(u)
+      if (hit) {
+        // キャッシュ済みでも中身は走査対象（そこから未取得の遅延チャンクに到達しうる）。
+        return u.endsWith('.js') ? await hit.clone().text() : null
+      }
+      const r = await fetch(u)
+      if (!r.ok) return null
+      await cache.put(u, r.clone())
+      return u.endsWith('.js') ? await r.text() : null
+    } catch {
+      return null
+    }
+  }
+
+  // BFS。1波ずつ並列取得し、新たに見つかったURLを次の波へ。上限は暴走保険。
+  let wave = extract(html)
+  let total = 0
+  while (wave.length > 0 && total < 200) {
+    total += wave.length
+    const texts = await Promise.all(wave.map(fetchAndCache))
+    wave = []
+    for (const t of texts) {
+      if (t) wave.push(...extract(t))
+    }
+  }
 }
 
 self.addEventListener('install', (event) => {
@@ -51,7 +88,8 @@ self.addEventListener('install', (event) => {
       .open(CACHE_VERSION)
       .then(async (cache) => {
         await cache.addAll(APP_SHELL)
-        // 起動時の白画面短縮: '/' のHTMLが参照している CSS/JS を install 時に先読み。
+        // 起動時の白画面短縮＋シェル自己完結化: '/' のHTMLから到達可能な全チャンク
+        // （遅延チャンク含む）を install 時に推移的に先読みする。
         try {
           const res = await fetch('/', { cache: 'no-cache' })
           const html = await res.text()
@@ -60,31 +98,6 @@ self.addEventListener('install', (event) => {
           await cache.put('/', new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
         } catch {
           // ネットワーク不通等でもインストール自体は成功させる。
-        }
-        // このビルドの全チャンク（遅延チャンク含む）を先読みする。
-        // これが無いと、キャッシュ済みの旧HTMLが要求する遅延チャンク（設定パネル・
-        // オンボーディング等）がデプロイ後に404になり、動的import失敗→エラー画面になる。
-        // 全チャンクをキャッシュしておけばシェルは常に自己完結（best-effort）。
-        // 一覧は /_next/static/ 配下（＝ビルド成果物）。public/ だとVercelがビルド時
-        // 書き込みを反映しないため、HTMLと同一ビルドの一覧であることをここで保証する。
-        try {
-          const list = await fetch('/_next/static/precache.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : []))
-          if (Array.isArray(list)) {
-            await Promise.all(
-              list.map(async (u) => {
-                if (typeof u !== 'string' || !u.startsWith('/_next/static/')) return
-                if (await cache.match(u)) return
-                try {
-                  const r = await fetch(u)
-                  if (r.ok) await cache.put(u, r)
-                } catch {
-                  /* 個々の失敗は無視（fetchハンドラがオンデマンドで拾う） */
-                }
-              }),
-            )
-          }
-        } catch {
-          // 一覧が読めなくても致命的にしない（'/'参照分の先読みは済んでいる）。
         }
       })
       .then(() => self.skipWaiting()),
