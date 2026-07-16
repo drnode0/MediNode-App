@@ -65,8 +65,10 @@ self.addEventListener('install', (event) => {
         // これが無いと、キャッシュ済みの旧HTMLが要求する遅延チャンク（設定パネル・
         // オンボーディング等）がデプロイ後に404になり、動的import失敗→エラー画面になる。
         // 全チャンクをキャッシュしておけばシェルは常に自己完結（best-effort）。
+        // 一覧は /_next/static/ 配下（＝ビルド成果物）。public/ だとVercelがビルド時
+        // 書き込みを反映しないため、HTMLと同一ビルドの一覧であることをここで保証する。
         try {
-          const list = await fetch('/precache.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : []))
+          const list = await fetch('/_next/static/precache.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : []))
           if (Array.isArray(list)) {
             await Promise.all(
               list.map(async (u) => {

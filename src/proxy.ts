@@ -109,8 +109,6 @@ export const config = {
     // API（/api/*）は各自で認証を処理するため、ここでのセッション更新は不要（無駄な往復を避ける）。
     // mp4 はセットアップ動画（/guide/setup-video.mp4）。未ログインのセットアップ中に再生するため、
     // 画像と同様にゲート対象から除外する（除外しないと REQUIRE_LOGIN 時に 307 でリダイレクトされ再生不能）。
-    // precache.json は Service Worker がインストール時に読む全チャンク一覧。
-    // 除外しないと REQUIRE_LOGIN 時に 307 され、SWの先読みが全滅する。
-    '/((?!_next/static|_next/image|api|auth/confirm|favicon.ico|manifest.json|precache.json|sw.js|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)',
+    '/((?!_next/static|_next/image|api|auth/confirm|favicon.ico|manifest.json|sw.js|icon-.*\\.png|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)',
   ],
 }
