@@ -34,3 +34,6 @@ yarn-error.log*
 next-env.d.ts
 HANDOVER_*.md
 .env*
+
+# Service Worker用の全チャンク一覧（ビルド毎に自動生成）
+/public/precache.json
