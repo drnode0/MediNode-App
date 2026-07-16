@@ -15,11 +15,19 @@
 //   同一ビルド由来であることが構造的に保証される。/_next/static/precache.json で配信される。
 //
 // package.json の postbuild で自動実行される（npm run build → postbuild）。
-import { readdirSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, statSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const CHUNKS_DIR = join(process.cwd(), '.next', 'static', 'chunks')
-const OUT = join(process.cwd(), '.next', 'static', 'precache.json')
+// 書き込み先は2つ:
+//   1. .next/static/ … ローカルの next start が /_next/static/precache.json として配信
+//   2. .vercel/output/static/_next/static/ … Vercelのビルド出力。リモートビルダーは
+//      next build の途中で出力を確定するため、postbuild で .next/static に書くだけでは
+//      収集されない（実測404）。出力ディレクトリが既にあればそこへ直接書き込む。
+const OUTS = [
+  join(process.cwd(), '.next', 'static', 'precache.json'),
+  join(process.cwd(), '.vercel', 'output', 'static', '_next', 'static', 'precache.json'),
+]
 
 function walk(dir) {
   const out = []
@@ -39,5 +47,16 @@ try {
   process.exit(1)
 }
 
-writeFileSync(OUT, JSON.stringify(urls))
-console.log(`[sw-precache] ${urls.length} assets → .next/static/precache.json`)
+const body = JSON.stringify(urls)
+for (const out of OUTS) {
+  const dir = join(out, '..')
+  // .vercel/output はVercel環境でのみ存在する。無い環境（ローカルの素のnext build等）では
+  // 親ディレクトリを作らずスキップ（余計なディレクトリを生やさない）。
+  if (out.includes('.vercel') && !existsSync(dir)) {
+    console.log(`[sw-precache] skip（未存在）: ${relative(process.cwd(), out)}`)
+    continue
+  }
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(out, body)
+  console.log(`[sw-precache] ${urls.length} assets → ${relative(process.cwd(), out)}`)
+}
