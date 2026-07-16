@@ -2071,7 +2071,10 @@ function NotionManualTab() {
 
   const filtered = useMemo(() => {
     if (!typeFilter) return records
-    return records.filter((r) => (r.manualType || '') === typeFilter)
+    // 種別はNotionのセレクト値がそのまま入る。テンプレDBは「📕 マニュアル」だが、
+    // 自作DBでは「マニュアル」等の絵文字なし値もあり得るため、両側を正規化して照合する
+    const want = stripLeadingEmoji(typeFilter)
+    return records.filter((r) => stripLeadingEmoji(r.manualType) === want)
   }, [records, typeFilter])
 
   const TYPE_TABS = ['', '📕 マニュアル', '📢 お知らせ', '🔧 業務改善']
