@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "sync": "tsx scripts/sync-to-algolia.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postbuild": "node scripts/generate-sw-precache.mjs"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
