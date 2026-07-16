@@ -12,11 +12,15 @@ import { PwaRuntime } from '@/components/PwaRuntime'
 
 // ブランド書体: Noto Sans JP（ビルド時に自己ホスト＝CSP安全・オフラインでも表示）。
 // 日本語はunicode-range分割で必要なグリフだけ読み込まれる。
+// preload:false にした理由 → Noto Sans JP は unicode-range で多数のサブセット(woff2)に
+// 分割されるため、preload:true だとコールドスタートで十数個のフォントが一斉に取得され、
+// 起動に必要な JS と帯域を奪い合う（弱電波の院内で起動が延びる）。display:'swap' で
+// フォールバック表示→到着後に差し替えるので、先読みを外しても文字は即出る。
 const notoSansJP = Noto_Sans_JP({
   subsets: ['latin'],
   weight: ['400', '500', '700'],
   display: 'swap',
-  preload: true,
+  preload: false,
 })
 
 // PWAの仕上げ: ノッチ/ホームバーまで描画（viewport-fit）＋ブランド色のテーマカラー。
@@ -52,8 +56,8 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        {/* 初期画面（Onboarding/SetupWizard/ヘッダー）のアプリアイコンを先読みして初回表示を高速化 */}
-        <link rel="preload" as="image" href="/icon-512.png" />
+        {/* 起動スプラッシュのアイコンを先読み。512px版(199KB)ではなく192px版(29KB)を使う —
+            表示は96pxなので192で十分。コールドスタートでJSと帯域を奪い合わないため。 */}
         <link rel="preload" as="image" href="/icon-192.png" />
         {/* iOS PWA 起動スプラッシュ: OSがWebKit起動前に表示する層。
             これが無いと再起動時に白画面が数秒出る（端末解像度が一致した画像のみ使われる） */}
@@ -98,7 +102,7 @@ export default function RootLayout({
       <body className={`${notoSansJP.className} bg-gray-50 min-h-screen`}>
         {/* aria-hidden: 支援技術には読み上げさせない（純粋な視覚的ローディング） */}
         <div id="medinode-splash" aria-hidden="true">
-          <img src="/icon-512.png" alt="" width={96} height={96} />
+          <img src="/icon-192.png" alt="" width={96} height={96} />
           <div className="medinode-spin" />
         </div>
         {/* スプラッシュ解除の保険。通常はハイドレーション時に PwaRuntime が app-ready を
