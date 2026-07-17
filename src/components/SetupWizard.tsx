@@ -186,19 +186,21 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
         <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
       </p>
-      <div className="flex gap-2">
+      {/* SettingsPanel側と同じ対策: min-w-0 がないと input が最小コンテンツ幅より
+          縮めず、スマホ幅でボタンごと画面外にはみ出す。 */}
+      <div className="flex items-stretch gap-2">
         <input
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="トライアルコード"
-          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+          className="min-w-0 flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
         />
         <button
           type="button"
           onClick={handleRedeem}
           disabled={loading}
-          className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+          className="shrink-0 whitespace-nowrap bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
         >
           {loading ? '確認中...' : '無料で試す'}
         </button>
