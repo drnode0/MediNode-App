@@ -45,7 +45,7 @@ const STEPS: GuideStep[] = [
     imgMobile: '/guide/m2/step-1.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホのブラウザで開いたNotionのコネクト一覧ページ。New connectionボタンをタップする',
     alt: 'Notionのコネクト一覧ページ。右上の＋新規コネクトボタンをクリックする',
-    mobileNote: 'このページはNotionアプリではなく、SafariやChromeなどのブラウザで開きます。画面の並びはPCとほぼ同じで、「＋新規コネクト」を探してタップしてください。',
+    mobileNote: 'このページはNotionアプリではなく、SafariやChromeなどのブラウザで開きます。もしNotionアプリが開いてしまい「コネクト」の一覧が見つからない場合は、ブラウザのアドレス欄に notion.so/my-integrations と直接入力して開き直してください。画面の並びはPCとほぼ同じで、「＋新規コネクト」を探してタップします。',
   },
   {
     phase: 'token' as const,
