@@ -361,6 +361,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
           <ol className="space-y-2 text-gray-600 dark:text-gray-300 text-xs list-decimal list-inside">
             <li>
               <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="text-brand-500 underline">notion.so/my-integrations</a> を開く（要ログイン）
+              <span className="block text-gray-500 dark:text-gray-400 mt-0.5">※ スマホでNotionアプリが開いてしまい作成画面が見つからない場合は、SafariやChromeのアドレス欄に notion.so/my-integrations を直接入力して開いてください</span>
             </li>
             <li>「<strong>+ 新規コネクト</strong>」をクリック</li>
             <li>
