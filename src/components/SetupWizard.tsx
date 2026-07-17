@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type React from 'react'
-import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info } from 'lucide-react'
+import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info, ExternalLink } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
-import { NOTION_MAGAZINE_URL } from '@/lib/app-links'
+import { NOTION_MAGAZINE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { HelpFaq } from './HelpFaq'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
@@ -1437,20 +1437,23 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                     NotionのDBはどうしますか？
                   </p>
-                  {/* テンプレート複製（推奨） */}
-                  <button
-                    onClick={() => {
+                  {/* テンプレート複製（推奨）
+                      ホーム画面追加のPWA（特にiOS）では window.open がブロックされ
+                      「押してもページが開かない」事故になるため、実アンカーで開く */}
+                  <a
+                    href={MANUAL_TEMPLATE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
                       if (!form.notionToken.trim()) {
+                        e.preventDefault()
                         setError('先にコネクトTokenを入力してください')
                         return
                       }
                       setError('')
-                      // テンプレートを新タブで開きつつ、次のステップへ案内
-                      // Notionマーケットプレイス公開版のテンプレートDB
-                      window.open('https://www.notion.com/ja/templates/medinode-db', '_blank')
                       setNotionSetupMode('after-template')
                     }}
-                    className="w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+                    className="block w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />テンプレートを複製して使う</p>
@@ -1459,7 +1462,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
                       配布中のNotionテンプレートを複製するだけ。プロパティ設定不要ですぐ使えます。
                     </p>
-                  </button>
+                  </a>
                   {/* 既存DBに連携 */}
                   <button
                     onClick={() => {
@@ -1493,6 +1496,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   {/* ステップガイド */}
                   <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-3">
                     <p className="text-sm font-bold text-brand-700 dark:text-brand-300">テンプレートの複製手順</p>
+                    <a
+                      href={MANUAL_TEMPLATE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      テンプレートページが開かなかった方はこちら
+                    </a>
                     <ol className="space-y-2.5 text-xs text-brand-700 dark:text-brand-300">
                       <li className="flex items-start gap-2">
                         <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
