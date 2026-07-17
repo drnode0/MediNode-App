@@ -1381,7 +1381,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   Notion自体がはじめての方は、作者の
-                  <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門マガジン（note）</a>
+                  <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
                   も参考にどうぞ。
                 </p>
               </div>

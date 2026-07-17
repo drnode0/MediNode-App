@@ -686,7 +686,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               >
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300"><NotebookPen className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion入門マガジン（note）</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notion入門（note・第1話から）</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Notionがはじめての方向けの、作者による導入・活用記事</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
