@@ -495,10 +495,15 @@ function EmptyNotice({ Icon, title, hint, children }: { Icon: LucideIcon; title:
 
 type RefSort = 'year_desc' | 'year_asc' | 'lastEdited'
 type RefLevel = 'all' | 'deep' | 'card'
-// 参考文献の収録レベル判定。📄精読ノート（Tier A・柱の深掘り）＝true、🔖文献カード（Tier B・支持文献の要点）＝false。
-// 収録レベル未設定の参考文献も、柱ではない＝カード相当として false 扱いにする。
+// 参考文献の収録レベル判定。📄精読ノート（Tier A・柱の深掘り）／🔖文献カード（Tier B・支持文献の要点）。
+// 収録レベルはサブスク配信のReference Libraryだけが持つプロパティで、一般ユーザーに配布している
+// テンプレのReference DBには存在しない。未設定（＝一般ユーザーの文献）はこの仕組みの対象外として、
+// 新着・絞り込みとも従来どおりの扱いにする（isDeepNote/isRefCardの両方がfalse）。
 function isDeepNote(h: Hit): boolean {
   return (h.recordingLevel || '').includes('精読')
+}
+function isRefCard(h: Hit): boolean {
+  return !!(h.recordingLevel || '').trim() && !isDeepNote(h)
 }
 function ReferenceHits({ sort }: { sort: RefSort }) {
   const { hits } = useHits()
@@ -680,13 +685,15 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
     () => {
       const base = filterRefHits(mergedHits, query, refYear, refGenre)
       if (refLevel === 'all') return base
-      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : !isDeepNote(h)))
+      // チップは収録レベルの付いた文献（サブスク配信）だけを対象に振り分ける。
+      // 収録レベルの無い一般ユーザー自身の文献は「すべて」でのみ表示。
+      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : isRefCard(h)))
     },
     [mergedHits, query, refYear, refGenre, refLevel],
   )
   // 収録レベルのバッジが付いた文献が両種そろっている時だけ、絞り込みチップを出す（片方しか無ければ無意味）。
   const hasDeep = useMemo(() => mergedHits.some(isDeepNote), [mergedHits])
-  const hasCard = useMemo(() => mergedHits.some((h) => !isDeepNote(h)), [mergedHits])
+  const hasCard = useMemo(() => mergedHits.some(isRefCard), [mergedHits])
   const showLevelChips = hasDeep && hasCard
   const sorted = [...filtered].sort((a, b) => {
     // 既定（レベル未指定）では📄精読ノートを先頭に寄せ、そのうえで選択中の並びを適用する。
@@ -805,10 +812,11 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     return out
   }, [personalHits, teamHits])
   const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalAndTeam, subHits, ownerFilter), [ownerFilter, personalAndTeam, subHits])
-  // 新着は🔖文献カード（支持文献）を出さない。数の多い文献カードで新着が埋まり、
+  // 新着は🔖文献カード（サブスク配信の支持文献）を出さない。数の多い文献カードで新着が埋まり、
   // 会員が追いたいCQ・ナレッジ・📄精読ノートが沈むのを防ぐ（文献カードは参考文献タブとナレッジからの導線で辿る）。
+  // 収録レベルを持たない一般ユーザー自身の文献は、これまでどおり新着に出る。
   const visibleHits = useMemo(
-    () => mergedHits.filter((h) => h.source !== 'reference' || isDeepNote(h)),
+    () => mergedHits.filter((h) => h.source !== 'reference' || !isRefCard(h)),
     [mergedHits],
   )
   const now = new Date()
@@ -1580,9 +1588,10 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   const subHits = ctx?.hits || []
   const merged = useMemo(() => {
     const all = mergeHitsByOwnerFilter(records, subHits, ownerFilter)
-    // 新着は🔖文献カード（支持文献）を出さない（パワーモードのRecentTabWithOwnerと同じ方針）。
+    // 新着は🔖文献カード（サブスク配信の支持文献）を出さない（パワーモードのRecentTabWithOwnerと同じ方針）。
     // 数の多い文献カードで新着が埋まり、CQ・ナレッジ・📄精読ノートが沈むのを防ぐ。
-    return all.filter((h) => h.source !== 'reference' || isDeepNote(h))
+    // 収録レベルを持たない一般ユーザー自身の文献は、これまでどおり新着に出る。
+    return all.filter((h) => h.source !== 'reference' || !isRefCard(h))
   }, [records, subHits, ownerFilter])
 
   const groups: { label: string; hits: Hit[] }[] = [
@@ -2207,13 +2216,15 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     () => {
       const base = filterRefHits(merged, query, refYear, refGenre)
       if (refLevel === 'all') return base
-      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : !isDeepNote(h)))
+      // チップは収録レベルの付いた文献（サブスク配信）だけを対象に振り分ける。
+      // 収録レベルの無い一般ユーザー自身の文献は「すべて」でのみ表示。
+      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : isRefCard(h)))
     },
     [merged, query, refYear, refGenre, refLevel],
   )
   // 収録レベルの絞り込みチップは両種そろっている時だけ出す（片方しか無ければ無意味）。
   const hasDeep = useMemo(() => merged.some(isDeepNote), [merged])
-  const hasCard = useMemo(() => merged.some((h) => !isDeepNote(h)), [merged])
+  const hasCard = useMemo(() => merged.some(isRefCard), [merged])
   const showLevelChips = hasDeep && hasCard
 
   const sorted = [...filtered].sort((a, b) => {
