@@ -96,6 +96,8 @@ type NotionRecord = {
   journal: string
   year: string
   evidenceLevel: string
+  // 参考文献DB用：収録レベル（📄精読ノート / 🔖文献カード）。無いDBでは空文字。
+  recordingLevel: string
   // マニュアルDB用：種別（📕マニュアル / 📢お知らせ / 🔧業務改善）・掲載日
   manualType: string
   publishedAt: string
@@ -154,6 +156,7 @@ function mapPagesToRecords(
         journal: '',
         year: '',
         evidenceLevel: '',
+        recordingLevel: '',
         manualType: '',
         publishedAt: '',
         lastEdited: (p.last_edited_time as string) || '',
@@ -179,6 +182,7 @@ function mapPagesToRecords(
         journal: '',
         year: '',
         evidenceLevel: '',
+        recordingLevel: '',
         manualType: extractText(props['種別'] || {}),
         publishedAt: extractDateStart(props['掲載日'] || {}),
         lastEdited: (p.last_edited_time as string) || '',
@@ -202,6 +206,7 @@ function mapPagesToRecords(
         journal: extractText(props['ジャーナル名'] || {}),
         year: extractText(props['発行年'] || {}),
         evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+        recordingLevel: extractText(props['収録レベル'] || {}),
         manualType: '',
         publishedAt: '',
         lastEdited: (p.last_edited_time as string) || '',
@@ -314,7 +319,7 @@ async function fetchQuizRecords(
         knowledgeLevel,
         aiSummary,
         aiKeywords: extractText(props['キーワード'] || {}),
-        author: '', journal: '', year: '', evidenceLevel: '',
+        author: '', journal: '', year: '', evidenceLevel: '', recordingLevel: '',
         manualType: '', publishedAt: '',
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
@@ -375,7 +380,7 @@ async function fetchBrowseRecords(
           knowledgeLevel: extractText(props['知識レベル'] || {}),
           aiSummary: extractText(props['要約'] || {}),
           aiKeywords: extractText(props['キーワード'] || {}),
-          author: '', journal: '', year: '', evidenceLevel: '',
+          author: '', journal: '', year: '', evidenceLevel: '', recordingLevel: '',
           manualType: '', publishedAt: '',
           lastEdited: (p.last_edited_time as string) || '',
           createdAt: (p.created_time as string) || '',
@@ -398,6 +403,7 @@ async function fetchBrowseRecords(
           journal: extractText(props['ジャーナル名'] || {}),
           year: extractText(props['発行年'] || {}),
           evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+          recordingLevel: extractText(props['収録レベル'] || {}),
           manualType: '', publishedAt: '',
           lastEdited: (p.last_edited_time as string) || '',
           createdAt: (p.created_time as string) || '',

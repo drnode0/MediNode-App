@@ -191,6 +191,7 @@ async function syncReferenceDb(
         journal: extractText(props['ジャーナル名'] || {}),
         year: extractYearText(props['発行年'] || {}),
         evidenceLevel: extractText(props['エビデンスレベル'] || {}),
+        recordingLevel: extractText(props['収録レベル'] || {}),
         aiSummary: extractText(getProp(props, summaryKey, '要約')),
         aiKeywords: extractText(getProp(props, keywordsKey, 'キーワード')),
         hasAttachment: extractHasFiles(props),
@@ -319,7 +320,7 @@ export async function POST(req: NextRequest) {
         'author',
         'journal',
       ],
-      attributesForFaceting: ['filterOnly(owner)', 'filterOnly(teamLabel)', 'filterOnly(source)', 'filterOnly(knowledgeLevel)', 'genre'],
+      attributesForFaceting: ['filterOnly(owner)', 'filterOnly(teamLabel)', 'filterOnly(source)', 'filterOnly(knowledgeLevel)', 'filterOnly(recordingLevel)', 'genre'],
       customRanking: ['desc(lastEdited)'],
     })
 

@@ -1,5 +1,5 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, type LucideIcon } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { useState, type KeyboardEvent } from 'react'
@@ -23,6 +23,7 @@ export type Hit = {
   summary?: string
   aiSummary?: string
   evidenceLevel?: string
+  recordingLevel?: string
   author?: string
   journal?: string
   year?: string
@@ -56,6 +57,14 @@ const OWNER_BADGE: Record<string, { label: string; style: string }> = {
   subscription: { label: 'プレミアム', style: 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' },
 }
 
+// エビデンスレベル文字列を「星の数＋ラベル」に分解する。選択肢名を完全一致で
+// 探さず、⭐の数を数えて残りの語をそのまま表示するので、Notion側の選択肢名が
+// 変わっても（未知の値でも）ラベルは必ず表示され、バッジが消えることはない。
+function parseEvidence(raw: string): { stars: number; label: string } {
+  const stars = (raw.match(/⭐/gu) || []).length
+  return { stars, label: stripLeadingEmoji(raw) }
+}
+
 export function ResultCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
@@ -63,9 +72,14 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
   const levelStyle = levelMeta?.badge || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
-  // 左帯は「種別」を最優先で表す（CQ/ナレッジ/まとめ）。種別が無い場合のみ
-  // 情報源（Ref=琥珀 / それ以外=常盤）にフォールバック。
-  const borderColor = levelMeta?.band || (isMedical ? 'border-l-brand-400' : 'border-l-amber-400')
+  // 参考文献の収録レベル（Tier）。精読ノート＝深掘り版／文献カード＝要点版。
+  const recLevel = !isMedical && hit.recordingLevel ? stripLeadingEmoji(hit.recordingLevel) : ''
+  const recIsDeep = recLevel.includes('精読')
+  const evidence = !isMedical && hit.evidenceLevel ? parseEvidence(hit.evidenceLevel) : null
+  // 左帯は「種別」を最優先で表す（CQ/ナレッジ/まとめ）。種別が無い場合は、
+  // 参考文献なら収録レベル（精読=濃い琥珀 / カード=淡い琥珀）、それ以外は情報源色。
+  const borderColor = levelMeta?.band
+    || (isMedical ? 'border-l-brand-400' : recLevel ? (recIsDeep ? 'border-l-amber-500' : 'border-l-amber-200') : 'border-l-amber-400')
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
@@ -120,15 +134,28 @@ export function ResultCard({ hit }: { hit: Hit }) {
         </div>
 
         <div className="flex flex-wrap gap-1 mb-2">
+          {recLevel && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${recIsDeep ? 'bg-amber-500 text-white dark:bg-amber-600' : 'text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600'}`}>
+              {recIsDeep ? <NotebookText className="h-3 w-3 shrink-0" strokeWidth={2.2} /> : <Bookmark className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
+              {recLevel}
+            </span>
+          )}
           {hit.knowledgeLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
               {levelMeta && <levelMeta.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
               {levelMeta?.label ?? stripLeadingEmoji(hit.knowledgeLevel)}
             </span>
           )}
-          {!isMedical && hit.evidenceLevel && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-              {hit.evidenceLevel}
+          {evidence && (evidence.stars > 0 || evidence.label) && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+              {evidence.stars > 0 && (
+                <span className="inline-flex text-amber-500 dark:text-amber-400">
+                  {Array.from({ length: evidence.stars }).map((_, i) => (
+                    <Star key={i} className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  ))}
+                </span>
+              )}
+              {evidence.label}
             </span>
           )}
           {(Array.isArray(hit.genre) ? hit.genre : hit.genre ? [hit.genre] : []).map((g) => (
