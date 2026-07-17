@@ -55,7 +55,7 @@ export function PremiumValueProps({ showHeader = true }: { showHeader?: boolean 
         <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5"><Sparkles className="h-4 w-4 shrink-0 text-purple-500" />含まれるコンテンツ・できること</p>
         <p>• あなたのNotion＋専門医のナレッジを<strong>横断検索</strong></p>
         <p>• 救急・集中治療領域の臨床ナレッジ</p>
-        <p>• エビデンスに基づく参考文献</p>
+        <p>• エビデンスに基づく参考文献（<strong>精読ノート</strong>＝柱の論文を深く／<strong>文献カード</strong>＝支持文献を要点で）</p>
         <p>• 現役集中治療専門医による定期アップデート</p>
         <p>• 元の<strong>共有Notionページにそのままジャンプ</strong>して詳細を確認</p>
       </div>

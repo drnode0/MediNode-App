@@ -494,6 +494,12 @@ function EmptyNotice({ Icon, title, hint, children }: { Icon: LucideIcon; title:
 }
 
 type RefSort = 'year_desc' | 'year_asc' | 'lastEdited'
+type RefLevel = 'all' | 'deep' | 'card'
+// 参考文献の収録レベル判定。📄精読ノート（Tier A・柱の深掘り）＝true、🔖文献カード（Tier B・支持文献の要点）＝false。
+// 収録レベル未設定の参考文献も、柱ではない＝カード相当として false 扱いにする。
+function isDeepNote(h: Hit): boolean {
+  return (h.recordingLevel || '').includes('精読')
+}
 function ReferenceHits({ sort }: { sort: RefSort }) {
   const { hits } = useHits()
   const sorted = [...hits as unknown as Hit[]].sort((a, b) => {
@@ -609,8 +615,10 @@ function filterRefHits(hits: Hit[], query: string, year: string | null, genre: s
 }
 
 function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
-  const [sort, setSort] = useState<RefSort>('year_desc')
+  const [sort, setSort] = useState<RefSort>('lastEdited')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  // 収録レベルの絞り込み。既定(all)では📄精読ノートを上に寄せ、柱の文献が🔖文献カードに埋もれないようにする。
+  const [refLevel, setRefLevel] = useState<RefLevel>('all')
   // 文献タブ専用の絞り込み。検索タブのキーワードとは独立させる
   // （以前は検索タブのクエリが残ったまま文献に効いて「該当なし」に見えるバグ的挙動があった）。
   const [query, setQuery] = useState('')
@@ -669,15 +677,29 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   }, [ownerFilter, personalAndTeam, subHits])
 
   const filtered = useMemo(
-    () => filterRefHits(mergedHits, query, refYear, refGenre),
-    [mergedHits, query, refYear, refGenre],
+    () => {
+      const base = filterRefHits(mergedHits, query, refYear, refGenre)
+      if (refLevel === 'all') return base
+      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : !isDeepNote(h)))
+    },
+    [mergedHits, query, refYear, refGenre, refLevel],
   )
+  // 収録レベルのバッジが付いた文献が両種そろっている時だけ、絞り込みチップを出す（片方しか無ければ無意味）。
+  const hasDeep = useMemo(() => mergedHits.some(isDeepNote), [mergedHits])
+  const hasCard = useMemo(() => mergedHits.some((h) => !isDeepNote(h)), [mergedHits])
+  const showLevelChips = hasDeep && hasCard
   const sorted = [...filtered].sort((a, b) => {
+    // 既定（レベル未指定）では📄精読ノートを先頭に寄せ、そのうえで選択中の並びを適用する。
+    if (refLevel === 'all') {
+      const ad = isDeepNote(a) ? 0 : 1
+      const bd = isDeepNote(b) ? 0 : 1
+      if (ad !== bd) return ad - bd
+    }
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
     if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
   })
-  const isFiltering = !!(query.trim() || refYear || refGenre)
+  const isFiltering = !!(query.trim() || refYear || refGenre || refLevel !== 'all')
 
   return (
     <>
@@ -691,7 +713,7 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="文献を絞り込み..."
-            className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+            className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
           />
           <select
             value={sort}
@@ -708,6 +730,23 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
             挟むと、データ読み込み後にチップ2行が現れて一覧が下にズレる（文献タブ
             だけで起きていた挙動）。バー内に畳めば一覧の起点が動かず、スクロール中も
             絞り込みが手元に残る。 */}
+        {showLevelChips && !(ownerFilter === 'subscription' && !hasSubscription) && (
+          <div className="mt-2 flex gap-1.5">
+            {(([['all', 'すべて'], ['deep', '精読ノート'], ['card', '文献カード']]) as [RefLevel, string][]).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setRefLevel(v)}
+                className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  refLevel === v
+                    ? 'bg-amber-600 text-white border-transparent'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {!(ownerFilter === 'subscription' && !hasSubscription) && (
           <div className="mt-2">
             <RefBrowseChips hits={mergedHits} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
@@ -766,6 +805,12 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     return out
   }, [personalHits, teamHits])
   const mergedHits = useMemo(() => mergeHitsByOwnerFilter(personalAndTeam, subHits, ownerFilter), [ownerFilter, personalAndTeam, subHits])
+  // 新着は🔖文献カード（支持文献）を出さない。数の多い文献カードで新着が埋まり、
+  // 会員が追いたいCQ・ナレッジ・📄精読ノートが沈むのを防ぐ（文献カードは参考文献タブとナレッジからの導線で辿る）。
+  const visibleHits = useMemo(
+    () => mergedHits.filter((h) => h.source !== 'reference' || isDeepNote(h)),
+    [mergedHits],
+  )
   const now = new Date()
   const groups: { label: string; hits: Hit[] }[] = [
     { label: '今日', hits: [] },
@@ -773,7 +818,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     { label: '今月', hits: [] },
     { label: 'それ以前', hits: [] },
   ]
-  for (const hit of mergedHits) {
+  for (const hit of visibleHits) {
     const d = new Date(hit.createdAt || hit.lastEdited)
     const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
     if (diffDays < 1) groups[0].hits.push(hit)
@@ -792,7 +837,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
-      ) : mergedHits.length === 0 ? (
+      ) : visibleHits.length === 0 ? (
         <div className="text-center py-14 px-4">
           <div className="mb-4 flex justify-center text-gray-300 dark:text-gray-600"><Inbox className="h-12 w-12" /></div>
           <p className="text-gray-600 dark:text-gray-300 font-semibold text-base mb-1">データがありません</p>
@@ -1533,10 +1578,12 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   }, [ownerFilter, ctx])
 
   const subHits = ctx?.hits || []
-  const merged = useMemo(
-    () => mergeHitsByOwnerFilter(records, subHits, ownerFilter),
-    [records, subHits, ownerFilter],
-  )
+  const merged = useMemo(() => {
+    const all = mergeHitsByOwnerFilter(records, subHits, ownerFilter)
+    // 新着は🔖文献カード（支持文献）を出さない（パワーモードのRecentTabWithOwnerと同じ方針）。
+    // 数の多い文献カードで新着が埋まり、CQ・ナレッジ・📄精読ノートが沈むのを防ぐ。
+    return all.filter((h) => h.source !== 'reference' || isDeepNote(h))
+  }, [records, subHits, ownerFilter])
 
   const groups: { label: string; hits: Hit[] }[] = [
     { label: '今日', hits: [] },
@@ -2131,8 +2178,10 @@ function NotionManualTab() {
 // Notionモード：参考文献タブ
 function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, error } = useNotionSearch('reference')
-  const [sort, setSort] = useState<RefSort>('year_desc')
+  const [sort, setSort] = useState<RefSort>('lastEdited')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  // 収録レベルの絞り込み。既定(all)では📄精読ノートを上に寄せ、柱の文献が🔖文献カードに埋もれないようにする。
+  const [refLevel, setRefLevel] = useState<RefLevel>('all')
   const [query, setQuery] = useState('')
   const [refYear, setRefYear] = useState<string | null>(null)
   const [refGenre, setRefGenre] = useState<string | null>(null)
@@ -2155,11 +2204,25 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
   // キーワード・年・ジャンルで絞り込み（取得済みレコードに対するクライアント側フィルタ）
   const filtered = useMemo(
-    () => filterRefHits(merged, query, refYear, refGenre),
-    [merged, query, refYear, refGenre],
+    () => {
+      const base = filterRefHits(merged, query, refYear, refGenre)
+      if (refLevel === 'all') return base
+      return base.filter((h) => (refLevel === 'deep' ? isDeepNote(h) : !isDeepNote(h)))
+    },
+    [merged, query, refYear, refGenre, refLevel],
   )
+  // 収録レベルの絞り込みチップは両種そろっている時だけ出す（片方しか無ければ無意味）。
+  const hasDeep = useMemo(() => merged.some(isDeepNote), [merged])
+  const hasCard = useMemo(() => merged.some((h) => !isDeepNote(h)), [merged])
+  const showLevelChips = hasDeep && hasCard
 
   const sorted = [...filtered].sort((a, b) => {
+    // 既定（レベル未指定）では📄精読ノートを先頭に寄せ、そのうえで選択中の並びを適用する。
+    if (refLevel === 'all') {
+      const ad = isDeepNote(a) ? 0 : 1
+      const bd = isDeepNote(b) ? 0 : 1
+      if (ad !== bd) return ad - bd
+    }
     if (sort === 'year_desc') return (b.year || '0') > (a.year || '0') ? 1 : -1
     if (sort === 'year_asc') return (a.year || '0') > (b.year || '0') ? 1 : -1
     return (b.lastEdited || '') > (a.lastEdited || '') ? 1 : -1
@@ -2179,7 +2242,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="文献を絞り込み..."
-          className="flex-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+          className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
         />
         <select
           value={sort}
@@ -2192,6 +2255,23 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
       <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       {/* 年代・ジャンルチップはsticky制御バー内に置く（一覧の途中に非stickyで挟むと
           読み込み後にチップ2行が現れて一覧が下にズレるため。バー内なら起点が動かない）。 */}
+      {showLevelChips && !(ownerFilter === 'subscription' && !hasSubscription) && (
+        <div className="mt-2 flex gap-1.5">
+          {(([['all', 'すべて'], ['deep', '精読ノート'], ['card', '文献カード']]) as [RefLevel, string][]).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setRefLevel(v)}
+              className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                refLevel === v
+                  ? 'bg-amber-600 text-white border-transparent'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {!(ownerFilter === 'subscription' && !hasSubscription) && (
         <div className="mt-2">
           <RefBrowseChips hits={merged} year={refYear} onYear={setRefYear} genre={refGenre} onGenre={setRefGenre} />
@@ -2200,7 +2280,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
     </div>
   )
 
-  const isFiltering = !!(query.trim() || refYear || refGenre)
+  const isFiltering = !!(query.trim() || refYear || refGenre || refLevel !== 'all')
 
   if (ownerFilter === 'subscription' && !hasSubscription) return <>{ownerTabs}<SubscriptionPromoPanel /></>
   if (loading) return <>{ownerTabs}<SkeletonCards /></>
