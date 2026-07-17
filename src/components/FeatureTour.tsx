@@ -96,7 +96,7 @@ export function FeatureTour({ searchMode, showCqStep, onClose }: Props) {
               </div>
             ),
             title: '右下のCQボタンで、疑問をその場に残す',
-            body: '気になった疑問を書くだけで、あなたのNotionに「❓ CQ」として保存されます。あとで調べて答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。',
+            body: '気になった疑問を書くだけで、あなたのNotionに「❓ CQ」として保存されます。あとで調べて答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。個人のNotion（Medical DB）を接続している方向けの機能で、部署・プレミアムのみでお使いの場合はボタンごと表示されません。',
           } satisfies TourStep,
         ]
       : []),
