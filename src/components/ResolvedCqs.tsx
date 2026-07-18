@@ -1,19 +1,21 @@
 'use client'
 
 // ============================================================
-// 解決済み臨床疑問の通知（プレミアム限定）
+// 解決済み臨床疑問の通知・一覧
 // ------------------------------------------------------------
 //   - ResolvedCqBanner: 新しくナレッジ化された疑問があるときだけ、起動時に
-//     1回出す通知バナー。×で既読化（localStorageに既読水位=createdAtを保存）。
-//     毎日更新される類のものではないので、常設タブは作らずバナー＋設定内の
-//     一覧（下記）だけで完結させる。
+//     1回出す通知バナー（プレミアム会員のみ）。×で既読化（localStorageに
+//     既読水位=createdAtを保存）。毎日更新される類のものではないので、
+//     常設タブは作らずバナー＋設定内の一覧（下記）だけで完結させる。
 //   - ResolvedCqHistory: 設定 →「解決したみんなの臨床疑問」の全件一覧。
-//     メニュー項目ごとプレミアム会員にだけ表示される（SettingsPanel側で制御）。
+//     非プレミアムにも見せる（解決の実績とペースが購買動機になる）が、
+//     ナレッジ本文へのリンクはプレミアムのみ。非プレミアムには登録導線を出す。
 // ============================================================
 
 import { useState, useEffect, useContext } from 'react'
-import { X, Sprout, ExternalLink } from 'lucide-react'
+import { X, Sprout, ExternalLink, Star } from 'lucide-react'
 import { fetchResolvedCqs, posterLabel, resolvedDateLabel, type ResolvedCq } from '@/lib/resolved-cqs'
+import { hasSubscriptionConfig } from '@/lib/algolia'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 
 // 既読水位（最後に確認した createdAt）。これより新しいものだけを「新着」として出す。
@@ -28,6 +30,8 @@ export function ResolvedCqBanner() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      // 通知バナーはプレミアム会員だけ（一覧と違い、非会員への通知はノイズになる）
+      if (!hasSubscriptionConfig()) return
       const all = await fetchResolvedCqs()
       if (cancelled || all.length === 0) return
       let seenAt = ''
@@ -83,9 +87,11 @@ export function ResolvedCqBanner() {
   )
 }
 
-// 設定 →「解決したみんなの臨床疑問」の一覧本体。
-export function ResolvedCqHistory() {
+// 設定 →「解決したみんなの臨床疑問」の一覧本体。全ユーザーが開ける。
+// onOpenPremium: 非プレミアム向け登録導線（設定のプレミアムセクションを開く）。
+export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => void }) {
   const [items, setItems] = useState<ResolvedCq[] | null>(null)
+  const isPremium = hasSubscriptionConfig()
 
   useEffect(() => {
     let cancelled = false
@@ -104,9 +110,29 @@ export function ResolvedCqHistory() {
       )}
       {items !== null && items.length === 0 && (
         <p className="text-xs text-gray-400 dark:text-gray-500 px-1 py-4 text-center leading-relaxed">
-          まだ解決済みの投稿疑問はありません。<br />
-          臨床疑問は 設定 →「臨床疑問を投稿する」からいつでも送れます。
+          まだ解決済みの投稿疑問はありません。
+          {isPremium && (<><br />臨床疑問は 設定 →「臨床疑問を投稿する」からいつでも送れます。</>)}
         </p>
+      )}
+      {/* 非プレミアム向け：本文リンクの代わりに登録導線。「このペースで疑問が解決されている」
+          実績を見せた直後が最も刺さるため、一覧の直上に置く。 */}
+      {!isPremium && items !== null && items.length > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 space-y-1.5">
+          <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5 shrink-0" />これらの疑問への専門医の回答は、プレミアムで読めます
+          </p>
+          <p className="text-[11px] text-purple-600 dark:text-purple-400 leading-relaxed">
+            プレミアムに登録すると、ナレッジ本文の閲覧・横断検索に加えて、あなた自身の臨床疑問も投稿できます。
+          </p>
+          {onOpenPremium && (
+            <button
+              onClick={onOpenPremium}
+              className="text-xs font-semibold text-purple-700 dark:text-purple-200 bg-white/70 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-purple-900/60 transition-colors"
+            >
+              プレミアムについて見る
+            </button>
+          )}
+        </div>
       )}
       {items !== null && items.map((c) => (
         <div key={c.objectID} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">

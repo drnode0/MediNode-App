@@ -674,18 +674,17 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
-              {/* 解決したみんなの臨床疑問（プレミアム限定の隠しメニュー）。
-                  常設タブは増やさず、通知バナー（ResolvedCqBanner）＋ここからの一覧で完結させる。 */}
-              {hasSubscriptionConfig() && (
-                <button onClick={() => setSection('resolved-cqs')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left">
-                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><Sprout className="w-5 h-5" /></span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">解決したみんなの臨床疑問 <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">投稿された疑問から生まれたナレッジの一覧（プレミアム限定）</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                </button>
-              )}
+              {/* 解決したみんなの臨床疑問。一覧は全ユーザーに見せる（解決の実績とペースが
+                  プレミアムの購買動機になる）。本文リンクはプレミアムのみ（ResolvedCqHistory側で制御）。
+                  常設タブは増やさず、通知バナー（ResolvedCqBanner・会員のみ）＋ここからの一覧で完結させる。 */}
+              <button onClick={() => setSection('resolved-cqs')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left">
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><Sprout className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">解決したみんなの臨床疑問</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">投稿された疑問から生まれたナレッジの一覧</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
               <a
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -1145,8 +1144,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
             </div>
           )}
 
-          {/* ── 解決したみんなの臨床疑問（プレミアム限定） ── */}
-          {section === 'resolved-cqs' && <ResolvedCqHistory />}
+          {/* ── 解決したみんなの臨床疑問（全ユーザー・本文リンクはプレミアムのみ） ── */}
+          {section === 'resolved-cqs' && <ResolvedCqHistory onOpenPremium={() => setSection('subscription')} />}
 
           {/* ── ヘルプ ── */}
           {section === 'help' && (
