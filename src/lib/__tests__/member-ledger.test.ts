@@ -62,4 +62,60 @@ describe('deriveMemberKind', () => {
   it('plan 不明の active 行は安全側で premium 扱い', () => {
     expect(deriveMemberKind(false, sub({ status: 'active' }), NOW)).toBe('premium')
   })
+
+  it('plan=auto_trial（登録時3日・新形式）は auto_trial・期限切れは expired', () => {
+    expect(
+      deriveMemberKind(
+        false,
+        sub({ plan: 'auto_trial', status: 'trialing', trial_ends_at: '2026-07-17T00:00:00Z' }),
+        NOW,
+      ),
+    ).toBe('auto_trial')
+    expect(
+      deriveMemberKind(
+        false,
+        sub({ plan: 'auto_trial', status: 'trialing', trial_ends_at: '2026-07-14T00:00:00Z' }),
+        NOW,
+      ),
+    ).toBe('expired')
+  })
+
+  // 旧形式の遡及分類: auto_trial 導入前は自動3日も plan='trial' で保存されていた。
+  // user_metadata.auto_trial_granted_at と期限の一致（付与+3日）で自動トライアルと見なす。
+  it('旧形式: plan=trial でも自動付与フラグ＋期限が付与+3日なら auto_trial', () => {
+    expect(
+      deriveMemberKind(
+        false,
+        sub({
+          plan: 'trial',
+          status: 'trialing',
+          trial_ends_at: '2026-07-17T10:00:00Z',
+          auto_trial_granted_at: '2026-07-14T10:00:00Z',
+        }),
+        NOW,
+      ),
+    ).toBe('auto_trial')
+  })
+
+  it('旧形式: 自動付与フラグがあってもコード式14日に乗り換えた人は trial のまま', () => {
+    // 自動3日のあと note コード（14日）を入れると trial_ends_at が付与+3日から離れる。
+    expect(
+      deriveMemberKind(
+        false,
+        sub({
+          plan: 'trial',
+          status: 'trialing',
+          trial_ends_at: '2026-07-28T10:00:00Z',
+          auto_trial_granted_at: '2026-07-14T10:00:00Z',
+        }),
+        NOW,
+      ),
+    ).toBe('trial')
+  })
+
+  it('旧形式: 自動付与フラグがなければ従来どおり trial', () => {
+    expect(
+      deriveMemberKind(false, sub({ plan: 'trial', status: 'trialing', trial_ends_at: '2026-07-27T00:00:00Z' }), NOW),
+    ).toBe('trial')
+  })
 })

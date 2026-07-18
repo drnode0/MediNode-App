@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const trialEndsAt = await grantTrialByUserId(user.id, AUTO_TRIAL_DAYS)
+    // plan='auto_trial' で保存し、台帳で note特典コード（plan='trial'）と区別できるようにする。
+    const trialEndsAt = await grantTrialByUserId(user.id, AUTO_TRIAL_DAYS, 'auto_trial')
     return NextResponse.json({ ok: true, granted: true, trialDays: AUTO_TRIAL_DAYS, trialEndsAt })
   } catch (err) {
     console.error('auto-trial: 付与失敗:', err instanceof Error ? err.message : err)
