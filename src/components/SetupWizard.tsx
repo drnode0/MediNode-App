@@ -183,7 +183,7 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        アカウント登録だけで3日間の無料お試しが自動で始まります。さらに、<a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
+        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
       </p>
       {/* SettingsPanel側と同じ対策: min-w-0 がないと input が最小コンテンツ幅より
@@ -287,6 +287,9 @@ function DbIdStatus({ value }: { value: string | undefined }) {
 
 // parseErrorMessage は設定パネルの接続テストと共用するため
 // src/lib/connection-errors.ts へ移設（文面は不変・import で利用）。
+
+// 詳しい説明書（📘 セットアップ＆運用ガイド）。ヘルプシート内から別タブで開く。
+const SETUP_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
@@ -766,6 +769,35 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     }
   }
 
+  // プレミアム選択・コード未入力での完了時: 自動トライアル（3日）を付与してキーを取得してから
+  // 完了判定する。これが無いと、PremiumSync（別コンポーネント・非同期）がキーを保存するより先に
+  // finishSetup が走り、「プレミアムのコードを入力してから」という矛盾したエラーが出る（レース）。
+  // 付与済み・契約済みのアカウントでも /api/premium/status がキーを返すのでこの経路で成立する。
+  const finishWithPremiumBootstrap = async (base: AppSettings) => {
+    setRestoring(true)
+    try {
+      // 未付与なら3日トライアルを付与（付与済み・対象外はサーバーがno-op）。
+      try { await fetch('/api/premium/auto-trial', { method: 'POST' }) } catch {}
+      const res = await fetch('/api/premium/status', { cache: 'no-store' })
+      const data = await res.json()
+      if (data?.active && data?.algolia) {
+        const next: AppSettings = {
+          ...base,
+          subscriptionAppId: data.algolia.appId,
+          subscriptionSearchKey: data.algolia.searchKey,
+          subscriptionIndex: data.algolia.index,
+          subscriptionTrialEndsAt: data.trialEndsAt || '',
+        }
+        setForm(next)
+        saveSettings(next)
+      }
+    } catch {
+      // 取得失敗時は下の finishSetup 判定に委ねる（エラー文言で options に留まる）。
+    }
+    setRestoring(false)
+    finishSetup()
+  }
+
   const handleNotionNext = () => {
     if (!form.notionToken.trim()) {
       setError('NotionコネクトのTokenを入力してください')
@@ -1007,41 +1039,50 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
     if (stepIndex > 0) setStep(steps[stepIndex - 1].id)
   }
 
+  // 「設定はあとにして、まず中身を見る」逃げ道（モニターFB）。
+  // プレミアム単独（skipMode）へ切り替えてオプションへ進む。プレミアムは
+  // アカウント登録＋自動3日トライアルだけで isSetupComplete が成立する。
+  // 入力途中のToken等は saveDraft が入力のたび保存しているため消えない。
+  const skipToPremium = () => {
+    setError('')
+    setForm((f) => ({ ...f, searchMode: 'notion' }))
+    setTargets({ personal: false, team: false, premium: true })
+    setOpenSection('subscription')
+    setStep('options')
+  }
+
+  // notion / algolia / sync の各ステップ下部に置く共通リンク
+  const skipToPremiumLink = (
+    <div className="text-center pt-1">
+      <button
+        type="button"
+        onClick={skipToPremium}
+        className="text-xs text-brand-600 dark:text-brand-400 underline underline-offset-2 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+      >
+        設定はあとにして、まず中身を見てみる（プレミアム3日間無料）
+      </button>
+      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+        入力した内容は保存されます。Notionの設定は「設定 → 接続」でいつでも再開できます。
+      </p>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800 flex items-start justify-center px-4 pt-10 [padding-bottom:calc(4rem+env(safe-area-inset-bottom))]">
       <div className="w-full max-w-lg">
         {/* ヘッダー */}
         <div className="relative text-center mb-8">
-          {/* pt-8: 左上「使い方」・右上「ログイン/ガイド/ヘルプ」は absolute 配置のため、
+          {/* pt-8: 右上「ログイン/ヘルプ」は absolute 配置のため、
               モバイル幅（375px）でロゴと重ならないようロゴをボタン行の下へ落とす。 */}
           <div className="mb-3 pt-8">
             <img src="/icon-512.png" alt="MediNode" width={64} height={64} className="w-16 h-16 mx-auto rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MediNode</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">初回セットアップ</p>
-          {/* オンボーディングボタン（左上） */}
-          {onShowOnboarding && (
-            <button
-              onClick={onShowOnboarding}
-              className="absolute top-0 left-0 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 dark:hover:text-brand-400 transition-colors px-1 py-1"
-              title="アプリの紹介を見る"
-            >
-              <Info className="w-4 h-4" />
-              使い方
-            </button>
-          )}
-          {/* ガイド・ヘルプボタン（右上） */}
+          {/* ヘルプボタン（右上）。「使い方」「ガイド」の入口はヘルプシート内に集約
+              （モニターFB: 入口が3つあるとどれを選べばよいか迷う）。 */}
           <div className="absolute top-0 right-0 flex items-center gap-1.5">
             <AccountButton />
-            <a
-              href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-gray-200 dark:ring-gray-700 transition-colors text-xs font-semibold"
-              title="詳しい説明書（ガイド）を別タブで開く"
-            >
-              <Book className="inline-block h-4 w-4 align-text-bottom mr-1.5" />ガイド
-            </a>
             <button
               onClick={() => setShowHelp(true)}
               className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 ring-1 ring-brand-200 dark:ring-brand-700 transition-colors text-xs font-semibold"
@@ -1075,6 +1116,26 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto pr-1">
                   {STEP_HELP[step].content}
+                  {/* 旧・左上「使い方」と右上「ガイド」の入口をここに集約（モニターFB対応） */}
+                  <div className="border-t border-gray-100 dark:border-gray-700 mt-4 pt-4 space-y-2">
+                    {onShowOnboarding && (
+                      <button
+                        type="button"
+                        onClick={() => { setShowHelp(false); onShowOnboarding() }}
+                        className="w-full flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <Info className="h-4 w-4" />アプリの紹介（はじめての方へ）をもう一度見る
+                      </button>
+                    )}
+                    <a
+                      href={SETUP_GUIDE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <Book className="h-4 w-4" />詳しい説明書（ガイド）を別タブで開く
+                    </a>
+                  </div>
                   {/* ステップ別ヘルプで解決しないとき: 設定→ヘルプと同じFAQ検索をその場で */}
                   <div className="border-t border-gray-100 dark:border-gray-700 mt-4 pt-4">
                     {showHelpFaq ? (
@@ -1240,6 +1301,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {step === 'start' && (
             <div className="space-y-5">
               <div>
+                <button
+                  onClick={() => { setError(''); setStep('entry') }}
+                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                >
+                  <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
+                </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">何から始めますか？</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   使いたいものを選んでください（複数選択可）。あとから「設定」で追加もできます。
@@ -1300,12 +1367,6 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
               >
                 次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
-              </button>
-              <button
-                onClick={() => { setError(''); setStep('entry') }}
-                className="w-full text-gray-400 dark:text-gray-500 text-xs py-1 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />入口（アカウントの有無）に戻る
               </button>
               {error && (
                 <p className="text-xs text-red-500 text-center">{error}</p>
@@ -1382,6 +1443,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   まずNotionコネクト（旧称: Integration）のTokenを入力してください。
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  目安は約5分。あとからでも設定できます。
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   Notion自体がはじめての方は、作者の
@@ -1834,6 +1898,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <p className="font-medium">{error}</p>
                 </div>
               )}
+
+              {skipToPremiumLink}
             </div>
           )}
 
@@ -1841,6 +1907,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {step === 'algolia' && (
             <div className="space-y-5">
               <div>
+                <button
+                  onClick={goPrevStep}
+                  className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1"
+                >
+                  <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
+                </button>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Algoliaの設定</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   高速検索エンジンのAPIキーを入力してください。無料プランで利用できます。
@@ -1953,6 +2025,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
                 </button>
               </div>
+
+              {skipToPremiumLink}
             </div>
           )}
 
@@ -1960,6 +2034,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {step === 'sync' && (
             <div className="space-y-5">
               <div>
+                {!syncResult && (
+                  <button
+                    onClick={() => { setTestResult(null); goPrevStep() }}
+                    disabled={syncing}
+                    className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-1 disabled:opacity-50"
+                  >
+                    <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
+                  </button>
+                )}
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">データの同期</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   NotionのデータをAlgoliaに同期します。初回は数分かかる場合があります。
@@ -2031,6 +2114,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       ) : '同期開始'}
                     </button>
                   </div>
+
+                  {!syncing && skipToPremiumLink}
                 </>
               ) : (
                 <div className="space-y-4">
@@ -2165,7 +2250,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   <div>
                     <p className="text-sm font-semibold text-purple-700 dark:text-purple-300"><Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />プレミアム</p>
-                    <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジにアクセス</p>
+                    <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジ。メール登録だけで3日間無料</p>
                   </div>
                   <span className="text-purple-400 dark:text-purple-500 ml-4">{openSection === 'subscription' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
                 </button>
@@ -2187,10 +2272,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     ) : (
                       /* 未登録: 訴求＋購入ボタン */
                       <div className="space-y-3">
+                        {/* 最重要メッセージを最初に置く: コード・カードなしでもメール登録だけで3日間使える。
+                            ここに入力欄が並ぶせいで「何か入れないと使えない」と誤解される（モニターFB 2026-07-18）。 */}
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 space-y-1">
+                          <p className="text-xs font-bold text-green-700 dark:text-green-400"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />ここでの入力は不要です</p>
+                          <p className="text-[11px] text-green-700 dark:text-green-500 leading-relaxed">コード入力もカード登録もいりません。このまま下の「<strong>メールを登録して検索を開始する</strong>」を押すと、<strong>3日間の無料お試し</strong>が自動で始まります。</p>
+                        </div>
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />まずは無料でお試しできます</strong>。下のトライアルコードなら<strong>カード登録なし・14日間</strong>、期間終了後も勝手に課金されません。継続したい方は有料登録（<strong>最初の1週間無料</strong>・月額980円（税込）・いつでも解約可）へ。
+                          <strong><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />もっと長く試したい方へ</strong>：note記事などに記載のトライアルコードを入力すると、<strong>カード登録なし・14日間</strong>のお試しに延長されます。期間終了後も勝手に課金されません。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -2210,7 +2301,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         }} />
                         <div className="flex items-center gap-2 py-1">
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
-                          <p className="text-[11px] text-gray-400 dark:text-gray-500">そのまま続けたい方は</p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500">ずっと使いたい方は</p>
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -2230,6 +2321,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 onClick={() => {
                   if (user) {
                     saveSettings(form)
+                    // プレミアム選択でキー未取得（コード未使用）なら、自動トライアル付与→キー取得後に完了判定。
+                    if (targets.premium && !(form.subscriptionAppId && form.subscriptionSearchKey)) {
+                      void finishWithPremiumBootstrap(form)
+                      return
+                    }
                     finishSetup() // 設定不足ならホームへ抜けさせず options に留める
                   } else {
                     saveDraft(form) // モーダル中の離脱に備えて途中保存
@@ -2283,6 +2379,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             if (loginPurpose === 'register') {
               // フォールバック（options末尾で未ログインだった場合）。設定をローカル保存し、サーバー同期はログイン後に走る。
               saveSettings(form)
+              // プレミアム選択でキー未取得（コード未使用）なら、自動トライアル付与→キー取得後に完了判定。
+              // 直後に finishSetup すると PremiumSync のキー保存より先に走ってエラーになるレースがある。
+              if (targets.premium && !(form.subscriptionAppId && form.subscriptionSearchKey)) {
+                setShowLogin(false)
+                void finishWithPremiumBootstrap(form)
+                return
+              }
               // 新規登録の完了時のみ最終ガード。設定不足ならホームへ抜けさせず options に戻す。
               if (!finishSetup()) { setShowLogin(false); return }
               setShowLogin(false)
