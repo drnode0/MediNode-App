@@ -171,6 +171,31 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   )
 }
 
+// ジャンルボタンの色ドット（緑=部署・紫=プレミアム）の凡例。ドットの意味を伝える手段が
+// これまでtitle属性のみでスマホでは知りようがなかったため追加。ただし常設はしない：
+// 部署・プレミアム未登録の人にはドット自体が出ないので、凡例も「画面内にドットが
+// 1つでもある時だけ」表示する（Notionモードのジャンルタブと共用）。
+export function GenreDotLegend({ showTeam, showSub }: { showTeam: boolean; showSub: boolean }) {
+  const teamLabel = getSettings()?.teamLabel?.trim() || '部署'
+  if (!showTeam && !showSub) return null
+  return (
+    <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500 -mt-1 mb-3">
+      {showTeam && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+          {teamLabel}にもあります
+        </span>
+      )}
+      {showSub && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500" />
+          プレミアムにもあります
+        </span>
+      )}
+    </p>
+  )
+}
+
 function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
   onGenreSelect: (genre: string | null) => void
   selectedGenre: string | null
@@ -277,6 +302,10 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
 
   const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
   const hiddenCount = sortedGenres.length - visibleGenres.length
+  // 凡例は「全て」表示中かつ画面内にドットが実在する時だけ。単独フィルタ中は
+  // ドットの意味が自明（絞り込み対象そのもの）なので出さない。
+  const showTeamLegend = owner === 'all' && visibleGenres.some((g) => (mergedFacets.team[g] || 0) > 0)
+  const showSubLegend = owner === 'all' && visibleGenres.some((g) => (mergedFacets.subscription[g] || 0) > 0)
 
   return (
     <>
@@ -332,6 +361,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
         )
       })}
     </div>
+    <GenreDotLegend showTeam={showTeamLegend} showSub={showSubLegend} />
     {(hiddenCount > 0 || showAll) && sortedGenres.length > GENRE_SHOW_LIMIT && (
       <button
         onClick={() => setShowAll((v) => !v)}
