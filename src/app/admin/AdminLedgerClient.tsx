@@ -49,6 +49,29 @@ type LedgerRow = {
   subUpdatedAt: string | null
   settingsUpdatedAt: string | null
   lastUsedAt: string | null
+  source: string | null
+}
+
+// 流入元バッジの表示名と色。未知の値（ホスト名等）はそのままグレーで出す。
+const SOURCE_STYLE: Record<string, { label: string; badge: string }> = {
+  x: { label: 'X', badge: 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' },
+  note: { label: 'note', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' },
+  line: { label: 'LINE', badge: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
+  lp: { label: 'LP直接', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
+  direct: { label: '直接', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
+}
+
+function SourceBadge({ source }: { source: string | null }) {
+  if (!source) return <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+  const style = SOURCE_STYLE[source] ?? {
+    label: source,
+    badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs whitespace-nowrap ${style.badge}`}>
+      {style.label}
+    </span>
+  )
 }
 
 // 区分バッジの見た目。優先度の高い順（画面の並び・集計チップもこの順）。
@@ -236,11 +259,12 @@ export function AdminLedgerClient() {
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
-    const header = ['メール', '区分', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '流入元', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
+        csvCell(r.source ?? '—'),
         csvCell(r.kind === 'comp' ? '無期限' : fmtDateTime(r.trialEndsAt) || '—'),
         csvCell(fmtDateTime(r.createdAt) || '—'),
         csvCell(fmtDateTime(r.lastSignInAt) || '—'),
@@ -269,7 +293,8 @@ export function AdminLedgerClient() {
       (r) =>
         (r.email ?? '').toLowerCase().includes(q) ||
         r.userId.toLowerCase().includes(q) ||
-        MEMBER_KIND_LABEL[r.kind].includes(query.trim()),
+        MEMBER_KIND_LABEL[r.kind].includes(query.trim()) ||
+        (r.source ?? '').toLowerCase().includes(q),
     )
   }, [rows, query])
 
@@ -459,6 +484,7 @@ export function AdminLedgerClient() {
                   <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th className="px-4 py-3 font-medium">メール</th>
                     <th className="px-4 py-3 font-medium">区分</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">流入元</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
@@ -504,6 +530,9 @@ export function AdminLedgerClient() {
                             <Icon className="w-3.5 h-3.5" aria-hidden />
                             {MEMBER_KIND_LABEL[r.kind]}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <SourceBadge source={r.source} />
                         </td>
                         <td
                           className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
@@ -553,7 +582,7 @@ export function AdminLedgerClient() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
                       </td>
                     </tr>
@@ -571,6 +600,8 @@ export function AdminLedgerClient() {
               最終ログイン: 6桁コードやパスワードでログインが成立した日（ログインしたままの端末では動きません）。
               最終利用: ログイン中のユーザーがアプリを開いた日（1時間に1回更新・機能追加後の利用から。日付にカーソルを載せると時刻も出ます）。
               設定同期: 設定がサーバーに保存された最後の日。
+              流入元: LP経由のリンクで最初に計測できた媒体（X・note・LINE等）。機能追加前からの登録者は、
+              次にLP経由で来訪した時に初めて記録されるため「—」のままの人もいます。
             </p>
           </>
         )}

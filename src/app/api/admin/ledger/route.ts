@@ -149,6 +149,9 @@ export async function GET() {
           subUpdatedAt: (s?.updated_at as string | undefined) ?? null,
           settingsUpdatedAt: settingsByUser.get(u.id) ?? null,
           lastUsedAt: usageByUser.get(u.id) ?? null,
+          // 流入元（x / note / line / direct 等）。SourceCapture が user_metadata に記録した
+          // 「最初に計測できた媒体」。機能追加前の登録者は再訪時に初めて計測されるため空もある。
+          source: (u.user_metadata?.acq_source as string | undefined) ?? null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
