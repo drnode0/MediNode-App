@@ -1,11 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type React from 'react'
 import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info, ExternalLink } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { parseErrorMessage } from '@/lib/connection-errors'
+import { classifyRestoreResponse, type RestoreOutcome } from '@/lib/restore-outcome'
 import { HelpFaq } from './HelpFaq'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import SetupVideoModal from './SetupVideoModal'
@@ -785,27 +786,69 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // サーバー保存済み設定を取得・復元してから完了判定する共通処理。
   // 入口の「保存済みの設定を復元して始める」と、復元ログイン成功時の両方から呼ぶ。
   // サーバーに設定が無いアカウントは空設定のままホームへ抜けさせず、知識選択へ案内する。
+  //
+  // 応答は classifyRestoreResponse で区別する。「設定なし」と案内してよいのは
+  // 本当に設定が無いときだけ。未認証・通信失敗・サーバー側の復元不能まで同じ文言で
+  // 再セットアップへ流すと、設定済みユーザーには「設定が消えた」ように見えるうえ、
+  // 復号失敗時は再入力の保存がサーバーの既存設定を上書きして本当に消してしまう。
+  const reloginPromptedRef = useRef(false)
   const restoreFromServerAndFinish = async () => {
     setRestoring(true)
+    let outcome: RestoreOutcome = 'network_error'
+    let localSaveFailed = false
     try {
       const res = await fetch('/api/user-settings', { cache: 'no-store' })
-      const data = await res.json()
-      if (data?.settings) {
+      const data = res.ok ? await res.json().catch(() => null) : null
+      outcome = classifyRestoreResponse(res.ok, data)
+      if (outcome === 'has_settings') {
         // サーバーを優先しつつ、ローカルの非空項目は温存（SettingsSyncと同じ流儀）。
         const merged = mergeSettings(data.settings as AppSettings, getSettings()) as AppSettings
-        saveSettings(merged, { skipServer: true })
+        localSaveFailed = !saveSettings(merged, { skipServer: true })
         if (data.updatedAt) setSettingsUpdatedAt(data.updatedAt)
       }
     } catch {
-      // 取得失敗時は下の isSetupComplete 判定に委ねる（ローカルに設定があればそのまま入れる）。
+      // fetch自体の失敗（オフライン等）は network_error のまま下の案内に落とす。
     }
     setRestoring(false)
     if (isSetupComplete()) {
       clearDraft()
       onComplete()
-    } else {
-      setError('このアカウントに保存済みの設定はまだありませんでした。ログインは完了しているので、このままセットアップを進めてください。')
-      setStep('start')
+      return
+    }
+    switch (outcome) {
+      case 'not_authenticated':
+        // サーバーにセッションが届いていない（Cookie不達・期限切れ）。設定は消えていない。
+        // 再セットアップへは流さず、まず再ログインを促す（自動で開くのは一度だけ＝ループ防止）。
+        setError(
+          reloginPromptedRef.current
+            ? 'まだログインの確認がサーバーに届いていません。iPhoneの場合は「設定 > アプリ > Safari」の「すべてのCookieをブロック」がオフか、プライベートブラウズでないかをご確認のうえ、もう一度お試しください。保存済みの設定は消えていません。'
+            : 'ログインの確認がサーバーに届きませんでした。お手数ですが、もう一度ログインしてください。保存済みの設定は消えていません。',
+        )
+        if (!reloginPromptedRef.current) {
+          reloginPromptedRef.current = true
+          setLoginPurpose('restore')
+          setShowLogin(true)
+        }
+        return
+      case 'network_error':
+        setError('設定の取得に失敗しました（通信エラー）。電波の良い場所で、もう一度「保存済みの設定で始める」を押してください。保存済みの設定は消えていません。')
+        return
+      case 'server_error':
+        // 復号失敗・鍵未設定など。ここで再セットアップさせると上書き消失につながるため止める。
+        setError('サーバーに保存された設定を復元できませんでした（サーバー側の一時的な問題の可能性があります）。時間をおいて再度お試しいただくか、解決しない場合はお問い合わせください。再セットアップは不要です。')
+        return
+      case 'has_settings':
+        // 設定は取得できたのにこの端末に書けなかった／内容が不完全だった。
+        setError(
+          localSaveFailed
+            ? 'サーバーの設定は見つかりましたが、この端末に保存できませんでした。プライベートブラウズをオフにする・端末の空き容量を確認するなどして、もう一度お試しください。'
+            : 'サーバーに保存されていた設定が不完全でした。お手数ですが、このままセットアップで不足分を入力してください。',
+        )
+        if (!localSaveFailed) setStep('start')
+        return
+      case 'no_settings':
+        setError('このアカウントに保存済みの設定はまだありませんでした。ログインは完了しているので、このままセットアップを進めてください。')
+        setStep('start')
     }
   }
 

@@ -10,10 +10,12 @@
 
 import { useEffect, useState } from 'react'
 import { UserPlus, CheckCircle2, AlertTriangle, X } from 'lucide-react'
+import { SESSION_LOST_EVENT } from '@/lib/settings'
 
 type Notice =
   | { kind: 'welcome-new' | 'welcome-existing' }
   | { kind: 'error'; message: string }
+  | { kind: 'session-lost' }
 
 export function AuthNotice() {
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -45,18 +47,36 @@ export function AuthNotice() {
     }
   }, [])
 
+  // 設定のサーバー保存が401で拒否された（画面上はログイン済みでもサーバーに
+  // セッションが届いていない）とき、saveSettings が発火するイベントを拾って
+  // 再ログインを促す。放置すると「保存できているつもりで同期されない」端末になる。
+  useEffect(() => {
+    const onSessionLost = () => {
+      // welcome表示より優先してよい（実害があるのはこちら）。連発は上書きで自然に1枚。
+      setNotice({ kind: 'session-lost' })
+    }
+    window.addEventListener(SESSION_LOST_EVENT, onSessionLost)
+    return () => window.removeEventListener(SESSION_LOST_EVENT, onSessionLost)
+  }, [])
+
   if (!notice) return null
 
-  const isError = notice.kind === 'error'
+  const isError = notice.kind === 'error' || notice.kind === 'session-lost'
   const Icon = notice.kind === 'welcome-new' ? UserPlus : notice.kind === 'welcome-existing' ? CheckCircle2 : AlertTriangle
 
-  const title = isError
+  const title =
+    notice.kind === 'session-lost'
+    ? '設定の同期が一時的に止まっています'
+    : notice.kind === 'error'
     ? 'ログインを完了できませんでした'
     : notice.kind === 'welcome-new'
     ? 'アカウントを作成しました'
     : 'おかえりなさい（登録済みのアドレスです）'
 
-  const body = isError
+  const body =
+    notice.kind === 'session-lost'
+    ? 'ログインの確認がサーバーに届かず、設定の保存・同期ができていません。この端末での利用は続けられますが、お手数ですが一度ログインし直してください。'
+    : notice.kind === 'error'
     ? 'リンクの期限切れなどが考えられます。お手数ですが、もう一度ログインをお試しください。'
     : notice.kind === 'welcome-new'
     ? '設定やプレミアム契約が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
