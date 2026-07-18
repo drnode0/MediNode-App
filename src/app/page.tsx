@@ -32,7 +32,7 @@ import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
 import { StudyNoteCard } from '@/components/StudyNoteCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
-import { GenreBrowse, genreChipTone, GenreHitsList } from '@/components/GenreBrowse'
+import { GenreBrowse, genreChipTone, GenreHitsList, GenreDotLegend } from '@/components/GenreBrowse'
 
 import { SyncPanel } from '@/components/SyncPanel'
 
@@ -1933,6 +1933,9 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   }
 
   const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
+  // ドット凡例（GenreBrowseと同条件）：「全て」表示中かつ画面内にドットがある時だけ。
+  const showTeamLegend = ownerFilter === 'all' && visibleGenres.some((g) => (facets.team[g] || 0) > 0)
+  const showSubLegend = ownerFilter === 'all' && visibleGenres.some((g) => (facets.subscription[g] || 0) > 0)
 
   return (
     <div>
@@ -2011,6 +2014,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
               )
             })}
           </div>
+          <GenreDotLegend showTeam={showTeamLegend} showSub={showSubLegend} />
           {sortedGenres.length > GENRE_SHOW_LIMIT && (
             <button
               onClick={() => setShowAll((v) => !v)}
