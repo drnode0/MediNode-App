@@ -1488,19 +1488,32 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
                 </button>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionの設定</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  まずNotionコネクト（旧称: Integration）のTokenを入力してください。
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionとつなぐ</h2>
+              </div>
+
+              {/* 10秒プライマー：トークン＝合鍵のメンタルモデルを渡してからガイドへ流す */}
+              <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-1.5">
+                <p className="text-sm font-bold text-brand-700 dark:text-brand-300">
+                  <KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />
+                  これから、Notionとこのアプリをつなぎます
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  目安は約5分。あとからでも設定できます。
+                <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed">
+                  アプリはあなたのNotionを勝手に読めません。Notion側で合鍵（コネクトToken）を作ってアプリに渡し、読ませたいDBに鍵を差します。
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Notion自体がはじめての方は、作者の
-                  <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
-                  も参考にどうぞ。
+                <p className="text-xs text-brand-600/80 dark:text-brand-300/80 leading-relaxed">
+                  画面の通りに進めれば、目安は約5分。あとからでも設定できます。
                 </p>
               </div>
+
+              {/* 主動線はこの1ボタンのみ。他の入口（動画・テキスト手順）は下の折りたたみへ */}
+              <button
+                type="button"
+                onClick={() => setTokenGuideStep(0)}
+                className="w-full flex items-center justify-center gap-1.5 bg-brand-600 rounded-xl py-3 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />
+                画面を見ながら進める
+              </button>
 
               {/* コネクトToken（常に表示） */}
               <div>
@@ -1516,29 +1529,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   show={!!showPassword['notionToken']}
                   onToggle={() => togglePassword('notionToken')}
                 />
-                <button
-                  type="button"
-                  onClick={() => setTokenGuideStep(0)}
-                  className="mt-2 w-full flex items-center justify-center gap-1.5 border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl py-2.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  はじめての方へ：画面を見ながら進める
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSetupVideo(true)}
-                  className="mt-1.5 w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 rounded-xl py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
-                >
-                  <PlayCircle className="h-4 w-4" />
-                  動画で通しで見る（約3分・タップ箇所に赤枠つき）
-                </button>
                 <div className="mt-1.5 space-y-0.5">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    慣れている方は：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
-                  </p>
                   {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
                   )}
@@ -1546,6 +1537,34 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     <p className="text-xs text-green-600 dark:text-green-400"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />形式OK</p>
                   )}
                 </div>
+
+                {/* 他の入口と補足はここに格納（初見の視界から外す） */}
+                <details className="mt-2 rounded-xl border border-gray-200 dark:border-gray-600">
+                  <summary className="px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    他の方法と補足（動画・テキスト手順・部署用DBなど）
+                  </summary>
+                  <div className="px-3 pb-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowSetupVideo(true)}
+                      className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 rounded-xl py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                    >
+                      <PlayCircle className="h-4 w-4" />
+                      動画で通しで見る（約3分・タップ箇所に赤枠つき）
+                    </button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      慣れている方は：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      Notion自体がはじめての方は、作者の
+                      <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
+                      も参考にどうぞ。
+                    </p>
+                  </div>
+                </details>
               </div>
 
               {/* DBのセットアップ方法の選択（choose モード） */}
@@ -2458,7 +2477,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
 
       {/* Notion接続の画面つきステップガイド（Token作成〜コネクト追加） */}
       {tokenGuideStep !== null && (
-        <NotionTokenGuide initialStep={tokenGuideStep} onClose={() => setTokenGuideStep(null)} />
+        <NotionTokenGuide
+          initialStep={tokenGuideStep}
+          onClose={() => setTokenGuideStep(null)}
+          tokenValue={form.notionToken}
+          onTokenChange={(v) => update('notionToken', v)}
+          dbUrlValue={form.notionMedicalDbId}
+          onDbUrlChange={(v) => update('notionMedicalDbId', v)}
+        />
       )}
       {showSetupVideo && (
         <SetupVideoModal onClose={() => setShowSetupVideo(false)} />
