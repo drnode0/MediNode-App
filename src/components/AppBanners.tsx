@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -30,6 +30,13 @@ export type Announcement = {
   links?: { label: string; url: string }[]
 }
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-07-18-auto-trial',
+    date: '2026-07-18',
+    Icon: Gift,
+    title: '登録するだけで、プレミアムを3日間お試しできるようになりました',
+    body: 'アカウント登録（無料）するだけで、専門医が配信するプレミアムナレッジを3日間そのまま閲覧できます。コード入力は不要です。noteの特典コードをお持ちの方は、設定 → プレミアムで入力すると14日間のお試しになります。',
+  },
   {
     id: '2026-07-12-cq-capture',
     date: '2026-07-12',
