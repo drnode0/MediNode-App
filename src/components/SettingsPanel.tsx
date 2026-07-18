@@ -218,7 +218,15 @@ function PremiumCheckoutButtonInline() {
           try {
             const res = await fetch('/api/premium/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?.id }) })
             const data = await res.json()
-            if (!res.ok || !data.url) { setError(data.error || '購入ページを開けませんでした'); return }
+            if (!res.ok || !data.url) {
+              // 未ログインの決済はサーバーが401で弾く（契約がアカウントに紐づかないため）。
+              if (res.status === 401 || data.error === 'login_required') {
+                setError('カードの登録にはログインが必要です。ホーム右上のアカウント（👤）からログインしてからお試しください。')
+                return
+              }
+              setError(data.error || '購入ページを開けませんでした')
+              return
+            }
             window.location.href = data.url
           } catch { setError('ネットワークエラーが発生しました') }
           finally { setLoading(false) }

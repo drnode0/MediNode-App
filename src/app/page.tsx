@@ -74,6 +74,7 @@ import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/component
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
+import { PREMIUM_VERIFY_FLAG } from '@/components/auth/PremiumSync'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -2392,6 +2393,11 @@ export default function Home() {
     const sessionId = params.get('premium_session')
     if (!sessionId) return
 
+    // PremiumSync に「このロードは verify が契約状態を確定する」と伝える。
+    // URLからパラメータを消す前に立てないと、消した後に走った PremiumSync が
+    // 古い契約状態（自動トライアル等）で verify の保存結果を上書きするレースになる。
+    try { sessionStorage.setItem(PREMIUM_VERIFY_FLAG, '1') } catch {}
+
     // URLからパラメータを消す（リロードで再処理されないよう）
     const cleanUrl = window.location.pathname
     window.history.replaceState({}, '', cleanUrl)
@@ -2434,6 +2440,8 @@ export default function Home() {
         setPremiumMessage({ type: 'error', text: 'ネットワークエラーが発生しました。再度お試しください。' })
       })
       .finally(() => {
+        // 成功時は直後のリロードで、失敗時はこのロードのまま、次からは通常同期に戻す。
+        try { sessionStorage.removeItem(PREMIUM_VERIFY_FLAG) } catch {}
         setPremiumActivating(false)
       })
   }, [])

@@ -29,10 +29,15 @@ type Props = {
   initialStep?: Step
 }
 
-// Stripe Checkout へのリダイレクトボタン（SetupWizard内で使用）
-function PremiumCheckoutButton() {
+// Stripe Checkout へのリダイレクトボタン（SetupWizard内で使用）。
+// カードの登録はアカウント登録（メール）を済ませてから行う。未ログインのまま決済すると
+// 契約がアカウントに紐づかず、ログイン後に自動トライアル表示が勝ってしまう
+// （2026-07-18 実害。サーバー側 /api/premium/checkout も401で弾く）。
+function PremiumCheckoutButton({ onRequestLogin }: { onRequestLogin?: () => void }) {
+  const { configured: authConfigured, user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [needLogin, setNeedLogin] = useState(false)
   // Secret Key が sk_test_ のときだけテスト決済バナーを表示。ライブ化すると自動で消える。
   const [testMode, setTestMode] = useState(false)
   useEffect(() => {
@@ -45,6 +50,12 @@ function PremiumCheckoutButton() {
   }, [])
 
   const handleCheckout = async () => {
+    // アカウント基盤がある環境では、カード登録の前にアカウント登録を済ませる。
+    // （サーバーも401で弾くが、Stripeへ行く前にここで案内した方が迷子にならない）
+    if (authConfigured && !user) {
+      setNeedLogin(true)
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -55,6 +66,10 @@ function PremiumCheckoutButton() {
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
+        if (res.status === 401 || data.error === 'login_required') {
+          setNeedLogin(true)
+          return
+        }
         setError(data.error || '購入ページを開けませんでした')
         return
       }
@@ -86,6 +101,25 @@ function PremiumCheckoutButton() {
         {loading ? <><Spinner className="h-4 w-4 mr-1" />読み込み中...</> : <><Star className="inline-block h-4 w-4 align-text-bottom mr-1" />1週間無料で試す<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
+      {/* 未ログインでカード登録に進もうとした場合: 先にアカウント登録を案内。
+          登録が済むと user が入り、この案内は自動で消える（もう一度ボタンを押せば決済へ）。 */}
+      {needLogin && !user && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2 text-left">
+          <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+            カードの登録には、先にアカウント登録（無料・メールアドレスのみ）が必要です。
+            契約がアカウントに保存され、別の端末でもログインだけで引き継げます。
+          </p>
+          {onRequestLogin && (
+            <button
+              type="button"
+              onClick={onRequestLogin}
+              className="w-full border border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300 rounded-lg py-2 text-xs font-semibold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+            >
+              アカウント登録して続ける（メールアドレスのみ）
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -2321,7 +2355,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                           <strong><CreditCard className="inline-block h-4 w-4 align-text-bottom mr-1.5" />有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
                         </p>
-                        <PremiumCheckoutButton />
+                        <PremiumCheckoutButton onRequestLogin={() => { setLoginPurpose('register-inline'); setShowLogin(true) }} />
                       </div>
                     )}
                   </div>
@@ -2386,7 +2420,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           onClose={() => setShowLogin(false)}
           onSuccess={() => {
             if (loginPurpose === 'register-inline') {
-              // トライアルコード利用のための途中登録。保存も完了もせず、コード入力に戻すだけ。
+              // トライアルコード／カード登録のための途中登録。保存も完了もせず、元のステップに戻すだけ。
               setShowLogin(false)
               return
             }
@@ -2414,7 +2448,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
             loginPurpose === 'register-inline'
-              ? 'トライアルコードのご利用にはアカウント登録（無料・メールアドレスのみ）が必要です。登録が終わったら、もう一度コードをお試しください。'
+              ? 'トライアルコードやカード登録のご利用にはアカウント登録（無料・メールアドレスのみ）が必要です。登録が終わったら、もう一度先ほどのボタンからお進みください。'
               : loginPurpose === 'register'
               ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'
               : 'ログインすると、別の端末で保存した設定（Notion接続・Algolia・プレミアム）をこの端末に復元できます。'
