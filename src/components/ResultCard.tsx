@@ -187,16 +187,8 @@ export function ResultCard({ hit }: { hit: Hit }) {
               {densityLabel}
             </span>
           )}
-          {(Array.isArray(hit.genre) ? hit.genre : hit.genre ? [hit.genre] : []).map((g) => (
-            <span key={g} className="text-xs bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 px-2 py-0.5 rounded-full">
-              {g}
-            </span>
-          ))}
-          {hit.detailGenre && (
-            <span className="text-xs bg-brand-50 dark:bg-brand-900/40 text-brand-500 dark:text-brand-300 px-2 py-0.5 rounded-full">
-              {hit.detailGenre}
-            </span>
-          )}
+          {/* ジャンル／詳細ジャンルのピルはカードに出さない（種別・由来・読了時間だけに絞って可読性を優先）。
+              分類はジャンルタブ・検索の絞り込み（facet）で引き続き利用できる。 */}
         </div>
 
         {/* 折りたたみ時：2行まで表示 */}
