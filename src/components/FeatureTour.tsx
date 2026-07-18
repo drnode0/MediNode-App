@@ -13,7 +13,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Search, Clock, FolderOpen, BookMarked, Lightbulb,
-  MessageCircleQuestion, RefreshCw, SlidersHorizontal, ArrowRight, X,
+  MessageCircleQuestion, RefreshCw, SlidersHorizontal, HelpCircle, ArrowRight, X,
 } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 
@@ -120,14 +120,17 @@ export function FeatureTour({ searchMode, showCqStep, onClose }: Props) {
     {
       key: 'settings',
       visual: (
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2">
+          <span className="w-12 h-12 rounded-xl grid place-items-center bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+            <HelpCircle className="w-6 h-6" />
+          </span>
           <span className="w-12 h-12 rounded-xl grid place-items-center bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
             <SlidersHorizontal className="w-6 h-6" />
           </span>
         </div>
       ),
-      title: '困ったら、右上の設定から',
-      body: '接続情報の修正、部署DB・プレミアムの追加、クイズタブやCQボタンの表示切り替え、使い方ガイドやエラーの診断ツールは、すべて右上の設定（スライダーのアイコン）にまとまっています。',
+      title: '困ったら、右上のヘルプへ',
+      body: '使い方やエラーで迷ったら、右上のヘルプ（？アイコン）へ。よくある質問をキーワードで検索でき、このガイドもそこから見返せます。接続情報の修正、部署DB・プレミアムの追加、クイズタブやCQボタンの表示切り替えは、隣の設定（スライダーのアイコン）から。',
     },
   ]
 
