@@ -25,6 +25,10 @@ const REFERRER_MAP: Record<string, string> = {
   'twitter.com': 'x',
   'note.com': 'note',
   'note.mu': 'note',
+  // Notionマーケットプレイス（テンプレート配布ページ）やテンプレ内のリンクから
+  'notion.so': 'notion',
+  'notion.com': 'notion',
+  'notion.site': 'notion',
   'line.me': 'line',
   'liff.line.me': 'line',
   'medinode-lp.vercel.app': 'lp',

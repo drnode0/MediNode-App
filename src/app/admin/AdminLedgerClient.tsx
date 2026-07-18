@@ -81,13 +81,23 @@ const TARGET_LABEL: Record<string, string> = {
 const SOURCE_STYLE: Record<string, { label: string; badge: string }> = {
   x: { label: 'X', badge: 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' },
   note: { label: 'note', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' },
+  notion: { label: 'Notion', badge: 'bg-gray-100 text-gray-800 border border-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-500' },
   line: { label: 'LINE', badge: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
   lp: { label: 'LP直接', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
   direct: { label: '直接', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
 }
 
-function SourceBadge({ source }: { source: string | null }) {
-  if (!source) return <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+// 表記ゆれの吸収。対応表追加前に生ホスト名で記録された値も既知の媒体に寄せる。
+function normalizeSource(source: string): string {
+  if (source === 'notion.so' || source === 'notion.com' || source === 'notion.site') return 'notion'
+  if (source === 't.co' || source === 'x.com' || source === 'twitter.com') return 'x'
+  if (source === 'note.com' || source === 'note.mu') return 'note'
+  return source
+}
+
+function SourceBadge({ source: raw }: { source: string | null }) {
+  if (!raw) return <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+  const source = normalizeSource(raw)
   const style = SOURCE_STYLE[source] ?? {
     label: source,
     badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
@@ -289,7 +299,7 @@ export function AdminLedgerClient() {
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
-        csvCell(r.source ?? '—'),
+        csvCell(r.source ? normalizeSource(r.source) : '—'),
         csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
         csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
         csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
@@ -365,15 +375,20 @@ export function AdminLedgerClient() {
 
   // 流入元の割合。既知の媒体は固定色、それ以外は「その他」にまとめる。
   const sourceSegments = useMemo<Segment[]>(() => {
-    const counts = { x: 0, note: 0, line: 0, lp: 0, direct: 0, other: 0, unknown: 0 }
+    const counts = { x: 0, note: 0, notion: 0, line: 0, lp: 0, direct: 0, other: 0, unknown: 0 }
     for (const r of rows ?? []) {
-      if (!r.source) counts.unknown++
-      else if (r.source in counts) counts[r.source as keyof typeof counts]++
+      if (!r.source) {
+        counts.unknown++
+        continue
+      }
+      const source = normalizeSource(r.source)
+      if (source in counts) counts[source as keyof typeof counts]++
       else counts.other++
     }
     return [
       { label: 'X', count: counts.x, className: 'bg-gray-800 dark:bg-gray-300' },
       { label: 'note', count: counts.note, className: 'bg-emerald-500 dark:bg-emerald-400' },
+      { label: 'Notion', count: counts.notion, className: 'bg-violet-400' },
       { label: 'LINE', count: counts.line, className: 'bg-teal-400' },
       { label: 'LP直接', count: counts.lp, className: 'bg-orange-400' },
       { label: '直接', count: counts.direct, className: 'bg-gray-400 dark:bg-gray-500' },
