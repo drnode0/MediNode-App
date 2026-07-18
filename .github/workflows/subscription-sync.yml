@@ -1,0 +1,29 @@
+# サブスク（プレミアム）Notion → Algolia 同期の日中スケジューラ。
+#
+# Vercel Cron（毎朝6:00 JST・vercel.json）に加えて、日中にもNotionの追加・編集を
+# 反映させる。同期本体はアプリ側の /api/subscription/sync（充実度フィールドの
+# 計算込み）で、ここはそれを叩くだけ。
+#
+# 必要なリポジトリシークレット（公開リポジトリのためファイルに直書き禁止）:
+#   SUBSCRIPTION_SYNC_SECRET ... Vercelの環境変数と同じ値
+#   （Settings → Secrets and variables → Actions → New repository secret）
+name: Subscription Sync (MediNode)
+
+on:
+  schedule:
+    # JST 9:00 / 12:00 / 15:00 / 18:00 / 21:00（UTC+9）。朝6:00はVercel Cronが担当。
+    - cron: '0 0,3,6,9,12 * * *'
+  workflow_dispatch: # 手動実行（Actionsタブの Run workflow ボタン）
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger subscription sync API
+        run: |
+          response=$(curl -sS -X POST -m 300 \
+            -H "x-sync-secret: ${{ secrets.SUBSCRIPTION_SYNC_SECRET }}" \
+            https://medical-search-public.vercel.app/api/subscription/sync)
+          echo "$response"
+          # success:true が返らなければジョブを失敗させて気づけるようにする
+          echo "$response" | grep -q '"success":true'
