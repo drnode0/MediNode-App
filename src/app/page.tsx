@@ -69,6 +69,7 @@ const SettingsPanel = dynamicImport(
 )
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
+import { ResolvedCqBanner } from '@/components/ResolvedCqs'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
@@ -2707,6 +2708,7 @@ export default function Home() {
         {header}
         <PwaInstallBanner />
         <UpdateBanner />
+        <ResolvedCqBanner />
         <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
@@ -2794,6 +2796,7 @@ export default function Home() {
         {header}
         <PwaInstallBanner />
         <UpdateBanner />
+        <ResolvedCqBanner />
         <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
           <SyncPanel />
