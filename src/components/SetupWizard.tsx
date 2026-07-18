@@ -7,6 +7,7 @@ import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSyn
 import { NOTION_MAGAZINE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { classifyRestoreResponse, type RestoreOutcome } from '@/lib/restore-outcome'
+import { recordSetup } from '@/lib/setup-telemetry'
 import { HelpFaq } from './HelpFaq'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import SetupVideoModal from './SetupVideoModal'
@@ -751,6 +752,25 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       return cur
     })
   }, [step, targets.team, targets.premium])
+
+  // セットアップ行動の記録（台帳の「セットアップ状況」・離脱位置の把握用。入力値は送らない）。
+  // ステップ到達＝そのステップより前の選択が確定した合図なので、ここでまとめて拾う。
+  // recordSetup 側が変化時のみ書き込む（毎レンダーで走っても保存・送信は増えない）。
+  useEffect(() => {
+    const chosen = (['premium', 'personal', 'team'] as const).filter((k) => targets[k])
+    recordSetup({
+      step,
+      targets: chosen.length > 0 ? chosen : undefined,
+      // mode ステップを越えてから確定扱い（notion=シンプル / algolia=パワー）。
+      mode: step === 'notion' || step === 'algolia' || step === 'sync' || step === 'options'
+        ? (form.searchMode === 'notion' ? 'simple' : 'power')
+        : undefined,
+      dbSetup:
+        notionSetupMode === 'after-template' ? 'template'
+        : notionSetupMode === 'existing' ? 'existing'
+        : undefined,
+    })
+  }, [step, targets, form.searchMode, notionSetupMode])
 
   const update = (key: keyof AppSettings, value: string) => {
     const dbIdKeys: (keyof AppSettings)[] = ['notionMedicalDbId', 'notionReferenceDbId', 'notionManualDbId', 'teamNotionMedicalDbId', 'teamNotionReferenceDbId', 'teamNotionManualDbId']

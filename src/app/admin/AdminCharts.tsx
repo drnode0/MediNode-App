@@ -346,3 +346,67 @@ export function ActiveBreakdownBar({ breakdown }: { breakdown: ActiveBreakdown }
     </div>
   )
 }
+
+// ---- 汎用の内訳帯（流入元の割合・モード等） ---------------------------------
+
+export type Segment = { label: string; count: number; className: string }
+
+// ActiveBreakdownBar の汎用版。件数を持つセグメント配列から帯＋凡例を描く。
+// 割合（排他的な選択）の可視化に使う。0件のセグメントは帯に出さず凡例だけ薄く出す。
+export function SegmentBar({ segments, label }: { segments: Segment[]; label: string }) {
+  const total = segments.reduce((sum, s) => sum + s.count, 0)
+  if (total === 0) {
+    return <p className="text-xs text-gray-400 dark:text-gray-500 py-2">まだ記録がありません（蓄積待ち）</p>
+  }
+  return (
+    <div>
+      <div className="flex h-3 rounded-full overflow-hidden gap-0.5" role="img" aria-label={label}>
+        {segments.map((s) =>
+          s.count > 0 ? (
+            <div
+              key={s.label}
+              className={s.className}
+              style={{ width: `${(s.count / total) * 100}%` }}
+              title={`${s.label} ${s.count}人（${Math.round((s.count / total) * 100)}%）`}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+        {segments.map((s) => (
+          <span
+            key={s.label}
+            className={`inline-flex items-center gap-1.5 text-xs ${
+              s.count === 0 ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            <span className={`inline-block w-2.5 h-2.5 rounded-sm ${s.className}`} aria-hidden />
+            {s.label} {s.count}人{s.count > 0 && total > 0 ? `（${Math.round((s.count / total) * 100)}%）` : ''}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 複数選択の集計用（「使う知識」等、合計が100%にならないもの）。
+// ラベルごとに件数バーを横に伸ばす。max は表示中の最大件数。
+export function CountBars({ items, label }: { items: Segment[]; label: string }) {
+  const max = Math.max(...items.map((i) => i.count), 0)
+  if (max === 0) {
+    return <p className="text-xs text-gray-400 dark:text-gray-500 py-2">まだ記録がありません（蓄積待ち）</p>
+  }
+  return (
+    <div className="space-y-1.5" role="img" aria-label={label}>
+      {items.map((i) => (
+        <div key={i.label} className="flex items-center gap-2 text-xs">
+          <span className="w-24 shrink-0 text-gray-600 dark:text-gray-300">{i.label}</span>
+          <div className="flex-1 h-3 rounded bg-gray-100 dark:bg-gray-700/60 overflow-hidden">
+            <div className={`h-full ${i.className}`} style={{ width: `${(i.count / max) * 100}%` }} />
+          </div>
+          <span className="w-8 text-right text-gray-500 dark:text-gray-400">{i.count}人</span>
+        </div>
+      ))}
+    </div>
+  )
+}

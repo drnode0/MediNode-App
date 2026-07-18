@@ -29,12 +29,15 @@ import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
 import {
   ActiveBreakdownBar,
+  CountBars,
   DailyBarsChart,
   HourlyBarsChart,
+  SegmentBar,
   TrendLineChart,
   buildCumulativeSeries,
   type ActiveBreakdown,
   type DailyPoint,
+  type Segment,
 } from './AdminCharts'
 
 type LedgerRow = {
@@ -50,6 +53,28 @@ type LedgerRow = {
   settingsUpdatedAt: string | null
   lastUsedAt: string | null
   source: string | null
+  onbFurthest: string | null
+  onbTargets: string[] | null
+  onbMode: string | null
+  onbDbSetup: string | null
+}
+
+// セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。
+const STEP_LABEL: Record<string, string> = {
+  entry: '入口',
+  start: '知識の選択',
+  mode: '接続モード',
+  notion: 'Notion設定',
+  algolia: 'Algolia設定',
+  sync: '同期',
+  options: 'オプション入力',
+}
+const STEP_ORDER = ['entry', 'start', 'mode', 'notion', 'algolia', 'sync', 'options']
+
+const TARGET_LABEL: Record<string, string> = {
+  premium: '専門医の知識',
+  personal: '自分の知識',
+  team: 'みんなの知識',
 }
 
 // 流入元バッジの表示名と色。未知の値（ホスト名等）はそのままグレーで出す。
@@ -259,12 +284,16 @@ export function AdminLedgerClient() {
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
-    const header = ['メール', '区分', '流入元', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '流入元', '知識の選択', 'モード', 'DB設定', '到達ステップ', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
         csvCell(r.source ?? '—'),
+        csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
+        csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
+        csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
+        csvCell(r.onbFurthest ? (STEP_LABEL[r.onbFurthest] ?? r.onbFurthest) : '—'),
         csvCell(r.kind === 'comp' ? '無期限' : fmtDateTime(r.trialEndsAt) || '—'),
         csvCell(fmtDateTime(r.createdAt) || '—'),
         csvCell(fmtDateTime(r.lastSignInAt) || '—'),
@@ -333,6 +362,98 @@ export function AdminLedgerClient() {
 
   // 登録者数の累積推移（全期間）。
   const cumulative = useMemo(() => buildCumulativeSeries((rows ?? []).map((r) => r.createdAt)), [rows])
+
+  // 流入元の割合。既知の媒体は固定色、それ以外は「その他」にまとめる。
+  const sourceSegments = useMemo<Segment[]>(() => {
+    const counts = { x: 0, note: 0, line: 0, lp: 0, direct: 0, other: 0, unknown: 0 }
+    for (const r of rows ?? []) {
+      if (!r.source) counts.unknown++
+      else if (r.source in counts) counts[r.source as keyof typeof counts]++
+      else counts.other++
+    }
+    return [
+      { label: 'X', count: counts.x, className: 'bg-gray-800 dark:bg-gray-300' },
+      { label: 'note', count: counts.note, className: 'bg-emerald-500 dark:bg-emerald-400' },
+      { label: 'LINE', count: counts.line, className: 'bg-teal-400' },
+      { label: 'LP直接', count: counts.lp, className: 'bg-orange-400' },
+      { label: '直接', count: counts.direct, className: 'bg-gray-400 dark:bg-gray-500' },
+      { label: 'その他', count: counts.other, className: 'bg-sky-400' },
+      { label: '未計測', count: counts.unknown, className: 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700' },
+    ]
+  }, [rows])
+
+  // セットアップ状況: 設定完了（サーバーに設定が保存された）／途中／未計測。
+  const setupSegments = useMemo<Segment[]>(() => {
+    let done = 0
+    let midway = 0
+    let unknown = 0
+    for (const r of rows ?? []) {
+      if (r.settingsUpdatedAt) done++
+      else if (r.onbFurthest) midway++
+      else unknown++
+    }
+    return [
+      { label: '設定完了', count: done, className: 'bg-brand-600 dark:bg-brand-400' },
+      { label: '途中', count: midway, className: 'bg-amber-400' },
+      { label: '未計測', count: unknown, className: 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700' },
+    ]
+  }, [rows])
+
+  // 設定が完了していない人の離脱位置（最後に到達したステップの分布）。
+  const dropoffBars = useMemo<Segment[]>(() => {
+    const counts = new Map<string, number>()
+    for (const r of rows ?? []) {
+      if (r.settingsUpdatedAt || !r.onbFurthest) continue
+      counts.set(r.onbFurthest, (counts.get(r.onbFurthest) ?? 0) + 1)
+    }
+    return STEP_ORDER.filter((s) => (counts.get(s) ?? 0) > 0).map((s) => ({
+      label: STEP_LABEL[s] ?? s,
+      count: counts.get(s) ?? 0,
+      className: 'bg-amber-400',
+    }))
+  }, [rows])
+
+  // 使う知識の選択（複数選択可なので割合ではなく件数バー）。
+  const knowledgeBars = useMemo<Segment[]>(() => {
+    const counts = { premium: 0, personal: 0, team: 0 }
+    for (const r of rows ?? []) {
+      for (const t of r.onbTargets ?? []) {
+        if (t in counts) counts[t as keyof typeof counts]++
+      }
+    }
+    return [
+      { label: TARGET_LABEL.premium, count: counts.premium, className: 'bg-amber-400' },
+      { label: TARGET_LABEL.personal, count: counts.personal, className: 'bg-brand-600 dark:bg-brand-400' },
+      { label: TARGET_LABEL.team, count: counts.team, className: 'bg-sky-500 dark:bg-sky-400' },
+    ]
+  }, [rows])
+
+  // 接続モードとDB設定の内訳（記録がある人のみの割合）。
+  const modeSegments = useMemo<Segment[]>(() => {
+    let simple = 0
+    let power = 0
+    for (const r of rows ?? []) {
+      if (r.onbMode === 'simple') simple++
+      else if (r.onbMode === 'power') power++
+    }
+    return [
+      { label: 'シンプル', count: simple, className: 'bg-sky-500 dark:bg-sky-400' },
+      { label: 'パワー', count: power, className: 'bg-violet-500 dark:bg-violet-400' },
+    ]
+  }, [rows])
+
+  const dbSetupSegments = useMemo<Segment[]>(() => {
+    let template = 0
+    let existing = 0
+    for (const r of rows ?? []) {
+      if (r.onbDbSetup === 'template') template++
+      else if (r.onbDbSetup === 'existing') existing++
+    }
+    return [
+      { label: 'テンプレ複製', count: template, className: 'bg-orange-400' },
+      { label: '既存DB連携', count: existing, className: 'bg-brand-600 dark:bg-brand-400' },
+    ]
+  }, [rows])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
@@ -438,6 +559,38 @@ export function AdminLedgerClient() {
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">最終利用の内訳（最終利用・ログイン・設定同期の最新値で判定）</h2>
                 <ActiveBreakdownBar breakdown={activity.breakdown} />
+              </section>
+            </div>
+
+            {/* 流入元の割合とセットアップ状況（離脱位置・選択の内訳） */}
+            <div className="grid lg:grid-cols-2 gap-3 mb-4">
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">流入元の割合</h2>
+                <SegmentBar segments={sourceSegments} label="流入元の割合" />
+                <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+                  計測開始（2026-07-19）前からの登録者は、次にLP経由で来訪するまで「未計測」に入ります
+                </p>
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">セットアップ状況</h2>
+                <SegmentBar segments={setupSegments} label="セットアップ状況" />
+                {dropoffBars.length > 0 && (
+                  <>
+                    <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-4 mb-2">途中の人の離脱位置（最後に到達したステップ）</h3>
+                    <CountBars items={dropoffBars} label="離脱位置" />
+                  </>
+                )}
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">使う知識の選択（複数選択可・記録がある人のみ）</h2>
+                <CountBars items={knowledgeBars} label="使う知識の選択" />
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">接続モードとDB設定（記録がある人のみ）</h2>
+                <div className="space-y-4">
+                  <SegmentBar segments={modeSegments} label="接続モード" />
+                  <SegmentBar segments={dbSetupSegments} label="DB設定の入り方" />
+                </div>
               </section>
             </div>
 
@@ -602,6 +755,8 @@ export function AdminLedgerClient() {
               設定同期: 設定がサーバーに保存された最後の日。
               流入元: LP経由のリンクで最初に計測できた媒体（X・note・LINE等）。機能追加前からの登録者は、
               次にLP経由で来訪した時に初めて記録されるため「—」のままの人もいます。
+              セットアップ状況・選択の内訳: セットアップ画面での到達ステップと選択（知識・モード・DB設定）。
+              計測開始（2026-07-19）以降にセットアップ画面を通った人から記録されます。個々の選択はCSVに入っています。
             </p>
           </>
         )}

@@ -152,6 +152,13 @@ export async function GET() {
           // 流入元（x / note / line / direct 等）。SourceCapture が user_metadata に記録した
           // 「最初に計測できた媒体」。機能追加前の登録者は再訪時に初めて計測されるため空もある。
           source: (u.user_metadata?.acq_source as string | undefined) ?? null,
+          // セットアップ行動（/api/onboarding が user_metadata に記録。台帳のグラフ・CSV用）。
+          onbFurthest: (u.user_metadata?.onb_furthest as string | undefined) ?? null,
+          onbTargets: Array.isArray(u.user_metadata?.onb_targets)
+            ? (u.user_metadata.onb_targets as string[])
+            : null,
+          onbMode: (u.user_metadata?.onb_mode as string | undefined) ?? null,
+          onbDbSetup: (u.user_metadata?.onb_db_setup as string | undefined) ?? null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
