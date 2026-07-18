@@ -60,6 +60,9 @@ const SETTINGS_UPDATED_KEY = 'medical_search_settings_updated'
 // 期限切れ後に同じ端末で再度コードを使う“実質無限トライアル”をカジュアルに防ぐための軽量対策。
 // 注意: 別ブラウザ・シークレット・別端末・localStorage削除では回避可能（厳密対策はサーバー側のメール登録制が必要）。
 const TRIAL_USED_KEY = 'medical_search_trial_used'
+// サーバー保存が401（セッション不達）で拒否されたときに発火するイベント名。
+// 発火: saveSettings / 購読: AuthNotice（再ログインを促すバナー表示）。
+export const SESSION_LOST_EVENT = 'medinode-session-lost'
 
 // トライアルコードを使ったことを記録する。
 export function markTrialUsed(): void {
@@ -110,7 +113,17 @@ export function saveSettings(settings: AppSettings, opts?: { skipServer?: boolea
       body: JSON.stringify(settings),
       cache: 'no-store',
       keepalive: true,
-    }).catch(() => {})
+    })
+      .then((res) => {
+        // 401 = クライアントはログイン済みのつもりでも、サーバーにセッションが届いていない
+        // （Cookie不達・期限切れ）。黙って握り潰すと「保存できているつもりで同期されない」
+        // 端末が生まれ、機種変更や再インストール時に古い設定しか復元できなくなる。
+        // AuthNotice がこのイベントを拾ってバナーで再ログインを促す。
+        if (res.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event(SESSION_LOST_EVENT))
+        }
+      })
+      .catch(() => {})
   } catch {
     // 未ログイン・ネットワーク失敗等は無視（API側で401を返すだけ）。次回 saveSettings で再送される。
   }
