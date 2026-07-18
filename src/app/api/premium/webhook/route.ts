@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
             current_period_end: periodEnd,
             trial_ends_at: null, // Stripe正式登録は無期限（コード式トライアルの期限は使わない）
             plan: 'premium',
+            cancel_at_period_end: false, // 新規契約なので解約予約フラグをリセット
           })
         }
         break
@@ -94,7 +95,9 @@ export async function POST(req: NextRequest) {
           : null
         if (supabaseReady && customerId) {
           const { updateStatusByCustomer } = await import('@/lib/supabase/subscriptions')
-          await updateStatusByCustomer(customerId, sub.status, periodEnd)
+          // cancel_at_period_end はカスタマーポータルでの解約（期間末終了の予約）で true になる。
+          // アプリ側の「解約手続き済み・◯/◯まで利用可能」表示の元データ。
+          await updateStatusByCustomer(customerId, sub.status, periodEnd, !!sub.cancel_at_period_end)
         }
         break
       }

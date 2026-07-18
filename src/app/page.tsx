@@ -2428,6 +2428,8 @@ export default function Home() {
             subscriptionIndex: data.algolia.index,
             // Stripe正式登録なのでトライアル期限はクリア（無期限の正規会員に昇格）。
             subscriptionTrialEndsAt: '',
+            // 新規契約なので解約予約表示もクリア。
+            subscriptionCancelAt: '',
           })
           setPremiumMessage({ type: 'success', text: 'プレミアム登録が完了しました！プレミアムコンテンツにアクセスできるようになりました。' })
           // ページをリロードして新しい設定を反映

@@ -95,10 +95,13 @@ export function PremiumSync() {
           // 契約有効 → プレミアムキーをこの端末の設定に反映。
           // 既に同じ値なら書き込まない（不要なリロード誘発を防ぐ）。
           const trialEndsAt: string = data.trialEndsAt || ''
+          // 解約予約中は終了日時を保存 → 設定画面が「解約手続き済み・◯/◯まで利用可能」を出す。
+          const cancelAt: string = data.cancelAtPeriodEnd ? (data.currentPeriodEnd || '') : ''
           if (
             current.subscriptionSearchKey !== data.algolia.searchKey ||
             current.subscriptionAppId !== data.algolia.appId ||
-            (current.subscriptionTrialEndsAt || '') !== trialEndsAt
+            (current.subscriptionTrialEndsAt || '') !== trialEndsAt ||
+            (current.subscriptionCancelAt || '') !== cancelAt
           ) {
             saveSettings({
               ...current,
@@ -109,6 +112,7 @@ export function PremiumSync() {
               // 「無料トライアル中（残りN日）」表示が別端末でも正しく出る。
               // Stripe正式契約は null → '' となり従来どおり無期限扱い。
               subscriptionTrialEndsAt: trialEndsAt,
+              subscriptionCancelAt: cancelAt,
             })
             // 反映のため軽くリロード（検索クライアントを作り直す）。
             window.location.reload()

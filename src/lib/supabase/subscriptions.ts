@@ -11,14 +11,33 @@ export type SubscriptionRow = {
   current_period_end?: string | null
   trial_ends_at?: string | null
   plan?: string | null
+  // 解約予約（Stripe cancel_at_period_end）。期間末までは利用可能だが以降更新されない。
+  // migration 0008 で追加。未適用環境では書き込み時にこのキーを落として再試行する。
+  cancel_at_period_end?: boolean
+}
+
+// migration 0008（cancel_at_period_end 列）未適用の本番でも webhook / verify が
+// 落ちないように、列起因のエラーならこのキーを外した形へ退避できるか判定する。
+function isCancelColumnError(message: string | undefined): boolean {
+  return !!message && message.includes('cancel_at_period_end')
 }
 
 // user_id をキーに契約状態を upsert する。
 export async function upsertSubscriptionByUserId(row: SubscriptionRow): Promise<void> {
   const admin = createAdminClient()
+  const payload = { ...row, updated_at: new Date().toISOString() }
   const { error } = await admin
     .from('subscriptions')
-    .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+    .upsert(payload, { onConflict: 'user_id' })
+  if (error && isCancelColumnError(error.message) && 'cancel_at_period_end' in payload) {
+    // 列が無い環境（migration 0008 未適用）: フラグ抜きで保存を成立させる。
+    const { cancel_at_period_end: _omit, ...rest } = payload
+    const { error: retryErr } = await admin
+      .from('subscriptions')
+      .upsert(rest, { onConflict: 'user_id' })
+    if (retryErr) throw new Error(`subscriptions upsert失敗: ${retryErr.message}`)
+    return
+  }
   if (error) throw new Error(`subscriptions upsert失敗: ${error.message}`)
 }
 
@@ -143,35 +162,59 @@ export async function findUserIdByCustomer(customerId: string): Promise<string |
   return data.user_id
 }
 
-// customer起点でステータスだけ更新する（解約・支払い失敗・更新時）。
+// customer起点でステータスだけ更新する（解約・解約予約・支払い失敗・更新時）。
 export async function updateStatusByCustomer(
   customerId: string,
   status: string,
   currentPeriodEnd?: string | null,
+  cancelAtPeriodEnd?: boolean,
 ): Promise<void> {
   const admin = createAdminClient()
   const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
   if (currentPeriodEnd !== undefined) patch.current_period_end = currentPeriodEnd
+  if (cancelAtPeriodEnd !== undefined) patch.cancel_at_period_end = cancelAtPeriodEnd
   const { error } = await admin
     .from('subscriptions')
     .update(patch)
     .eq('stripe_customer_id', customerId)
+  if (error && isCancelColumnError(error.message) && 'cancel_at_period_end' in patch) {
+    // 列が無い環境（migration 0008 未適用）: フラグ抜きで status/period だけ更新する。
+    delete patch.cancel_at_period_end
+    const { error: retryErr } = await admin
+      .from('subscriptions')
+      .update(patch)
+      .eq('stripe_customer_id', customerId)
+    if (retryErr) throw new Error(`subscriptions status更新失敗: ${retryErr.message}`)
+    return
+  }
   if (error) throw new Error(`subscriptions status更新失敗: ${error.message}`)
 }
 
 // ユーザーが現在プレミアム有効か（active / trialing）を返す。
+// cancelAtPeriodEnd は「解約手続き済みだが期間末までは利用可能」の表示用
+// （migration 0008 未適用環境では常に false）。
 export async function getActiveStatusByUserId(userId: string): Promise<{
   active: boolean
   status: string | null
   currentPeriodEnd: string | null
   trialEndsAt: string | null
+  cancelAtPeriodEnd: boolean
 }> {
   const admin = createAdminClient()
-  const { data } = await admin
+  let { data, error } = await admin
     .from('subscriptions')
-    .select('status, current_period_end, trial_ends_at')
+    .select('status, current_period_end, trial_ends_at, cancel_at_period_end')
     .eq('user_id', userId)
     .maybeSingle()
+  if (error && isCancelColumnError(error.message)) {
+    // 列が無い環境（migration 0008 未適用）: フラグ抜きで従来どおり判定する。
+    const fallback = await admin
+      .from('subscriptions')
+      .select('status, current_period_end, trial_ends_at')
+      .eq('user_id', userId)
+      .maybeSingle()
+    data = fallback.data as typeof data
+  }
   const status = data?.status ?? null
   const trialEndsAt = data?.trial_ends_at ?? null
   // 期限付きトライアル（trial_ends_at あり）は、その日時を過ぎていたら有効扱いしない。
@@ -184,6 +227,7 @@ export async function getActiveStatusByUserId(userId: string): Promise<{
     status,
     currentPeriodEnd: data?.current_period_end ?? null,
     trialEndsAt,
+    cancelAtPeriodEnd: !!(data as { cancel_at_period_end?: boolean } | null)?.cancel_at_period_end,
   }
 }
 

@@ -1008,6 +1008,12 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 const trialExpired = trialEnd != null && !Number.isNaN(trialEnd) && Date.now() > trialEnd
                 const isTrial = trialEnd != null && !Number.isNaN(trialEnd) && !trialExpired
                 const daysLeft = isTrial ? Math.ceil((trialEnd! - Date.now()) / (24 * 60 * 60 * 1000)) : 0
+                // Stripe契約の解約予約（期間末で終了）。値が有効な日付の間だけ「解約手続き済み」を出す。
+                const cancelAtRaw = s?.subscriptionCancelAt
+                const cancelAtTime = cancelAtRaw ? new Date(cancelAtRaw).getTime() : null
+                const cancelAtDate = cancelAtTime != null && !Number.isNaN(cancelAtTime) && Date.now() <= cancelAtTime
+                  ? new Date(cancelAtTime)
+                  : null
                 // 期限切れトライアルはプレミアム無効として未登録画面（＝継続登録の誘導）を出す
                 const isPremium = hasKeys && !trialExpired
                 if (isPremium) {
@@ -1025,6 +1031,17 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                               カード登録済み（Checkout経由）ならポータルで解約でき、
                               ポータル未設定やコード式トライアルはメール問い合わせにフォールバックする。 */}
                           <PremiumCancelInfo trial />
+                        </>
+                      ) : cancelAtDate ? (
+                        <>
+                          {/* 解約予約中（カスタマーポータルで解約手続き済み・期間末で終了）。
+                              「解約したのに登録済み表示のまま」の不安を解消する（2026-07-18 オーナー要望）。 */}
+                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-center space-y-1">
+                            <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1.5"><AlarmClock className="h-4 w-4 shrink-0" />解約手続き済み</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400"><strong>{cancelAtDate.toLocaleDateString('ja-JP')}</strong> までプレミアムをご利用いただけます</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">以降の課金はありません。継続したくなった場合は、解約手続きに使ったページ（カスタマーポータル）から期限内に解約を取り消せます。</p>
+                          </div>
+                          <PremiumCancelInfo />
                         </>
                       ) : (
                         <>
