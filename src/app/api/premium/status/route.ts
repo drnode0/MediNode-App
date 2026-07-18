@@ -34,7 +34,7 @@ export async function GET() {
   const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
 
   const sub = isAdmin
-    ? { active: true, status: 'comp_admin', currentPeriodEnd: null, trialEndsAt: null }
+    ? { active: true, status: 'comp_admin', currentPeriodEnd: null, trialEndsAt: null, cancelAtPeriodEnd: false }
     : await getActiveStatusByUserId(user.id)
 
   if (!sub.active) {
@@ -69,6 +69,9 @@ export async function GET() {
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
     trialEndsAt: sub.trialEndsAt ?? null,
+    // 解約予約（期間末で終了・以降課金なし）。クライアントは currentPeriodEnd とセットで
+    // 「解約手続き済み・◯/◯まで利用可能」を表示する。
+    cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
     algolia: {
       appId: algoliaAppId,
       searchKey: issuePremiumSearchKey({

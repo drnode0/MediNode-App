@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
           current_period_end: periodEnd,
           trial_ends_at: null,
           plan: 'premium',
+          cancel_at_period_end: false, // 新規契約なので解約予約フラグをリセット
         })
       } catch (e) {
         // DB保存に失敗してもキー配布は継続（webhookが後で同期する）。

@@ -34,6 +34,10 @@ export type AppSettings = {
   // 無料トライアル（クーポンコード経由・カード不要）の有効期限（ISO文字列）。
   // この日時を過ぎたらプレミアムを無効化する。Stripe正式登録の場合は空のまま。
   subscriptionTrialEndsAt?: string
+  // Stripe契約の解約予約（cancel_at_period_end）の終了日時（ISO文字列）。
+  // 空=解約予約なし。値がある間は「解約手続き済み・この日まで利用可能」を表示する
+  // （有効性の判定には使わない。判定はサーバーの status/trial_ends_at が担う）。
+  subscriptionCancelAt?: string
 
   // プロパティ名マッピング（任意）
   propSummary: string       // デフォルト: 要約
