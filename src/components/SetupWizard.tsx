@@ -660,9 +660,15 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
   // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
   const [step, setStep] = useState<Step>(initialStep || 'entry')
-  // 「何から始めるか」の選択。初期値は個人のみ（従来挙動に近い。handleRedo が 'mode' へ
-  // 直行する際も targets.personal=true 前提のため、この初期値は変更しない）。start画面で更新。
-  const [targets, setTargets] = useState<SetupTargets>({ personal: true, team: false, premium: false })
+  // 「何から始めるか」の選択。最初から通る場合は未選択で始める（モニターFB:
+  // デフォルトチェックは「いくつ選ぶべきか」を分かりにくくする。未選択なら「次へ」が
+  // 無効になり、自分で選ぶ形になる）。再設定で 'mode'/'notion' へ直行する経路だけは
+  // start画面を通らず targets.personal=true 前提のため、従来どおり個人を選択済みにする。
+  const [targets, setTargets] = useState<SetupTargets>(
+    initialStep && initialStep !== 'entry'
+      ? { personal: true, team: false, premium: false }
+      : { personal: false, team: false, premium: false }
+  )
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   // 画面つきガイド（Token作成〜コネクト追加）。null=閉、数値=開始ステップ。
   const [tokenGuideStep, setTokenGuideStep] = useState<number | null>(null)
