@@ -1,7 +1,8 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, BookOpen, type LucideIcon } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
+import { readingMinutes } from '@/lib/content-stats'
 import { useState, type KeyboardEvent } from 'react'
 
 export type Hit = {
@@ -31,6 +32,10 @@ export type Hit = {
   relatedRefTitles?: string[]
   aiKeywords?: string
   hasAttachment?: boolean
+  // サブスク同期が計算する本文充実度（プレミアムのみ）。一覧から「中身の濃さ」を伝える。
+  contentChars?: number
+  sectionCount?: number
+  headings?: string[]
   notionUrl: string
   lastEdited: string
   createdAt?: string
@@ -85,6 +90,12 @@ export function ResultCard({ hit }: { hit: Hit }) {
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
   const ownerLabel = ownerBadge
     ? (hit.owner === 'team' && hit.teamLabel ? hit.teamLabel : ownerBadge.label)
+    : null
+
+  // 充実度（プレミアムのみ）。「タイトル＋要約だけで中身の量が伝わらない」FBへの対応。
+  const minutes = hit.owner === 'subscription' ? readingMinutes(hit.contentChars ?? 0) : 0
+  const densityLabel = minutes > 0
+    ? `本文 約${minutes}分${hit.sectionCount ? `・${hit.sectionCount}セクション` : ''}`
     : null
 
   return (
@@ -158,6 +169,12 @@ export function ResultCard({ hit }: { hit: Hit }) {
               {evidence.label}
             </span>
           )}
+          {densityLabel && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+              <BookOpen className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+              {densityLabel}
+            </span>
+          )}
           {(Array.isArray(hit.genre) ? hit.genre : hit.genre ? [hit.genre] : []).map((g) => (
             <span key={g} className="text-xs bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 px-2 py-0.5 rounded-full">
               {g}
@@ -224,6 +241,19 @@ export function ResultCard({ hit }: { hit: Hit }) {
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pt-3 whitespace-pre-wrap">
             {displaySummary}
           </p>
+          {hit.owner === 'subscription' && hit.headings && hit.headings.length > 0 && (
+            <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Notionページの収録内容</p>
+              <ul className="space-y-0.5">
+                {hit.headings.map((h, i) => (
+                  <li key={i} className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">・{h}</li>
+                ))}
+                {(hit.sectionCount ?? 0) > hit.headings.length && (
+                  <li className="text-xs text-gray-400 dark:text-gray-500">…ほか{(hit.sectionCount ?? 0) - hit.headings.length}セクション</li>
+                )}
+              </ul>
+            </div>
+          )}
           {hit.aiKeywords && (
             <p className="text-xs text-gray-300 mt-3 leading-relaxed">
               {hit.aiKeywords}

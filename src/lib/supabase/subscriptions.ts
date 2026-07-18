@@ -181,3 +181,15 @@ export async function getActiveStatusByUserId(userId: string): Promise<{
     trialEndsAt,
   }
 }
+
+// subscriptions に行があるか（状態・期限は問わない）。自動トライアルの対象判定に使う。
+// 行がある＝過去に何らかの契約・トライアル・compがあった人。
+export async function hasSubscriptionRecord(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('subscriptions')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data
+}

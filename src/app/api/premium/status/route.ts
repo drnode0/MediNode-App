@@ -34,7 +34,7 @@ export async function GET() {
   const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
 
   const sub = isAdmin
-    ? { active: true, status: 'comp_admin', currentPeriodEnd: null }
+    ? { active: true, status: 'comp_admin', currentPeriodEnd: null, trialEndsAt: null }
     : await getActiveStatusByUserId(user.id)
 
   if (!sub.active) {
@@ -68,6 +68,7 @@ export async function GET() {
     active: true,
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
+    trialEndsAt: sub.trialEndsAt ?? null,
     algolia: {
       appId: algoliaAppId,
       searchKey: issuePremiumSearchKey({

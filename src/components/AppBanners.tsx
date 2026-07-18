@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -30,6 +30,13 @@ export type Announcement = {
   links?: { label: string; url: string }[]
 }
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-07-18-auto-trial',
+    date: '2026-07-18',
+    Icon: Gift,
+    title: '登録するだけで、プレミアムを3日間お試しできるようになりました',
+    body: 'アカウント登録（無料）するだけで、専門医が配信するプレミアムナレッジを3日間そのまま閲覧できます。コード入力は不要です。noteの特典コードをお持ちの方は、設定 → プレミアムで入力すると14日間のお試しになります。',
+  },
   {
     id: '2026-07-12-cq-capture',
     date: '2026-07-12',
@@ -205,6 +212,55 @@ export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () 
             あとで
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── PWAインストール案内バナー ──
+// ブラウザ（未インストール）で開いている人にだけ「ホーム画面に追加」を案内する。
+// スタンドアロン起動（=already installed）では出さない。×で永続的に消せる。
+const PWA_BANNER_DISMISS_KEY = 'medinode_pwa_banner_dismissed_v1'
+
+export function PwaInstallBanner() {
+  const [show, setShow] = useState(false)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(PWA_BANNER_DISMISS_KEY)) return
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (navigator as unknown as { standalone?: boolean }).standalone === true
+      if (!standalone) setShow(true)
+    } catch {}
+  }, [])
+  if (!show) return null
+  const dismiss = () => {
+    try { localStorage.setItem(PWA_BANNER_DISMISS_KEY, '1') } catch {}
+    setShow(false)
+  }
+  return (
+    <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
+      <div className="bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Smartphone className="w-5 h-5 text-brand-500 shrink-0" />
+          <button onClick={() => setOpen((v) => !v)} className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">ホーム画面に追加すると、アプリのように使えます</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              アイコンを1タップで起動。手順を見る
+              {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </p>
+          </button>
+          <button onClick={dismiss} className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
+        </div>
+        {open && (
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+            <p><strong>iPhone（Safari）:</strong> 画面下の共有ボタン<Share className="inline w-3.5 h-3.5 mx-0.5 -mt-0.5" />→「ホーム画面に追加」→「追加」</p>
+            <p><strong>Android（Chrome）:</strong> 右上の「⋮」メニュー →「ホーム画面に追加」（または「アプリをインストール」）</p>
+            <p><strong>パソコン（Chrome/Edge）:</strong> アドレスバー右端のインストールアイコンをクリック</p>
+            <p className="text-gray-400 dark:text-gray-500">追加後はホーム画面のMediNodeアイコンから、アプリと同じようにワンタップで開けます。</p>
+          </div>
+        )}
       </div>
     </div>
   )
