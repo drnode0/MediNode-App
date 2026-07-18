@@ -71,9 +71,9 @@ const PAGES: Page[] = [
     title: '使いたい知識を\n選んで始められます',
     accent: '選んで',
     features: [
+      { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます', tone: 'amber' },
       { Icon: UserRound, title: '自分の知識（個人のNotion）', desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます', tone: 'brand' },
       { Icon: Building2, title: 'みんなの知識（部署の共有DB）', desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ', tone: 'sky' },
-      { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます', tone: 'amber' },
     ],
   },
   {
@@ -106,7 +106,7 @@ const PAGES: Page[] = [
     accent: 'すぐ使い始められます',
     features: [
       { Icon: Compass, title: 'まず使う知識を選ぶ', desc: '自分／みんな／専門医の知識から使いたいものを選ぶ（複数OK）', tone: 'sky' },
-      { Icon: KeyRound, title: '選んだものを設定', desc: 'Notionを使うならコネクトTokenを入力。プレミアムだけなら設定はほぼ不要', tone: 'violet' },
+      { Icon: KeyRound, title: '選んだものを設定', desc: 'Notionを使うなら合鍵（コネクトToken）を入力。プレミアムだけなら設定はほぼ不要', tone: 'violet' },
       { Icon: Rocket, title: '完了して検索開始', desc: 'あとは検索・新着・ジャンル・クイズをすぐ使えます', tone: 'brand' },
     ],
   },
