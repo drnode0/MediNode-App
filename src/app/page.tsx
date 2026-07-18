@@ -2529,7 +2529,7 @@ export default function Home() {
     )
   }
 
-  // 初回のみオンボーディング（setupが未完了の場合のみ表示）、またはSetupWizardから「使い方」ボタンで再表示
+  // 初回のみオンボーディング（setupが未完了の場合のみ表示）、またはSetupWizardのヘルプ内「アプリの紹介」から再表示
   if ((!onboardingDone && !setupDone) || showOnboardingFromSetup) {
     return (
       <OnboardingScreen
