@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
   const hasRow = await hasSubscriptionRecord(user.id)
   if (!isAutoTrialEligible({ grantedAt, hasSubscriptionRow: hasRow })) {
     // 記録がある人（コード式/契約/comp）には二度と自動付与しないようフラグだけ立てる。
+    // フラグ更新の失敗はここでは無視してよい（次回も hasSubscriptionRecord が
+    // 必ず再検証するため、付与漏れ・二重付与のどちらも起きない）。
     const admin = createAdminClient()
     await admin.auth.admin.updateUserById(user.id, {
       user_metadata: { ...user.user_metadata, auto_trial_granted_at: new Date().toISOString() },
@@ -56,6 +58,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, granted: true, trialDays: AUTO_TRIAL_DAYS, trialEndsAt })
   } catch (err) {
     console.error('auto-trial: 付与失敗:', err instanceof Error ? err.message : err)
+    // 付与に失敗したのにフラグだけ残ると、次回以降 already 扱いになり永久に付与されない。
+    // ベストエフォートでフラグを戻して、次回ログイン時に再試行できるようにする。
+    try {
+      await admin.auth.admin.updateUserById(user.id, {
+        user_metadata: { ...user.user_metadata, auto_trial_granted_at: null },
+      })
+    } catch {}
     return NextResponse.json({ ok: false, reason: 'grant_failed' }, { status: 500 })
   }
 }
