@@ -1310,6 +1310,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">何から始めますか？</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   使いたいものを選んでください（複数選択可）。あとから「設定」で追加もできます。
+                  まず体験するだけなら、<strong className="text-amber-700 dark:text-amber-300 font-semibold">プレミアムだけの選択でOK</strong>です（Notion接続の設定を飛ばしてすぐ始められます）。
                 </p>
               </div>
 
@@ -1368,6 +1369,19 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               >
                 次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
               </button>
+              {/* まず体験だけしたい人の近道（モニターFB: 個人が初期チェック済みのため
+                  「プレミアムだけ選んでいい」と伝わらず、個人のNotion設定を越えないと
+                  体験に辿り着けなかった）。skipToPremium がプレミアム単独選択＋設定スキップまで行う。 */}
+              <button
+                type="button"
+                onClick={skipToPremium}
+                className="w-full border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-xl py-2.5 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+              >
+                <Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />まずは体験だけ — プレミアムのみで始める
+              </button>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-2">
+                Notion接続の設定を飛ばして、メール登録だけですぐ始められます
+              </p>
               {error && (
                 <p className="text-xs text-red-500 text-center">{error}</p>
               )}
