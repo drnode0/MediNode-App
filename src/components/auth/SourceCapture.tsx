@@ -12,9 +12,11 @@
 
 import { useEffect } from 'react'
 import { useAuth } from './AuthProvider'
+import { readSetupTelemetry } from '@/lib/setup-telemetry'
 
 const STORAGE_KEY = 'medinode_acq' // {"source":"x","medium":"lp","at":"ISO"}
 const SYNCED_KEY = 'medinode_acq_synced' // 送信済みユーザーID
+const SETUP_SYNCED_KEY = 'medinode_setup_synced' // "userId:送信済み内容のJSON"
 
 // リファラーのホスト名 → 媒体名（LPの assets/attribution.js と同じ対応表）。
 const REFERRER_MAP: Record<string, string> = {
@@ -90,6 +92,46 @@ export function SourceCapture() {
     } catch {
       // 読み取り失敗時は何もしない。
     }
+  }, [configured, user, loading])
+
+  // 3. セットアップ行動（setup-telemetry.ts の記録）もログイン後に同期する。
+  //    流入元と違い内容が変わりうるので、「前回送った内容と違うとき」に送り直す。
+  //    セットアップ完了後の登録が典型なのでマウント時＋5分おきの再確認で十分拾える。
+  useEffect(() => {
+    if (!configured || loading || !user) return
+
+    const sync = () => {
+      try {
+        const telemetry = readSetupTelemetry()
+        if (!telemetry?.furthest) return
+        const payload = {
+          furthest: telemetry.furthest,
+          targets: telemetry.targets ?? undefined,
+          mode: telemetry.mode ?? undefined,
+          dbSetup: telemetry.dbSetup ?? undefined,
+        }
+        const mark = `${user.id}:${JSON.stringify(payload)}`
+        if (localStorage.getItem(SETUP_SYNCED_KEY) === mark) return
+        fetch('/api/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(async (res) => {
+            const data = (await res.json().catch(() => null)) as { ok?: boolean } | null
+            if (data?.ok) localStorage.setItem(SETUP_SYNCED_KEY, mark)
+          })
+          .catch(() => {
+            // 失敗は無視（次回開いたときに再試行される）。
+          })
+      } catch {
+        // 読み取り失敗時は何もしない。
+      }
+    }
+
+    sync()
+    const timer = window.setInterval(sync, 5 * 60 * 1000)
+    return () => window.clearInterval(timer)
   }, [configured, user, loading])
 
   return null
