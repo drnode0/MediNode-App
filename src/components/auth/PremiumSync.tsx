@@ -59,6 +59,10 @@ export function PremiumSync() {
 
     ;(async () => {
       try {
+        // 登録時自動トライアル（3日・コード不要）。対象外・付与済みはサーバーがno-op。
+        // statusより先に呼ぶことで、付与直後の初回ログインでもこの後のstatusがactiveになる。
+        try { await fetch('/api/premium/auto-trial', { method: 'POST' }) } catch {}
+
         const res = await fetch('/api/premium/status', { cache: 'no-store' })
         const data = await res.json()
         if (cancelled) return
@@ -67,16 +71,21 @@ export function PremiumSync() {
         if (data.active && data.algolia) {
           // 契約有効 → プレミアムキーをこの端末の設定に反映。
           // 既に同じ値なら書き込まない（不要なリロード誘発を防ぐ）。
+          const trialEndsAt: string = data.trialEndsAt || ''
           if (
             current.subscriptionSearchKey !== data.algolia.searchKey ||
-            current.subscriptionAppId !== data.algolia.appId
+            current.subscriptionAppId !== data.algolia.appId ||
+            (current.subscriptionTrialEndsAt || '') !== trialEndsAt
           ) {
             saveSettings({
               ...current,
               subscriptionAppId: data.algolia.appId,
               subscriptionSearchKey: data.algolia.searchKey,
               subscriptionIndex: data.algolia.index,
-              subscriptionTrialEndsAt: '',
+              // トライアル（自動/コード式）はサーバーの期限を保存 → 設定画面の
+              // 「無料トライアル中（残りN日）」表示が別端末でも正しく出る。
+              // Stripe正式契約は null → '' となり従来どおり無期限扱い。
+              subscriptionTrialEndsAt: trialEndsAt,
             })
             // 反映のため軽くリロード（検索クライアントを作り直す）。
             window.location.reload()
