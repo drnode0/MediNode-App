@@ -6,7 +6,7 @@
 // 1枚ずつ見せ、「次へ」で進む。セットアップの入力欄を離れずに確認できる。
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, Link2, CheckCircle2, Smartphone } from 'lucide-react'
+import { X, ArrowLeft, ArrowRight, ExternalLink, KeyRound, Link2, CheckCircle2, Smartphone, Check, AlertTriangle } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { SETUP_GUIDE_URL } from '@/lib/app-links'
 
@@ -21,6 +21,7 @@ import { SETUP_GUIDE_URL } from '@/lib/app-links'
 // ステータスバーと字幕帯はクロップ済み）。動画を更新したら同じ手順で切り出し直す。
 type GuideStep = {
   phase: 'token' | 'connect'
+  embed?: 'token' | 'dbUrl'   // このステップに埋め込む入力欄（セットアップフォームと同期）
   title: string
   body: string
   link?: { href: string; label: string }
@@ -58,8 +59,9 @@ const STEPS: GuideStep[] = [
   },
   {
     phase: 'token' as const,
+    embed: 'token' as const,
     title: 'アクセストークンをコピーする',
-    body: '作成後の画面にある「アクセストークン」の「表示」→「コピー」を押してください。ntn_ で始まる文字列です。コピーできたら、この画面を閉じてアプリの「コネクトToken」欄に貼り付けてください。',
+    body: '作成後の画面にある「アクセストークン」の「表示」→「コピー」を押してください。ntn_ で始まる文字列です。',
     img: '/guide/token-2.jpg', width: 1200, height: 1072,
     imgMobile: '/guide/m2/step-3.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: 'スマホでのIntegration token画面。Access tokenを表示してコピーする',
@@ -106,8 +108,9 @@ const STEPS: GuideStep[] = [
   },
   {
     phase: 'connect' as const,
+    embed: 'dbUrl' as const,
     title: '「ページに追加」で接続完了',
-    body: '確認画面で「ページに追加」を押せば接続完了です。あとは、コピーしたトークンとDBページのURLをアプリの入力欄に貼り付けるだけです。',
+    body: '確認画面で「ページに追加」を押せば接続完了です。',
     img: '/guide/token-6.jpg', width: 1200, height: 1314,
     imgMobile: '/guide/m2/step-8.jpg', widthMobile: 1200, heightMobile: 2316,
     altMobile: '確認ダイアログでページに追加をタップして接続完了',
@@ -122,9 +125,15 @@ export const CONNECT_FIRST_STEP = STEPS.findIndex((s) => s.phase === 'connect')
 type Props = {
   initialStep?: number
   onClose: () => void
+  // セットアップフォームと双方向同期する埋め込み入力欄。
+  // 未指定なら従来どおり「閉じて貼り付け」の案内文を表示する。
+  tokenValue?: string
+  onTokenChange?: (value: string) => void
+  dbUrlValue?: string
+  onDbUrlChange?: (value: string) => void
 }
 
-export default function NotionTokenGuide({ initialStep = 0, onClose }: Props) {
+export default function NotionTokenGuide({ initialStep = 0, onClose, tokenValue, onTokenChange, dbUrlValue, onDbUrlChange }: Props) {
   const [step, setStep] = useState(Math.min(Math.max(initialStep, 0), STEPS.length - 1))
   const [mounted, setMounted] = useState(false)
   // スマホ／パソコンの表示切り替え。初期値はタッチ端末ならスマホ。
@@ -208,6 +217,70 @@ export default function NotionTokenGuide({ initialStep = 0, onClose }: Props) {
             ))}
           </div>
           <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{s.body}</p>
+          {s.embed === 'token' && (onTokenChange ? (
+            <div className="rounded-xl border border-brand-200 dark:border-brand-700 bg-brand-50/60 dark:bg-brand-900/20 p-3 space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                コピーできたら、ここに貼り付け：
+              </label>
+              <input
+                type="text"
+                value={tokenValue || ''}
+                onChange={(e) => onTokenChange(e.target.value)}
+                placeholder="ntn_xxxxxxxxxxxx"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              {tokenValue && (tokenValue.startsWith('ntn_') || tokenValue.startsWith('secret_')) ? (
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  <Check className="inline-block h-3 w-3 align-text-bottom mr-1" />
+                  貼り付けOK。「次へ」で後半（DBに鍵を差す）に進めます
+                </p>
+              ) : tokenValue ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="inline-block h-3 w-3 align-text-bottom mr-1" />
+                  コネクトTokenは通常 ntn_ または secret_ で始まります
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              コピーできたら、この画面を閉じてアプリの「コネクトToken」欄に貼り付けてください。
+            </p>
+          ))}
+          {s.embed === 'dbUrl' && (onDbUrlChange ? (
+            <div className="rounded-xl border border-brand-200 dark:border-brand-700 bg-brand-50/60 dark:bg-brand-900/20 p-3 space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                接続したMedical DBページのURLを、ここに貼り付け：
+              </label>
+              <input
+                type="text"
+                value={dbUrlValue || ''}
+                onChange={(e) => onDbUrlChange(e.target.value)}
+                placeholder="https://www.notion.so/..."
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              {dbUrlValue && dbUrlValue.trim().length === 32 ? (
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  <Check className="inline-block h-3 w-3 align-text-bottom mr-1" />
+                  DB IDを認識しました
+                </p>
+              ) : dbUrlValue ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="inline-block h-3 w-3 align-text-bottom mr-1" />
+                  このURLからIDを取り出せませんでした。DBページ右上の「共有 → リンクをコピー」で取得したURL全体を貼ってください
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              あとは、コピーしたトークンとDBページのURLをアプリの入力欄に貼り付けるだけです。
+            </p>
+          ))}
           {device === 'mobile' && s.mobileNote && (
             <p className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
               <Smartphone className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />
