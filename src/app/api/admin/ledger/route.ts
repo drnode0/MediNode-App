@@ -30,6 +30,7 @@ export async function GET() {
       email?: string
       created_at?: string
       last_sign_in_at?: string
+      user_metadata?: Record<string, unknown>
     }> = []
     for (let page = 1; page <= 10; page++) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
@@ -67,6 +68,30 @@ export async function GET() {
       // テーブル未作成なら全員「—」のまま。
     }
 
+    // 日別アクティブ数（直近60日・グラフ用）。0006 未適用ならテーブルが無いので空のまま続行。
+    // 日付はJSTで記録されている（/api/usage/ping 参照）。日別ユニーク数へ集計して返す。
+    const dailyActive: Array<{ date: string; count: number }> = []
+    try {
+      const sinceOn = new Date(Date.now() + 9 * 60 * 60 * 1000 - 60 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10)
+      const { data: daily } = await admin
+        .from('app_usage_daily')
+        .select('used_on, user_id')
+        .gte('used_on', sinceOn)
+        .limit(20000) // 既定の1000行上限を外す（60日×ユーザー数。約330人/日まで欠けない）
+      const countByDate = new Map<string, number>()
+      for (const d of daily ?? []) {
+        const date = String(d.used_on)
+        countByDate.set(date, (countByDate.get(date) ?? 0) + 1)
+      }
+      for (const [date, count] of [...countByDate.entries()].sort()) {
+        dailyActive.push({ date, count })
+      }
+    } catch {
+      // テーブル未作成なら空配列（グラフ側が「蓄積待ち」を表示する）。
+    }
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -82,6 +107,9 @@ export async function GET() {
               status: s.status ?? null,
               trial_ends_at: s.trial_ends_at ?? null,
               stripe_customer_id: s.stripe_customer_id ?? null,
+              // auto_trial 導入前の plan='trial' 行を遡って分類するための材料。
+              auto_trial_granted_at:
+                (u.user_metadata?.auto_trial_granted_at as string | undefined) ?? null,
             }
           : null
         const isAdmin = !!u.email && adminEmails.includes(u.email.toLowerCase())
@@ -101,7 +129,7 @@ export async function GET() {
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 
-    return NextResponse.json({ ok: true, count: rows.length, rows })
+    return NextResponse.json({ ok: true, count: rows.length, rows, dailyActive })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })

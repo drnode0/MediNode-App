@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Activity,
   Check,
   Copy,
   CreditCard,
@@ -20,12 +21,20 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  Sparkles,
+  Timer,
   Users,
   XCircle,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
+import {
+  ActiveBreakdownBar,
+  DailyBarsChart,
+  TrendLineChart,
+  buildCumulativeSeries,
+  type ActiveBreakdown,
+  type DailyPoint,
+} from './AdminCharts'
 
 type LedgerRow = {
   userId: string
@@ -48,6 +57,7 @@ const KIND_STYLE: Record<MemberKind, { badge: string; icon: typeof Crown }> = {
   premium: { badge: 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300', icon: Crown },
   stripe_trial: { badge: 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200', icon: CreditCard },
   trial: { badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200', icon: Hourglass },
+  auto_trial: { badge: 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200', icon: Timer },
   expired: { badge: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
   free: { badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Users },
 }
@@ -55,6 +65,41 @@ const KIND_STYLE: Record<MemberKind, { badge: string; icon: typeof Crown }> = {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return iso.slice(0, 10)
+}
+
+// KPIカード（登録者数・アクティブ数など画面上部の数字）。
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  highlight = false,
+}: {
+  icon: typeof Users
+  label: string
+  value: number
+  sub?: string
+  highlight?: boolean
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 bg-white dark:bg-gray-800 ${
+        highlight
+          ? 'border-brand-300 dark:border-brand-700'
+          : 'border-gray-200 dark:border-gray-700'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-brand-600 dark:text-brand-400' : ''}`} aria-hidden />
+        {label}
+      </div>
+      <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-none">
+        {value}
+        <span className="text-sm font-medium text-gray-400 dark:text-gray-500 ml-0.5">人</span>
+      </div>
+      {sub && <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{sub}</div>}
+    </div>
+  )
 }
 
 // CSVの1セル。カンマ・引用符・改行を含んでも壊れないようにする。
@@ -65,6 +110,7 @@ function csvCell(v: string | null): string {
 
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
+  const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -87,6 +133,7 @@ export function AdminLedgerClient() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '読み込みに失敗しました')
       setRows(data.rows)
+      setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : '読み込みに失敗しました')
     } finally {
@@ -203,7 +250,7 @@ export function AdminLedgerClient() {
   }, [rows, query])
 
   const counts = useMemo(() => {
-    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, expired: 0, free: 0 }
+    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
     for (const r of rows ?? []) c[r.kind]++
     return c
   }, [rows])
@@ -214,6 +261,29 @@ export function AdminLedgerClient() {
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
     return rows.filter((r) => r.createdAt && new Date(r.createdAt).getTime() >= cutoff).length
   }, [rows])
+
+  // 利用状況。「最後に見た形跡」= 最終利用・最終ログイン・設定同期のうち一番新しい日時。
+  // （最終利用の記録は機能追加後の利用からしか残らないため、単独では実態より少なく出る）
+  const activity = useMemo(() => {
+    const breakdown: ActiveBreakdown = { within7: 0, within30: 0, older: 0, never: 0 }
+    const now = Date.now()
+    for (const r of rows ?? []) {
+      const seen = Math.max(
+        ...[r.lastUsedAt, r.lastSignInAt, r.settingsUpdatedAt]
+          .filter((v): v is string => !!v)
+          .map((v) => new Date(v).getTime()),
+        0,
+      )
+      if (seen === 0) breakdown.never++
+      else if (now - seen <= 7 * 24 * 60 * 60 * 1000) breakdown.within7++
+      else if (now - seen <= 30 * 24 * 60 * 60 * 1000) breakdown.within30++
+      else breakdown.older++
+    }
+    return { breakdown, wau: breakdown.within7, mau: breakdown.within7 + breakdown.within30 }
+  }, [rows])
+
+  // 登録者数の累積推移（全期間）。
+  const cumulative = useMemo(() => buildCumulativeSeries((rows ?? []).map((r) => r.createdAt)), [rows])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
@@ -279,31 +349,62 @@ export function AdminLedgerClient() {
 
         {!loading && !error && rows && (
           <>
-            {/* 区分ごとの人数サマリー */}
+            {/* KPIカード列: 規模と勢いをまず数字で */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+              <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} />
+              <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight />
+              <KpiCard icon={Activity} label="月間アクティブ" value={activity.mau} sub="30日以内（参考）" />
+              <KpiCard
+                icon={Crown}
+                label="サブスク中（課金）"
+                value={counts.premium}
+                sub={`カード登録トライアル ${counts.stripe_trial}人`}
+              />
+              <KpiCard
+                icon={Hourglass}
+                label="無料トライアル中"
+                value={counts.auto_trial + counts.trial}
+                sub={`自動3日 ${counts.auto_trial}・コード ${counts.trial}人`}
+              />
+            </div>
+
+            {/* グラフ2枚: 登録の伸びと日々の利用 */}
+            <div className="grid lg:grid-cols-2 gap-3 mb-4">
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">登録者数の推移（累積）</h2>
+                <TrendLineChart points={cumulative} label="登録者数の推移" />
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">日別アクティブ数（直近30日）</h2>
+                <DailyBarsChart points={dailyActive} label="日別アクティブ数" />
+              </section>
+            </div>
+
+            {/* 利用状況の内訳帯 */}
+            <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">最終利用の内訳（最終利用・ログイン・設定同期の最新値で判定）</h2>
+              <ActiveBreakdownBar breakdown={activity.breakdown} />
+            </section>
+
+            {/* 区分ごとの人数サマリー。0人の区分も薄く表示して「0人」と「非表示」を区別できるようにする */}
             <div className="flex flex-wrap gap-2 mb-4">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
-                登録 {rows.length}人
-              </span>
-              {newLast7d > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-white dark:bg-gray-800 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300">
-                  <Sparkles className="w-3.5 h-3.5" aria-hidden />
-                  直近7日の新規 {newLast7d}人
-                </span>
-              )}
-              {(Object.keys(KIND_STYLE) as MemberKind[])
-                .filter((k) => counts[k] > 0)
-                .map((k) => {
-                  const Icon = KIND_STYLE[k].icon
-                  return (
-                    <span
-                      key={k}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${KIND_STYLE[k].badge}`}
-                    >
-                      <Icon className="w-3.5 h-3.5" aria-hidden />
-                      {MEMBER_KIND_LABEL[k]} {counts[k]}人
-                    </span>
-                  )
-                })}
+              {(Object.keys(KIND_STYLE) as MemberKind[]).map((k) => {
+                const Icon = KIND_STYLE[k].icon
+                const zero = counts[k] === 0
+                return (
+                  <span
+                    key={k}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${
+                      zero
+                        ? 'bg-gray-50 text-gray-400 dark:bg-gray-800/60 dark:text-gray-500 border border-dashed border-gray-200 dark:border-gray-700'
+                        : KIND_STYLE[k].badge
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" aria-hidden />
+                    {MEMBER_KIND_LABEL[k]} {counts[k]}人
+                  </span>
+                )
+              })}
             </div>
 
             {/* 検索 */}
@@ -339,7 +440,7 @@ export function AdminLedgerClient() {
                 <tbody>
                   {filtered.map((r) => {
                     const Icon = KIND_STYLE[r.kind].icon
-                    const canRevoke = r.kind === 'comp' || r.kind === 'trial'
+                    const canRevoke = r.kind === 'comp' || r.kind === 'trial' || r.kind === 'auto_trial'
                     const canGrant = r.kind === 'free' || r.kind === 'expired'
                     return (
                       <tr
@@ -439,7 +540,8 @@ export function AdminLedgerClient() {
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
               区分 — 管理者: COMP_ADMIN_EMAILS のメール（常時無料）／永続無料: 招待コードまたはこの画面で付与（取り消し可）／
               サブスク中: Stripeで課金中／トライアル中（カード登録）: Stripeの無料期間中（終了後は自動で課金開始）／
-              トライアル中（無料コード）: カード登録なし・期限で自動失効（取り消し可）。
+              トライアル中（無料コード）: note特典などのコード入力・期限で自動失効（取り消し可）／
+              トライアル中（登録3日・自動）: 登録時にコードなしで自動付与される3日間（取り消し可）。
               <br />
               最終ログイン: 6桁コードやパスワードでログインが成立した日（ログインしたままの端末では動きません）。
               最終利用: ログイン中のユーザーがアプリを開いた日（1日1回記録・機能追加後の利用から）。

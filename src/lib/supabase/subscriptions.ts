@@ -54,7 +54,12 @@ export async function grantComplimentaryByUserId(userId: string): Promise<void> 
 //   - status='trialing'      … getActiveStatusByUserId が active と判定する（期限内のみ。下の期限チェック参照）
 //   - trial_ends_at=付与+日数 … この日時を過ぎたら getActiveStatusByUserId が active=false に倒す
 //   - stripe_customer_id=null … Stripe webhook（customer起点）に触られない
-export async function grantTrialByUserId(userId: string, trialDays: number): Promise<string> {
+// plan は出自の区別のみ（挙動は同一）: 'trial'=コード式（note特典等）／'auto_trial'=登録時自動3日。
+export async function grantTrialByUserId(
+  userId: string,
+  trialDays: number,
+  plan: 'trial' | 'auto_trial' = 'trial',
+): Promise<string> {
   const admin = createAdminClient()
   const days = Number.isFinite(trialDays) && trialDays > 0 ? trialDays : 30
   const trialEndsAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
@@ -68,7 +73,7 @@ export async function grantTrialByUserId(userId: string, trialDays: number): Pro
         status: 'trialing',
         current_period_end: null,
         trial_ends_at: trialEndsAt,
-        plan: 'trial',
+        plan,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' },
@@ -83,7 +88,7 @@ export async function grantTrialByUserId(userId: string, trialDays: number): Pro
 //   - 対象が comp（plan='comp'）の行のみを安全側で更新し、通常のStripe契約には触れない。
 // 無料解放を取り消す対象プラン。無期限comp と 期限付きtrial のどちらも棚卸し・revoke の対象にする
 // （Stripe由来の plan='premium' には触れない）。
-const FREE_PLANS = ['comp', 'trial'] as const
+const FREE_PLANS = ['comp', 'trial', 'auto_trial'] as const
 
 export async function revokeComplimentaryByUserId(userId: string): Promise<boolean> {
   const admin = createAdminClient()
