@@ -75,8 +75,6 @@ function parseEvidence(raw: string): { stars: number; label: string } {
 export function ResultCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
-  const sourceLabel = isMedical ? 'Medical' : 'Ref'
-  const sourceBg = isMedical ? 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
   const levelStyle = levelMeta?.badge || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
   // 参考文献の収録レベル（Tier）。精読ノート＝深掘り版／文献カード＝要点版。
@@ -120,33 +118,25 @@ export function ResultCard({ hit }: { hit: Hit }) {
             }
           : {})}
       >
+        {/* タイトルは全幅で読ませる。情報源（Medical/Ref）バッジは左帯＋種別ピルと重複するため
+            置かない。プレミアム/部署の所属バッジは下のピル行へ寄せ、右上は展開シェブロンだけにする。 */}
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-snug flex-1">
             {(hit as any)._highlightResult
               ? <Highlight attribute="title" hit={hit as any} />
               : hit.title}
           </h3>
-          <div className="flex items-center gap-1 shrink-0">
-            {ownerLabel && ownerBadge && (
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${ownerBadge.style}`}>
-                {ownerLabel}
-              </span>
-            )}
-            {hit.hasAttachment && (
-              <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="ファイル添付あり">
-                <Paperclip className="h-3.5 w-3.5" />
-              </span>
-            )}
-            <span className={`text-xs font-medium px-2 py-1 rounded-full ${sourceBg}`}>
-              {sourceLabel}
-            </span>
-            {hasExpandable && (
-              <span className="text-gray-300 text-xs">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>
-            )}
-          </div>
+          {hasExpandable && (
+            <span className="text-gray-300 shrink-0 mt-1">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-1 mb-2">
+          {ownerLabel && ownerBadge && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ownerBadge.style}`}>
+              {ownerLabel}
+            </span>
+          )}
           {recLevel && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${recIsDeep ? 'bg-amber-500 text-white dark:bg-amber-600' : 'text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600'}`}>
               {recIsDeep ? <NotebookText className="h-3 w-3 shrink-0" strokeWidth={2.2} /> : <Bookmark className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
@@ -181,10 +171,16 @@ export function ResultCard({ hit }: { hit: Hit }) {
               {evidence.label}
             </span>
           )}
+          {/* 充実度は分類ではなく情報量の目安なので、色を持たせずグレーに。紫はプレミアムだけの色にする。 */}
           {densityLabel && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400">
               <BookOpen className="h-3 w-3 shrink-0" strokeWidth={2.2} />
               {densityLabel}
+            </span>
+          )}
+          {hit.hasAttachment && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400" title="ファイル添付あり">
+              <Paperclip className="h-3 w-3 shrink-0" strokeWidth={2.2} />
             </span>
           )}
           {/* ジャンル／詳細ジャンルのピルはカードに出さない（種別・由来・読了時間だけに絞って可読性を優先）。
