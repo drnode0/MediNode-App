@@ -15,6 +15,25 @@ import { useAuth } from './AuthProvider'
 import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
 import { isSettingsSyncSettled, onSettingsSyncSettled } from './SettingsSync'
 
+// Stripe決済から戻ったロード（?premium_session= を verify 処理中）を示すフラグ。
+// page.tsx の verify エフェクトが URL からパラメータを消す前に立て、完了時に消す。
+// PremiumSync は「URLにパラメータがある」か「このフラグがある」間は動かない。
+// これが無いと、verify の DB 保存前に古い契約状態（例: 自動トライアルの期限）を
+// fetch して verify の保存結果を上書きし、「カード登録したのにトライアル表示のまま」
+// になるレースがある（2026-07-18 実害）。
+export const PREMIUM_VERIFY_FLAG = 'medinode:premium-verify-in-flight'
+
+// verify がこのロードの契約状態を確定させる最中か（レース回避の判定・両者を見る）。
+export function isPremiumVerifyInFlight(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (new URLSearchParams(window.location.search).has('premium_session')) return true
+    return !!sessionStorage.getItem(PREMIUM_VERIFY_FLAG)
+  } catch {
+    return false
+  }
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   searchMode: 'algolia',
   notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
@@ -47,6 +66,10 @@ export function PremiumSync() {
     if (!user) return
     // 全設定の復元（SettingsSync）が決着するまで動かない（冒頭コメント参照）。
     if (!syncSettled) return
+    // Stripe決済からの帰還ロードでは verify（page.tsx）が状態を確定する。
+    // ここで並走すると verify 保存前の古い状態で上書きするため丸ごと譲る
+    // （verify は成功時にリロードするので、次のロードで改めて同期される）。
+    if (isPremiumVerifyInFlight()) return
     // 同じユーザーで二重実行しない。
     if (lastSyncedUser.current === user.id) return
     lastSyncedUser.current = user.id

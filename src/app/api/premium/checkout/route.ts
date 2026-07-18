@@ -60,7 +60,13 @@ export async function POST(req: NextRequest) {
 
     // 契約を紐付けるユーザーIDはセッションから取得する（body渡しは廃止）。
     // body の userId を信用すると、第三者が任意のアカウントに契約を紐付けられてしまう。
-    // 未ログイン（またはSupabase未設定環境）なら従来どおり紐付けなしで決済だけ通す。
+    //
+    // アカウント基盤（Supabase）がある環境では未ログインの決済を通さない。
+    // 未ログインで決済すると client_reference_id が付かず、契約がどのアカウントにも
+    // 紐づかない「宙に浮いた契約」になる（実害: 2026-07-18 セットアップ途中のカード登録
+    // → ログイン後に自動トライアル表示が勝ち、Stripe側だけ課金予定の契約が残った）。
+    // フロント（SetupWizard / SettingsPanel）は 401 login_required を受けて
+    // 先にアカウント登録（メールのみ）を案内する。Supabase未設定のテンプレート環境は従来どおり。
     let userId: string | undefined
     let sessionEmail: string | undefined
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -72,7 +78,10 @@ export async function POST(req: NextRequest) {
           sessionEmail = user.email ?? undefined
         }
       } catch {
-        // セッション取得失敗は「未ログイン」として扱う。
+        // セッション取得失敗は「未ログイン」として扱う（下の401に倒れる）。
+      }
+      if (!userId) {
+        return NextResponse.json({ error: 'login_required' }, { status: 401 })
       }
     }
     // Checkout画面に事前入力するメール。セッション優先・未ログイン時のみbodyを許容。
