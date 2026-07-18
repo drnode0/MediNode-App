@@ -5,7 +5,7 @@ import { track } from '@vercel/analytics'
 import { weightedQuizOrder } from '@/lib/quiz-srs'
 import { stripLeadingEmoji } from '@/lib/labels'
 import {
-  Search, Clock, FolderOpen, BookOpen, Lightbulb, ClipboardList, SlidersHorizontal,
+  Search, Clock, FolderOpen, Lightbulb, ClipboardList, SlidersHorizontal,
   Link2, Building2, Star, Wrench, Megaphone, Send, HelpCircle, Trash2, Shuffle, BookMarked,
   Gift, CheckCircle2, AlarmClock, ArrowRight,
   Inbox, Brain, X, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
@@ -2632,15 +2632,18 @@ export default function Home() {
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
           </div>
           <div className="min-w-16 flex justify-end items-center gap-2">
-            <a
-              href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
-              target="_blank"
-              rel="noopener noreferrer"
+            {/* 外部ガイド直行はやめ、アプリ内ヘルプ（FAQ検索）を開く。ガイド全文はヘルプ内リンクから */}
+            <button
+              onClick={() => {
+                setSettingsInitialSection('help')
+                setShowSettings(true)
+                track('help_open', { from: 'header' })
+              }}
               className="w-10 h-10 -my-1 grid place-items-center rounded-xl text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              title="使い方ガイド"
+              title="ヘルプ"
             >
-              <BookOpen className="w-5 h-5" />
-            </a>
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className="w-10 h-10 -my-1 grid place-items-center rounded-xl text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
