@@ -30,6 +30,7 @@ import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
 import {
   ActiveBreakdownBar,
   DailyBarsChart,
+  HourlyBarsChart,
   TrendLineChart,
   buildCumulativeSeries,
   type ActiveBreakdown,
@@ -65,6 +66,27 @@ const KIND_STYLE: Record<MemberKind, { badge: string; icon: typeof Crown }> = {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return iso.slice(0, 10)
+}
+
+// ツールチップ・CSV用の完全な日時（日本時間・分まで）。
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return `${jst.toISOString().slice(0, 10)} ${jst.toISOString().slice(11, 16)}`
+}
+
+// 日付セル。ホバー（スマホは長押し）で時刻まで見える。
+function DateCell({ iso }: { iso: string | null }) {
+  return (
+    <td
+      className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+      title={fmtDateTime(iso) || undefined}
+    >
+      {fmtDate(iso)}
+    </td>
+  )
 }
 
 // KPIカード（登録者数・アクティブ数など画面上部の数字）。
@@ -111,6 +133,7 @@ function csvCell(v: string | null): string {
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
+  const [hourlyActive, setHourlyActive] = useState<number[]>([])
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -134,6 +157,7 @@ export function AdminLedgerClient() {
       if (!res.ok) throw new Error(data.error || '読み込みに失敗しました')
       setRows(data.rows)
       setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
+      setHourlyActive(Array.isArray(data.hourlyActive) ? data.hourlyActive : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : '読み込みに失敗しました')
     } finally {
@@ -217,11 +241,11 @@ export function AdminLedgerClient() {
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
-        csvCell(r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)),
-        csvCell(fmtDate(r.createdAt)),
-        csvCell(fmtDate(r.lastSignInAt)),
-        csvCell(fmtDate(r.lastUsedAt)),
-        csvCell(fmtDate(r.settingsUpdatedAt)),
+        csvCell(r.kind === 'comp' ? '無期限' : fmtDateTime(r.trialEndsAt) || '—'),
+        csvCell(fmtDateTime(r.createdAt) || '—'),
+        csvCell(fmtDateTime(r.lastSignInAt) || '—'),
+        csvCell(fmtDateTime(r.lastUsedAt) || '—'),
+        csvCell(fmtDateTime(r.settingsUpdatedAt) || '—'),
         csvCell(r.userId),
       ].join(','),
     )
@@ -380,11 +404,17 @@ export function AdminLedgerClient() {
               </section>
             </div>
 
-            {/* 利用状況の内訳帯 */}
-            <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">最終利用の内訳（最終利用・ログイン・設定同期の最新値で判定）</h2>
-              <ActiveBreakdownBar breakdown={activity.breakdown} />
-            </section>
+            {/* 利用時間帯（ホットスポット）と利用状況の内訳帯 */}
+            <div className="grid lg:grid-cols-2 gap-3 mb-4">
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">利用時間帯（直近30日・日本時間）</h2>
+                <HourlyBarsChart hourly={hourlyActive} label="利用時間帯" />
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">最終利用の内訳（最終利用・ログイン・設定同期の最新値で判定）</h2>
+                <ActiveBreakdownBar breakdown={activity.breakdown} />
+              </section>
+            </div>
 
             {/* 区分ごとの人数サマリー。0人の区分も薄く表示して「0人」と「非表示」を区別できるようにする */}
             <div className="flex flex-wrap gap-2 mb-4">
@@ -475,21 +505,16 @@ export function AdminLedgerClient() {
                             {MEMBER_KIND_LABEL[r.kind]}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        <td
+                          className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                          title={r.kind === 'comp' ? undefined : fmtDateTime(r.trialEndsAt) || undefined}
+                        >
                           {r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                          {fmtDate(r.createdAt)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                          {fmtDate(r.lastSignInAt)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                          {fmtDate(r.lastUsedAt)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                          {fmtDate(r.settingsUpdatedAt)}
-                        </td>
+                        <DateCell iso={r.createdAt} />
+                        <DateCell iso={r.lastSignInAt} />
+                        <DateCell iso={r.lastUsedAt} />
+                        <DateCell iso={r.settingsUpdatedAt} />
                         <td className="px-4 py-3">
                           {canRevoke ? (
                             <button
@@ -544,7 +569,7 @@ export function AdminLedgerClient() {
               トライアル中（登録3日・自動）: 登録時にコードなしで自動付与される3日間（取り消し可）。
               <br />
               最終ログイン: 6桁コードやパスワードでログインが成立した日（ログインしたままの端末では動きません）。
-              最終利用: ログイン中のユーザーがアプリを開いた日（1日1回記録・機能追加後の利用から）。
+              最終利用: ログイン中のユーザーがアプリを開いた日（1時間に1回更新・機能追加後の利用から。日付にカーソルを載せると時刻も出ます）。
               設定同期: 設定がサーバーに保存された最後の日。
             </p>
           </>

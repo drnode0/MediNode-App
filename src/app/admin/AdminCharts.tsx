@@ -219,6 +219,89 @@ export function DailyBarsChart({ points, label }: { points: DailyPoint[]; label:
   )
 }
 
+// ---- 時間帯ヒストグラム（利用のホットスポット） -----------------------------
+
+// hourly は 0〜23時の延べ利用数（人×日）24要素。空配列なら蓄積待ち。
+export function HourlyBarsChart({ hourly, label }: { hourly: number[]; label: string }) {
+  const [hover, setHover] = useState<number | null>(null)
+
+  if (hourly.length !== 24) {
+    return (
+      <p className="text-xs text-gray-400 dark:text-gray-500 py-8 text-center">
+        記録はこれから蓄積されます（機能導入後の利用から）
+      </p>
+    )
+  }
+
+  const max = Math.max(...hourly, 1)
+  const peak = hourly.indexOf(max)
+  const innerW = CHART_W - PAD_L - 8
+  const step = innerW / 24
+  const barW = Math.max(step - 2, 3)
+  const hovered = hover != null ? hourly[hover] : null
+
+  return (
+    <figure aria-label={label} className="relative">
+      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="w-full h-auto" role="img" onMouseLeave={() => setHover(null)}>
+        <line x1={PAD_L} y1={CHART_H - PAD_B} x2={CHART_W - 8} y2={CHART_H - PAD_B} className="stroke-gray-200 dark:stroke-gray-700" strokeWidth="1" />
+        {hourly.map((count, hour) => {
+          const h = (count / max) * (CHART_H - PAD_T - PAD_B)
+          const x = PAD_L + hour * step
+          const y = CHART_H - PAD_B - h
+          return (
+            <g key={hour} onMouseEnter={() => setHover(hour)}>
+              <rect x={x} y={PAD_T} width={step} height={CHART_H - PAD_T - PAD_B} fill="transparent" />
+              {count > 0 && (
+                <rect
+                  x={x + (step - barW) / 2}
+                  y={y}
+                  width={barW}
+                  height={h}
+                  rx="2"
+                  className={
+                    hover === hour
+                      ? 'fill-brand-700 dark:fill-brand-300'
+                      : hour === peak
+                        ? 'fill-brand-600 dark:fill-brand-400'
+                        : 'fill-brand-600/60 dark:fill-brand-400/60'
+                  }
+                />
+              )}
+              {/* 3時間おきの目盛りラベル */}
+              {hour % 3 === 0 && (
+                <text x={x + step / 2} y={CHART_H - 6} textAnchor="middle" className="fill-gray-400 dark:fill-gray-500" fontSize="10">
+                  {hour}
+                </text>
+              )}
+            </g>
+          )
+        })}
+        {/* ピーク時間帯の直接ラベル */}
+        {max > 0 && (
+          <text
+            x={PAD_L + peak * step + step / 2}
+            y={Math.max(CHART_H - PAD_B - (max / max) * (CHART_H - PAD_T - PAD_B) - 5, 10)}
+            textAnchor="middle"
+            className="fill-gray-700 dark:fill-gray-200"
+            fontSize="11"
+            fontWeight="600"
+          >
+            {peak}時台
+          </text>
+        )}
+      </svg>
+      {hovered != null && hover != null && (
+        <div
+          className="absolute -top-1 pointer-events-none px-2 py-1 rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 text-xs whitespace-nowrap shadow"
+          style={{ left: `${((PAD_L + (hover + 0.5) * step) / CHART_W) * 100}%`, transform: 'translateX(-50%)' }}
+        >
+          {hover}時台 延べ{hovered}
+        </div>
+      )}
+    </figure>
+  )
+}
+
 // ---- 利用状況の内訳帯 -------------------------------------------------------
 
 export type ActiveBreakdown = {

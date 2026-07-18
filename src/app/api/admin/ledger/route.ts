@@ -92,6 +92,30 @@ export async function GET() {
       // テーブル未作成なら空配列（グラフ側が「蓄積待ち」を表示する）。
     }
 
+    // 利用時間帯（直近30日・JST）。0〜23時の各時間帯に「延べ何人日の利用があったか」。
+    // 0007 未適用ならテーブルが無いので全0のまま続行（グラフ側が「蓄積待ち」を表示する）。
+    const hourlyActive: number[] = Array.from({ length: 24 }, () => 0)
+    let hourlyTotal = 0
+    try {
+      const sinceOn = new Date(Date.now() + 9 * 60 * 60 * 1000 - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10)
+      const { data: hourly } = await admin
+        .from('app_usage_hourly')
+        .select('hour')
+        .gte('used_on', sinceOn)
+        .limit(20000)
+      for (const h of hourly ?? []) {
+        const hour = Number(h.hour)
+        if (hour >= 0 && hour <= 23) {
+          hourlyActive[hour]++
+          hourlyTotal++
+        }
+      }
+    } catch {
+      // テーブル未作成なら全0のまま。
+    }
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -129,7 +153,13 @@ export async function GET() {
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 
-    return NextResponse.json({ ok: true, count: rows.length, rows, dailyActive })
+    return NextResponse.json({
+      ok: true,
+      count: rows.length,
+      rows,
+      dailyActive,
+      hourlyActive: hourlyTotal > 0 ? hourlyActive : [],
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })
