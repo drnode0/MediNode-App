@@ -148,6 +148,10 @@ async function syncMedicalDb(
         knowledgeLevel: extractText(props['知識レベル'] || {}),
         // 由来（現場の疑問＝読者の臨床疑問投稿から生まれたナレッジ）。空なら通常のナレッジ。
         origin: extractText(props['由来'] || {}),
+        // 投稿者情報（由来=現場の疑問のページのみ作者が入力）。実名は扱わず、
+        // 職種と本人希望のペンネームだけを載せる（ペンネーム空欄=匿名表示）。
+        posterRole: extractText(props['投稿者職種'] || {}),
+        posterName: extractText(props['ペンネーム'] || props['投稿者名'] || {}),
         aiSummary: extractText(props['要約'] || {}),
         aiKeywords: extractText(props['キーワード'] || {}),
         hasAttachment: extractHasFiles(props),
@@ -301,6 +305,8 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       'filterOnly(source)',
       'filterOnly(knowledgeLevel)',
       'filterOnly(recordingLevel)',
+      // 解決済み臨床疑問の通知・一覧（lib/resolved-cqs.ts）が origin:"現場の疑問" で絞り込む
+      'filterOnly(origin)',
       'genre',
     ],
     customRanking: ['desc(lastEdited)'],
