@@ -183,7 +183,7 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
+        アカウント登録だけで3日間の無料お試しが自動で始まります。さらに、<a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
         期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
       </p>
       {/* SettingsPanel側と同じ対策: min-w-0 がないと input が最小コンテンツ幅より
@@ -1249,7 +1249,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               {([
                 // tone はオンボーディング「3つの知識源」と同じ配色（個人=常盤・部署=空・プレミアム=琥珀）。
                 // プレミアムを先頭に置く（モニターFB: 設定不要で始められる選択肢が一番下だと戸惑う）。
-                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: '作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、すぐ使えます。' },
+                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: '作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで3日間無料でお試しできます。' },
                 { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', badge: '', desc: '自分のNotionに作った医療メモを検索します。Notionとつなぐ合鍵（コネクトToken）と、DBのリンクを使います。' },
                 { key: 'team' as const, Icon: Users, tone: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300', title: 'みんなの知識を使う', sub: '部署の共有DB', badge: '', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLを貼るだけでOK（自分のNotionは不要）。' },
               ]).map((opt) => {
