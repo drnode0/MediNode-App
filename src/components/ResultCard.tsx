@@ -20,6 +20,9 @@ export type Hit = {
   knowledgeLevel?: string
   // 由来（現場の疑問＝読者の臨床疑問投稿から生まれたナレッジ）。実名は出さず「現場発」であることだけを示す。
   origin?: string
+  // 投稿者の職種・ペンネーム（由来=現場の疑問のみ）。実名は扱わない。
+  posterRole?: string
+  posterName?: string
   type?: string
   tags?: string
   status?: string
@@ -156,7 +159,7 @@ export function ResultCard({ hit }: { hit: Hit }) {
               title="臨床現場から寄せられた疑問をもとに作成しています（投稿者が特定されない形で一般化）"
             >
               <Sprout className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-              現場の疑問から
+              現場の疑問から{hit.posterRole ? `（${hit.posterRole}）` : ''}
             </span>
           )}
           {evidence && (evidence.stars > 0 || evidence.label) && (
