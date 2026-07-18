@@ -1,6 +1,7 @@
 import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
+import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -79,6 +80,31 @@ function extractHasFiles(props: Record<string, Record<string, unknown>>): boolea
   return false
 }
 
+// ページ本文（トップレベルブロック）を全ページネーションで取得し、充実度統計を返す。
+// 失敗してもページ全体の同期は止めない（統計なしで続行）。対象は現状40ページ弱なので
+// ページごとの逐次取得でもcron実行時間・レート制限とも問題にならない。
+async function fetchContentStats(
+  notion: Client,
+  pageId: string,
+): Promise<{ contentChars: number; sectionCount: number; headings: string[] } | null> {
+  try {
+    const blocks: NotionBlockLite[] = []
+    let cursor: string | undefined = undefined
+    do {
+      const res = await notion.blocks.children.list({
+        block_id: pageId,
+        page_size: 100,
+        start_cursor: cursor,
+      })
+      blocks.push(...(res.results as unknown as NotionBlockLite[]))
+      cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+    } while (cursor)
+    return computeContentStats(blocks)
+  } catch {
+    return null
+  }
+}
+
 function extractYearText(prop: Record<string, unknown>): string {
   if (!prop) return ''
   const type = prop.type as string
@@ -110,6 +136,7 @@ async function syncMedicalDb(
         props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {},
       )
       if (!title) continue
+      const stats = await fetchContentStats(notion, page.id)
       records.push({
         objectID: `subscription_${page.id}`,
         source: 'medical',
@@ -125,6 +152,9 @@ async function syncMedicalDb(
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
+        contentChars: stats?.contentChars ?? 0,
+        sectionCount: stats?.sectionCount ?? 0,
+        headings: stats?.headings ?? [],
       })
       count++
     }
@@ -154,6 +184,7 @@ async function syncReferenceDb(
         props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {},
       )
       if (!title) continue
+      const stats = await fetchContentStats(notion, page.id)
       records.push({
         objectID: `subscription_${page.id}`,
         source: 'reference',
@@ -170,6 +201,9 @@ async function syncReferenceDb(
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
         notionUrl: (p.url as string) || '',
+        contentChars: stats?.contentChars ?? 0,
+        sectionCount: stats?.sectionCount ?? 0,
+        headings: stats?.headings ?? [],
       })
       count++
     }
