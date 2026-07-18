@@ -146,6 +146,8 @@ async function syncMedicalDb(
         detailGenre: extractText(props['詳細ジャンル'] || {}),
         tags: extractText(props['タグ'] || {}),
         knowledgeLevel: extractText(props['知識レベル'] || {}),
+        // 由来（現場の疑問＝読者の臨床疑問投稿から生まれたナレッジ）。空なら通常のナレッジ。
+        origin: extractText(props['由来'] || {}),
         aiSummary: extractText(props['要約'] || {}),
         aiKeywords: extractText(props['キーワード'] || {}),
         hasAttachment: extractHasFiles(props),

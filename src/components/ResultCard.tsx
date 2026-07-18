@@ -1,5 +1,5 @@
 'use client'
-import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, BookOpen, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, BookOpen, Sprout, type LucideIcon } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { readingMinutes } from '@/lib/content-stats'
@@ -18,6 +18,8 @@ export type Hit = {
   genreList?: string[]
   detailGenre?: string
   knowledgeLevel?: string
+  // 由来（現場の疑問＝読者の臨床疑問投稿から生まれたナレッジ）。実名は出さず「現場発」であることだけを示す。
+  origin?: string
   type?: string
   tags?: string
   status?: string
@@ -155,6 +157,16 @@ export function ResultCard({ hit }: { hit: Hit }) {
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${levelStyle}`}>
               {levelMeta && <levelMeta.Icon className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
               {levelMeta?.label ?? stripLeadingEmoji(hit.knowledgeLevel)}
+            </span>
+          )}
+          {/* 由来バッジ：現場の臨床疑問（読者投稿）から生まれたナレッジ。実名は出さず「現場発」だけを伝える。 */}
+          {hit.origin === '現場の疑問' && (
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+              title="臨床現場から寄せられた疑問をもとに作成しています（投稿者が特定されない形で一般化）"
+            >
+              <Sprout className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+              現場の疑問から
             </span>
           )}
           {evidence && (evidence.stars > 0 || evidence.label) && (
