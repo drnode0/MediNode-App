@@ -15,7 +15,7 @@
 //    再インストール→新ビルドの全チャンク先読みが走る）。
 //    上げ忘れても推移的先読みでシェルは自己完結に保たれる
 //    （旧キャッシュが残って肥大するだけで、動作は壊れない）。
-const CACHE_VERSION = 'medinode-v9'
+const CACHE_VERSION = 'medinode-v15'
 const NAV_NETWORK_TIMEOUT = 4000 // 初回起動でネットワークを待つ上限（ms）
 const APP_SHELL = [
   '/',
@@ -123,12 +123,19 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
 
-  // ページ遷移: キャッシュのシェルで即起動（白画面/ハング回避）＋背景で更新。
+  // ページ遷移: ネットワーク優先（タイムアウト付き）。オンラインなら常に最新HTML＝最新チャンクを
+  // 配信し、古いJSシェルが居座らないようにする。遅い/オフライン時のみキャッシュのシェルで即起動
+  // （白画面/ハング回避）。以前は cache-first(SWR) で「デプロイしても古い画面が残る」原因になっていた。
+  //
+  // ★ シェル扱いは '/'（アプリ本体）のみ。/admin・/login・/terms 等の個別ページまで
+  //   ここで抱え込むと、リロード時にキャッシュ済みの '/'（ホームHTML）が返って
+  //   「/admin を開いたのにホーム画面になる」誤配信が起きる（実際に起きた）。
+  //   個別ページはSWを素通しし、ブラウザが普通にサーバーから取得する。
   if (req.mode === 'navigate') {
+    if (url.pathname !== '/') return
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_VERSION)
-        const cached = await cache.match('/', { ignoreSearch: true })
 
         // ネットワーク取得＋成功時にシェルと参照chunkを更新（次回オフライン起動の保険）。
         const fetchAndUpdate = fetch(req)
@@ -146,18 +153,20 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(() => null)
 
-        if (cached) {
-          // 待たずにキャッシュで描画。更新は背景で続行（GC防止に waitUntil）。
-          event.waitUntil(fetchAndUpdate)
-          return cached
-        }
-
-        // 初回（未キャッシュ）: ネットワーク優先だが、ストールで固まらないようタイムアウト。
+        // ネットワークをタイムアウト付きで待つ。取れたら最新を返す（＝新デプロイが即反映）。
         const timed = await Promise.race([
           fetchAndUpdate,
           new Promise((resolve) => setTimeout(() => resolve(null), NAV_NETWORK_TIMEOUT)),
         ])
-        return timed || (await cache.match('/', { ignoreSearch: true })) || fetch(req)
+        if (timed && timed.ok) return timed
+
+        // 遅い/オフライン: キャッシュ済みシェルで即描画し、取得は背景で継続。
+        const cached = await cache.match('/', { ignoreSearch: true })
+        if (cached) {
+          event.waitUntil(fetchAndUpdate)
+          return cached
+        }
+        return (await fetchAndUpdate) || fetch(req)
       })(),
     )
     return

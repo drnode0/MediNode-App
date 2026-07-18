@@ -19,9 +19,26 @@ export function PwaRuntime() {
     document.documentElement.classList.add('app-ready')
 
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        // 登録失敗（プライベートブラウズ等）でもアプリ動作には影響させない。
+      // 既にSWが制御中なら、以後の controllerchange は「新バージョンへの更新」を意味する。
+      // 初回インストール（controller が無い状態）では clients.claim でも発火するが、
+      // その場合はまだ古い画面ではないのでリロードしない（無駄な再読込・ループ防止）。
+      const hadController = !!navigator.serviceWorker.controller
+      let reloading = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloading) return
+        reloading = true
+        // 新SW（新デプロイ）が制御を奪った瞬間に一度だけ再読込し、新しいシェル／チャンクへ差し替える。
+        window.location.reload()
       })
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          // 起動のたびに sw.js の更新を能動チェック（iOS PWA は放置すると確認が遅い）。
+          reg.update().catch(() => {})
+        })
+        .catch(() => {
+          // 登録失敗（プライベートブラウズ等）でもアプリ動作には影響させない。
+        })
     }
     const goOnline = () => setOffline(false)
     const goOffline = () => setOffline(true)
