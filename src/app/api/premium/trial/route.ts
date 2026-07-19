@@ -32,7 +32,7 @@ import type { User } from '@supabase/supabase-js'
  *   (C) 期限付きトライアルコード（TRIAL_CODES）… note特典など一般向け。カード不要・14日（既定）で
  *       自動失効・ログイン必須・subscriptions(plan=trial, trial_ends_at=付与+日数)へサーバー保存。
  *       サーバーが trial_ends_at を見て失効させるため、端末またぎでも期限が効く（無期限compとは別系統）。
- *   (D) 友達紹介コード（MN-XXXXXXXX・referral_codes）… 新規30日・紹介者+14日・ログイン必須。
+ *   (D) 友達紹介コード（MN-XXXXXXXX・referral_codes）… 新規14日・紹介者+14日・ログイン必須。
  *       env系に一致せず紹介コードの形をした入力だけDB照合する（handleReferralRedemption）。
  *   いずれも目立つUIを足さず、同じ入力欄に入れたコードの種別でサーバーが分岐する。
  *
@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
 }
 
 // (D) 友達紹介コードの償還。
-//   新規側: 30日トライアル（plan='trial'・サーバー保存・自動失効。noteコードと同じ挙動）
+//   新規側: 14日トライアル（plan='trial'・サーバー保存・自動失効。noteコードと同じ挙動）
 //   紹介者: +14日（契約状態に応じて延長/付与。best-effort — 失敗しても新規側は成功扱い）
 // 二重受け取りは referral_redemptions.referred_user_id UNIQUE がDBレベルで防ぐ。
 async function handleReferralRedemption(opts: {

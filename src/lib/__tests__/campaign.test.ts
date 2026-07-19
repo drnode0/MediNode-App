@@ -35,9 +35,9 @@ describe('launch campaign', () => {
     expect(trialCodeDays(new Date('2026-08-20T00:00:00Z'))).toBeGreaterThan(STRIPE_TRIAL_DAYS_DEFAULT)
   })
 
-  it('カード登録トライアルは恒久14日・紹介は新規30日/紹介者14日', () => {
+  it('カード登録トライアルは恒久14日・紹介は新規14日/紹介者14日', () => {
     expect(STRIPE_TRIAL_DAYS_DEFAULT).toBe(14)
-    expect(REFERRAL_NEW_USER_DAYS).toBe(30)
+    expect(REFERRAL_NEW_USER_DAYS).toBe(14)
     expect(REFERRAL_REWARD_DAYS).toBe(14)
   })
 })
