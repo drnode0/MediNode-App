@@ -14,12 +14,9 @@
 
 import { useState, useEffect, useContext } from 'react'
 import { X, Sprout, ExternalLink, Star } from 'lucide-react'
-import { fetchResolvedCqs, posterLabel, resolvedDateLabel, type ResolvedCq } from '@/lib/resolved-cqs'
+import { fetchResolvedCqs, posterLabel, resolvedDateLabel, RESOLVED_CQ_SEEN_KEY, type ResolvedCq } from '@/lib/resolved-cqs'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { OpenSettingsContext } from '@/components/SearchErrors'
-
-// 既読水位（最後に確認した createdAt）。これより新しいものだけを「新着」として出す。
-const RESOLVED_CQ_SEEN_KEY = 'medinode_resolved_cq_seen_v1'
 const BANNER_MAX_ITEMS = 3
 
 export function ResolvedCqBanner() {

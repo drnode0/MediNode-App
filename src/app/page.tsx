@@ -70,6 +70,8 @@ const SettingsPanel = dynamicImport(
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
+import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
+import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, type AuthorAdditions } from '@/lib/author-additions'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
@@ -784,7 +786,8 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   )
 }
 
-function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
+// newSince: 筆者追加分の既読水位（これより新しいプレミアム配信ページに「New」チップを出す）
+function RecentTabWithOwner({ hasTeam, hasSubscription, newSince }: { hasTeam: boolean; hasSubscription: boolean; newSince?: string }) {
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const ctx = useSubscriptionHits()
   const [personalHits, setPersonalHits] = useState<Hit[]>([])
@@ -863,7 +866,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
                 <span className="text-xs text-gray-300 dark:text-gray-600">{group.hits.length}件</span>
               </div>
               <div className="space-y-3">
-                {group.hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+                {group.hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} isNew={isNewAuthorAddition(hit, newSince || '')} />)}
               </div>
             </div>
           ))}
@@ -1575,7 +1578,8 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 }
 
 // Notionモード：新着タブ
-function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
+// newSince: 筆者追加分の既読水位（これより新しいプレミアム配信ページに「New」チップを出す）
+function NotionRecentTab({ hasTeam, hasSubscription, newSince }: { hasTeam: boolean; hasSubscription: boolean; newSince?: string }) {
   const { records, loading, error } = useNotionSearch('recent')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const ctx = useSubscriptionHits()
@@ -1644,7 +1648,7 @@ function NotionRecentTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
             <span className="text-xs text-gray-300 dark:text-gray-600">{group.hits.length}件</span>
           </div>
           <div className="space-y-3">
-            {group.hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} />)}
+            {group.hits.map((hit) => <ResultCard key={hit.objectID} hit={hit} isNew={isNewAuthorAddition(hit, newSince || '')} />)}
           </div>
         </div>
       ))}
@@ -2333,6 +2337,28 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('search')
+  // 筆者追加分（プレミアム配信の新規ナレッジ・精読ノート）の未読状態。
+  // あれば新着タブにドット（A）、条件を満たせばダイジェスト一行（B）を出す。
+  const [authorAdds, setAuthorAdds] = useState<AuthorAdditions | null>(null)
+  // C（新着タブ内カードの「New」チップ）用に、既読化前の水位をこのセッション中だけ保持。
+  // 既読化（水位の永続化）後もリロードまではチップを出し続け、「どれが増えた分か」を見せる。
+  const [authorNewSince, setAuthorNewSince] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    fetchAuthorAdditions().then((a) => {
+      if (cancelled || !a) return
+      setAuthorAdds(a)
+      setAuthorNewSince(a.since)
+    })
+    return () => { cancelled = true }
+  }, [])
+  // 新着タブを開いたら既読化（水位を前進させ、ドットとダイジェストを消す）。
+  useEffect(() => {
+    if (tab === 'recent' && authorAdds) {
+      markAuthorAdditionsSeen(authorAdds.latestCreatedAt)
+      setAuthorAdds(null)
+    }
+  }, [tab, authorAdds])
   // Algolia未設定画面の「シンプルモードに切り替える」直後に getSettings() を読み直させる更新カウンタ。
   const [, bumpSettingsVersion] = useState(0)
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
@@ -2669,7 +2695,15 @@ export default function Home() {
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
-              <t.Icon className="w-[17px] h-[17px]" strokeWidth={2} />
+              <span className="relative">
+                <t.Icon className="w-[17px] h-[17px]" strokeWidth={2} />
+                {/* 筆者追加分の未読ドット。新着タブを開いたら消える（文言なしの最も静かな通知） */}
+                {t.id === 'recent' && authorAdds && (
+                  <span className="absolute -top-0.5 -right-1 w-1.5 h-1.5 rounded-full bg-teal-500 dark:bg-teal-400">
+                    <span className="sr-only">プレミアムに新しい追加があります</span>
+                  </span>
+                )}
+              </span>
               {t.label}
             </button>
           ))}
@@ -2709,11 +2743,12 @@ export default function Home() {
         <PwaInstallBanner />
         <UpdateBanner />
         <ResolvedCqBanner />
+        <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
           {activeTab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
-          {activeTab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
+          {activeTab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} newSince={authorNewSince} />}
           {activeTab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
@@ -2797,6 +2832,7 @@ export default function Home() {
         <PwaInstallBanner />
         <UpdateBanner />
         <ResolvedCqBanner />
+        <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
           <SyncPanel />
@@ -2805,7 +2841,7 @@ export default function Home() {
           <AlgoliaSearchErrorNotice />
           {activeTab === 'search' && <SearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'recent' && (
-            <RecentTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} />
+            <RecentTabWithOwner hasTeam={hasTeam} hasSubscription={hasSubscription} newSince={authorNewSince} />
           )}
           {activeTab === 'browse' && <GenreBrowse hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'reference' && <ReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
