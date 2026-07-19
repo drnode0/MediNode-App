@@ -10,7 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { grantTrialByUserId, hasSubscriptionRecord } from '@/lib/supabase/subscriptions'
-import { AUTO_TRIAL_DAYS, isAutoTrialEligible } from '@/lib/auto-trial'
+import { isAutoTrialEligible } from '@/lib/auto-trial'
+import { autoTrialDays } from '@/lib/campaign'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
@@ -55,8 +56,10 @@ export async function POST(req: NextRequest) {
 
   try {
     // plan='auto_trial' で保存し、台帳で note特典コード（plan='trial'）と区別できるようにする。
-    const trialEndsAt = await grantTrialByUserId(user.id, AUTO_TRIAL_DAYS, 'auto_trial')
-    return NextResponse.json({ ok: true, granted: true, trialDays: AUTO_TRIAL_DAYS, trialEndsAt })
+    // 日数は公開記念キャンペーン中7日・通常3日（campaign.ts で一元管理）。
+    const days = autoTrialDays()
+    const trialEndsAt = await grantTrialByUserId(user.id, days, 'auto_trial')
+    return NextResponse.json({ ok: true, granted: true, trialDays: days, trialEndsAt })
   } catch (err) {
     console.error('auto-trial: 付与失敗:', err instanceof Error ? err.message : err)
     // 付与に失敗したのにフラグだけ残ると、次回以降 already 扱いになり永久に付与されない。

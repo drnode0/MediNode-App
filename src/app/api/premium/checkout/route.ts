@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { STRIPE_TRIAL_DAYS_DEFAULT } from '@/lib/campaign'
 
 /**
  * プレミアム サブスク Checkout Session 作成
@@ -100,14 +101,14 @@ export async function POST(req: NextRequest) {
       locale: 'ja',
       subscription_data: {
         metadata: { source: 'medinode', ...(userId ? { user_id: userId } : {}) },
-        // 最初の無料トライアル（既定7日）。トライアル中も subscription.status は 'trialing' となり、
+        // 最初の無料トライアル（既定14日・campaign.ts）。トライアル中も subscription.status は 'trialing' となり、
         // /api/premium/verify が 'trialing' を許可しているためプレミアムが利用できる。
         // 期間経過後に登録カードへ自動課金される（解約しなければ継続）。
-        // note特典コード（TRIAL_CODES=14日）より短くし、note購入動線を相対的に優遇する。
-        // 日数は STRIPE_TRIAL_DAYS で変更可（未設定なら7）。
+        // note特典コード（TRIAL_CODES）より短く保ち、有料note購入動線を相対的に優遇する。
+        // 日数は STRIPE_TRIAL_DAYS で変更可（未設定なら14）。
         trial_period_days: (() => {
-          const n = Number(process.env.STRIPE_TRIAL_DAYS || '7')
-          return Number.isFinite(n) && n > 0 ? n : 7
+          const n = Number(process.env.STRIPE_TRIAL_DAYS || String(STRIPE_TRIAL_DAYS_DEFAULT))
+          return Number.isFinite(n) && n > 0 ? n : STRIPE_TRIAL_DAYS_DEFAULT
         })(),
         // トライアル終了時に有効な支払い方法が無ければサブスクをキャンセル（請求漏れ・未払い放置を防ぐ）。
         // Stripe ダッシュボード側でトライアル終了前のリマインドメールをONにしておくこと。
