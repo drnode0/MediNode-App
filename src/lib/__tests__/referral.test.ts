@@ -5,6 +5,8 @@ import {
   normalizeReferralCode,
   canRedeemReferral,
   shouldRewardReferrer,
+  emailBase,
+  isSameMailbox,
   REFERRAL_REWARD_CAP,
 } from '@/lib/referral'
 
@@ -53,6 +55,22 @@ describe('canRedeemReferral', () => {
 
   it('無期限comp保持者は対象外（trial上書きで降格させない）', () => {
     expect(canRedeemReferral({ ...base, hasComp: true })).toEqual({ ok: false, reason: 'has_comp' })
+  })
+})
+
+describe('emailBase / isSameMailbox', () => {
+  it('+エイリアスとGmailのドット差を同一実体に正規化する', () => {
+    expect(emailBase('Taro+1@Gmail.com')).toBe('taro@gmail.com')
+    expect(emailBase('t.a.r.o@googlemail.com')).toBe('taro@gmail.com')
+    expect(isSameMailbox('taro@gmail.com', 'taro+sub@gmail.com')).toBe(true)
+    expect(isSameMailbox('t.aro@gmail.com', 'taro@gmail.com')).toBe(true)
+  })
+
+  it('Gmail以外はドットを区別し、別人は別扱い', () => {
+    expect(isSameMailbox('t.aro@example.com', 'taro@example.com')).toBe(false)
+    expect(isSameMailbox('taro@gmail.com', 'jiro@gmail.com')).toBe(false)
+    expect(isSameMailbox('taro+a@example.com', 'taro@example.com')).toBe(true)
+    expect(isSameMailbox(null, 'taro@gmail.com')).toBe(false)
   })
 })
 

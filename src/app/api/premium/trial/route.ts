@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { grantComplimentaryByUserId, grantTrialByUserId } from '@/lib/supabase/subscriptions'
 import { notifyCompGranted } from '@/lib/comp-notify'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 import { trialCodeDays, REFERRAL_NEW_USER_DAYS } from '@/lib/campaign'
-import { looksLikeReferralCode, normalizeReferralCode, canRedeemReferral } from '@/lib/referral'
+import { looksLikeReferralCode, normalizeReferralCode, canRedeemReferral, isSameMailbox } from '@/lib/referral'
 import {
   findReferralCodeOwner,
   hasRedeemedReferral,
@@ -228,8 +228,17 @@ async function handleReferralRedemption(opts: {
     hasRedeemedReferral(user.id),
     getRedeemerContext(user.id),
   ])
+  // サブアカ自作自演の最安手口（Gmailの+エイリアス・ドット違い）を弾く。
+  // メール実体が同じなら、アカウントが別でも自己紹介として扱う。
+  let sameMailbox = false
+  try {
+    const { data: refUser } = await createAdminClient().auth.admin.getUserById(referrerId)
+    sameMailbox = isSameMailbox(refUser?.user?.email, user.email)
+  } catch {
+    // 取得失敗時はこのガードだけスキップ（他の検証と生涯1回制限は生きている）。
+  }
   const verdict = canRedeemReferral({
-    isOwnCode: referrerId === user.id,
+    isOwnCode: referrerId === user.id || sameMailbox,
     alreadyRedeemed,
     hasStripeHistory: ctx.hasStripeHistory,
     hasComp: ctx.hasComp,
