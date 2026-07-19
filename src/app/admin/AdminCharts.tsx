@@ -51,7 +51,18 @@ const PAD_R = 44 // 右端の直接ラベル（最新値）用の余白
 const PAD_T = 12
 const PAD_B = 22
 
-export function TrendLineChart({ points, label }: { points: DailyPoint[]; label: string }) {
+export type ChartEvent = { date: string; label: string }
+
+export function TrendLineChart({
+  points,
+  label,
+  events = [],
+}: {
+  points: DailyPoint[]
+  label: string
+  // イベントマーカー（ローンチ・キャンペーン等）。日付が範囲内のものだけ縦線＋番号で描く。
+  events?: ChartEvent[]
+}) {
   const [hover, setHover] = useState<number | null>(null)
 
   const geom = useMemo(() => {
@@ -65,7 +76,7 @@ export function TrendLineChart({ points, label }: { points: DailyPoint[]; label:
       const y = PAD_T + (1 - p.count / max) * (CHART_H - PAD_T - PAD_B)
       return { x, y }
     })
-    return { xy, max }
+    return { xy, max, t0, span }
   }, [points])
 
   if (!geom || points.length < 2) {
@@ -120,6 +131,22 @@ export function TrendLineChart({ points, label }: { points: DailyPoint[]; label:
         <text x={CHART_W - PAD_R} y={CHART_H - 6} textAnchor="end" className="fill-gray-400 dark:fill-gray-500" fontSize="10">
           {fmtShort(points[points.length - 1].date)}
         </text>
+        {/* イベントマーカー: 縦の点線＋番号。番号の意味はグラフ下の凡例で示す */}
+        {events.map((ev, i) => {
+          const et = new Date(ev.date).getTime()
+          if (Number.isNaN(et) || et < geom.t0 || et > geom.t0 + geom.span) return null
+          const x = PAD_L + ((et - geom.t0) / geom.span) * (CHART_W - PAD_L - PAD_R)
+          return (
+            <g key={`${ev.date}-${ev.label}`}>
+              <line x1={x} y1={PAD_T} x2={x} y2={CHART_H - PAD_B} className="stroke-amber-400 dark:stroke-amber-500" strokeWidth="1" strokeDasharray="3 3" />
+              <circle cx={x} cy={PAD_T} r="7" className="fill-amber-400 dark:fill-amber-500" />
+              <text x={x} y={PAD_T + 3.5} textAnchor="middle" fontSize="10" fontWeight="700" className="fill-white dark:fill-gray-900">
+                {i + 1}
+              </text>
+              <title>{`${fmtShort(ev.date)} ${ev.label}`}</title>
+            </g>
+          )
+        })}
         {/* ホバー: 縦線＋点 */}
         {hoveredXy && (
           <>
