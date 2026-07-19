@@ -41,7 +41,7 @@ import type { User } from '@supabase/supabase-js'
  *   - PREMIUM_TRIAL_DAYS             ... トライアル日数（未設定なら14）
  *   - COMP_INVITE_CODES               ... 招待コード（カンマ区切り・無期限comp）。任意
  *   - TRIAL_CODES                     ... 期限付きトライアルコード（カンマ区切り・note特典用）。任意
- *   - TRIAL_DAYS                      ... 期限付きトライアルの日数（未設定ならキャンペーン中30・通常14）
+ *   - TRIAL_DAYS                      ... 期限付きトライアルの日数（未設定ならキャンペーン中30・通常21）
  *   - SUBSCRIPTION_ALGOLIA_APP_ID     ... サブスク用AlgoliaのApp ID
  *   - SUBSCRIPTION_ALGOLIA_SEARCH_KEY ... サブスク用Algoliaの検索専用キー（Search-only）
  *   - SUBSCRIPTION_ALGOLIA_INDEX      ... サブスク用インデックス名
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     .split(',')
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
-  // 未設定なら公開記念キャンペーン中30日・通常14日（campaign.ts）。環境変数が優先。
+  // 未設定なら公開記念キャンペーン中30日・通常21日（campaign.ts）。環境変数が優先。
   const trialPeriodDays = Number(process.env.TRIAL_DAYS || String(trialCodeDays()))
   const algoliaAppId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
   const algoliaSearchKey = process.env.SUBSCRIPTION_ALGOLIA_SEARCH_KEY
