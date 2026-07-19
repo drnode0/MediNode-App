@@ -1053,7 +1053,7 @@ function SubscriptionPromoPanel() {
       {/* 価格 */}
       <div className="space-y-0.5">
         <p className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2.5 py-0.5 mb-1">
-          <Gift className="h-3 w-3 shrink-0" />最初の1週間は無料
+          <Gift className="h-3 w-3 shrink-0" />最初の2週間は無料
         </p>
         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
           月額980円<span className="text-sm font-medium text-gray-500 dark:text-gray-400">（税込）</span>
@@ -1068,7 +1068,7 @@ function SubscriptionPromoPanel() {
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><Spinner className="h-4 w-4" />読み込み中...</> : <><Star className="h-4 w-4" />1週間無料で試す<ArrowRight className="h-4 w-4" /></>}
+        {loading ? <><Spinner className="h-4 w-4" />読み込み中...</> : <><Star className="h-4 w-4" />2週間無料で試す<ArrowRight className="h-4 w-4" /></>}
       </button>
       <p className="text-[11px] text-gray-400 dark:text-gray-500">
         トライアル期間中は無料。終了後に月額料金980円（税込）が課金されます。いつでも解約できます。
