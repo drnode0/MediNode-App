@@ -29,9 +29,10 @@ describe('launch campaign', () => {
     expect(autoTrialDays(new Date('2026-08-20T00:00:00Z'))).toBe(3)
   })
 
-  it('noteコード: キャンペーン中30日・終了後14日', () => {
+  it('noteコード: キャンペーン中30日・終了後21日（常にカード14日より上）', () => {
     expect(trialCodeDays(new Date('2026-07-19T00:00:00Z'))).toBe(30)
-    expect(trialCodeDays(new Date('2026-08-20T00:00:00Z'))).toBe(14)
+    expect(trialCodeDays(new Date('2026-08-20T00:00:00Z'))).toBe(21)
+    expect(trialCodeDays(new Date('2026-08-20T00:00:00Z'))).toBeGreaterThan(STRIPE_TRIAL_DAYS_DEFAULT)
   })
 
   it('カード登録トライアルは恒久14日・紹介は新規30日/紹介者14日', () => {

@@ -4,8 +4,9 @@
 // 有料note購入者に残す）:
 //   ① 登録だけ（コードなし・自動トライアル）… キャンペーン中 7日 / 通常 3日
 //   ② カード登録トライアル（Stripe）        … 14日（キャンペーン後も恒久）
-//   ③ note特典コード（TRIAL_CODES）        … キャンペーン中 30日 / 通常 14日
+//   ③ note特典コード（TRIAL_CODES）        … キャンペーン中 30日 / 通常 21日
 //   ④ 友達紹介コード                        … 新規 30日・紹介者 +14日（常設）
+// 序列の原則: 有料note購入者のコード（③）は常にカード登録（②）より長く保つ。
 //
 // サーバー・クライアント両方から import される想定（純ロジック・環境依存なし）。
 // 環境変数（TRIAL_DAYS 等）が設定されている場合はそちらが優先される（各routeで判断）。
@@ -25,8 +26,9 @@ export function autoTrialDays(now: Date = new Date()): number {
 }
 
 // ③ note特典コード（TRIAL_CODES）の日数。環境変数 TRIAL_DAYS 未設定時の既定値。
+// 通常時21日: カード（14日）と並ぶと有料note購入者の優位が消えるため、常に上に保つ。
 export function trialCodeDays(now: Date = new Date()): number {
-  return isLaunchCampaignActive(now) ? 30 : 14
+  return isLaunchCampaignActive(now) ? 30 : 21
 }
 
 // ② Stripe カード登録トライアルの日数。環境変数 STRIPE_TRIAL_DAYS 未設定時の既定値。
