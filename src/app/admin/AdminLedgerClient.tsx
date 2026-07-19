@@ -21,12 +21,16 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Timer,
+  Trophy,
+  UserPlus,
   Users,
   XCircle,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
+import { LAUNCH_CAMPAIGN_END } from '@/lib/campaign'
 import {
   ActiveBreakdownBar,
   CountBars,
@@ -207,6 +211,8 @@ export function AdminLedgerClient() {
   const [query, setQuery] = useState('')
   // 「トライアル中・プレミアム未利用」だけに絞る表示（期限切れ前の声かけ対象の抽出）。
   const [onlyUntouchedTrials, setOnlyUntouchedTrials] = useState(false)
+  // 「紹介経由で始めた人」だけに絞る表示（キャンペーンの効き具合を見る）。
+  const [onlyReferred, setOnlyReferred] = useState(false)
   const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -308,12 +314,14 @@ export function AdminLedgerClient() {
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
-    const header = ['メール', '区分', '流入元', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
         csvCell(r.source ? normalizeSource(r.source) : '—'),
+        csvCell(r.referralCount > 0 ? String(r.referralCount) : '0'),
+        csvCell(r.viaReferral ? '紹介経由' : '—'),
         csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
         csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
         csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
@@ -349,9 +357,29 @@ export function AdminLedgerClient() {
     [rows, isUntouchedPremium],
   )
 
+  // 紹介経由で始めた人の数（キャンペーンの拡散効果）。
+  const referredCount = useMemo(() => (rows ?? []).filter((r) => r.viaReferral).length, [rows])
+
+  // 紹介してくれた人（アドボケイト）を多い順に。お礼・育成の対象を一目で。
+  const topReferrers = useMemo(
+    () =>
+      (rows ?? [])
+        .filter((r) => r.referralCount > 0)
+        .sort((a, b) => b.referralCount - a.referralCount),
+    [rows],
+  )
+
+  // キャンペーン残り日数（終了後は null）。ヘッダーのチップで進行中を示す。
+  const campaignDaysLeft = useMemo(() => {
+    const end = new Date(LAUNCH_CAMPAIGN_END).getTime()
+    const diff = end - Date.now()
+    return diff > 0 ? Math.ceil(diff / (24 * 60 * 60 * 1000)) : null
+  }, [])
+
   const filtered = useMemo(() => {
     if (!rows) return []
-    const base = onlyUntouchedTrials ? rows.filter(isUntouchedPremium) : rows
+    let base = onlyUntouchedTrials ? rows.filter(isUntouchedPremium) : rows
+    if (onlyReferred) base = base.filter((r) => r.viaReferral)
     const q = query.trim().toLowerCase()
     if (!q) return base
     return base.filter(
@@ -361,7 +389,7 @@ export function AdminLedgerClient() {
         MEMBER_KIND_LABEL[r.kind].includes(query.trim()) ||
         (r.source ?? '').toLowerCase().includes(q),
     )
-  }, [rows, query, onlyUntouchedTrials, isUntouchedPremium])
+  }, [rows, query, onlyUntouchedTrials, onlyReferred, isUntouchedPremium])
 
   const counts = useMemo(() => {
     const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
@@ -542,9 +570,15 @@ export function AdminLedgerClient() {
             </button>
           </div>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
           登録ユーザーと契約状態の一覧です（管理者のみ閲覧できます）
         </p>
+        {!loading && !error && rows && campaignDaysLeft != null && (
+          <div className="mb-6 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700">
+            <Sparkles className="w-3.5 h-3.5" aria-hidden />
+            公開記念キャンペーン期間中 — 残り{campaignDaysLeft}日（〜8/18）。自動トライアル7日・note特典30日・友達紹介14日
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-12 justify-center">
@@ -594,7 +628,7 @@ export function AdminLedgerClient() {
                 value={counts.auto_trial + counts.trial}
                 sub={`自動 ${counts.auto_trial}・コード ${counts.trial}人`}
               />
-              <KpiCard icon={Users} label="友達紹介で開始" value={referralTotal} sub="紹介コード経由の累計" />
+              <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} />
             </div>
 
             {/* グラフ2枚: 登録の伸びと日々の利用 */}
@@ -688,6 +722,33 @@ export function AdminLedgerClient() {
               })}
             </div>
 
+            {/* 紹介してくれた人（アドボケイト）ランキング。お礼・優遇の対象を一目で。 */}
+            {topReferrers.length > 0 && (
+              <section className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10 p-4 mb-4">
+                <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-2 flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4" aria-hidden />
+                  紹介してくれた人（多い順）
+                </h2>
+                <ol className="space-y-1">
+                  {topReferrers.map((r, i) => (
+                    <li key={r.userId} className="flex items-baseline gap-2 text-sm">
+                      <span className="text-amber-500 dark:text-amber-400 font-bold w-5 shrink-0 text-right">{i + 1}</span>
+                      <span className="truncate text-gray-800 dark:text-gray-100" title={r.email ?? undefined}>
+                        {r.email ?? '（メール不明）'}
+                      </span>
+                      <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                        <Gift className="w-3.5 h-3.5" aria-hidden />
+                        {r.referralCount}人を招待
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-2 text-[11px] text-amber-700/70 dark:text-amber-400/60">
+                  アプリを広げてくれている人たち。お礼のメッセージや優遇（永続無料の付与など）の検討対象です。
+                </p>
+              </section>
+            )}
+
             {/* 検索＋プレミアム未利用の抽出 */}
             <div className="relative mb-2">
               <Search
@@ -716,6 +777,19 @@ export function AdminLedgerClient() {
                 <Hourglass className="w-3.5 h-3.5" aria-hidden />
                 トライアル中・プレミアム未利用 {untouchedTrialCount}人{onlyUntouchedTrials ? '（絞り込み中・もう一度押すと解除）' : 'だけ表示'}
               </button>
+              <button
+                type="button"
+                onClick={() => setOnlyReferred((v) => !v)}
+                aria-pressed={onlyReferred}
+                className={`ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                  onlyReferred
+                    ? 'bg-teal-100 text-teal-900 border-teal-400 dark:bg-teal-900/50 dark:text-teal-200 dark:border-teal-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-teal-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-teal-950/30'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" aria-hidden />
+                紹介経由 {referredCount}人{onlyReferred ? '（絞り込み中・もう一度押すと解除）' : 'だけ表示'}
+              </button>
             </div>
 
             {/* 台帳テーブル */}
@@ -726,6 +800,7 @@ export function AdminLedgerClient() {
                     <th className="px-4 py-3 font-medium">メール</th>
                     <th className="px-4 py-3 font-medium">区分</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">流入元</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">紹介</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
@@ -775,6 +850,25 @@ export function AdminLedgerClient() {
                         </td>
                         <td className="px-4 py-3">
                           <SourceBadge source={r.source} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex flex-col gap-1 items-start">
+                            {r.referralCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" title={`この人は ${r.referralCount}人 を招待しました`}>
+                                <Gift className="w-3 h-3" aria-hidden />
+                                {r.referralCount}人招待
+                              </span>
+                            )}
+                            {r.viaReferral && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200" title="紹介コード経由で登録">
+                                <UserPlus className="w-3 h-3" aria-hidden />
+                                紹介で開始
+                              </span>
+                            )}
+                            {r.referralCount === 0 && !r.viaReferral && (
+                              <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                            )}
+                          </div>
                         </td>
                         <td
                           className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
@@ -832,7 +926,7 @@ export function AdminLedgerClient() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
                       </td>
                     </tr>
@@ -856,6 +950,8 @@ export function AdminLedgerClient() {
               計測開始（2026-07-19）以降にセットアップ画面を通った人から記録されます。個々の選択はCSVに入っています。
               プレミアム利用: プレミアム（サブスク配信）の検索が最後に実行された日（2026-07-19計測開始・1時間粒度）。
               見られる区分なのに一度も記録がない人は「未」＝期限切れ前の声かけ対象です。
+              紹介: 「N人招待」＝この人が友達紹介で連れてきた人数（多い順は上のランキング参照）。
+              「紹介で開始」＝この人自身が誰かの紹介コード経由で登録。友達紹介で開始した人数はKPIカードにも出ます。
             </p>
           </>
         )}
