@@ -2,6 +2,7 @@
 // service_role キーの管理クライアントを使うため、必ずサーバー（route handler）からのみ呼ぶこと。
 
 import { createAdminClient } from './server'
+import { pickLaterTrialEnd } from '@/lib/trial-period'
 
 export type SubscriptionRow = {
   user_id: string
@@ -81,7 +82,15 @@ export async function grantTrialByUserId(
 ): Promise<string> {
   const admin = createAdminClient()
   const days = Number.isFinite(trialDays) && trialDays > 0 ? trialDays : 30
-  const trialEndsAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+  const candidate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+  // 縮み防止: すでに残っている期限の方が長ければそちらを保つ（無料コードの合わせ技で
+  // 短いコードを入れても期限を減らさない）。期限切れ後の再入力は候補が勝つので更新は効く。
+  const { data: existing } = await admin
+    .from('subscriptions')
+    .select('trial_ends_at')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const trialEndsAt = pickLaterTrialEnd(existing?.trial_ends_at as string | null, candidate)
   const { error } = await admin
     .from('subscriptions')
     .upsert(
@@ -99,6 +108,20 @@ export async function grantTrialByUserId(
     )
   if (error) throw new Error(`トライアル付与失敗: ${error.message}`)
   return trialEndsAt
+}
+
+// 生きているStripe契約（課金中 or カード登録トライアル中）があるか。
+// 無料コード（note/招待）は grantTrialByUserId が stripe_customer_id=null で上書きするため、
+// 生きているStripe契約がある人に使わせると顧客紐付けが壊れる。それを弾くための判定。
+// 解約済み（canceled/past_due）は「生きていない」扱いで通す（無料コードでの再開を許す）。
+export async function hasLiveStripeSubscription(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('subscriptions')
+    .select('stripe_customer_id, status')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data?.stripe_customer_id && (data.status === 'active' || data.status === 'trialing')
 }
 
 // comp（無料解放）を取り消す（無効化 / revoke）。

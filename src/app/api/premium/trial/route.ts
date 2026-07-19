@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { grantComplimentaryByUserId, grantTrialByUserId } from '@/lib/supabase/subscriptions'
+import { grantComplimentaryByUserId, grantTrialByUserId, hasLiveStripeSubscription } from '@/lib/supabase/subscriptions'
 import { notifyCompGranted } from '@/lib/comp-notify'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
@@ -127,6 +127,17 @@ export async function POST(req: NextRequest) {
       }
       if (!supabaseReady) {
         return NextResponse.json({ error: 'サーバー設定が不足しています' }, { status: 500 })
+      }
+
+      // Stripe破壊防止: 生きているStripe契約（課金中/カードトライアル中）がある人が
+      // 無料コード（招待comp・noteトライアル）を入れると、grant系が stripe_customer_id=null で
+      // 上書きして顧客紐付けが壊れる。通常UIは有効中に入力欄を隠すが、別端末・同期前・API直叩き
+      // では到達しうるため、サーバー側でも弾く（紹介コード(D)は canRedeemReferral が別途弾く）。
+      if (await hasLiveStripeSubscription(user.id)) {
+        return NextResponse.json(
+          { error: 'すでにプレミアムにご登録済みです。コードの入力は不要です。' },
+          { status: 409 },
+        )
       }
 
       // (B) 招待コード → 無期限comp。ログイン必須でサーバー(subscriptions)に紐付ける。
