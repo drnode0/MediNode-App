@@ -36,6 +36,7 @@ import {
   TrendLineChart,
   buildCumulativeSeries,
   type ActiveBreakdown,
+  type ChartEvent,
   type DailyPoint,
   type Segment,
 } from './AdminCharts'
@@ -198,6 +199,7 @@ function csvCell(v: string | null): string {
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
+  const [events, setEvents] = useState<ChartEvent[]>([])
   const [hourlyActive, setHourlyActive] = useState<number[]>([])
   const [referralTotal, setReferralTotal] = useState(0)
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
@@ -225,6 +227,7 @@ export function AdminLedgerClient() {
       if (!res.ok) throw new Error(data.error || '読み込みに失敗しました')
       setRows(data.rows)
       setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
+      setEvents(Array.isArray(data.events) ? data.events : [])
       setHourlyActive(Array.isArray(data.hourlyActive) ? data.hourlyActive : [])
       setReferralTotal(typeof data.referralTotal === 'number' ? data.referralTotal : 0)
     } catch (err) {
@@ -395,6 +398,23 @@ export function AdminLedgerClient() {
 
   // 登録者数の累積推移（全期間）。
   const cumulative = useMemo(() => buildCumulativeSeries((rows ?? []).map((r) => r.createdAt)), [rows])
+
+  // イベント別の増加数: イベント当日0時から7日間（未経過なら今日まで）の新規登録数。
+  const eventUplift = useMemo(() => {
+    if (!rows || events.length === 0) return []
+    const now = Date.now()
+    return events.map((ev) => {
+      const start = new Date(`${ev.date}T00:00:00+09:00`).getTime()
+      const end = start + 7 * 24 * 60 * 60 * 1000
+      const count = rows.filter((r) => {
+        if (!r.createdAt) return false
+        const c = new Date(r.createdAt).getTime()
+        return c >= start && c < end
+      }).length
+      const elapsedDays = Math.max(1, Math.min(7, Math.ceil((now - start) / (24 * 60 * 60 * 1000))))
+      return { ...ev, count, elapsedDays, ongoing: now < end }
+    })
+  }, [rows, events])
 
   // 流入元の割合。既知の媒体は固定色、それ以外は「その他」にまとめる。
   const sourceSegments = useMemo<Segment[]>(() => {
@@ -581,7 +601,21 @@ export function AdminLedgerClient() {
             <div className="grid lg:grid-cols-2 gap-3 mb-4">
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">登録者数の推移（累積）</h2>
-                <TrendLineChart points={cumulative} label="登録者数の推移" />
+                <TrendLineChart points={cumulative} label="登録者数の推移" events={events} />
+                {eventUplift.length > 0 && (
+                  <ol className="mt-2 space-y-0.5">
+                    {eventUplift.map((ev, i) => (
+                      <li key={`${ev.date}-${ev.label}`} className="flex items-baseline gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 dark:bg-amber-500 text-white dark:text-gray-900 text-[10px] font-bold shrink-0 self-center" aria-hidden>{i + 1}</span>
+                        <span className="text-gray-400 dark:text-gray-500 shrink-0">{ev.date.slice(5).replace('-', '/')}</span>
+                        <span className="truncate">{ev.label}</span>
+                        <span className="ml-auto shrink-0 font-semibold text-gray-800 dark:text-gray-100">
+                          {ev.ongoing ? `${ev.elapsedDays}日目 +${ev.count}人` : `7日で +${ev.count}人`}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">日別アクティブ数（直近30日）</h2>
