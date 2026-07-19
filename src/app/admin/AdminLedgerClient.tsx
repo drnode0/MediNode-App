@@ -60,7 +60,11 @@ type LedgerRow = {
   // 友達紹介: 紹介者としての成立数／自身が紹介経由で始めたか。
   referralCount: number
   viaReferral: boolean
+  premiumUsedAt: string | null
 }
+
+// プレミアムを見られる状態の区分（課金中＋各種トライアル）。プレミアム未利用者の抽出対象。
+const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial', 'auto_trial']
 
 // セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。
 const STEP_LABEL: Record<string, string> = {
@@ -199,6 +203,8 @@ export function AdminLedgerClient() {
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+  // 「トライアル中・プレミアム未利用」だけに絞る表示（期限切れ前の声かけ対象の抽出）。
+  const [onlyUntouchedTrials, setOnlyUntouchedTrials] = useState(false)
   const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -299,7 +305,7 @@ export function AdminLedgerClient() {
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
-    const header = ['メール', '区分', '流入元', '知識の選択', 'モード', 'DB設定', '到達ステップ', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '流入元', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
@@ -309,6 +315,7 @@ export function AdminLedgerClient() {
         csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
         csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
         csvCell(r.onbFurthest ? (STEP_LABEL[r.onbFurthest] ?? r.onbFurthest) : '—'),
+        csvCell(fmtDateTime(r.premiumUsedAt) || (PREMIUM_ELIGIBLE_KINDS.includes(r.kind) ? '未利用' : '—')),
         csvCell(r.kind === 'comp' ? '無期限' : fmtDateTime(r.trialEndsAt) || '—'),
         csvCell(fmtDateTime(r.createdAt) || '—'),
         csvCell(fmtDateTime(r.lastSignInAt) || '—'),
@@ -329,18 +336,29 @@ export function AdminLedgerClient() {
     URL.revokeObjectURL(url)
   }, [rows])
 
+  // プレミアムを見られるのに一度も使っていない人（トライアル各種＋課金中が対象）。
+  const isUntouchedPremium = useCallback(
+    (r: LedgerRow) => PREMIUM_ELIGIBLE_KINDS.includes(r.kind) && !r.premiumUsedAt,
+    [],
+  )
+  const untouchedTrialCount = useMemo(
+    () => (rows ?? []).filter(isUntouchedPremium).length,
+    [rows, isUntouchedPremium],
+  )
+
   const filtered = useMemo(() => {
     if (!rows) return []
+    const base = onlyUntouchedTrials ? rows.filter(isUntouchedPremium) : rows
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
+    if (!q) return base
+    return base.filter(
       (r) =>
         (r.email ?? '').toLowerCase().includes(q) ||
         r.userId.toLowerCase().includes(q) ||
         MEMBER_KIND_LABEL[r.kind].includes(query.trim()) ||
         (r.source ?? '').toLowerCase().includes(q),
     )
-  }, [rows, query])
+  }, [rows, query, onlyUntouchedTrials, isUntouchedPremium])
 
   const counts = useMemo(() => {
     const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
@@ -636,8 +654,8 @@ export function AdminLedgerClient() {
               })}
             </div>
 
-            {/* 検索 */}
-            <div className="relative mb-4">
+            {/* 検索＋プレミアム未利用の抽出 */}
+            <div className="relative mb-2">
               <Search
                 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none"
                 aria-hidden
@@ -649,6 +667,21 @@ export function AdminLedgerClient() {
                 placeholder="メール・ユーザーID・区分で絞り込み"
                 className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+            </div>
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setOnlyUntouchedTrials((v) => !v)}
+                aria-pressed={onlyUntouchedTrials}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                  onlyUntouchedTrials
+                    ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-900/50 dark:text-amber-200 dark:border-amber-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-amber-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-amber-950/30'
+                }`}
+              >
+                <Hourglass className="w-3.5 h-3.5" aria-hidden />
+                トライアル中・プレミアム未利用 {untouchedTrialCount}人{onlyUntouchedTrials ? '（絞り込み中・もう一度押すと解除）' : 'だけ表示'}
+              </button>
             </div>
 
             {/* 台帳テーブル */}
@@ -663,6 +696,7 @@ export function AdminLedgerClient() {
                     <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">最終利用</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">プレミアム利用</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">設定同期</th>
                     <th className="px-4 py-3 font-medium">操作</th>
                   </tr>
@@ -717,6 +751,14 @@ export function AdminLedgerClient() {
                         <DateCell iso={r.createdAt} />
                         <DateCell iso={r.lastSignInAt} />
                         <DateCell iso={r.lastUsedAt} />
+                        {/* プレミアム利用: 見られる区分なのに未利用なら「未」を強調表示 */}
+                        {isUntouchedPremium(r) ? (
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">未</span>
+                          </td>
+                        ) : (
+                          <DateCell iso={r.premiumUsedAt} />
+                        )}
                         <DateCell iso={r.settingsUpdatedAt} />
                         <td className="px-4 py-3">
                           {canRevoke ? (
@@ -756,7 +798,7 @@ export function AdminLedgerClient() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
                       </td>
                     </tr>
@@ -778,6 +820,8 @@ export function AdminLedgerClient() {
               次にLP経由で来訪した時に初めて記録されるため「—」のままの人もいます。
               セットアップ状況・選択の内訳: セットアップ画面での到達ステップと選択（知識・モード・DB設定）。
               計測開始（2026-07-19）以降にセットアップ画面を通った人から記録されます。個々の選択はCSVに入っています。
+              プレミアム利用: プレミアム（サブスク配信）の検索が最後に実行された日（2026-07-19計測開始・1時間粒度）。
+              見られる区分なのに一度も記録がない人は「未」＝期限切れ前の声かけ対象です。
             </p>
           </>
         )}
