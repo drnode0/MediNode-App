@@ -116,6 +116,25 @@ export async function GET() {
       // テーブル未作成なら全0のまま。
     }
 
+    // 友達紹介の成立記録（0009 未適用ならテーブルが無いので空のまま続行）。
+    //   referralCountByUser … 紹介者としての成立数（台帳の列・KPI用）
+    //   referredUsers       … 紹介経由で始めたユーザーの集合
+    const referralCountByUser = new Map<string, number>()
+    const referredUsers = new Set<string>()
+    try {
+      const { data: reds } = await admin
+        .from('referral_redemptions')
+        .select('referrer_user_id, referred_user_id')
+        .limit(20000)
+      for (const r of reds ?? []) {
+        const refId = r.referrer_user_id as string
+        referralCountByUser.set(refId, (referralCountByUser.get(refId) ?? 0) + 1)
+        referredUsers.add(r.referred_user_id as string)
+      }
+    } catch {
+      // テーブル未作成なら空のまま。
+    }
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -159,6 +178,9 @@ export async function GET() {
             : null,
           onbMode: (u.user_metadata?.onb_mode as string | undefined) ?? null,
           onbDbSetup: (u.user_metadata?.onb_db_setup as string | undefined) ?? null,
+          // 友達紹介: この人が紹介者として成立させた数／この人自身が紹介経由か。
+          referralCount: referralCountByUser.get(u.id) ?? 0,
+          viaReferral: referredUsers.has(u.id),
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
@@ -169,6 +191,8 @@ export async function GET() {
       rows,
       dailyActive,
       hourlyActive: hourlyTotal > 0 ? hourlyActive : [],
+      // 友達紹介の成立総数（KPI表示用）。
+      referralTotal: referredUsers.size,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'

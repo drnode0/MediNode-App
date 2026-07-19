@@ -4,6 +4,17 @@ import { grantComplimentaryByUserId, grantTrialByUserId } from '@/lib/supabase/s
 import { notifyCompGranted } from '@/lib/comp-notify'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
+import { trialCodeDays, REFERRAL_NEW_USER_DAYS } from '@/lib/campaign'
+import { looksLikeReferralCode, normalizeReferralCode, canRedeemReferral } from '@/lib/referral'
+import {
+  findReferralCodeOwner,
+  hasRedeemedReferral,
+  getRedeemerContext,
+  insertReferralRedemption,
+  deleteReferralRedemption,
+  grantReferrerReward,
+} from '@/lib/supabase/referrals'
+import type { User } from '@supabase/supabase-js'
 
 /**
  * プレミアム 無料トライアル（クーポンコード式・カード不要）
@@ -21,6 +32,8 @@ import { issuePremiumSearchKey } from '@/lib/algolia-secured'
  *   (C) 期限付きトライアルコード（TRIAL_CODES）… note特典など一般向け。カード不要・14日（既定）で
  *       自動失効・ログイン必須・subscriptions(plan=trial, trial_ends_at=付与+日数)へサーバー保存。
  *       サーバーが trial_ends_at を見て失効させるため、端末またぎでも期限が効く（無期限compとは別系統）。
+ *   (D) 友達紹介コード（MN-XXXXXXXX・referral_codes）… 新規30日・紹介者+14日・ログイン必須。
+ *       env系に一致せず紹介コードの形をした入力だけDB照合する（handleReferralRedemption）。
  *   いずれも目立つUIを足さず、同じ入力欄に入れたコードの種別でサーバーが分岐する。
  *
  * 必要な環境変数:
@@ -28,7 +41,7 @@ import { issuePremiumSearchKey } from '@/lib/algolia-secured'
  *   - PREMIUM_TRIAL_DAYS             ... トライアル日数（未設定なら14）
  *   - COMP_INVITE_CODES               ... 招待コード（カンマ区切り・無期限comp）。任意
  *   - TRIAL_CODES                     ... 期限付きトライアルコード（カンマ区切り・note特典用）。任意
- *   - TRIAL_DAYS                      ... 期限付きトライアルの日数（未設定なら14）
+ *   - TRIAL_DAYS                      ... 期限付きトライアルの日数（未設定ならキャンペーン中30・通常14）
  *   - SUBSCRIPTION_ALGOLIA_APP_ID     ... サブスク用AlgoliaのApp ID
  *   - SUBSCRIPTION_ALGOLIA_SEARCH_KEY ... サブスク用Algoliaの検索専用キー（Search-only）
  *   - SUBSCRIPTION_ALGOLIA_INDEX      ... サブスク用インデックス名
@@ -54,7 +67,8 @@ export async function POST(req: NextRequest) {
     .split(',')
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
-  const trialPeriodDays = Number(process.env.TRIAL_DAYS || '14')
+  // 未設定なら公開記念キャンペーン中30日・通常14日（campaign.ts）。環境変数が優先。
+  const trialPeriodDays = Number(process.env.TRIAL_DAYS || String(trialCodeDays()))
   const algoliaAppId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
   const algoliaSearchKey = process.env.SUBSCRIPTION_ALGOLIA_SEARCH_KEY
   const algoliaIndex = process.env.SUBSCRIPTION_ALGOLIA_INDEX || 'Medical Knowledge_DB（サブスク用）'
@@ -98,6 +112,17 @@ export async function POST(req: NextRequest) {
 
       // ここから先はログイン済み。コード種別で分岐する。
       if (!isInvite && !isTrial) {
+        // (D) 友達紹介コード（MN-XXXXXXXX）。env系コードに一致しない入力のうち、
+        //     紹介コードの形をしているものだけDBに照合する。実在しなければ無効コードと同じ403
+        //     （形式の当否で応答を変えず、総当たりに情報を漏らさない）。
+        const refCode = normalizeReferralCode(code)
+        if (looksLikeReferralCode(refCode) && supabaseReady) {
+          return handleReferralRedemption({
+            refCode,
+            user,
+            algolia: { appId: algoliaAppId, parentSearchKey: algoliaSearchKey, index: algoliaIndex },
+          })
+        }
         return NextResponse.json({ error: 'コードが正しくありません' }, { status: 403 })
       }
       if (!supabaseReady) {
@@ -127,7 +152,7 @@ export async function POST(req: NextRequest) {
 
       // (C) 期限付きトライアルコード（note特典など一般向け）→ サーバー保存・自動失効。
       //     plan=trial で trial_ends_at を入れる。getActiveStatusByUserId が期限を見て失効させる。
-      const days = Number.isFinite(trialPeriodDays) && trialPeriodDays > 0 ? trialPeriodDays : 14
+      const days = Number.isFinite(trialPeriodDays) && trialPeriodDays > 0 ? trialPeriodDays : trialCodeDays()
       const trialEndsAt = await grantTrialByUserId(user.id, days)
       // plan='trial' であることを通知側に伝え、台帳で無期限compと区別できるようにする。
       await notifyCompGranted({ userId: user.id, email: user.email ?? null, code: normalized, plan: 'trial', trialEndsAt })
@@ -180,4 +205,93 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+// (D) 友達紹介コードの償還。
+//   新規側: 30日トライアル（plan='trial'・サーバー保存・自動失効。noteコードと同じ挙動）
+//   紹介者: +14日（契約状態に応じて延長/付与。best-effort — 失敗しても新規側は成功扱い）
+// 二重受け取りは referral_redemptions.referred_user_id UNIQUE がDBレベルで防ぐ。
+async function handleReferralRedemption(opts: {
+  refCode: string
+  user: User
+  algolia: { appId: string; parentSearchKey: string; index: string }
+}) {
+  const { refCode, user, algolia } = opts
+
+  const referrerId = await findReferralCodeOwner(refCode)
+  if (!referrerId) {
+    // 実在しないコードは無効コードと同じ応答（有効コードの探索に情報を漏らさない）。
+    return NextResponse.json({ error: 'コードが正しくありません' }, { status: 403 })
+  }
+
+  const [alreadyRedeemed, ctx] = await Promise.all([
+    hasRedeemedReferral(user.id),
+    getRedeemerContext(user.id),
+  ])
+  const verdict = canRedeemReferral({
+    isOwnCode: referrerId === user.id,
+    alreadyRedeemed,
+    hasStripeHistory: ctx.hasStripeHistory,
+    hasComp: ctx.hasComp,
+  })
+  if (!verdict.ok) {
+    const message =
+      verdict.reason === 'self_referral'
+        ? 'ご自身の紹介コードは使えません'
+        : verdict.reason === 'already_redeemed'
+          ? '紹介コードの特典は、おひとり1回までです'
+          : 'このコードは、はじめての方向けです'
+    return NextResponse.json({ error: message }, { status: 403 })
+  }
+
+  // 先に成立記録（UNIQUEで同時リクエストの片方が false になる）。
+  const inserted = await insertReferralRedemption({
+    referrerId,
+    referredId: user.id,
+    code: refCode,
+  })
+  if (!inserted) {
+    return NextResponse.json({ error: '紹介コードの特典は、おひとり1回までです' }, { status: 403 })
+  }
+
+  let trialEndsAt: string
+  try {
+    trialEndsAt = await grantTrialByUserId(user.id, REFERRAL_NEW_USER_DAYS)
+  } catch (err) {
+    // 付与に失敗したら記録を巻き戻して再試行できるようにする。
+    await deleteReferralRedemption(user.id)
+    throw err
+  }
+
+  // 紹介者への還元とオーナー通知は best-effort。
+  try {
+    await grantReferrerReward(referrerId)
+  } catch (err) {
+    console.error('referral: 紹介者還元に失敗:', err instanceof Error ? err.message : err)
+  }
+  await notifyCompGranted({
+    userId: user.id,
+    email: user.email ?? null,
+    code: refCode,
+    plan: 'trial',
+    trialEndsAt,
+  })
+
+  return NextResponse.json({
+    ok: true,
+    trial: true,
+    referral: true,
+    trialDays: REFERRAL_NEW_USER_DAYS,
+    trialEndsAt,
+    algolia: {
+      appId: algolia.appId,
+      searchKey: issuePremiumSearchKey({
+        appId: algolia.appId,
+        parentSearchKey: algolia.parentSearchKey,
+        index: algolia.index,
+        expiresAt: trialEndsAt,
+      }),
+      index: algolia.index,
+    },
+  })
 }

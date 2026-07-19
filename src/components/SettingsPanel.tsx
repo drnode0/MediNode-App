@@ -27,6 +27,7 @@ import { ResolvedCqHistory } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
 import dynamicImport from 'next/dynamic'
 import { FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
+import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 
 // 画面つきガイド（接続設定から開く）。開くまで読み込まない。
 const NotionTokenGuide = dynamicImport(() => import('@/components/NotionTokenGuide'), { ssr: false })
@@ -168,7 +169,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><Gift className="h-4 w-4 shrink-0 text-purple-500" />トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の2週間無料）へお進みください。
         </p>
       </div>
     )
@@ -179,7 +180,7 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5"><Gift className="h-4 w-4 shrink-0" />無料トライアルコードをお持ちの方（カード登録不要）</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
         <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし</strong>でプレミアムをお試しいただけます（期間はコードにより異なります）。
-        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。気に入った場合のみ、下の有料登録（1週間無料）で継続できます。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。気に入った場合のみ、下の有料登録（2週間無料）で継続できます。
       </p>
       {/* 入力欄と「無料で試す」を items-stretch で同じ高さに揃え、min-w-0 で
           input が横にはみ出してボタンを押し出す（＝ズレる）のを防ぐ。 */}
@@ -201,6 +202,64 @@ function PremiumTrialRedeem({ onActivated }: { onActivated?: () => void }) {
         </button>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  )
+}
+
+// 友達紹介: 自分の紹介コードの表示とコピー。
+// コードの発行は /api/referral（初回表示時）。使う側は既存のコード入力欄に入れるだけ。
+function ReferralInvite() {
+  const { user } = useAuth()
+  const [data, setData] = useState<{ code: string; count: number; newUserDays: number; rewardDays: number } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    fetch('/api/referral')
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((d) => { if (!cancelled && d?.code) setData(d) })
+      .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [user])
+
+  // 未ログイン・取得失敗時は欄ごと出さない（押し付けない）。
+  if (!user || failed || !data) return null
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(data.code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-700 pt-3 mt-3 space-y-2">
+      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+        <Gift className="h-4 w-4 shrink-0 text-teal-500" />友達紹介
+      </p>
+      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+        このコードを友達に伝えると、お相手は<strong>{data.newUserDays}日間</strong>プレミアムを無料で試せます（カード登録不要）。
+        1人成立するごとに、あなたのプレミアム期間も<strong>{data.rewardDays}日</strong>のびます。
+        使い方: お相手がログイン後、この画面のコード入力欄に入れるだけです。
+      </p>
+      <div className="flex items-stretch gap-2">
+        <p className="min-w-0 flex-1 font-mono text-sm tracking-wider border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 select-all">
+          {data.code}
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 whitespace-nowrap bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+        >
+          {copied ? 'コピーしました' : 'コピー'}
+        </button>
+      </div>
+      {data.count > 0 && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500">これまでに {data.count} 人の方が、このコードから始めています。</p>
+      )}
     </div>
   )
 }
@@ -720,7 +779,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><Gift className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">これがAI時代の勉強術 ー集中治療医が実践する知識の育て方ー</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">作者のnote記事。プレミアム体験の無料コード（14日間）付き</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">作者のnote記事。プレミアム体験の無料コード付き</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
@@ -1078,8 +1137,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                     <PremiumValueProps showHeader={false} />
                     <div className="space-y-0.5">
-                      <p className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5"><Gift className="h-3 w-3 shrink-0" />最初の1週間は無料</p>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額980円<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・1週間の無料トライアル後に課金開始・いつでも解約可能</span></p>
+                      <p className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 rounded-full px-2 py-0.5"><Gift className="h-3 w-3 shrink-0" />最初の2週間は無料</p>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">月額980円<span className="text-xs font-medium text-gray-500 dark:text-gray-400">（税込）・2週間の無料トライアル後に課金開始・いつでも解約可能</span></p>
                     </div>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                       ※ 掲載内容は学習・参考を目的とした情報で、正確性・完全性・最新性を保証するものではありません。エビデンスは時期や状況により変化します。臨床判断は必ず最新の一次資料・ガイドライン等をご確認のうえ、ご自身の責任で行ってください。詳しくは
@@ -1094,7 +1153,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                       <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                      <strong>有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                      <strong>有料登録（月額980円・税込）</strong>：こちらは<strong>最初の2週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・{trialCodeDays()}日間・カード不要）がお得です。
                     </p>
                     <PremiumCheckoutButtonInline />
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-1 justify-center">
@@ -1105,6 +1164,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   </div>
                 )
               })()}
+              {/* 友達紹介（ログイン済みなら契約状態を問わず表示。未ログインは出さない） */}
+              <ReferralInvite />
             </div>
           )}
 
@@ -1173,8 +1234,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   <p><strong>現役集中治療医が定期的に更新する医療ナレッジ＋参考文献</strong>を、あなた自身のNotionと同じ検索ボックスで横断検索できる機能です。</p>
                   <p>ツールを切り替えず、自分のメモと専門医の公開ナレッジをまとめて検索。元の共有Notionページにもジャンプできます。</p>
                   <p className="pt-1"><strong>試し方は2通り：</strong></p>
-                  <p><strong>トライアルコード</strong>（note購入者向け）… カード登録なしで14日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
-                  <p><strong>有料登録（月額980円・税込）</strong>… 最初の1週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
+                  <p><strong>トライアルコード</strong>（note購入者向け）… カード登録なしで{trialCodeDays()}日間お試し。期間終了後は自動で通常表示に戻り、勝手に課金されません。</p>
+                  <p><strong>有料登録（月額980円・税込）</strong>… 最初の2週間は無料、その後カードへ自動課金。解約しない限り継続。いつでも解約可。</p>
                   <p className="pt-1 text-purple-700 dark:text-purple-300">登録・コード入力は「設定 → プレミアムDB設定」から行えます。</p>
                 </div>
               </section>

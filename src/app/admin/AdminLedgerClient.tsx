@@ -57,6 +57,9 @@ type LedgerRow = {
   onbTargets: string[] | null
   onbMode: string | null
   onbDbSetup: string | null
+  // 友達紹介: 紹介者としての成立数／自身が紹介経由で始めたか。
+  referralCount: number
+  viaReferral: boolean
 }
 
 // セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。
@@ -192,6 +195,7 @@ export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
   const [hourlyActive, setHourlyActive] = useState<number[]>([])
+  const [referralTotal, setReferralTotal] = useState(0)
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -216,6 +220,7 @@ export function AdminLedgerClient() {
       setRows(data.rows)
       setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
       setHourlyActive(Array.isArray(data.hourlyActive) ? data.hourlyActive : [])
+      setReferralTotal(typeof data.referralTotal === 'number' ? data.referralTotal : 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : '読み込みに失敗しました')
     } finally {
@@ -535,7 +540,7 @@ export function AdminLedgerClient() {
         {!loading && !error && rows && (
           <>
             {/* KPIカード列: 規模と勢いをまず数字で */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
               <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} />
               <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight />
               <KpiCard icon={Activity} label="月間アクティブ" value={activity.mau} sub="30日以内（参考）" />
@@ -549,8 +554,9 @@ export function AdminLedgerClient() {
                 icon={Hourglass}
                 label="無料トライアル中"
                 value={counts.auto_trial + counts.trial}
-                sub={`自動3日 ${counts.auto_trial}・コード ${counts.trial}人`}
+                sub={`自動 ${counts.auto_trial}・コード ${counts.trial}人`}
               />
+              <KpiCard icon={Users} label="友達紹介で開始" value={referralTotal} sub="紹介コード経由の累計" />
             </div>
 
             {/* グラフ2枚: 登録の伸びと日々の利用 */}

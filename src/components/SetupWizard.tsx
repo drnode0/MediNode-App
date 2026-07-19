@@ -5,6 +5,7 @@ import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, Flas
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
+import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { classifyRestoreResponse, type RestoreOutcome } from '@/lib/restore-outcome'
 import { recordSetup } from '@/lib/setup-telemetry'
@@ -100,7 +101,7 @@ function PremiumCheckoutButton({ onRequestLogin }: { onRequestLogin?: () => void
         disabled={loading}
         className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? <><Spinner className="h-4 w-4 mr-1" />読み込み中...</> : <><Star className="inline-block h-4 w-4 align-text-bottom mr-1" />1週間無料で試す<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
+        {loading ? <><Spinner className="h-4 w-4 mr-1" />読み込み中...</> : <><Star className="inline-block h-4 w-4 align-text-bottom mr-1" />2週間無料で試す<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
       </button>
       {error && <p className="text-xs text-red-500">{error}</p>}
       {/* 未ログインでカード登録に進もうとした場合: 先にアカウント登録を案内。
@@ -197,7 +198,7 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
       <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-1">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />トライアルコードによる無料トライアルは利用済みです</p>
         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の1週間無料）へお進みください。
+          この端末ではトライアルコードによる無料トライアルをご利用済みです。引き続きご利用いただくには、下の有料登録（月額980円・税込／最初の2週間無料）へお進みください。
         </p>
       </div>
     )
@@ -219,8 +220,8 @@ function PremiumTrialRedeemButton({ onApplied, onRequestLogin }: { onApplied?: (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 space-y-2">
       <p className="text-xs font-bold text-purple-700 dark:text-purple-300"><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />無料トライアルコードをお持ちの方</p>
       <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
-        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・14日間</strong>プレミアムをお試しいただけます。
-        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（1週間無料）へお進みください。
+        <a href="https://note.com/gifted_arnica594/n/n4d3997dad16e" target="_blank" rel="noopener noreferrer" className="font-medium text-purple-600 dark:text-purple-300 underline underline-offset-2 hover:text-purple-700 dark:hover:text-purple-200">note記事</a>などに記載のコードを入力すると、<strong>カード登録なし・{trialCodeDays()}日間</strong>プレミアムをお試しいただけます。
+        期間終了後は自動で通常表示に戻り、<strong>勝手に課金されることはありません</strong>。継続したい場合のみ下の有料登録（2週間無料）へお進みください。
       </p>
       {/* SettingsPanel側と同じ対策: min-w-0 がないと input が最小コンテンツ幅より
           縮めず、スマホ幅でボタンごと画面外にはみ出す。 */}
@@ -1162,7 +1163,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         onClick={skipToPremium}
         className="text-xs text-brand-600 dark:text-brand-400 underline underline-offset-2 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
       >
-        設定はあとにして、まず中身を見てみる（プレミアム3日間無料）
+        設定はあとにして、まず中身を見てみる（プレミアム{autoTrialDays()}日間無料）
       </button>
       <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
         入力した内容は保存されます。Notionの設定は「設定 → 接続」でいつでも再開できます。
@@ -1420,7 +1421,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               {([
                 // tone はオンボーディング「3つの知識源」と同じ配色（個人=常盤・部署=空・プレミアム=琥珀）。
                 // プレミアムを先頭に置く（モニターFB: 設定不要で始められる選択肢が一番下だと戸惑う）。
-                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: '作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで3日間無料でお試しできます。' },
+                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: `作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで${autoTrialDays()}日間無料でお試しできます。` },
                 { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', badge: '', desc: '自分のNotionに作った医療メモを検索します。Notionとつなぐ合鍵（コネクトToken）と、DBのリンクを使います。' },
                 { key: 'team' as const, Icon: Users, tone: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300', title: 'みんなの知識を使う', sub: '部署の共有DB', badge: '', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLを貼るだけでOK（自分のNotionは不要）。' },
               ]).map((opt) => {
@@ -2386,7 +2387,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   <div>
                     <p className="text-sm font-semibold text-purple-700 dark:text-purple-300"><Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />プレミアム</p>
-                    <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジ。メール登録だけで3日間無料</p>
+                    <p className="text-xs text-purple-500 dark:text-purple-400 mt-0.5">集中治療医の医療ナレッジ。メール登録だけで{autoTrialDays()}日間無料</p>
                   </div>
                   <span className="text-purple-400 dark:text-purple-500 ml-4">{openSection === 'subscription' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
                 </button>
@@ -2412,12 +2413,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                             ここに入力欄が並ぶせいで「何か入れないと使えない」と誤解される（モニターFB 2026-07-18）。 */}
                         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 space-y-1">
                           <p className="text-xs font-bold text-green-700 dark:text-green-400"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />ここでの入力は不要です</p>
-                          <p className="text-[11px] text-green-700 dark:text-green-500 leading-relaxed">コード入力もカード登録もいりません。このまま下の「<strong>メールを登録して検索を開始する</strong>」を押すと、<strong>3日間の無料お試し</strong>が自動で始まります。</p>
+                          <p className="text-[11px] text-green-700 dark:text-green-500 leading-relaxed">コード入力もカード登録もいりません。このまま下の「<strong>メールを登録して検索を開始する</strong>」を押すと、<strong>{autoTrialDays()}日間の無料お試し</strong>が自動で始まります。</p>
                         </div>
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2.5">
-                          <strong><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />もっと長く試したい方へ</strong>：note記事などに記載のトライアルコードを入力すると、<strong>カード登録なし・14日間</strong>のお試しに延長されます。期間終了後も勝手に課金されません。
+                          <strong><Gift className="inline-block h-4 w-4 align-text-bottom mr-1.5" />もっと長く試したい方へ</strong>：note記事などに記載のトライアルコードを入力すると、<strong>カード登録なし・{trialCodeDays()}日間</strong>のお試しに延長されます。期間終了後も勝手に課金されません。
                         </p>
                         {/* note購入者向け: コード入力でカード不要トライアル。適用後はformにも一括反映して、
                             後続の saveSettings(form) でキーが消えないようにする（個別 update 連打は stale closure で
@@ -2441,7 +2442,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
                         </div>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                          <strong><CreditCard className="inline-block h-4 w-4 align-text-bottom mr-1.5" />有料登録（月額980円・税込）</strong>：こちらは<strong>最初の1週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・14日間・カード不要）がお得です。
+                          <strong><CreditCard className="inline-block h-4 w-4 align-text-bottom mr-1.5" />有料登録（月額980円・税込）</strong>：こちらは<strong>最初の2週間は無料</strong>ですが、登録時にカード情報が必要です。トライアル終了後はそのまま自動で課金が始まり、解約しない限り継続利用できます。より長く試したい方は、上のトライアルコード（note特典・{trialCodeDays()}日間・カード不要）がお得です。
                         </p>
                         <PremiumCheckoutButton onRequestLogin={() => { setLoginPurpose('register-inline'); setShowLogin(true) }} />
                       </div>
