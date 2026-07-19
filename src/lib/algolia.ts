@@ -1,5 +1,6 @@
 import algoliasearch from 'algoliasearch'
 import { getSettings } from './settings'
+import { recordPremiumUse } from './premium-usage'
 
 function getAlgoliaConfig() {
   const settings = getSettings()
@@ -71,6 +72,22 @@ export function createSubscriptionSearchClient() {
     return _cachedSubClient.client
   }
   const client = algoliasearch(appId, searchKey)
+
+  // プレミアム利用の計測: このクライアント経由の検索が成功したら記録する（1時間1回に抑制）。
+  // 検索セクション・ジャンル・クイズ等どの入口でも必ずここを通るので、一括で拾える。
+  // 計測は結果のPromiseに相乗りするだけで、検索の成否・結果には一切影響しない。
+  const rawInitIndex = client.initIndex.bind(client)
+  ;(client as { initIndex: typeof client.initIndex }).initIndex = (indexName: string) => {
+    const index = rawInitIndex(indexName)
+    const rawSearch = index.search.bind(index)
+    ;(index as { search: typeof index.search }).search = ((...args: Parameters<typeof rawSearch>) => {
+      const result = rawSearch(...args)
+      result.then(() => recordPremiumUse()).catch(() => {})
+      return result
+    }) as typeof index.search
+    return index
+  }
+
   _cachedSubClient = { appId, searchKey, client }
   return client
 }
