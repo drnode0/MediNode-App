@@ -2,7 +2,7 @@
 // DBアクセスや付与処理は API route 側（/api/referral, /api/premium/trial）が行う。
 //
 // 仕組み: 各ユーザーに MN- で始まる個人コードを発行。友達が既存のコード入力欄で
-// 使うと、新規側 30日（REFERRAL_NEW_USER_DAYS）・紹介者 +14日（REFERRAL_REWARD_DAYS）。
+// 使うと、新規側 14日（REFERRAL_NEW_USER_DAYS）・紹介者 +14日（REFERRAL_REWARD_DAYS）。
 
 // 紛らわしい文字（0/O/1/I/L）を除いた英数字。手入力・口頭伝達を想定。
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -10,7 +10,7 @@ const CODE_BODY_LENGTH = 8
 export const REFERRAL_CODE_PREFIX = 'MN-'
 
 // 紹介者1人あたりの成立上限。バラマキ的な乱用を抑える（超過後もコード自体は
-// 有効で新規側30日は付くが、紹介者への還元だけ止まる）。
+// 有効で新規側14日は付くが、紹介者への還元だけ止まる）。
 export const REFERRAL_REWARD_CAP = 10
 
 // メールの実体を正規化する（サブアカ自作自演の一番安い手口を塞ぐ）。
@@ -62,7 +62,7 @@ export type RedeemDenialReason =
   | 'self_referral'      // 自分のコードは使えない
   | 'already_redeemed'   // 紹介特典はすでに受け取り済み（生涯1回）
   | 'not_new_user'       // Stripe決済歴があり「新規側」になれない
-  | 'has_comp'           // 無期限comp保持者（30日trialで上書きすると降格になるため）
+  | 'has_comp'           // 無期限comp保持者（期限付きtrialで上書きすると降格になるため）
 
 // 新規側（コードを入力した人）が特典を受け取れるか。
 export function canRedeemReferral(opts: {

@@ -5,7 +5,9 @@
 //   ① 登録だけ（コードなし・自動トライアル）… キャンペーン中 7日 / 通常 3日
 //   ② カード登録トライアル（Stripe）        … 14日（キャンペーン後も恒久）
 //   ③ note特典コード（TRIAL_CODES）        … キャンペーン中 30日 / 通常 21日
-//   ④ 友達紹介コード                        … 新規 30日・紹介者 +14日（常設）
+//   ④ 友達紹介コード                        … 新規 14日・紹介者 +14日（常設）
+// 収益の原則: 「1ヶ月」に無料で届く道は作らない（noteは有料＝それ自体が収益）。
+// 完全無料（①④）は最長2週間で必ず課金判断の場面に立つ。
 // 序列の原則: 有料note購入者のコード（③）は常にカード登録（②）より長く保つ。
 //
 // サーバー・クライアント両方から import される想定（純ロジック・環境依存なし）。
@@ -36,5 +38,5 @@ export function trialCodeDays(now: Date = new Date()): number {
 export const STRIPE_TRIAL_DAYS_DEFAULT = 14
 
 // ④ 友達紹介の日数（常設・キャンペーンに依存しない）。
-export const REFERRAL_NEW_USER_DAYS = 30
+export const REFERRAL_NEW_USER_DAYS = 14
 export const REFERRAL_REWARD_DAYS = 14
