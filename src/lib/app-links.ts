@@ -14,5 +14,7 @@ export const TEASER_LP_URL = 'https://medinode-lp.vercel.app'
 export const SETUP_GUIDE_URL = 'https://medinode-lp.vercel.app/setup.html'
 // Notion入門はマガジンではなく第1話（#01）へ直接誘導する（2026-07-17 オーナー方針）。
 export const NOTION_MAGAZINE_URL = 'https://note.com/gifted_arnica594/n/n6bee0bfd4e1c'
+// Notionアカウントの作り方（note・スクショつき）。Notion未経験者がテンプレ複製・接続に進む前の最初の一歩。
+export const NOTION_ACCOUNT_GUIDE_URL = 'https://note.com/gifted_arnica594/n/n65e8cf9d4d33'
 // プレミアム体験（トライアルコード配布）のnote記事。PremiumTrialRedeemでも使用。
 export const PREMIUM_NOTE_URL = 'https://note.com/gifted_arnica594/n/n4d3997dad16e'
