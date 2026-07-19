@@ -135,6 +135,41 @@ export async function GET() {
       // テーブル未作成なら空のまま。
     }
 
+    // イベントマーカー（登録推移グラフ用）。Notionの「📈 MediNode イベント記録_DB」から取得する。
+    // best-effort: 未設定・未共有・タイムアウトなら空のまま（グラフにマーカーが出ないだけ）。
+    // 「名前」(title)と「日付」(date)だけを読む。行を足せば次の台帳表示から反映される。
+    const events: Array<{ date: string; label: string }> = []
+    try {
+      const eventsDbId = process.env.EVENTS_NOTION_DB
+      const notionToken = process.env.SUBSCRIPTION_NOTION_TOKEN
+      if (eventsDbId && notionToken) {
+        const res = await fetch(`https://api.notion.com/v1/databases/${eventsDbId}/query`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${notionToken}`,
+            'Notion-Version': '2022-06-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ page_size: 100 }),
+          signal: AbortSignal.timeout(4000),
+        })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            results?: Array<{ properties?: Record<string, { title?: Array<{ plain_text?: string }>; date?: { start?: string } | null }> }>
+          }
+          for (const page of data.results ?? []) {
+            const props = page.properties ?? {}
+            const label = (props['名前']?.title ?? []).map((x) => x.plain_text ?? '').join('').trim()
+            const date = props['日付']?.date?.start?.slice(0, 10)
+            if (label && date) events.push({ date, label })
+          }
+          events.sort((a, b) => a.date.localeCompare(b.date))
+        }
+      }
+    } catch {
+      // Notion側の不調でも台帳本体は表示する。
+    }
+
     const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
       .split(',')
       .map((e) => e.trim().toLowerCase())
@@ -193,6 +228,7 @@ export async function GET() {
       count: rows.length,
       rows,
       dailyActive,
+      events,
       hourlyActive: hourlyTotal > 0 ? hourlyActive : [],
       // 友達紹介の成立総数（KPI表示用）。
       referralTotal: referredUsers.size,

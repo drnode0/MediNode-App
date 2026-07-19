@@ -4,7 +4,7 @@ import type React from 'react'
 import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info, ExternalLink } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
-import { NOTION_MAGAZINE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
+import { NOTION_MAGAZINE_URL, NOTION_ACCOUNT_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { classifyRestoreResponse, type RestoreOutcome } from '@/lib/restore-outcome'
@@ -1421,7 +1421,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               {([
                 // tone はオンボーディング「3つの知識源」と同じ配色（個人=常盤・部署=空・プレミアム=琥珀）。
                 // プレミアムを先頭に置く（モニターFB: 設定不要で始められる選択肢が一番下だと戸惑う）。
-                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: `作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで${autoTrialDays()}日間無料でお試しできます。` },
+                { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: `作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで${autoTrialDays()}日間無料でお試しできます。カード登録は不要で、期間後は自動で通常表示に戻ります（勝手に課金されることはありません）。` },
                 { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', badge: '', desc: '自分のNotionに作った医療メモを検索します。Notionとつなぐ合鍵（コネクトToken）と、DBのリンクを使います。' },
                 { key: 'team' as const, Icon: Users, tone: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300', title: 'みんなの知識を使う', sub: '部署の共有DB', badge: '', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLを貼るだけでOK（自分のNotionは不要）。' },
               ]).map((opt) => {
@@ -1484,7 +1484,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <Star className="inline-block h-4 w-4 align-text-bottom mr-1.5" />まずは体験だけ — プレミアムのみで始める
               </button>
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center -mt-2">
-                Notion接続の設定を飛ばして、メール登録だけですぐ始められます
+                Notion接続の設定を飛ばして、メール登録だけですぐ始められます（カード不要・期間後も課金なし）
               </p>
               {error && (
                 <p className="text-xs text-red-500 text-center">{error}</p>
@@ -1629,7 +1629,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500">
-                      Notion自体がはじめての方は、作者の
+                      Notion自体がはじめての方は、まず
+                      <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notionアカウントの作り方（note・スクショつき）</a>
+                      でアカウントを用意してください。基本操作は
                       <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
                       も参考にどうぞ。
                     </p>
@@ -1702,6 +1704,11 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   {/* ステップガイド */}
                   <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-3">
                     <p className="text-sm font-bold text-brand-700 dark:text-brand-300">テンプレートの複製手順</p>
+                    <p className="text-xs text-brand-700 dark:text-brand-300">
+                      複製にはNotionアカウントが必要です。まだお持ちでない方は
+                      <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 mx-0.5 font-semibold">Notionアカウントの作り方（note・約5分）</a>
+                      から先に済ませてください。
+                    </p>
                     <a
                       href={MANUAL_TEMPLATE_URL}
                       target="_blank"
