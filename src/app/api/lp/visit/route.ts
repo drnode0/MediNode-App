@@ -33,6 +33,27 @@ function jstDay(offsetDays = 0): string {
   return new Date(Date.now() + 9 * 3600_000 - offsetDays * 86_400_000).toISOString().slice(0, 10)
 }
 
+// 現在のJST時間帯（0〜23）。時間帯ヒストグラム用。
+function jstHour(): number {
+  return new Date(Date.now() + 9 * 3600_000).getUTCHours()
+}
+
+// 流入元を既知の少数の値に丸める（カーディナリティを抑える。生ホスト名やゴミは 'other'/'direct'）。
+const SOURCE_ALIAS: Record<string, string> = {
+  't.co': 'x', 'x.com': 'x', 'twitter.com': 'x',
+  'note.com': 'note', 'note.mu': 'note',
+  'notion.so': 'notion', 'notion.com': 'notion', 'notion.site': 'notion',
+  'line.me': 'line', 'liff.line.me': 'line',
+}
+const KNOWN_SOURCES = new Set(['x', 'note', 'notion', 'line', 'lp', 'direct', 'instagram', 'youtube'])
+function normalizeSource(raw: unknown): string {
+  if (typeof raw !== 'string') return 'direct'
+  const s0 = raw.trim().toLowerCase().slice(0, 40)
+  if (!s0) return 'direct'
+  const s = SOURCE_ALIAS[s0] ?? s0
+  return KNOWN_SOURCES.has(s) ? s : 'other'
+}
+
 async function readCounts() {
   const admin = createAdminClient()
   const { data, error } = await admin.from('lp_visits').select('day,count')
@@ -76,10 +97,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false }, { status: 429, headers })
   }
 
+  // 媒体はLP側（lp-counter.js）が本文で送る。無くても記録は続行（direct 扱い）。
+  let source = 'direct'
+  try {
+    const body = (await req.json()) as { source?: unknown }
+    source = normalizeSource(body?.source)
+  } catch {
+    // 本文なし・不正JSONでも direct として記録する。
+  }
+
   try {
     const admin = createAdminClient()
-    const { error } = await admin.rpc('increment_lp_visit', { visit_day: jstDay() })
-    if (error) throw new Error(error.message)
+    // 時間帯・媒体つきの上位版（migration 0010）。未適用ならエラーになるので従来版へフォールバック。
+    const { error } = await admin.rpc('record_lp_visit', {
+      visit_day: jstDay(),
+      visit_hour: jstHour(),
+      visit_source: source,
+    })
+    if (error) {
+      // 0010 未適用: 日別カウントだけ従来どおり記録する（推移は維持）。
+      const { error: e2 } = await admin.rpc('increment_lp_visit', { visit_day: jstDay() })
+      if (e2) throw new Error(e2.message)
+    }
     return NextResponse.json(await readCounts(), { headers })
   } catch {
     return NextResponse.json({ ok: false }, { headers })
