@@ -205,6 +205,9 @@ export function AdminLedgerClient() {
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
   const [events, setEvents] = useState<ChartEvent[]>([])
   const [hourlyActive, setHourlyActive] = useState<number[]>([])
+  const [lpDaily, setLpDaily] = useState<DailyPoint[]>([])
+  const [lpHourly, setLpHourly] = useState<number[]>([])
+  const [lpSources, setLpSources] = useState<Array<{ source: string; count: number }>>([])
   const [referralTotal, setReferralTotal] = useState(0)
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -235,6 +238,9 @@ export function AdminLedgerClient() {
       setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
       setEvents(Array.isArray(data.events) ? data.events : [])
       setHourlyActive(Array.isArray(data.hourlyActive) ? data.hourlyActive : [])
+      setLpDaily(Array.isArray(data.lpDaily) ? data.lpDaily : [])
+      setLpHourly(Array.isArray(data.lpHourly) ? data.lpHourly : [])
+      setLpSources(Array.isArray(data.lpSources) ? data.lpSources : [])
       setReferralTotal(typeof data.referralTotal === 'number' ? data.referralTotal : 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : '読み込みに失敗しました')
@@ -375,6 +381,27 @@ export function AdminLedgerClient() {
     const diff = end - Date.now()
     return diff > 0 ? Math.ceil(diff / (24 * 60 * 60 * 1000)) : null
   }, [])
+
+  // LP訪問の流入元内訳（既知の媒体は固定色・それ以外は「その他」）。ユーザー登録の流入元とは別物
+  // （こちらは登録前の「LPを見た人」全員が母数。x=t.co経由なども含む）。
+  const lpSourceSegments = useMemo<Segment[]>(() => {
+    const counts: Record<string, number> = { x: 0, note: 0, notion: 0, line: 0, lp: 0, direct: 0, other: 0 }
+    for (const s of lpSources) {
+      if (s.source in counts) counts[s.source] += s.count
+      else counts.other += s.count
+    }
+    return [
+      { label: 'X', count: counts.x, className: 'bg-gray-800 dark:bg-gray-300' },
+      { label: 'note', count: counts.note, className: 'bg-emerald-500 dark:bg-emerald-400' },
+      { label: 'Notion', count: counts.notion, className: 'bg-violet-400' },
+      { label: 'LINE', count: counts.line, className: 'bg-teal-400' },
+      { label: 'LP直接', count: counts.lp, className: 'bg-orange-400' },
+      { label: '直接', count: counts.direct, className: 'bg-gray-400 dark:bg-gray-500' },
+      { label: 'その他', count: counts.other, className: 'bg-sky-400' },
+    ]
+  }, [lpSources])
+
+  const lpTotal = useMemo(() => lpSources.reduce((sum, s) => sum + s.count, 0), [lpSources])
 
   const filtered = useMemo(() => {
     if (!rows) return []
@@ -700,6 +727,36 @@ export function AdminLedgerClient() {
                 </div>
               </section>
             </div>
+
+            {/* LP訪問（medinode-lp）: 登録の手前、LPを見た人の推移・時間帯・流入元 */}
+            <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  LP訪問（紹介ページ・登録の手前）
+                </h2>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {lpTotal > 0 ? `流入元記録 累計 ${lpTotal}件` : '流入元は蓄積待ち'}
+                </span>
+              </div>
+              <div className="grid lg:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">日別の訪問数（直近30日）</h3>
+                  <DailyBarsChart points={lpDaily} label="LP日別訪問数" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">訪問の時間帯（直近30日・日本時間）</h3>
+                  <HourlyBarsChart hourly={lpHourly} label="LP利用時間帯" />
+                </div>
+                <div className="lg:col-span-2">
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">流入元の割合（LPに来た人・全期間）</h3>
+                  <SegmentBar segments={lpSourceSegments} label="LP流入元の割合" />
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-gray-400 dark:text-gray-500">
+                LPを開いた人（登録前を含む）が母数。日別推移は既存の記録から、時間帯・流入元は
+                計測拡張の適用後（デプロイ＋DB反映後）の訪問から貯まります。1ブラウザ1セッション1回で数えます。
+              </p>
+            </section>
 
             {/* 区分ごとの人数サマリー。0人の区分も薄く表示して「0人」と「非表示」を区別できるようにする */}
             <div className="flex flex-wrap gap-2 mb-4">

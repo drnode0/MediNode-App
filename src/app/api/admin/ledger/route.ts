@@ -223,6 +223,54 @@ export async function GET() {
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 
+    // LP訪問（推移・時間帯・流入元）。lp_visits(日別)は既存、_hourly/_source は migration 0010。
+    // どのテーブルも未適用・空なら該当だけ空で返す（グラフ側が「蓄積待ち」を出す）。
+    const jstToday = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const lpSince = new Date(Date.now() + 9 * 60 * 60 * 1000 - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+    const lpDaily: Array<{ date: string; count: number }> = []
+    try {
+      const { data } = await admin
+        .from('lp_visits')
+        .select('day, count')
+        .gte('day', lpSince)
+        .order('day')
+        .limit(400)
+      for (const row of data ?? []) lpDaily.push({ date: String(row.day), count: Number(row.count) })
+    } catch {
+      // テーブル未作成なら空（推移グラフは「蓄積待ち」）。
+    }
+    const lpHourly: number[] = Array.from({ length: 24 }, () => 0)
+    let lpHourlyTotal = 0
+    try {
+      const { data } = await admin
+        .from('lp_visits_hourly')
+        .select('hour, count')
+        .gte('day', lpSince)
+        .limit(20000)
+      for (const row of data ?? []) {
+        const h = Number(row.hour)
+        if (h >= 0 && h <= 23) {
+          lpHourly[h] += Number(row.count)
+          lpHourlyTotal += Number(row.count)
+        }
+      }
+    } catch {
+      // 0010 未適用なら空。
+    }
+    const lpSourceMap = new Map<string, number>()
+    try {
+      const { data } = await admin.from('lp_visits_source').select('source, count').limit(20000)
+      for (const row of data ?? []) {
+        const s = String(row.source)
+        lpSourceMap.set(s, (lpSourceMap.get(s) ?? 0) + Number(row.count))
+      }
+    } catch {
+      // 0010 未適用なら空。
+    }
+    const lpSources = [...lpSourceMap.entries()].map(([source, count]) => ({ source, count }))
+
     return NextResponse.json({
       ok: true,
       count: rows.length,
@@ -232,6 +280,11 @@ export async function GET() {
       hourlyActive: hourlyTotal > 0 ? hourlyActive : [],
       // 友達紹介の成立総数（KPI表示用）。
       referralTotal: referredUsers.size,
+      // LP訪問（medinode-lp）。日別推移・時間帯（直近30日・JST）・流入元（全期間）。
+      lpDaily,
+      lpHourly: lpHourlyTotal > 0 ? lpHourly : [],
+      lpSources,
+      lpToday: jstToday,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
