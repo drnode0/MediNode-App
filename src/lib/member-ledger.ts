@@ -78,7 +78,7 @@ export const MEMBER_KIND_LABEL: Record<MemberKind, string> = {
   premium: 'サブスク中（課金）',
   stripe_trial: 'トライアル中（カード登録）',
   trial: 'トライアル中（無料コード）',
-  auto_trial: 'トライアル中（登録3日・自動）',
+  auto_trial: 'トライアル中（登録・自動）',
   expired: '失効・取消',
   free: '無料',
 }
