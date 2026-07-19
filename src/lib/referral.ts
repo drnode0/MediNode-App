@@ -13,6 +13,28 @@ export const REFERRAL_CODE_PREFIX = 'MN-'
 // 有効で新規側30日は付くが、紹介者への還元だけ止まる）。
 export const REFERRAL_REWARD_CAP = 10
 
+// メールの実体を正規化する（サブアカ自作自演の一番安い手口を塞ぐ）。
+//   - 全ドメイン: +suffix を除去（a+1@x.com → a@x.com）
+//   - Gmail系: ローカル部のドット差を無視・googlemail.com を gmail.com に統一
+// 紹介者と新規側の正規化結果が同じなら「同一人物の別名」とみなして弾く。
+export function emailBase(email: string): string {
+  const lowered = email.trim().toLowerCase()
+  const at = lowered.lastIndexOf('@')
+  if (at < 0) return lowered
+  let local = lowered.slice(0, at)
+  let domain = lowered.slice(at + 1)
+  const plus = local.indexOf('+')
+  if (plus >= 0) local = local.slice(0, plus)
+  if (domain === 'googlemail.com') domain = 'gmail.com'
+  if (domain === 'gmail.com') local = local.replace(/\./g, '')
+  return `${local}@${domain}`
+}
+
+export function isSameMailbox(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  return emailBase(a) === emailBase(b)
+}
+
 export function generateReferralCode(
   random: () => number = Math.random,
 ): string {
