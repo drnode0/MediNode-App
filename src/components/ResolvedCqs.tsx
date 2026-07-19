@@ -103,7 +103,7 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
       <p className="text-xs text-gray-500 dark:text-gray-400 px-1 leading-relaxed">
         みなさんから投稿された臨床疑問のうち、専門医がナレッジとして公開したものです（新しい順）。
-        投稿者のお名前は出さず、職種とペンネーム（希望者のみ）だけを表示しています。
+        投稿者は職種とペンネーム（もしくは匿名）で表示しています。
       </p>
       {items === null && (
         <p className="text-xs text-gray-400 dark:text-gray-500 px-1 py-4 text-center">読み込み中…</p>
