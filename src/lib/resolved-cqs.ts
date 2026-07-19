@@ -16,6 +16,10 @@ import {
 // API（/api/resolved-cqs）経由で取得し、notionUrl（本文リンク）は渡さない。
 // ============================================================
 
+// 既読水位（最後に確認した createdAt）。ResolvedCqBanner が更新し、
+// author-additions.ts が「CQバナーが出る起動か」の判定（ダイジェスト抑制）にも読む。
+export const RESOLVED_CQ_SEEN_KEY = 'medinode_resolved_cq_seen_v1'
+
 export type ResolvedCq = {
   objectID: string
   title: string

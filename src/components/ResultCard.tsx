@@ -75,7 +75,9 @@ function parseEvidence(raw: string): { stars: number; label: string } {
   return { stars, label: stripLeadingEmoji(raw) }
 }
 
-export function ResultCard({ hit }: { hit: Hit }) {
+// isNew: 新着タブ専用。前回確認（既読水位）より後に追加されたプレミアム配信ページに
+// 小さな「New」チップを出す（判定は lib/author-additions.ts の isNewAuthorAddition）。
+export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
@@ -135,6 +137,11 @@ export function ResultCard({ hit }: { hit: Hit }) {
         </div>
 
         <div className="flex flex-wrap gap-1 mb-2">
+          {isNew && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500 text-white dark:bg-teal-600 self-center" title="前回の確認より後に追加されたページ">
+              New
+            </span>
+          )}
           {ownerLabel && ownerBadge && (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ownerBadge.style}`}>
               {ownerLabel}
