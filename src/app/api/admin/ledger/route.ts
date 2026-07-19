@@ -181,6 +181,9 @@ export async function GET() {
           // 友達紹介: この人が紹介者として成立させた数／この人自身が紹介経由か。
           referralCount: referralCountByUser.get(u.id) ?? 0,
           viaReferral: referredUsers.has(u.id),
+          // プレミアム検索が最後に実行された日時（/api/premium/usage が記録。1時間粒度）。
+          // 「トライアル中なのに一度もプレミアムを見ていない人」の抽出に使う。
+          premiumUsedAt: (u.user_metadata?.premium_last_used_at as string | undefined) ?? null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
