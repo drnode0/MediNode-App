@@ -16,6 +16,8 @@ import {
   CreditCard,
   Crown,
   Download,
+  Eye,
+  EyeOff,
   ExternalLink,
   Gift,
   Hourglass,
@@ -56,6 +58,8 @@ import {
   countTrialStarted,
   PREMIUM_MONTHLY_JPY,
 } from '@/lib/ledger-metrics'
+import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
+import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 
 type LedgerRow = {
   userId: string
@@ -252,6 +256,10 @@ export function AdminLedgerClient() {
   const [lpDaily, setLpDaily] = useState<DailyPoint[]>([])
   const [lpHourly, setLpHourly] = useState<number[]>([])
   const [lpSources, setLpSources] = useState<Array<{ source: string; count: number }>>([])
+  const [auditLog, setAuditLog] = useState<
+    { action: string; actorEmail: string; targetEmail: string | null; createdAt: string }[]
+  >([])
+  const [maskEmails, setMaskEmails] = useState(false)
   const [referralTotal, setReferralTotal] = useState(0)
   const [error, setError] = useState<'login' | 'forbidden' | string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -286,6 +294,7 @@ export function AdminLedgerClient() {
       setLpDaily(Array.isArray(data.lpDaily) ? data.lpDaily : [])
       setLpHourly(Array.isArray(data.lpHourly) ? data.lpHourly : [])
       setLpSources(Array.isArray(data.lpSources) ? data.lpSources : [])
+      setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : [])
       setReferralTotal(typeof data.referralTotal === 'number' ? data.referralTotal : 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : '読み込みに失敗しました')
@@ -422,6 +431,9 @@ ${label}`,
   // CSVダウンロード（棚卸し・バックアップ用）。
   const downloadCsv = useCallback(() => {
     if (!rows) return
+    if (!window.confirm('個人情報（メールアドレス等）を含むCSVを出力します。取り扱いに注意してください。続けますか？')) {
+      return
+    }
     const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
@@ -453,6 +465,12 @@ ${label}`,
     a.download = `medinode-accounts-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    // 監査記録（best-effort。失敗してもダウンロードは完了済み）。
+    void fetch('/api/admin/ledger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'audit', event: 'export_csv', detail: { count: rows.length } }),
+    }).catch(() => {})
   }, [rows])
 
   // プレミアムを見られるのに一度も使っていない人（トライアル各種＋課金中が対象）。
@@ -553,6 +571,37 @@ ${label}`,
       computeRevenue(
         (rows ?? []).map((r) => ({ kind: r.kind, subCreatedAt: r.subCreatedAt })),
         PREMIUM_MONTHLY_JPY
+      ),
+    [rows]
+  )
+
+  // 安全管理: ローカルの契約不整合とヒューリスティックな異常兆候。
+  const contractIssues = useMemo(
+    () =>
+      detectLocalContractIssues(
+        (rows ?? []).map((r) => ({
+          userId: r.userId,
+          email: r.email,
+          kind: r.kind,
+          status: r.status,
+          plan: r.plan,
+          hasStripe: r.hasStripe,
+        }))
+      ),
+    [rows]
+  )
+  const anomalies = useMemo(
+    () =>
+      detectAnomalySignals(
+        (rows ?? []).map((r) => ({
+          email: r.email,
+          kind: r.kind,
+          referralCount: r.referralCount,
+          premiumUsedAt: r.premiumUsedAt,
+          trialEndsAt: r.trialEndsAt,
+          createdAt: r.createdAt,
+        })),
+        Date.now()
       ),
     [rows]
   )
@@ -710,6 +759,15 @@ ${label}`,
             アカウント台帳
           </h1>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMaskEmails((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              title={maskEmails ? 'メールを表示する' : 'メールを隠す（スクショ・共有時の保護）'}
+            >
+              {maskEmails ? <Eye className="w-4 h-4" aria-hidden /> : <EyeOff className="w-4 h-4" aria-hidden />}
+              {maskEmails ? '表示' : '隠す'}
+            </button>
             <button
               type="button"
               onClick={downloadCsv}
@@ -953,8 +1011,8 @@ ${label}`,
                   {topReferrers.map((r, i) => (
                     <li key={r.userId} className="flex items-baseline gap-2 text-sm">
                       <span className="text-amber-500 dark:text-amber-400 font-bold w-5 shrink-0 text-right">{i + 1}</span>
-                      <span className="truncate text-gray-800 dark:text-gray-100" title={r.email ?? undefined}>
-                        {r.email ?? '（メール不明）'}
+                      <span className="truncate text-gray-800 dark:text-gray-100" title={maskEmails ? undefined : (r.email ?? undefined)}>
+                        {maskEmails ? maskEmail(r.email) : (r.email ?? '（メール不明）')}
                       </span>
                       <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300">
                         <Gift className="w-3.5 h-3.5" aria-hidden />
@@ -968,6 +1026,12 @@ ${label}`,
                 </p>
               </section>
             )}
+
+            {/* 安全管理サマリー: 契約の要確認・気になる兆候 */}
+            <div className="grid gap-3 mb-4 lg:grid-cols-2">
+              <ContractIssuesPanel issues={contractIssues} />
+              <AnomalyPanel signals={anomalies} />
+            </div>
 
             {/* 検索＋プレミアム未利用の抽出 */}
             <div className="relative mb-2">
@@ -1047,8 +1111,8 @@ ${label}`,
                       >
                         <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                           <div className="flex items-center gap-1.5">
-                            <span className="max-w-[240px] truncate" title={r.email ?? undefined}>
-                              {r.email ?? '（メール不明）'}
+                            <span className="max-w-[240px] truncate" title={maskEmails ? undefined : (r.email ?? undefined)}>
+                              {maskEmails ? maskEmail(r.email) : (r.email ?? '（メール不明）')}
                             </span>
                             <button
                               type="button"
@@ -1214,6 +1278,10 @@ ${label}`,
               紹介: 「N人招待」＝この人が友達紹介で連れてきた人数（多い順は上のランキング参照）。
               「紹介で開始」＝この人自身が誰かの紹介コード経由で登録。友達紹介で開始した人数はKPIカードにも出ます。
             </p>
+
+            <div className="mt-4">
+              <AuditLogSection log={auditLog} />
+            </div>
           </>
         )}
       </div>
