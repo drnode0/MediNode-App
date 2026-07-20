@@ -33,4 +33,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 HANDOVER_*.md
+# 内部の申し送り・ゴーライブ手順（公開テンプレに含めない。実キーやAppID等が混入しやすいため）
+HANDOFF.md
+DEV_HANDOFF.md
+STRIPE_GOLIVE.md
+NOTE_HANDOFF.md
 .env*
