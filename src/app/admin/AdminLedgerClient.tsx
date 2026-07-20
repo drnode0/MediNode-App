@@ -68,6 +68,7 @@ type LedgerRow = {
   referralCount: number
   viaReferral: boolean
   premiumUsedAt: string | null
+  isMonitor: boolean
 }
 
 // プレミアムを見られる状態の区分（課金中＋各種トライアル）。プレミアム未利用者の抽出対象。
@@ -117,7 +118,14 @@ function normalizeSource(source: string): string {
 }
 
 // 表示用の実効的な流入元。記録があればそれ、無ければ公開前は monitor/self、公開後は null（未計測）。
-function effectiveSource(r: { source: string | null; createdAt: string | null; kind: MemberKind }): string | null {
+function effectiveSource(r: {
+  source: string | null
+  createdAt: string | null
+  kind: MemberKind
+  isMonitor?: boolean
+}): string | null {
+  // 手動のモニター指定が最優先（公開後モニター等、計測では拾えない内輪ユーザーを分離する）。
+  if (r.isMonitor) return r.kind === 'admin' ? 'self' : 'monitor'
   if (r.source) return normalizeSource(r.source)
   const created = r.createdAt ? new Date(r.createdAt).getTime() : 0
   if (created && created < LAUNCH_MS) return r.kind === 'admin' ? 'self' : 'monitor'
@@ -353,6 +361,28 @@ ${label}`,
         await load()
       } catch (err) {
         window.alert(err instanceof Error ? err.message : '削除に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
+  // モニター指定の ON/OFF。流入元を「モニター」に振り分ける（計測では拾えない内輪ユーザーの分離）。
+  const toggleMonitor = useCallback(
+    async (row: LedgerRow) => {
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId, isMonitor: !row.isMonitor }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || 'モニター指定の変更に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'モニター指定の変更に失敗しました')
       } finally {
         setBusy(null)
       }
@@ -774,7 +804,7 @@ ${label}`,
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">流入元の割合</h2>
                 <SegmentBar segments={sourceSegments} label="流入元の割合" />
                 <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-                  公開（7/18 20:00）より前の登録者は全員モニターか本人のため「モニター／本人」に振り分け。公開後にLP経由でなく来た人だけが「未計測」です
+                  公開（7/18 20:00）より前の登録者は全員モニターか本人のため「モニター／本人」に自動振り分け。公開後のモニターは各行の「モニター指定」ボタンで手動タグ付けできます（流入元が「モニター」になり実ユーザーの集計から外れる）。それ以外で経路不明な人が「未計測」です
                 </p>
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
@@ -1054,6 +1084,26 @@ ${label}`,
                                 取り消す
                               </button>
                             )}
+                            {r.kind !== 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => void toggleMonitor(r)}
+                                disabled={busy === r.userId}
+                                title={r.isMonitor ? 'モニター指定を解除' : 'この人をモニターとして分類（流入元を「モニター」に）'}
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
+                                  r.isMonitor
+                                    ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
+                                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                                }`}
+                              >
+                                {r.isMonitor ? (
+                                  <Check className="w-3.5 h-3.5" aria-hidden />
+                                ) : (
+                                  <UserPlus className="w-3.5 h-3.5" aria-hidden />
+                                )}
+                                {r.isMonitor ? 'モニター' : 'モニター指定'}
+                              </button>
+                            )}
                             {canDelete && (
                               <button
                                 type="button"
@@ -1066,7 +1116,7 @@ ${label}`,
                                 削除
                               </button>
                             )}
-                            {!canGrant && !canRevoke && !canDelete && (
+                            {r.kind === 'admin' && !canGrant && !canRevoke && !canDelete && (
                               <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
                             )}
                           </div>

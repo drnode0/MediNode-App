@@ -10,6 +10,8 @@
 //   DELETE /api/admin/ledger
 //     … 指定ユーザーを完全削除する（タイプミス・重複登録の掃除）。Body: { userId }
 //       Stripe契約のある人は拒否（誤って課金アカウントを消さないための安全弁）。
+//   PATCH /api/admin/ledger
+//     … モニター指定の ON/OFF。Body: { userId, isMonitor }。流入元の集計を実ユーザーと分けるため。
 //
 // アクセス制御: requireAdmin（ログイン必須＋COMP_ADMIN_EMAILS のみ）。
 // service_role でRLSをバイパスして全件を読むため、認可はこのガードが唯一の砦。
@@ -222,6 +224,8 @@ export async function GET() {
           // プレミアム検索が最後に実行された日時（/api/premium/usage が記録。1時間粒度）。
           // 「トライアル中なのに一度もプレミアムを見ていない人」の抽出に使う。
           premiumUsedAt: (u.user_metadata?.premium_last_used_at as string | undefined) ?? null,
+          // 手動のモニター指定（オーナーが台帳から付ける）。流入元を「モニター」に上書きする。
+          isMonitor: u.user_metadata?.is_monitor === true,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
@@ -374,6 +378,35 @@ export async function DELETE(req: NextRequest) {
     const { error: delErr } = await admin.auth.admin.deleteUser(userId)
     if (delErr) throw new Error(delErr.message)
     return NextResponse.json({ ok: true, userId })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '不明なエラー'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+
+// モニター指定の ON/OFF（user_metadata.is_monitor）。流入元を「モニター」に振り分けるための手動タグ。
+export async function PATCH(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+  try {
+    const { userId, isMonitor } = (await req.json()) as { userId?: unknown; isMonitor?: unknown }
+    if (!userId || typeof userId !== 'string') {
+      return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    if (typeof isMonitor !== 'boolean') {
+      return NextResponse.json({ error: 'isMonitor（真偽値）を指定してください' }, { status: 400 })
+    }
+    const admin = createAdminClient()
+    const { data, error } = await admin.auth.admin.getUserById(userId)
+    if (error || !data?.user) {
+      return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+    }
+    const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
+      user_metadata: { ...data.user.user_metadata, is_monitor: isMonitor },
+    })
+    if (updErr) throw new Error(updErr.message)
+    return NextResponse.json({ ok: true, userId, isMonitor })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })
