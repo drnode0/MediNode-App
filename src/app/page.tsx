@@ -301,10 +301,29 @@ function QuizGenreFilter({
   const toggle = (g: string) => {
     onChange(selected.includes(g) ? selected.filter((x) => x !== g) : [...selected, g])
   }
-  const visible = showAll ? allGenres : allGenres.slice(0, GENRE_SHOW_LIMIT)
+  // 折りたたみ時でも「選択中のジャンル」は必ず見えるようにする。選択が overflow に
+  // 隠れると、絞り込み中なのに画面に手がかりが無く「出題が少ない＝バグ」に見えるため、
+  // 隠れている選択分だけを可視リストの末尾に足す（＝緑チップとして常に露出させる）。
+  const base = showAll ? allGenres : allGenres.slice(0, GENRE_SHOW_LIMIT)
+  const hiddenSelected = allGenres.filter((g) => selected.includes(g) && !base.includes(g))
+  const visible = [...base, ...hiddenSelected]
+  const remainingCollapsed = Math.max(0, allGenres.length - GENRE_SHOW_LIMIT - hiddenSelected.length)
 
   return (
     <div className="mb-3">
+      {selected.length > 0 && (
+        <div className="flex items-center gap-2 mb-1.5 text-xs">
+          <span className="text-brand-600 dark:text-brand-400 font-medium">
+            絞り込み中：{selected.map(displayGenreName).join('・')}
+          </span>
+          <button
+            onClick={() => onChange([])}
+            className="shrink-0 inline-flex items-center gap-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          >
+            <X className="w-3 h-3" />解除
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <button
           onClick={() => onChange([])}
@@ -333,14 +352,14 @@ function QuizGenreFilter({
           )
         })}
       </div>
-      {allGenres.length > GENRE_SHOW_LIMIT && (
+      {(showAll || remainingCollapsed > 0) && (
         <button
           onClick={() => setShowAll((v) => !v)}
           className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 mt-1.5 inline-flex items-center gap-1"
         >
           {showAll
             ? <><ChevronUp className="w-3.5 h-3.5" />折りたたむ</>
-            : <><ChevronDown className="w-3.5 h-3.5" />すべてのジャンル（残り {allGenres.length - GENRE_SHOW_LIMIT} 件）</>}
+            : <><ChevronDown className="w-3.5 h-3.5" />すべてのジャンル（残り {remainingCollapsed} 件）</>}
         </button>
       )}
     </div>
