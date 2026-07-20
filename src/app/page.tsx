@@ -2138,9 +2138,12 @@ function NotionManualTab() {
   const filtered = useMemo(() => {
     if (!typeFilter) return records
     // 種別はNotionのセレクト値がそのまま入る。テンプレDBは「📕 マニュアル」だが、
-    // 自作DBでは「マニュアル」等の絵文字なし値もあり得るため、両側を正規化して照合する
-    const want = stripLeadingEmoji(typeFilter)
-    return records.filter((r) => stripLeadingEmoji(r.manualType) === want)
+    // 自作DBでは「マニュアル」「お知らせ（重要）」等の絵文字なし・接尾辞つきもあり得る。
+    // 完全一致だと表記ゆれで種別タブから無言で漏れるため、絵文字と空白を除いた
+    // 部分一致でゆるく照合する（知識レベル判定と同じ寛容さに揃える）。
+    const norm = (s: string | null | undefined) => stripLeadingEmoji(s).replace(/\s+/g, '')
+    const want = norm(typeFilter)
+    return records.filter((r) => norm(r.manualType).includes(want))
   }, [records, typeFilter])
 
   const TYPE_TABS = ['', '📕 マニュアル', '📢 お知らせ', '🔧 業務改善']
