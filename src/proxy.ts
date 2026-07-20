@@ -12,6 +12,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { REQUIRE_LOGIN_COOKIE } from '@/lib/login-policy'
+import {
+  MAINTENANCE_BYPASS_COOKIE,
+  readMaintenanceFlag,
+  verifyBypassToken,
+  shouldBlockForMaintenance,
+} from '@/lib/maintenance'
 
 // ログイン必須フラグ。明示的に 'true' のときだけ有効。
 const REQUIRE_LOGIN = process.env.REQUIRE_LOGIN === 'true'
@@ -52,6 +58,29 @@ function isPublicPath(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
+
+  // ── メンテナンスゲート（REQUIRE_LOGIN より手前）──
+  // フラグ ON かつ 非オーナー（有効な通行cookie無し）かつ 非許可パス なら /maintenance を表示。
+  // rewrite（URLは変えず内容だけ差し替え）で、ブックマークやPWAの start_url を壊さない。
+  {
+    const maintenance = await readMaintenanceFlag()
+    if (maintenance) {
+      const bypass = request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value
+      const hasValidBypass = await verifyBypassToken(bypass)
+      if (
+        shouldBlockForMaintenance({
+          maintenance,
+          pathname: request.nextUrl.pathname,
+          hasValidBypass,
+        })
+      ) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/maintenance'
+        url.search = ''
+        return NextResponse.rewrite(url)
+      }
+    }
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
