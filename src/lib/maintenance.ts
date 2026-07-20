@@ -115,7 +115,7 @@ export async function readMaintenanceFlag(opts?: {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anon) return false // 未設定はフェイルオープン
+  if (!url || !anon) return flagCache?.value ?? false // 未設定はフェイルオープン（前回値優先）
 
   try {
     const res = await fetchImpl(
