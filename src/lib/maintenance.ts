@@ -6,6 +6,11 @@ export const MAINTENANCE_BYPASS_COOKIE = 'maint_bypass'
 export const MAINTENANCE_FLAG_KEY = 'maintenance'
 
 // メンテ中でも常に通す（＝オーナーがログイン→切替に到達できる）パス。
+// 注意: メンテナンスゲートは proxy.ts のページ表示リクエストにのみ効き、proxy の
+// config.matcher は /api/* を全て除外している。よって「メンテ中でも API 全般は到達可能」
+// ＝これは画面だけの見た目メンテ（view-only）であり、データ遮断ではない（設計意図・仕様どおり）。
+// 下の '/api/maintenance' '/api/admin' は、将来 matcher が /api を含めた場合に備えた明示であり、
+// クライアント側（MaintenanceGate の isMaintenanceAllowedPath 利用等）での一貫性のために残す。
 const MAINTENANCE_ALLOWED_PREFIXES = [
   '/login',
   '/auth',
