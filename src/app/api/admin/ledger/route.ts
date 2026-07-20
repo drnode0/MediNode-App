@@ -21,6 +21,9 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
+import { logAdminAction } from '@/lib/admin-audit'
+import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
+import Stripe from 'stripe'
 
 export async function GET() {
   const auth = await requireAdmin()
@@ -284,6 +287,31 @@ export async function GET() {
     }
     const lpSources = [...lpSourceMap.entries()].map(([source, count]) => ({ source, count }))
 
+    // 操作履歴（最近50件）。テーブル(0011)未適用なら空（try/catch）。
+    let auditLog: Array<{
+      action: string
+      actorEmail: string
+      targetEmail: string | null
+      createdAt: string
+      detail: unknown
+    }> = []
+    try {
+      const { data } = await admin
+        .from('admin_audit_log')
+        .select('action, actor_email, target_email, created_at, detail')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      auditLog = (data ?? []).map((r) => ({
+        action: String(r.action),
+        actorEmail: String(r.actor_email),
+        targetEmail: (r.target_email as string | null) ?? null,
+        createdAt: String(r.created_at),
+        detail: r.detail ?? null,
+      }))
+    } catch {
+      // 0011 未適用なら空（UIは「適用待ち」表示）。
+    }
+
     return NextResponse.json({
       ok: true,
       count: rows.length,
@@ -302,6 +330,7 @@ export async function GET() {
       lpHourly: lpHourlyTotal > 0 ? lpHourly : [],
       lpSources,
       lpToday: jstToday,
+      auditLog,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
@@ -314,12 +343,65 @@ export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   try {
-    const { userId } = await req.json()
+    const body = (await req.json()) as {
+      action?: string
+      userId?: unknown
+      event?: string
+      detail?: unknown
+    }
+    const admin = createAdminClient()
+
+    // (a) クライアント発の監査イベント記録（CSV出力など）。
+    if (body.action === 'audit') {
+      if (body.event === 'export_csv') {
+        await logAdminAction(admin, { actorEmail: auth.email, action: 'export_csv', detail: body.detail ?? null })
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    // (b) Stripe と照合（宙に浮いた契約・取り残しを洗う）。押下時のみ実行。
+    if (body.action === 'stripe_reconcile') {
+      const stripeKey = process.env.STRIPE_SECRET_KEY
+      if (!stripeKey) {
+        return NextResponse.json({ ok: true, stripeConfigured: false, orphanStripe: [], staleLocal: [] })
+      }
+      const stripe = new Stripe(stripeKey)
+      const stripeSubs: StripeSub[] = []
+      let startingAfter: string | undefined
+      for (let i = 0; i < 20; i++) {
+        const page = await stripe.subscriptions.list({ status: 'all', limit: 100, starting_after: startingAfter })
+        for (const s of page.data) {
+          stripeSubs.push({
+            id: s.id,
+            customer: typeof s.customer === 'string' ? s.customer : s.customer.id,
+            status: s.status,
+          })
+        }
+        if (!page.has_more || page.data.length === 0) break
+        startingAfter = page.data[page.data.length - 1].id
+      }
+      const { data: localData } = await admin
+        .from('subscriptions')
+        .select('user_id, stripe_customer_id, stripe_subscription_id, status')
+      const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      const emailById = new Map((usersData?.users ?? []).map((u) => [u.id, u.email ?? null]))
+      const local = (localData ?? []).map((l) => ({
+        userId: String(l.user_id),
+        email: emailById.get(String(l.user_id)) ?? null,
+        stripeCustomerId: (l.stripe_customer_id as string | null) ?? null,
+        stripeSubscriptionId: (l.stripe_subscription_id as string | null) ?? null,
+        status: (l.status as string | null) ?? null,
+      }))
+      const result = reconcileStripe(local, stripeSubs)
+      return NextResponse.json({ ok: true, stripeConfigured: true, ...result })
+    }
+
+    // (c) 既定: 永続無料(comp)の付与。
+    const userId = body.userId
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
     }
     // 実在するユーザーかを確認してから付与する（誤ったIDで幽霊行を作らない）。
-    const admin = createAdminClient()
     const { data, error } = await admin.auth.admin.getUserById(userId)
     if (error || !data?.user) {
       return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
@@ -337,6 +419,12 @@ export async function POST(req: NextRequest) {
       )
     }
     await grantComplimentaryByUserId(userId)
+    await logAdminAction(admin, {
+      actorEmail: auth.email,
+      action: 'grant_comp',
+      targetUserId: userId,
+      targetEmail: data.user.email ?? null,
+    })
     return NextResponse.json({ ok: true, userId, plan: 'comp' })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
@@ -383,6 +471,12 @@ export async function DELETE(req: NextRequest) {
     // FK の on delete cascade で自動的に消える。
     const { error: delErr } = await admin.auth.admin.deleteUser(userId)
     if (delErr) throw new Error(delErr.message)
+    await logAdminAction(admin, {
+      actorEmail: auth.email,
+      action: 'delete_user',
+      targetUserId: userId,
+      targetEmail: data.user.email ?? null,
+    })
     return NextResponse.json({ ok: true, userId })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
@@ -412,6 +506,12 @@ export async function PATCH(req: NextRequest) {
       user_metadata: { ...data.user.user_metadata, is_monitor: isMonitor },
     })
     if (updErr) throw new Error(updErr.message)
+    await logAdminAction(admin, {
+      actorEmail: auth.email,
+      action: isMonitor ? 'set_monitor' : 'unset_monitor',
+      targetUserId: userId,
+      targetEmail: data.user.email ?? null,
+    })
     return NextResponse.json({ ok: true, userId, isMonitor })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
