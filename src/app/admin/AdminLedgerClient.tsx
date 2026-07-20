@@ -8,7 +8,7 @@
 // - 無料のユーザーへは、コードを渡さずにその場で永続無料を付与できる（POST /api/admin/ledger）
 // 認可はサーバー側（requireAdmin）が行い、この画面は結果を表示するだけ。
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
   Check,
@@ -46,6 +46,16 @@ import {
   type DailyPoint,
   type Segment,
 } from './AdminCharts'
+import { SectionHeading, InfoPopover } from './SectionHeading'
+import { FunnelCard, RetentionCard, SourceQualityTable, RevenueCard } from './MarketingCards'
+import {
+  computeFunnel,
+  computeRetention,
+  computeSourceQuality,
+  computeRevenue,
+  countTrialStarted,
+  PREMIUM_MONTHLY_JPY,
+} from '@/lib/ledger-metrics'
 
 type LedgerRow = {
   userId: string
@@ -69,6 +79,8 @@ type LedgerRow = {
   viaReferral: boolean
   premiumUsedAt: string | null
   isMonitor: boolean
+  hasStripe: boolean
+  subCreatedAt: string | null
 }
 
 // プレミアムを見られる状態の区分（課金中＋各種トライアル）。プレミアム未利用者の抽出対象。
@@ -194,12 +206,14 @@ function KpiCard({
   value,
   sub,
   highlight = false,
+  help,
 }: {
   icon: typeof Users
   label: string
   value: number
   sub?: string
   highlight?: boolean
+  help?: ReactNode
 }) {
   return (
     <div
@@ -212,6 +226,7 @@ function KpiCard({
       <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">
         <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-brand-600 dark:text-brand-400' : ''}`} aria-hidden />
         {label}
+        {help && <InfoPopover>{help}</InfoPopover>}
       </div>
       <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-none">
         {value}
@@ -511,6 +526,37 @@ ${label}`,
     return c
   }, [rows])
 
+  // マーケ・経営指標（すべて既存データの派生。ロジックは ledger-metrics に集約）。
+  const funnel = useMemo(
+    () =>
+      computeFunnel({
+        lpVisits: lpDaily.reduce((sum, p) => sum + p.count, 0),
+        registered: (rows ?? []).length,
+        trialStarted: countTrialStarted(rows ?? []),
+        paying: counts.premium,
+      }),
+    [rows, lpDaily, counts.premium]
+  )
+  const retention = useMemo(
+    () => computeRetention((rows ?? []).map((r) => ({ kind: r.kind, hasStripe: r.hasStripe }))),
+    [rows]
+  )
+  const sourceQuality = useMemo(
+    () =>
+      computeSourceQuality(
+        (rows ?? []).map((r) => ({ source: effectiveSource(r) ?? '未計測', kind: r.kind }))
+      ),
+    [rows]
+  )
+  const revenue = useMemo(
+    () =>
+      computeRevenue(
+        (rows ?? []).map((r) => ({ kind: r.kind, subCreatedAt: r.subCreatedAt })),
+        PREMIUM_MONTHLY_JPY
+      ),
+    [rows]
+  )
+
   // 直近7日の新規登録数（登録の勢いをチップで一目に）。
   const newLast7d = useMemo(() => {
     if (!rows) return 0
@@ -727,22 +773,33 @@ ${label}`,
           <>
             {/* KPIカード列: 規模と勢いをまず数字で */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-              <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} />
-              <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight />
-              <KpiCard icon={Activity} label="月間アクティブ" value={activity.mau} sub="30日以内（参考）" />
+              <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} help="auth.usersの全アカウント数。管理者・本人・モニターも含む総登録数です。" />
+              <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight help="直近7日にアプリ利用（app_usage）の記録がある人数（WAU）。" />
+              <KpiCard icon={Activity} label="月間アクティブ" value={activity.mau} sub="30日以内（参考）" help="直近30日に利用記録がある人数（MAU・参考値）。" />
               <KpiCard
                 icon={Crown}
                 label="サブスク中（課金）"
                 value={counts.premium}
                 sub={`カード登録トライアル ${counts.stripe_trial}人`}
+                help="Stripeで実際に課金中（premium）の人数。カード登録済みの無料トライアル中（stripe_trial）は下段に別カウントで併記しています。"
               />
               <KpiCard
                 icon={Hourglass}
                 label="無料トライアル中"
                 value={counts.auto_trial + counts.trial}
                 sub={`自動 ${counts.auto_trial}・コード ${counts.trial}人`}
+                help="カード登録なしの無料トライアル。自動＝登録時の3日間、コード＝招待/noteコード経由。期限で自動失効します。"
               />
-              <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} />
+              <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} help="referral_redemptions経由（友達紹介コード）で登録した人数の累計です。" />
+            </div>
+
+            {/* マーケ・経営サマリー: ファネル / 売上 / 継続 */}
+            <div className="grid gap-3 mb-4 lg:grid-cols-2">
+              <FunnelCard stages={funnel} />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <RevenueCard rev={revenue} />
+                <RetentionCard r={retention} />
+              </div>
             </div>
 
             {/* グラフ2枚: 登録の伸びと日々の利用 */}
@@ -785,7 +842,7 @@ ${label}`,
                 )}
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">日別アクティブ数（直近30日）</h2>
+                <SectionHeading title="日別アクティブ数（直近30日）" caption="その日にアプリを使った人数（ユニーク）。棒が高い日ほど利用が多い。" help="app_usage_daily の日別ユニーク数。同じ人が複数回使っても1人として数えます。" />
                 <DailyBarsChart points={dailyActive} label="日別アクティブ数" />
               </section>
             </div>
@@ -793,11 +850,11 @@ ${label}`,
             {/* 利用時間帯（ホットスポット）と利用状況の内訳帯 */}
             <div className="grid lg:grid-cols-2 gap-3 mb-4">
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">利用時間帯（直近30日・日本時間）</h2>
+                <SectionHeading title="利用時間帯（直近30日・日本時間）" caption="1日のうち何時ごろ使われているか。告知や配信のタイミングの参考に。" help="直近30日の利用を日本時間の時間帯別に合計したもの（app_usage_hourly）。" />
                 <HourlyBarsChart hourly={hourlyActive} label="利用時間帯" />
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">最終利用の内訳（最終利用・ログイン・設定同期の最新値で判定）</h2>
+                <SectionHeading title="最終利用の内訳" caption="登録者を「最後に使ったのはいつか」で分けたもの。定着度の目安。" help="最終利用・最終ログイン・設定同期の最新値で判定。7日以内／8〜30日／31日以上／形跡なし に分類します。" />
                 <ActiveBreakdownBar breakdown={activity.breakdown} />
               </section>
             </div>
@@ -805,14 +862,15 @@ ${label}`,
             {/* 流入元の割合とセットアップ状況（離脱位置・選択の内訳） */}
             <div className="grid lg:grid-cols-2 gap-3 mb-4">
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">流入元の割合</h2>
+                <SectionHeading title="流入元の割合" caption="登録者がどの経路（X/note/LINE等）から来たかの内訳。" help="各行の実効的な流入元の割合。公開前の登録者はモニター/本人に自動振り分けされます（下の注記参照）。" />
                 <SegmentBar segments={sourceSegments} label="流入元の割合" />
                 <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
                   公開（7/18 20:00）より前の登録者は全員モニターか本人のため「モニター／本人」に自動振り分け。公開後のモニターは各行の「モニター指定」ボタンで手動タグ付けできます（流入元が「モニター」になり実ユーザーの集計から外れる）。それ以外で経路不明な人が「未計測」です
                 </p>
               </section>
+              <SourceQualityTable rows={sourceQuality} />
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">セットアップ状況</h2>
+                <SectionHeading title="セットアップ状況" caption="初期設定が完了/途中/未計測のどれか。途中なら離脱位置も下に出ます。" help="SetupWizard の到達ステップ（onb_furthest）で判定。「完了」は同期まで到達した人です。" />
                 <SegmentBar segments={setupSegments} label="セットアップ状況" />
                 {dropoffBars.length > 0 && (
                   <>
@@ -822,11 +880,11 @@ ${label}`,
                 )}
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">使う知識の選択（複数選択可・記録がある人のみ）</h2>
+                <SectionHeading title="使う知識の選択（複数選択可・記録がある人のみ）" caption="セットアップで選んだ知識ソース。専門医/自分/みんなの何を求めているか。" help="オンボーディングの選択（onb_targets）。複数選択可のため合計は人数と一致しません。" />
                 <CountBars items={knowledgeBars} label="使う知識の選択" />
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">接続モードとDB設定（記録がある人のみ）</h2>
+                <SectionHeading title="接続モードとDB設定（記録がある人のみ）" caption="シンプル/パワーの接続方式と、テンプレ複製/既存DB連携のどちらで入ったか。" help="onb_mode（接続モード）と onb_db_setup（DB設定の入り方）の内訳です。" />
                 <div className="space-y-4">
                   <SegmentBar segments={modeSegments} label="接続モード" />
                   <SegmentBar segments={dbSetupSegments} label="DB設定の入り方" />
@@ -837,9 +895,7 @@ ${label}`,
             {/* LP訪問（medinode-lp）: 登録の手前、LPを見た人の推移・時間帯・流入元 */}
             <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
               <div className="flex items-baseline justify-between mb-3">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  LP訪問（紹介ページ・登録の手前）
-                </h2>
+                <SectionHeading title="LP訪問（紹介ページ・登録の手前）" caption="登録の手前、紹介ページ（LP）を見た人の動き。登録者とは別集計の匿名カウント。" help="lp_visits（匿名の訪問計測）。個々の登録者とは紐付けできないため、あくまで登録前の到達量として見ます。" className="mb-0" />
                 <span className="text-xs text-gray-400 dark:text-gray-500">
                   {lpTotal > 0 ? `流入元記録 累計 ${lpTotal}件` : '流入元は蓄積待ち'}
                 </span>
@@ -865,6 +921,7 @@ ${label}`,
             </section>
 
             {/* 区分ごとの人数サマリー。0人の区分も薄く表示して「0人」と「非表示」を区別できるようにする */}
+            <SectionHeading title="区分ごとの人数" caption="登録者を区分（課金/トライアル/無料/失効など）別に集計したバッジ。0人の区分も薄く表示。" help="member-ledger の区分定義に基づく内訳です。永続無料(comp)・管理者(admin)なども含みます。" />
             <div className="flex flex-wrap gap-2 mb-4">
               {(Object.keys(KIND_STYLE) as MemberKind[]).map((k) => {
                 const Icon = KIND_STYLE[k].icon
