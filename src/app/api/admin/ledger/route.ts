@@ -46,7 +46,7 @@ export async function GET() {
 
     const { data: subs, error: subErr } = await admin
       .from('subscriptions')
-      .select('user_id, plan, status, trial_ends_at, current_period_end, stripe_customer_id, updated_at, created_at')
+      .select('user_id, plan, status, trial_ends_at, current_period_end, stripe_customer_id, updated_at')
     if (subErr) throw new Error(`契約状態の取得に失敗: ${subErr.message}`)
 
     const subByUser = new Map((subs ?? []).map((s) => [s.user_id as string, s]))
@@ -228,8 +228,10 @@ export async function GET() {
           isMonitor: u.user_metadata?.is_monitor === true,
           // 課金からの解約（churn）判定用。Stripe顧客に紐づくかだけを boolean で（IDは出さない）。
           hasStripe: !!summary?.stripe_customer_id,
-          // MRRの月次推移用。サブスク行の作成時刻（無ければ null）。
-          subCreatedAt: (s?.created_at as string | undefined) ?? null,
+          // MRRの月次推移用。subscriptions に契約開始時刻の列が無いため現状は常に null
+          // （updated_at は更新で動くので開始日には使えない）。月次推移は表示せず MRR/ARR の
+          // 現在値のみ出す。将来 start_at 列を足したらここを差し替える。
+          subCreatedAt: null as string | null,
         }
       })
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
