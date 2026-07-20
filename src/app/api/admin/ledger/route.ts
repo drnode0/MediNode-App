@@ -283,6 +283,10 @@ export async function GET() {
       hourlyActive: hourlyTotal > 0 ? hourlyActive : [],
       // 友達紹介の成立総数（KPI表示用）。
       referralTotal: referredUsers.size,
+      // イベント記録DBのNotion URL（台帳から「イベントを追加・編集」で開くため）。未設定なら null。
+      eventsDbUrl: process.env.EVENTS_NOTION_DB
+        ? `https://www.notion.so/${process.env.EVENTS_NOTION_DB.replace(/-/g, '')}`
+        : null,
       // LP訪問（medinode-lp）。日別推移・時間帯（直近30日・JST）・流入元（全期間）。
       lpDaily,
       lpHourly: lpHourlyTotal > 0 ? lpHourly : [],

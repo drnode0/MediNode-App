@@ -16,6 +16,7 @@ import {
   CreditCard,
   Crown,
   Download,
+  ExternalLink,
   Gift,
   Hourglass,
   RefreshCw,
@@ -205,6 +206,7 @@ export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
   const [events, setEvents] = useState<ChartEvent[]>([])
+  const [eventsDbUrl, setEventsDbUrl] = useState<string | null>(null)
   const [hourlyActive, setHourlyActive] = useState<number[]>([])
   const [lpDaily, setLpDaily] = useState<DailyPoint[]>([])
   const [lpHourly, setLpHourly] = useState<number[]>([])
@@ -238,6 +240,7 @@ export function AdminLedgerClient() {
       setRows(data.rows)
       setDailyActive(Array.isArray(data.dailyActive) ? data.dailyActive : [])
       setEvents(Array.isArray(data.events) ? data.events : [])
+      setEventsDbUrl(typeof data.eventsDbUrl === 'string' ? data.eventsDbUrl : null)
       setHourlyActive(Array.isArray(data.hourlyActive) ? data.hourlyActive : [])
       setLpDaily(Array.isArray(data.lpDaily) ? data.lpDaily : [])
       setLpHourly(Array.isArray(data.lpHourly) ? data.lpHourly : [])
@@ -697,8 +700,27 @@ ${label}`,
             {/* グラフ2枚: 登録の伸びと日々の利用 */}
             <div className="grid lg:grid-cols-2 gap-3 mb-4">
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">登録者数の推移（累積）</h2>
+                <div className="flex items-baseline justify-between mb-2 gap-2">
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">登録者数の推移（累積）</h2>
+                  {eventsDbUrl && (
+                    <a
+                      href={eventsDbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline whitespace-nowrap shrink-0"
+                      title="Notionのイベント記録DBを開く（ローンチ・キャンペーン・告知などを1行足すとグラフに反映）"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+                      イベントを追加・編集
+                    </a>
+                  )}
+                </div>
                 <TrendLineChart points={cumulative} label="登録者数の推移" events={events} />
+                {eventUplift.length === 0 && eventsDbUrl && (
+                  <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+                    「イベントを追加・編集」からローンチ・キャンペーン・告知などを1行足すと、この線に縦マーカーで出ます。
+                  </p>
+                )}
                 {eventUplift.length > 0 && (
                   <ol className="mt-2 space-y-0.5">
                     {eventUplift.map((ev, i) => (
