@@ -2071,9 +2071,20 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 const MANUAL_BADGE_STYLE = 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300'
 const MANUAL_TYPE_STYLE: Record<string, string> = {
   '📕 マニュアル': MANUAL_BADGE_STYLE,
+  '📝 メモ': MANUAL_BADGE_STYLE,
   '📢 お知らせ': MANUAL_BADGE_STYLE,
   '🔧 業務改善': MANUAL_BADGE_STYLE,
 }
+
+// 種別の正規化（先頭絵文字と空白を除去）。表記ゆれ・絵文字有無を吸収して
+// タブ所属の判定やフィルタ照合に使う。norm('📝 メモ')==='メモ'。
+function normManualType(s: string | null | undefined): string {
+  return stripLeadingEmoji(s).replace(/\s+/g, '')
+}
+// 種別タブの正順。マニュアルDBは個人×部署の二層設計のため、個人で生きる
+// マニュアル・メモを前、部署で生きるお知らせ・業務改善を後ろに置く。
+// 実際に出すのはこのうちレコードが存在する種別だけ（ジャンルと同じ動的表示）。
+const MANUAL_TYPE_ORDER = ['📕 マニュアル', '📝 メモ', '📢 お知らせ', '🔧 業務改善']
 function ManualCard({ hit }: { hit: Hit }) {
   const [expanded, setExpanded] = useState(false)
   const displaySummary = hit.aiSummary || hit.summary || null
@@ -2141,12 +2152,22 @@ function NotionManualTab() {
     // 自作DBでは「マニュアル」「お知らせ（重要）」等の絵文字なし・接尾辞つきもあり得る。
     // 完全一致だと表記ゆれで種別タブから無言で漏れるため、絵文字と空白を除いた
     // 部分一致でゆるく照合する（知識レベル判定と同じ寛容さに揃える）。
-    const norm = (s: string | null | undefined) => stripLeadingEmoji(s).replace(/\s+/g, '')
-    const want = norm(typeFilter)
-    return records.filter((r) => norm(r.manualType).includes(want))
+    const want = normManualType(typeFilter)
+    return records.filter((r) => normManualType(r.manualType).includes(want))
   }, [records, typeFilter])
 
-  const TYPE_TABS = ['', '📕 マニュアル', '📢 お知らせ', '🔧 業務改善']
+  // 種別タブは「実在する種別だけ」を正順で出す（ジャンルと同じ動的表示）。個人ユーザーに
+  // 使わないお知らせ・業務改善の空タブを見せないため。0〜1種別なら絞り込む意味がないので
+  // 種別バー自体を隠す（空DBは下のEmptyNoticeが案内を出すのでバグには見えない）。
+  const presentTypes = useMemo(
+    () => MANUAL_TYPE_ORDER.filter((c) => {
+      const want = normManualType(c)
+      return records.some((r) => normManualType(r.manualType).includes(want))
+    }),
+    [records],
+  )
+  const showTypeBar = presentTypes.length >= 2
+  const TYPE_TABS = ['', ...presentTypes]
   const composingRef = useRef(false)
 
   return (
@@ -2158,24 +2179,26 @@ function NotionManualTab() {
           onChange={(e) => { setQuery(e.target.value); search(e.target.value) }}
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
-          placeholder="マニュアル・お知らせを検索..."
+          placeholder="マニュアル・メモ・お知らせを検索..."
           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 mb-2"
         />
-        <div className="flex gap-1 overflow-x-auto">
-          {TYPE_TABS.map((t) => (
-            <button
-              key={t || 'all'}
-              onClick={() => setTypeFilter(t)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
-                typeFilter === t
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              {t ? stripLeadingEmoji(t) : 'すべて'}
-            </button>
-          ))}
-        </div>
+        {showTypeBar && (
+          <div className="flex gap-1 overflow-x-auto">
+            {TYPE_TABS.map((t) => (
+              <button
+                key={t || 'all'}
+                onClick={() => setTypeFilter(t)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                  typeFilter === t
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                {t ? stripLeadingEmoji(t) : 'すべて'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {loading && <SkeletonCards />}
       {error && <SearchErrorNotice error={error} />}
