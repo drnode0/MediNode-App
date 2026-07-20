@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Noto_Sans_JP } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
+import { MaintenanceGate } from '@/components/MaintenanceGate'
 import { PremiumSync } from '@/components/auth/PremiumSync'
 import { SettingsSync } from '@/components/auth/SettingsSync'
 import { UsagePing } from '@/components/auth/UsagePing'
@@ -117,6 +118,7 @@ export default function RootLayout({
           }}
         />
         <PwaRuntime />
+        <MaintenanceGate />
         <AuthProvider>
           <PremiumSync />
           <SettingsSync />
