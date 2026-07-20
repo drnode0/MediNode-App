@@ -10,37 +10,40 @@
 // CSSクラスで切り替え、数値・ラベルは通常のテキスト色に載せる。
 
 import { useMemo, useState } from 'react'
+import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
 export type DailyPoint = { date: string; count: number }
 
-// 日付キー（YYYY-MM-DD）を「M/D」表示にする。
+// 日付/日時（YYYY-MM-DD か ISO）を「M/D」表示にする。先頭10文字＝日付部だけを見る。
 function fmtShort(date: string): string {
-  const [, m, d] = date.split('-')
+  const [, m, d] = date.slice(0, 10).split('-')
   return `${Number(m)}/${Number(d)}`
 }
 
 // ---- 累積折れ線（登録者数の推移） ------------------------------------------
 
-// createdAt の一覧から日別の累積数列を作る（呼び出し側でテストしやすい純関数）。
-export function buildCumulativeSeries(createdAts: Array<string | null>): DailyPoint[] {
-  const days = createdAts
-    .filter((c): c is string => !!c)
-    .map((c) => c.slice(0, 10))
-    .sort()
-  if (days.length === 0) return []
+// createdAt の一覧から累積数列を作る（呼び出し側でテストしやすい純関数）。
+// 日付ではなく実時刻（ISO）でステップを刻むので、同じ日の中でもイベントの前後が
+// 横位置に正しく出る（例: ローンチ20:00の後に増えた登録が右側に伸びる）。
+// nowIso は末尾を現在時刻まで伸ばすための基準（テスト時は固定値を渡す）。
+export function buildCumulativeSeries(
+  createdAts: Array<string | null>,
+  nowIso: string = new Date().toISOString()
+): DailyPoint[] {
+  const stamps = createdAts.filter((c): c is string => !!c).sort()
+  if (stamps.length === 0) return []
   const points: DailyPoint[] = []
   let total = 0
-  // 登録があった日だけ点を打つ（間の日は折れ線の傾きが表す）。末尾に「今日」を足して
-  // 最新の水準まで線を伸ばす。
-  for (const day of days) {
+  for (const ts of stamps) {
     total++
     const last = points[points.length - 1]
-    if (last && last.date === day) last.count = total
-    else points.push({ date: day, count: total })
+    // 同時刻の登録は1点にまとめて最新の累計にする。
+    if (last && last.date === ts) last.count = total
+    else points.push({ date: ts, count: total })
   }
-  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  // 末尾に「今」を足して最新の水準まで線を伸ばす。
   const last = points[points.length - 1]
-  if (last && last.date < today) points.push({ date: today, count: total })
+  if (last && last.date < nowIso) points.push({ date: nowIso, count: total })
   return points
 }
 
@@ -133,7 +136,7 @@ export function TrendLineChart({
         </text>
         {/* イベントマーカー: 縦の点線＋番号。番号の意味はグラフ下の凡例で示す */}
         {events.map((ev, i) => {
-          const et = new Date(ev.date).getTime()
+          const et = eventStartMs(ev.date)
           if (Number.isNaN(et) || et < geom.t0 || et > geom.t0 + geom.span) return null
           const x = PAD_L + ((et - geom.t0) / geom.span) * (CHART_W - PAD_L - PAD_R)
           return (
@@ -143,7 +146,7 @@ export function TrendLineChart({
               <text x={x} y={PAD_T + 3.5} textAnchor="middle" fontSize="10" fontWeight="700" className="fill-white dark:fill-gray-900">
                 {i + 1}
               </text>
-              <title>{`${fmtShort(ev.date)} ${ev.label}`}</title>
+              <title>{`${formatEventStamp(ev.date)} ${ev.label}`}</title>
             </g>
           )
         })}

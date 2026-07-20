@@ -168,7 +168,8 @@ export async function GET() {
           for (const page of data.results ?? []) {
             const props = page.properties ?? {}
             const label = (props['名前']?.title ?? []).map((x) => x.plain_text ?? '').join('').trim()
-            const date = props['日付']?.date?.start?.slice(0, 10)
+            // 日付のみ(YYYY-MM-DD)も時刻つき(ISO)もそのまま保持し、グラフ側で時刻を反映する。
+            const date = props['日付']?.date?.start
             if (label && date) events.push({ date, label })
           }
           events.sort((a, b) => a.date.localeCompare(b.date))

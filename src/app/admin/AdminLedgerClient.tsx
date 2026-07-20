@@ -60,6 +60,7 @@ import {
 } from '@/lib/ledger-metrics'
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
+import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
 type LedgerRow = {
   userId: string
@@ -641,7 +642,7 @@ ${label}`,
     if (!rows || events.length === 0) return []
     const now = Date.now()
     return events.map((ev) => {
-      const start = new Date(`${ev.date}T00:00:00+09:00`).getTime()
+      const start = eventStartMs(ev.date)
       const end = start + 7 * 24 * 60 * 60 * 1000
       const count = rows.filter((r) => {
         if (!r.createdAt) return false
@@ -889,7 +890,7 @@ ${label}`,
                     {eventUplift.map((ev, i) => (
                       <li key={`${ev.date}-${ev.label}`} className="flex items-baseline gap-1.5 text-xs text-gray-600 dark:text-gray-300">
                         <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 dark:bg-amber-500 text-white dark:text-gray-900 text-[10px] font-bold shrink-0 self-center" aria-hidden>{i + 1}</span>
-                        <span className="text-gray-400 dark:text-gray-500 shrink-0">{ev.date.slice(5).replace('-', '/')}</span>
+                        <span className="text-gray-400 dark:text-gray-500 shrink-0">{formatEventStamp(ev.date)}</span>
                         <span className="truncate">{ev.label}</span>
                         <span className="ml-auto shrink-0 font-semibold text-gray-800 dark:text-gray-100">
                           {ev.ongoing ? `${ev.elapsedDays}日目 +${ev.count}人` : `7日で +${ev.count}人`}
