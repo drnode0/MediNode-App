@@ -99,7 +99,14 @@ const SOURCE_STYLE: Record<string, { label: string; badge: string }> = {
   line: { label: 'LINE', badge: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
   lp: { label: 'LP直接', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
   direct: { label: '直接', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
+  // 流入元計測より前（＝公開前）の登録者。全員モニターか本人なので、未計測とは区別して示す。
+  monitor: { label: 'モニター', badge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200' },
+  self: { label: '本人', badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
 }
+
+// 公開（ローンチ）日時。これより前の登録は流入元計測が存在しなかったため、
+// 「未計測」ではなく モニター（管理者は本人）として扱う。JST 2026-07-18 20:00。
+const LAUNCH_MS = Date.parse('2026-07-18T20:00:00+09:00')
 
 // 表記ゆれの吸収。対応表追加前に生ホスト名で記録された値も既知の媒体に寄せる。
 function normalizeSource(source: string): string {
@@ -107,6 +114,14 @@ function normalizeSource(source: string): string {
   if (source === 't.co' || source === 'x.com' || source === 'twitter.com') return 'x'
   if (source === 'note.com' || source === 'note.mu') return 'note'
   return source
+}
+
+// 表示用の実効的な流入元。記録があればそれ、無ければ公開前は monitor/self、公開後は null（未計測）。
+function effectiveSource(r: { source: string | null; createdAt: string | null; kind: MemberKind }): string | null {
+  if (r.source) return normalizeSource(r.source)
+  const created = r.createdAt ? new Date(r.createdAt).getTime() : 0
+  if (created && created < LAUNCH_MS) return r.kind === 'admin' ? 'self' : 'monitor'
+  return null // 公開後に計測できなかった人は本当に不明なので「未計測」のまま
 }
 
 function SourceBadge({ source: raw }: { source: string | null }) {
@@ -364,7 +379,7 @@ ${label}`,
       [
         csvCell(r.email),
         csvCell(MEMBER_KIND_LABEL[r.kind]),
-        csvCell(r.source ? normalizeSource(r.source) : '—'),
+        csvCell(effectiveSource(r) ?? '未計測'),
         csvCell(r.referralCount > 0 ? String(r.referralCount) : '0'),
         csvCell(r.viaReferral ? '紹介経由' : '—'),
         csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
@@ -512,14 +527,11 @@ ${label}`,
 
   // 流入元の割合。既知の媒体は固定色、それ以外は「その他」にまとめる。
   const sourceSegments = useMemo<Segment[]>(() => {
-    const counts = { x: 0, note: 0, notion: 0, line: 0, lp: 0, direct: 0, other: 0, unknown: 0 }
+    const counts = { x: 0, note: 0, notion: 0, line: 0, lp: 0, direct: 0, monitor: 0, self: 0, other: 0, unknown: 0 }
     for (const r of rows ?? []) {
-      if (!r.source) {
-        counts.unknown++
-        continue
-      }
-      const source = normalizeSource(r.source)
-      if (source in counts) counts[source as keyof typeof counts]++
+      const source = effectiveSource(r)
+      if (source === null) counts.unknown++
+      else if (source in counts) counts[source as keyof typeof counts]++
       else counts.other++
     }
     return [
@@ -529,6 +541,8 @@ ${label}`,
       { label: 'LINE', count: counts.line, className: 'bg-teal-400' },
       { label: 'LP直接', count: counts.lp, className: 'bg-orange-400' },
       { label: '直接', count: counts.direct, className: 'bg-gray-400 dark:bg-gray-500' },
+      { label: 'モニター', count: counts.monitor, className: 'bg-indigo-400' },
+      { label: '本人', count: counts.self, className: 'bg-slate-400' },
       { label: 'その他', count: counts.other, className: 'bg-sky-400' },
       { label: '未計測', count: counts.unknown, className: 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700' },
     ]
@@ -760,7 +774,7 @@ ${label}`,
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">流入元の割合</h2>
                 <SegmentBar segments={sourceSegments} label="流入元の割合" />
                 <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-                  計測開始（2026-07-19）前からの登録者は、次にLP経由で来訪するまで「未計測」に入ります
+                  公開（7/18 20:00）より前の登録者は全員モニターか本人のため「モニター／本人」に振り分け。公開後にLP経由でなく来た人だけが「未計測」です
                 </p>
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
@@ -969,7 +983,7 @@ ${label}`,
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <SourceBadge source={r.source} />
+                          <SourceBadge source={effectiveSource(r)} />
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex flex-col gap-1 items-start">
