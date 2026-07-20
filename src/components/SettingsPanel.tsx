@@ -260,6 +260,9 @@ function ReferralInvite() {
       {data.count > 0 && (
         <p className="text-[11px] text-gray-400 dark:text-gray-500">これまでに {data.count} 人の方が、このコードから始めています。</p>
       )}
+      <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+        ※ SNSなど公開の場で紹介する際は、紹介特典を受け取っている旨（「#PR」「紹介特典あり」など）を一言添えてください。
+      </p>
     </div>
   )
 }
