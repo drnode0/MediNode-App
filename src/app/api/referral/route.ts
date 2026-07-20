@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 import {
   getOrCreateReferralCode,
   countReferralRedemptions,
@@ -18,7 +18,7 @@ import { REFERRAL_NEW_USER_DAYS, REFERRAL_REWARD_DAYS } from '@/lib/campaign'
  * コードの利用（償還）は /api/premium/trial が受け持つ（入力欄は既存のまま）。
  */
 export async function GET(req: NextRequest) {
-  if (!rateLimit(`referral:${clientIp(req)}`, 30, 10 * 60 * 1000)) {
+  if (!(await rateLimitAsync(`referral:${clientIp(req)}`, 30, 10 * 60 * 1000))) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

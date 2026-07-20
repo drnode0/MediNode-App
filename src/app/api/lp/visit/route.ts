@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitAsync } from '@/lib/rate-limit'
 
 // LP以外のサイトからは読めない・数えられないようにする（ブラウザのCORSで抑止）。
 const ALLOWED_ORIGINS = new Set([
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
 
   // 機械的な連打によるカウンター水増しを抑える（1IPあたり1分に10回まで）。
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (!rateLimit(`lp-visit:${ip}`, 10, 60_000)) {
+  if (!(await rateLimitAsync(`lp-visit:${ip}`, 10, 60_000))) {
     return NextResponse.json({ ok: false }, { status: 429, headers })
   }
 

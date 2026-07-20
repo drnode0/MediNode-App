@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionIfLoginRequired } from '@/lib/api-guard'
-import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 import { Client } from '@notionhq/client'
 
 // 臨床疑問（CQ）のワンタップ登録。
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   // 書き込み系のため軽くレート制限（機械的な連投・スパム書き込みの抑止）。
-  if (!rateLimit(`create-cq:${clientIp(req)}`, 20, 5 * 60_000)) {
+  if (!(await rateLimitAsync(`create-cq:${clientIp(req)}`, 20, 5 * 60_000))) {
     return NextResponse.json(
       { error: '短時間に登録が集中しています。少し待ってから再度お試しください。' },
       { status: 429 },

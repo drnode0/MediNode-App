@@ -12,10 +12,10 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { grantTrialByUserId, hasSubscriptionRecord } from '@/lib/supabase/subscriptions'
 import { isAutoTrialEligible } from '@/lib/auto-trial'
 import { autoTrialDays } from '@/lib/campaign'
-import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`auto-trial:${clientIp(req)}`, 10, 10 * 60 * 1000)) {
+  if (!(await rateLimitAsync(`auto-trial:${clientIp(req)}`, 10, 10 * 60 * 1000))) {
     return NextResponse.json({ ok: false, reason: 'rate_limited' }, { status: 429 })
   }
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

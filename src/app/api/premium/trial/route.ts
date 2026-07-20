@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { grantComplimentaryByUserId, grantTrialByUserId, hasLiveStripeSubscription } from '@/lib/supabase/subscriptions'
 import { notifyCompGranted } from '@/lib/comp-notify'
-import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 import { trialCodeDays, REFERRAL_NEW_USER_DAYS } from '@/lib/campaign'
 import { looksLikeReferralCode, normalizeReferralCode, canRedeemReferral, isSameMailbox } from '@/lib/referral'
@@ -49,7 +49,7 @@ import type { User } from '@supabase/supabase-js'
 export async function POST(req: NextRequest) {
   // S-5: 共有コードの総当たり対策。IP単位で 10回/10分 まで（正規ユーザーの
   // 入力ミス数回は許容しつつ、機械的な列挙を止める）。
-  if (!rateLimit(`trial:${clientIp(req)}`, 10, 10 * 60 * 1000)) {
+  if (!(await rateLimitAsync(`trial:${clientIp(req)}`, 10, 10 * 60 * 1000))) {
     return NextResponse.json(
       { error: '試行回数が多すぎます。しばらく待ってからお試しください' },
       { status: 429 },

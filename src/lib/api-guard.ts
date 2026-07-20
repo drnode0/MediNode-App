@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 
 // REQUIRE_LOGIN=true なら Supabase セッションを検証し、未ログインは 401 を返す。
 // 通過時は null を返す（呼び出し側は `const denied = await requireSessionIfLoginRequired(); if (denied) return denied` の形で使う）。
@@ -55,7 +55,7 @@ export async function requireSessionOrSetupRateLimit(
   if (user) return null
 
   // 未ログイン＝セットアップ中の呼び出しとみなし、IPレート制限だけで通す。
-  if (!rateLimit(`setup:${routeKey}:${clientIp(req)}`, limit, windowMs)) {
+  if (!(await rateLimitAsync(`setup:${routeKey}:${clientIp(req)}`, limit, windowMs))) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
   return null

@@ -1,6 +1,6 @@
 // 固定ウィンドウ・レート制限のテスト。
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { rateLimit, clientIp } from '../rate-limit'
+import { rateLimit, rateLimitAsync, clientIp } from '../rate-limit'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -29,6 +29,24 @@ describe('rateLimit', () => {
     expect(rateLimit(a, 1, 60_000)).toBe(true)
     expect(rateLimit(b, 1, 60_000)).toBe(true)
     expect(rateLimit(a, 1, 60_000)).toBe(false)
+  })
+})
+
+describe('rateLimitAsync（Upstash未設定時のフォールバック）', () => {
+  // 本番の env が無いテスト環境では、共有ストア版もインメモリ版と同じ挙動になるべき
+  // （設定するまで挙動を変えない・締め出さない、という約束の担保）。
+  it('Upstash未設定なら limit回まで許可し超過を拒否する（インメモリ相当）', async () => {
+    const key = `async-${Math.random()}`
+    for (let i = 0; i < 3; i++) expect(await rateLimitAsync(key, 3, 60_000)).toBe(true)
+    expect(await rateLimitAsync(key, 3, 60_000)).toBe(false)
+  })
+
+  it('Upstash未設定でもキーが違えば独立にカウントされる', async () => {
+    const a = `async-a-${Math.random()}`
+    const b = `async-b-${Math.random()}`
+    expect(await rateLimitAsync(a, 1, 60_000)).toBe(true)
+    expect(await rateLimitAsync(b, 1, 60_000)).toBe(true)
+    expect(await rateLimitAsync(a, 1, 60_000)).toBe(false)
   })
 })
 
