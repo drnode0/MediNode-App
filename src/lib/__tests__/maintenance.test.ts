@@ -6,6 +6,7 @@ import {
   isMaintenanceAllowedPath,
   shouldBlockForMaintenance,
 } from '@/lib/maintenance'
+import { readMaintenanceFlag, __resetMaintenanceFlagCache } from '@/lib/maintenance'
 
 describe('isAdminEmail', () => {
   beforeEach(() => { process.env.COMP_ADMIN_EMAILS = 'Owner@Example.com, second@example.com' })
@@ -65,5 +66,57 @@ describe('proxy ゲート判定', () => {
     expect(shouldBlockForMaintenance({ maintenance: true, pathname: '/', hasValidBypass: true })).toBe(false)
     expect(shouldBlockForMaintenance({ maintenance: true, pathname: '/login', hasValidBypass: false })).toBe(false)
     expect(shouldBlockForMaintenance({ maintenance: false, pathname: '/', hasValidBypass: false })).toBe(false)
+  })
+})
+
+describe('readMaintenanceFlag', () => {
+  beforeEach(() => {
+    __resetMaintenanceFlagCache()
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+  })
+  afterEach(() => {
+    __resetMaintenanceFlagCache()
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  })
+
+  it('Supabaseの値 true を返す', async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify([{ value: true }]), { status: 200 })) as unknown as typeof fetch
+    expect(await readMaintenanceFlag({ nowMs: 1000, fetchImpl })).toBe(true)
+  })
+
+  it('行が無ければ false', async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify([]), { status: 200 })) as unknown as typeof fetch
+    expect(await readMaintenanceFlag({ nowMs: 1000, fetchImpl })).toBe(false)
+  })
+
+  it('TTL内は2回目にfetchしない（キャッシュ）', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response(JSON.stringify([{ value: true }]), { status: 200 })
+    }) as unknown as typeof fetch
+    await readMaintenanceFlag({ nowMs: 1000, fetchImpl })
+    await readMaintenanceFlag({ nowMs: 1000 + 5000, fetchImpl }) // TTL(30s)内
+    expect(calls).toBe(1)
+  })
+
+  it('TTLを過ぎたら再fetchする', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response(JSON.stringify([{ value: false }]), { status: 200 })
+    }) as unknown as typeof fetch
+    await readMaintenanceFlag({ nowMs: 1000, fetchImpl })
+    await readMaintenanceFlag({ nowMs: 1000 + 31_000, fetchImpl }) // TTL(30s)超
+    expect(calls).toBe(2)
+  })
+
+  it('fetch失敗時はフェイルオープン（false）', async () => {
+    const fetchImpl = (async () => { throw new Error('network') }) as unknown as typeof fetch
+    expect(await readMaintenanceFlag({ nowMs: 1000, fetchImpl })).toBe(false)
   })
 })

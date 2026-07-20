@@ -93,3 +93,45 @@ export function shouldBlockForMaintenance(opts: {
   if (isMaintenanceAllowedPath(opts.pathname)) return false
   return true
 }
+
+// ── フラグ読取（TTLキャッシュ付き）──
+// proxy が毎ページ表示で叩くため、Supabaseへの往復をTTLで間引く。
+// ウォームインスタンスではキャッシュヒットでDBアクセスを省略。ON切替は最大 TTL 秒で反映。
+const FLAG_TTL_MS = 30_000
+let flagCache: { value: boolean; at: number } | null = null
+
+export function __resetMaintenanceFlagCache(): void {
+  flagCache = null
+}
+
+export async function readMaintenanceFlag(opts?: {
+  nowMs?: number
+  fetchImpl?: typeof fetch
+}): Promise<boolean> {
+  const nowMs = opts?.nowMs ?? Date.now()
+  const fetchImpl = opts?.fetchImpl ?? fetch
+
+  if (flagCache && nowMs - flagCache.at < FLAG_TTL_MS) return flagCache.value
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anon) return false // 未設定はフェイルオープン
+
+  try {
+    const res = await fetchImpl(
+      `${url}/rest/v1/app_flags?select=value&key=eq.${MAINTENANCE_FLAG_KEY}`,
+      {
+        headers: { apikey: anon, Authorization: `Bearer ${anon}` },
+        cache: 'no-store',
+      },
+    )
+    if (!res.ok) return flagCache?.value ?? false
+    const rows = (await res.json()) as Array<{ value: boolean }>
+    const value = rows.length > 0 ? !!rows[0].value : false
+    flagCache = { value, at: nowMs }
+    return value
+  } catch {
+    // ネットワーク不調時は前回値、無ければフェイルオープン（アプリを止めない）。
+    return flagCache?.value ?? false
+  }
+}
