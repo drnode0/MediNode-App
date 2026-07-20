@@ -45,11 +45,12 @@ const SOURCE_ALIAS: Record<string, string> = {
   'notion.so': 'notion', 'notion.com': 'notion', 'notion.site': 'notion',
   'line.me': 'line', 'liff.line.me': 'line',
 }
-const KNOWN_SOURCES = new Set(['x', 'note', 'notion', 'line', 'lp', 'direct', 'instagram', 'youtube'])
+const KNOWN_SOURCES = new Set(['x', 'note', 'notion', 'line', 'lp', 'direct', 'instagram', 'youtube', 'search'])
 function normalizeSource(raw: unknown): string {
   if (typeof raw !== 'string') return 'direct'
   const s0 = raw.trim().toLowerCase().slice(0, 40)
   if (!s0) return 'direct'
+  if (['google.', 'bing.', 'yahoo.', 'duckduckgo.', 'baidu.', 'ecosia.'].some((h) => s0.includes(h))) return 'search'
   const s = SOURCE_ALIAS[s0] ?? s0
   return KNOWN_SOURCES.has(s) ? s : 'other'
 }

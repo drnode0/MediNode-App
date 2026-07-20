@@ -100,6 +100,7 @@ const SOURCE_STYLE: Record<string, { label: string; badge: string }> = {
   line: { label: 'LINE', badge: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
   lp: { label: 'LP直接', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' },
   direct: { label: '直接', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
+  search: { label: '検索', badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' },
   // 流入元計測より前（＝公開前）の登録者。全員モニターか本人なので、未計測とは区別して示す。
   monitor: { label: 'モニター', badge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200' },
   self: { label: '本人', badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
@@ -114,6 +115,8 @@ function normalizeSource(source: string): string {
   if (source === 'notion.so' || source === 'notion.com' || source === 'notion.site') return 'notion'
   if (source === 't.co' || source === 'x.com' || source === 'twitter.com') return 'x'
   if (source === 'note.com' || source === 'note.mu') return 'note'
+  // 生ホストで記録された検索エンジンも「検索」に寄せる。
+  if (['google.', 'bing.', 'yahoo.', 'duckduckgo.', 'baidu.', 'ecosia.'].some((h) => source.includes(h))) return 'search'
   return source
 }
 
@@ -557,7 +560,7 @@ ${label}`,
 
   // 流入元の割合。既知の媒体は固定色、それ以外は「その他」にまとめる。
   const sourceSegments = useMemo<Segment[]>(() => {
-    const counts = { x: 0, note: 0, notion: 0, line: 0, lp: 0, direct: 0, monitor: 0, self: 0, other: 0, unknown: 0 }
+    const counts = { x: 0, note: 0, notion: 0, line: 0, lp: 0, search: 0, direct: 0, monitor: 0, self: 0, other: 0, unknown: 0 }
     for (const r of rows ?? []) {
       const source = effectiveSource(r)
       if (source === null) counts.unknown++
@@ -570,6 +573,7 @@ ${label}`,
       { label: 'Notion', count: counts.notion, className: 'bg-violet-400' },
       { label: 'LINE', count: counts.line, className: 'bg-teal-400' },
       { label: 'LP直接', count: counts.lp, className: 'bg-orange-400' },
+      { label: '検索', count: counts.search, className: 'bg-blue-500 dark:bg-blue-400' },
       { label: '直接', count: counts.direct, className: 'bg-gray-400 dark:bg-gray-500' },
       { label: 'モニター', count: counts.monitor, className: 'bg-indigo-400' },
       { label: '本人', count: counts.self, className: 'bg-slate-400' },

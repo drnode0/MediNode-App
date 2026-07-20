@@ -34,6 +34,12 @@ const REFERRER_MAP: Record<string, string> = {
   'medinode-lp.vercel.app': 'lp',
 }
 
+// 検索エンジン（自然検索）のリファラーは流入元「search」にまとめる。
+const SEARCH_HOSTS = ['google.', 'bing.', 'yahoo.', 'duckduckgo.', 'baidu.', 'ecosia.']
+function isSearchHost(host: string): boolean {
+  return SEARCH_HOSTS.some((s) => host.includes(s))
+}
+
 function detectSource(): { source: string; medium: string | null } | null {
   const params = new URLSearchParams(window.location.search)
   const fromQuery = params.get('utm_source')
@@ -44,6 +50,7 @@ function detectSource(): { source: string; medium: string | null } | null {
     if (document.referrer) {
       const host = new URL(document.referrer).hostname.replace(/^www\./, '')
       if (host && host !== window.location.hostname) {
+        if (isSearchHost(host)) return { source: 'search', medium: null }
         return { source: REFERRER_MAP[host] ?? host.slice(0, 40), medium: null }
       }
     }
