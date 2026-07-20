@@ -7,6 +7,9 @@
 //     … 指定ユーザーへ永続無料（comp）をその場で付与する。Body: { userId }
 //       招待コードを渡さなくても、台帳から特定の人だけを解放できる。
 //       取り消しは従来どおり POST /api/premium/comp（revoke）。
+//   DELETE /api/admin/ledger
+//     … 指定ユーザーを完全削除する（タイプミス・重複登録の掃除）。Body: { userId }
+//       Stripe契約のある人は拒否（誤って課金アカウントを消さないための安全弁）。
 //
 // アクセス制御: requireAdmin（ログイン必須＋COMP_ADMIN_EMAILS のみ）。
 // service_role でRLSをバイパスして全件を読むため、認可はこのガードが唯一の砦。
@@ -321,6 +324,52 @@ export async function POST(req: NextRequest) {
     }
     await grantComplimentaryByUserId(userId)
     return NextResponse.json({ ok: true, userId, plan: 'comp' })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '不明なエラー'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+
+// アカウントの完全削除（タイプミス・重複登録の掃除用）。取り消せない操作。
+export async function DELETE(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+  try {
+    const { userId } = await req.json()
+    if (!userId || typeof userId !== 'string') {
+      return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    const admin = createAdminClient()
+    const { data, error } = await admin.auth.admin.getUserById(userId)
+    if (error || !data?.user) {
+      return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+    }
+    // 管理者（COMP_ADMIN_EMAILS）は誤操作防止のため削除不可。
+    const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+    if (data.user.email && adminEmails.includes(data.user.email.toLowerCase())) {
+      return NextResponse.json({ error: '管理者アカウントは削除できません' }, { status: 403 })
+    }
+    // Stripe契約（課金・カード登録）のある人は削除しない（安全弁）。
+    const { data: existing } = await admin
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (existing?.stripe_customer_id) {
+      return NextResponse.json(
+        { error: 'このユーザーはStripe契約の記録があるため、台帳からは削除できません（先にStripe側を確認してください）' },
+        { status: 409 },
+      )
+    }
+    // auth.users を削除。関連テーブル（subscriptions・app_usage・referral 等）は
+    // FK の on delete cascade で自動的に消える。
+    const { error: delErr } = await admin.auth.admin.deleteUser(userId)
+    if (delErr) throw new Error(delErr.message)
+    return NextResponse.json({ ok: true, userId })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })

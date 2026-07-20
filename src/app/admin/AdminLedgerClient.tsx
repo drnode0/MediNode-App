@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Sparkles,
   Timer,
+  Trash2,
   Trophy,
   UserPlus,
   Users,
@@ -299,6 +300,41 @@ export function AdminLedgerClient() {
         await load()
       } catch (err) {
         window.alert(err instanceof Error ? err.message : '付与に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
+  // アカウントの完全削除（タイプミス・重複登録の掃除用）。取り消せないため、
+  // 確認としてメールアドレスの再入力を求める。Stripe契約のある人はサーバー側で拒否される。
+  const removeAccount = useCallback(
+    async (row: LedgerRow) => {
+      const label = row.email ?? row.userId
+      const typed = window.prompt(
+        `このアカウントを完全に削除します（取り消せません・登録者数からも消えます）。
+` +
+          `間違いを防ぐため、確認としてメールアドレスをそのまま入力してください:
+${label}`,
+      )
+      if (typed === null) return // キャンセル
+      if (typed.trim() !== label) {
+        window.alert('入力がメールアドレスと一致しませんでした。削除を中止しました。')
+        return
+      }
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || '削除に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '削除に失敗しました')
       } finally {
         setBusy(null)
       }
@@ -871,7 +907,12 @@ export function AdminLedgerClient() {
                   {filtered.map((r) => {
                     const Icon = KIND_STYLE[r.kind].icon
                     const canRevoke = r.kind === 'comp' || r.kind === 'trial' || r.kind === 'auto_trial'
-                    const canGrant = r.kind === 'free' || r.kind === 'expired'
+                    // トライアル中でも「永続無料へ格上げ」できるようにする（期限終了を待たない）。
+                    const canGrant =
+                      r.kind === 'free' || r.kind === 'expired' || r.kind === 'trial' || r.kind === 'auto_trial'
+                    // 削除可: 管理者・課金/カード登録は対象外（Stripeはサーバー側でも拒否）。
+                    const canDelete =
+                      r.kind !== 'admin' && r.kind !== 'premium' && r.kind !== 'stripe_trial'
                     return (
                       <tr
                         key={r.userId}
@@ -946,37 +987,53 @@ export function AdminLedgerClient() {
                         )}
                         <DateCell iso={r.settingsUpdatedAt} />
                         <td className="px-4 py-3">
-                          {canRevoke ? (
-                            <button
-                              type="button"
-                              onClick={() => void revoke(r)}
-                              disabled={busy === r.userId}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 whitespace-nowrap"
-                            >
-                              {busy === r.userId ? (
-                                <Spinner className="w-3 h-3" />
-                              ) : (
-                                <XCircle className="w-3.5 h-3.5" aria-hidden />
-                              )}
-                              取り消す
-                            </button>
-                          ) : canGrant ? (
-                            <button
-                              type="button"
-                              onClick={() => void grant(r)}
-                              disabled={busy === r.userId}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-50 whitespace-nowrap"
-                            >
-                              {busy === r.userId ? (
-                                <Spinner className="w-3 h-3" />
-                              ) : (
-                                <Gift className="w-3.5 h-3.5" aria-hidden />
-                              )}
-                              永続無料を付与
-                            </button>
-                          ) : (
-                            <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
-                          )}
+                          <div className="flex flex-col gap-1 items-start">
+                            {canGrant && (
+                              <button
+                                type="button"
+                                onClick={() => void grant(r)}
+                                disabled={busy === r.userId}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {busy === r.userId ? (
+                                  <Spinner className="w-3 h-3" />
+                                ) : (
+                                  <Gift className="w-3.5 h-3.5" aria-hidden />
+                                )}
+                                永続無料を付与
+                              </button>
+                            )}
+                            {canRevoke && (
+                              <button
+                                type="button"
+                                onClick={() => void revoke(r)}
+                                disabled={busy === r.userId}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {busy === r.userId ? (
+                                  <Spinner className="w-3 h-3" />
+                                ) : (
+                                  <XCircle className="w-3.5 h-3.5" aria-hidden />
+                                )}
+                                取り消す
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => void removeAccount(r)}
+                                disabled={busy === r.userId}
+                                title="このアカウントを完全に削除（タイプミス・重複の掃除用）"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-400 dark:hover:bg-red-950/40 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" aria-hidden />
+                                削除
+                              </button>
+                            )}
+                            {!canGrant && !canRevoke && !canDelete && (
+                              <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
