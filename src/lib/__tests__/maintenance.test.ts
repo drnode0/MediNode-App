@@ -5,8 +5,9 @@ import {
   verifyBypassToken,
   isMaintenanceAllowedPath,
   shouldBlockForMaintenance,
+  readMaintenanceFlag,
+  __resetMaintenanceFlagCache,
 } from '@/lib/maintenance'
-import { readMaintenanceFlag, __resetMaintenanceFlagCache } from '@/lib/maintenance'
 
 describe('isAdminEmail', () => {
   beforeEach(() => { process.env.COMP_ADMIN_EMAILS = 'Owner@Example.com, second@example.com' })
@@ -118,5 +119,16 @@ describe('readMaintenanceFlag', () => {
   it('fetch失敗時はフェイルオープン（false）', async () => {
     const fetchImpl = (async () => { throw new Error('network') }) as unknown as typeof fetch
     expect(await readMaintenanceFlag({ nowMs: 1000, fetchImpl })).toBe(false)
+  })
+
+  it('env未設定でもTTL超過後はキャッシュ値にフェイルオープン', async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify([{ value: true }]), { status: 200 })) as unknown as typeof fetch
+    // まずキャッシュを true で温める
+    expect(await readMaintenanceFlag({ nowMs: 1000, fetchImpl })).toBe(true)
+
+    // env未設定 + TTL超過 → false ではなくキャッシュ値 true を返す
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    expect(await readMaintenanceFlag({ nowMs: 1000 + 31_000, fetchImpl })).toBe(true)
   })
 })
