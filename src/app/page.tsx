@@ -35,6 +35,7 @@ import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { RecentViewsList } from '@/components/RecentViews'
 import { SearchSuggest } from '@/components/SearchSuggest'
 import { recordRecentView } from '@/lib/recent-views'
+import { DailyQuestionCard } from '@/components/DailyQuestionCard'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreDotLegend } from '@/components/GenreBrowse'
 
 import { SyncPanel } from '@/components/SyncPanel'
@@ -1260,6 +1261,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <Configure hitsPerPage={20} filters={personalFilter || undefined} />
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
+      <DailyQuestionCard />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} history={history} />
         <OwnerFilterTabs
@@ -1552,6 +1554,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <>
+      <DailyQuestionCard />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="relative mb-2">
           <input

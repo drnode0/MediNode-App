@@ -1,0 +1,159 @@
+'use client'
+// 「今日の1問」カード。検索タブ最上部に出す、毎日開く理由になるエンジン。
+// 想起型: 問いを見て頭の中で答える → タップで答え（要約）→「覚えた/まだ」。10〜20秒で完結。
+// 出題はサーバー（/api/daily-question）が決定（全員同じ1問・段階公開フラグで出し分け）。
+// 「覚えた/まだ」は既存quiz-srs（localStorage）に記録し、サーバーには回答日付だけを送る。
+import { useEffect, useState } from 'react'
+import { Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
+import { recordQuizResult } from '@/lib/quiz-srs'
+import { recordRecentView } from '@/lib/recent-views'
+import { stripLeadingEmoji } from '@/lib/labels'
+
+type DailyQuestionPayload = {
+  available: boolean
+  date?: string
+  question?: {
+    objectID: string
+    title: string
+    genre?: string | string[]
+    knowledgeLevel?: string
+  }
+  answer?: string
+  notionUrl?: string
+  premium?: boolean
+}
+
+// 当日の進み具合（開いた/答えた）だけを端末に覚えておくキー。日付が変わればリセット。
+const STATE_KEY = 'medinode_daily_question_v1'
+type LocalState = { date: string; revealed: boolean; done: boolean }
+
+function loadState(date: string): LocalState {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATE_KEY) || 'null') as LocalState | null
+    if (raw && raw.date === date) return raw
+  } catch {}
+  return { date, revealed: false, done: false }
+}
+
+function saveState(state: LocalState) {
+  try {
+    localStorage.setItem(STATE_KEY, JSON.stringify(state))
+  } catch {}
+}
+
+export function DailyQuestionCard() {
+  const [data, setData] = useState<DailyQuestionPayload | null>(null)
+  const [state, setState] = useState<LocalState | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/daily-question', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d: DailyQuestionPayload) => {
+        if (cancelled) return
+        setData(d)
+        if (d.available && d.date) setState(loadState(d.date))
+      })
+      .catch(() => {
+        if (!cancelled) setData({ available: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!data?.available || !data.question || !state) return null
+  const q = data.question
+
+  const update = (next: Partial<LocalState>) => {
+    setState((prev) => {
+      if (!prev) return prev
+      const merged = { ...prev, ...next }
+      saveState(merged)
+      return merged
+    })
+  }
+
+  const answer = (ok: boolean) => {
+    recordQuizResult(q.objectID, ok)
+    // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。
+    void fetch('/api/daily-question/answered', { method: 'POST' }).catch(() => {})
+    update({ done: true })
+  }
+
+  const genreLabel = Array.isArray(q.genre) ? q.genre[0] : q.genre
+
+  // 回答済み: 小さな佇まいに変わる（連打で消費するものではない、が伝わる形）。
+  if (state.done) {
+    return (
+      <div className="mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5">
+        <Check className="h-4 w-4 shrink-0 text-brand-500" />
+        <p className="text-xs text-gray-500 dark:text-gray-400">今日の1問はここまで。また明日、1問だけ。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-gray-800">
+      <div className="p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <Sun className="h-4 w-4 shrink-0 text-brand-500" strokeWidth={2.2} />
+          <p className="text-xs font-semibold text-brand-600 dark:text-brand-300">今日の1問</p>
+          {genreLabel && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400">
+              {stripLeadingEmoji(genreLabel)}
+            </span>
+          )}
+        </div>
+        <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100">{q.title}</p>
+
+        {!state.revealed ? (
+          <button
+            type="button"
+            onClick={() => update({ revealed: true })}
+            className="mt-3 inline-flex items-center gap-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+          >
+            答えを見る
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        ) : (
+          <div className="animate-fade-in-up">
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+              {data.answer}
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => answer(true)}
+                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+              >
+                覚えた
+              </button>
+              <button
+                type="button"
+                onClick={() => answer(false)}
+                className="rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition hover:border-brand-400"
+              >
+                まだ
+              </button>
+            </div>
+            {data.notionUrl ? (
+              <a
+                href={data.notionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })}
+                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+              >
+                監修ページで続きを読む
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : (
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">この続きは監修ライブラリで読めます。</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
