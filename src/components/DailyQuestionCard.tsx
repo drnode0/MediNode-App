@@ -3,7 +3,7 @@
 // 想起型: 問いを見て頭の中で答える → タップで答え（要約）→「覚えた/まだ」。10〜20秒で完結。
 // 出題はサーバー（/api/daily-question）が決定（全員同じ1問・段階公開フラグで出し分け）。
 // 「覚えた/まだ」は既存quiz-srs（localStorage）に記録し、サーバーには回答日付だけを送る。
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
@@ -110,21 +110,20 @@ export function DailyQuestionCard() {
   // 回答済み: 「おつかれさま」を一瞬だけ見せて、すっと消す。
   // リロード後（justAnswered=false）やフェード完了後は最初から出さない
   // ＝回答済みカードが居座らない。
+  // ※ PushPrimer はこのカード本体の表示/非表示に連動させない
+  //   （dismissed で本体が消えても、通知プライマーはユーザーが操作するまで残す）。
+  let body: ReactNode = null
   if (state.done) {
-    if (!justAnswered || dismissed) return null
-    return (
-      <>
+    if (justAnswered && !dismissed) {
+      body = (
         <div className={`mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}>
           <Check className="h-4 w-4 shrink-0 text-brand-500" />
           <p className="text-xs text-gray-500 dark:text-gray-400">おつかれさまでした。また明日。</p>
         </div>
-        <PushPrimer open={primerOpen} onClose={() => setPrimerOpen(false)} />
-      </>
-    )
-  }
-
-  return (
-    <>
+      )
+    }
+  } else {
+    body = (
       <div className="mb-3 overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-gray-800">
         <div className="p-4">
           <div className="mb-2 flex items-center gap-2">
@@ -186,6 +185,12 @@ export function DailyQuestionCard() {
           )}
         </div>
       </div>
+    )
+  }
+
+  return (
+    <>
+      {body}
       <PushPrimer open={primerOpen} onClose={() => setPrimerOpen(false)} />
     </>
   )
