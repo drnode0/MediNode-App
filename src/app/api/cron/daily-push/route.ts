@@ -69,15 +69,17 @@ export async function GET(req: NextRequest) {
         if (!isPreviewEmail(u.user?.email)) continue
       }
 
-      // 当日送信済みチェック（ベストエフォート）。読取に失敗しても「未送信」扱いにして
-      // 続行する＝多少の重複送信はあり得ても、通知が完全に届かなくなる方を避ける。
+      // 当日送信済みチェック。読取失敗時は「既送信」扱いでスキップ（重複送信防止を優先）。
       const { data: log, error: logError } = await admin
         .from('daily_push_log')
         .select('user_id')
         .eq('user_id', uid)
         .eq('sent_on', today)
         .maybeSingle()
-      if (logError) console.error('daily-push: daily_push_log 確認に失敗', logError.message)
+      if (logError) {
+        console.error('daily-push: daily_push_log 確認に失敗', logError.message)
+        continue // fail closed: dedupe read エラーでユーザーをスキップ
+      }
       if (log) continue
 
       targets.push(uid)
