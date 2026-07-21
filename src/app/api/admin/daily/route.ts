@@ -181,9 +181,9 @@ export async function GET() {
       signupsToday,
       supabase: {
         mau,
-        mauQuota: 50000,
+        mauQuota: 100000, // Pro プランの含有 MAU（無料枠は 5万）
         dbBytes,
-        dbQuota: 500 * 1024 * 1024, // 無料枠 500MB
+        dbQuota: 8 * 1024 * 1024 * 1024, // Pro プランの含有ディスク 8GB（無料枠は 500MB）
         url: SB_USAGE_URL,
       },
     }
@@ -205,7 +205,7 @@ export async function GET() {
 
   const sb = val(0, {
     signupsToday: 0,
-    supabase: { mau: 0, mauQuota: 50000, dbBytes: null as number | null, dbQuota: 500 * 1024 * 1024, url: SB_USAGE_URL },
+    supabase: { mau: 0, mauQuota: 100000, dbBytes: null as number | null, dbQuota: 8 * 1024 * 1024 * 1024, url: SB_USAGE_URL },
   })
 
   return NextResponse.json({

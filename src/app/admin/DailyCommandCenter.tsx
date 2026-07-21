@@ -154,15 +154,20 @@ function UsageBar({
           {text ?? <span className="text-gray-400 dark:text-gray-500">{fallback ?? '—'}</span>}
         </span>
       </div>
-      {typeof pct === 'number' ? (
+      {/* 数値が取れるものだけバーを出す。リンクのみ（Algolia無料/Resend/egress）は横棒を出さない。 */}
+      {typeof pct === 'number' && (
         <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
         </div>
-      ) : (
-        <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700" />
       )}
     </a>
   )
+}
+
+// バイト量を MB/GB の読みやすい文字列に（例: 12MB / 8GB）。
+function fmtSize(bytes: number): string {
+  const mb = bytesToMB(bytes)
+  return mb < 1024 ? `${mb}MB` : `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}GB`
 }
 
 // クイックリンクのボタン。
@@ -453,14 +458,14 @@ export function DailyCommandCenter() {
         {data && (
           <div className="mb-4">
             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
-              枠の残り（無料枠に対する使用量・今月）
+              枠の残り（プラン枠に対する使用量・今月）
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {data.supabase.dbBytes != null ? (
                 <UsageBar
                   icon={Database}
                   label="Supabase DB"
-                  text={`${bytesToMB(data.supabase.dbBytes)}/${bytesToMB(data.supabase.dbQuota)}MB`}
+                  text={`${fmtSize(data.supabase.dbBytes)} / ${fmtSize(data.supabase.dbQuota)}`}
                   pct={usagePct(data.supabase.dbBytes, data.supabase.dbQuota)}
                   signal={usageSignal(usagePct(data.supabase.dbBytes, data.supabase.dbQuota))}
                   url={data.supabase.url}
@@ -492,8 +497,8 @@ export function DailyCommandCenter() {
               <UsageBar icon={Activity} label="Supabase egress" url={data.supabase.url} fallback="ダッシュボード" />
             </div>
             <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-              8割で警告色。DB容量はデータの増え方、推定MAUは利用者規模の目安（無料枠 DB 500MB・MAU 5万・Algolia 1万検索/月）。
-              Resend送信量・egress はAPIが無いためリンクから確認。
+              8割で警告色。DB容量はデータの増え方、推定MAUは利用者規模の目安（Supabase Pro枠 DB 8GB・MAU 10万・egress 250GB／Algolia 無料枠 1万検索/月）。
+              Algolia検索・Resend送信量・egress はプラン制限やAPI不在のため、数値ではなくリンクから確認します。
             </p>
           </div>
         )}
