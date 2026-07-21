@@ -8,6 +8,7 @@ import { Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
 import { stripLeadingEmoji } from '@/lib/labels'
+import PushPrimer, { shouldShowPrimer, markPrimerSeen } from './PushPrimer'
 
 type DailyQuestionPayload = {
   available: boolean
@@ -49,6 +50,7 @@ export function DailyQuestionCard() {
   const [justAnswered, setJustAnswered] = useState(false)
   const [fading, setFading] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [primerOpen, setPrimerOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +97,10 @@ export function DailyQuestionCard() {
     recordQuizResult(q.objectID, ok)
     // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。
     void fetch('/api/daily-question/answered', { method: 'POST' }).catch(() => {})
+    if (shouldShowPrimer()) {
+      markPrimerSeen()
+      setPrimerOpen(true)
+    }
     update({ done: true })
     setJustAnswered(true)
   }
@@ -107,74 +113,80 @@ export function DailyQuestionCard() {
   if (state.done) {
     if (!justAnswered || dismissed) return null
     return (
-      <div className={`mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}>
-        <Check className="h-4 w-4 shrink-0 text-brand-500" />
-        <p className="text-xs text-gray-500 dark:text-gray-400">おつかれさまでした。また明日。</p>
-      </div>
+      <>
+        <div className={`mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}>
+          <Check className="h-4 w-4 shrink-0 text-brand-500" />
+          <p className="text-xs text-gray-500 dark:text-gray-400">おつかれさまでした。また明日。</p>
+        </div>
+        <PushPrimer open={primerOpen} onClose={() => setPrimerOpen(false)} />
+      </>
     )
   }
 
   return (
-    <div className="mb-3 overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-gray-800">
-      <div className="p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <Sun className="h-4 w-4 shrink-0 text-brand-500" strokeWidth={2.2} />
-          <p className="text-xs font-semibold text-brand-600 dark:text-brand-300">今日の1問</p>
-          {genreLabel && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400">
-              {stripLeadingEmoji(genreLabel)}
-            </span>
-          )}
-        </div>
-        <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100">{q.title}</p>
-
-        {!state.revealed ? (
-          <button
-            type="button"
-            onClick={() => update({ revealed: true })}
-            className="mt-3 inline-flex items-center gap-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-          >
-            答えを見る
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        ) : (
-          <div className="animate-fade-in-up">
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-              {data.answer}
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => answer(true)}
-                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-              >
-                覚えた
-              </button>
-              <button
-                type="button"
-                onClick={() => answer(false)}
-                className="rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition hover:border-brand-400"
-              >
-                まだ
-              </button>
-            </div>
-            {data.notionUrl ? (
-              <a
-                href={data.notionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })}
-                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
-              >
-                監修ページで続きを読む
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            ) : (
-              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">この続きは監修ライブラリで読めます。</p>
+    <>
+      <div className="mb-3 overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-gray-800">
+        <div className="p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Sun className="h-4 w-4 shrink-0 text-brand-500" strokeWidth={2.2} />
+            <p className="text-xs font-semibold text-brand-600 dark:text-brand-300">今日の1問</p>
+            {genreLabel && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400">
+                {stripLeadingEmoji(genreLabel)}
+              </span>
             )}
           </div>
-        )}
+          <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100">{q.title}</p>
+
+          {!state.revealed ? (
+            <button
+              type="button"
+              onClick={() => update({ revealed: true })}
+              className="mt-3 inline-flex items-center gap-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+            >
+              答えを見る
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="animate-fade-in-up">
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                {data.answer}
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => answer(true)}
+                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+                >
+                  覚えた
+                </button>
+                <button
+                  type="button"
+                  onClick={() => answer(false)}
+                  className="rounded-xl border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition hover:border-brand-400"
+                >
+                  まだ
+                </button>
+              </div>
+              {data.notionUrl ? (
+                <a
+                  href={data.notionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })}
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+                >
+                  監修ページで続きを読む
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : (
+                <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">この続きは監修ライブラリで読めます。</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+      <PushPrimer open={primerOpen} onClose={() => setPrimerOpen(false)} />
+    </>
   )
 }
