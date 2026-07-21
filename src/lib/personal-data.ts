@@ -22,6 +22,7 @@ export const PERSONAL_DEVICE_KEYS = [
   'medinode_resolved_cq_seen_v1', // 解決済みCQ既読水位
   'medinode_author_seen_v1', // 筆者追加分 既読水位
   'medinode_author_digest_at_v1', // 筆者追加分 ダイジェスト日時
+  'medinode_push_primer_seen_v1', // 通知プライマーの既読水位
 ] as const
 
 // この端末で最後にログインしていたユーザーの id を覚えておくキー（機微でない）。
