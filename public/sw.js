@@ -15,7 +15,7 @@
 //    再インストール→新ビルドの全チャンク先読みが走る）。
 //    上げ忘れても推移的先読みでシェルは自己完結に保たれる
 //    （旧キャッシュが残って肥大するだけで、動作は壊れない）。
-const CACHE_VERSION = 'medinode-v15'
+const CACHE_VERSION = 'medinode-v16'
 const NAV_NETWORK_TIMEOUT = 4000 // 初回起動でネットワークを待つ上限（ms）
 const APP_SHELL = [
   '/',
@@ -194,4 +194,41 @@ self.addEventListener('fetch', (event) => {
       ),
     )
   }
+})
+
+// ── Web Push ──
+// payload: { title, body, url?, tag? }。本文が壊れていても最低限のタイトルで表示する。
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = {}
+  }
+  const title = data.title || 'MediNode'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'medinode',
+    data: { url: data.url || '/' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// 通知クリック: 既に開いているタブがあればフォーカス、無ければ url を開く。
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if ('focus' in c) {
+          c.navigate(target).catch(() => {})
+          return c.focus()
+        }
+      }
+      return self.clients.openWindow(target)
+    }),
+  )
 })
