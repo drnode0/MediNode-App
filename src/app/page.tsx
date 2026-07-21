@@ -32,6 +32,9 @@ import { ResultCard, type Hit } from '@/components/ResultCard'
 import { QuizCard } from '@/components/QuizCard'
 import { StudyNoteCard } from '@/components/StudyNoteCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
+import { RecentViewsList } from '@/components/RecentViews'
+import { SearchSuggest } from '@/components/SearchSuggest'
+import { recordRecentView } from '@/lib/recent-views'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreDotLegend } from '@/components/GenreBrowse'
 
 import { SyncPanel } from '@/components/SyncPanel'
@@ -1258,7 +1261,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
-        <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} />
+        <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} history={history} />
         <OwnerFilterTabs
           owner={ownerFilter}
           onChange={setOwnerFilter}
@@ -1273,6 +1276,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
             onSelect={handleSelect}
             onClear={clearHistory}
           />
+          <RecentViewsList />
           {/* 履歴ゼロ（初回）の白紙防止。パワーモードでも例示キーワードを出す
               （以前はNotionモードだけにあり、パワーモードでは何も出なかった）。 */}
           {history.length === 0 && (
@@ -1539,6 +1543,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   // 履歴保存はEnterで検索を確定したときのみ（入力途中の文字列は残さない）
   const composingRef = useRef(false)
+  const [inputFocused, setInputFocused] = useState(false)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing && query.trim()) {
       addHistory(query.trim())
@@ -1548,16 +1553,26 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   return (
     <>
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => { composingRef.current = true }}
-          onCompositionEnd={() => { composingRef.current = false }}
-          placeholder="キーワードで検索..."
-          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 mb-2"
-        />
+        <div className="relative mb-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => { composingRef.current = true }}
+            onCompositionEnd={() => { composingRef.current = false }}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            placeholder="キーワードで検索..."
+            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+          />
+          <SearchSuggest
+            value={query}
+            history={history}
+            visible={inputFocused}
+            onPick={(q) => { addHistory(q); handleChange(q) }}
+          />
+        </div>
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {loading && <SkeletonCards label="Notionを検索中..." />}
@@ -1571,6 +1586,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       ) : !query && !hasSearched ? (
         <>
           <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
+          <RecentViewsList />
           {/* 履歴ゼロ（初回）の白紙画面を防ぐ: 例示キーワードをタップで即検索できるようにする */}
           {history.length === 0 && (
             <ExampleKeywords onPick={(kw) => { addHistory(kw); handleChange(kw) }} />
@@ -2142,7 +2158,7 @@ function ManualCard({ hit }: { hit: Hit }) {
           <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed pt-3 whitespace-pre-wrap">{displaySummary}</p>
           {hit.aiKeywords && <p className="text-xs text-gray-300 mt-3 leading-relaxed">{hit.aiKeywords}</p>}
           <div className="flex justify-end mt-3">
-            <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+            <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.stopPropagation(); recordRecentView(hit) }}
               className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-800">
               Notionで開く
               <ExternalLink className="w-3.5 h-3.5" />
@@ -2151,7 +2167,7 @@ function ManualCard({ hit }: { hit: Hit }) {
         </div>
       )}
       {!hasExpandable && (
-        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 hover:text-brand-700">Notionで開く<ExternalLink className="w-3.5 h-3.5" /></a>
+        <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer" onClick={() => recordRecentView(hit)} className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 hover:text-brand-700">Notionで開く<ExternalLink className="w-3.5 h-3.5" /></a>
       )}
     </div>
   )

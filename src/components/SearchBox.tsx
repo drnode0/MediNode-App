@@ -3,11 +3,13 @@ import { useSearchBox } from 'react-instantsearch'
 import { useEffect, useRef, useState } from 'react'
 import { track } from '@vercel/analytics'
 import { Search } from 'lucide-react'
+import { SearchSuggest } from '@/components/SearchSuggest'
 
-export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {}) {
+export function SearchBox({ onSubmit, history }: { onSubmit?: (q: string) => void; history?: string[] } = {}) {
   const { query, refine } = useSearchBox()
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState(query)
+  const [focused, setFocused] = useState(false)
   const composingRef = useRef(false)
   const trackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -61,10 +63,25 @@ export function SearchBox({ onSubmit }: { onSubmit?: (q: string) => void } = {})
             if (v && onSubmit) onSubmit(v)
           }
         }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder="疾患名・キーワードで検索..."
         className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:border-brand-500 dark:focus:border-brand-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-sm"
         autoFocus
       />
+      {history && (
+        <SearchSuggest
+          value={inputValue}
+          history={history}
+          visible={focused}
+          onPick={(q) => {
+            setInputValue(q)
+            refine(q)
+            onSubmit?.(q)
+            inputRef.current?.blur()
+          }}
+        />
+      )}
     </div>
   )
 }

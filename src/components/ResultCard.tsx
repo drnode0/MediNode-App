@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { readingMinutes } from '@/lib/content-stats'
+import { recordRecentView } from '@/lib/recent-views'
 import { useState, type KeyboardEvent } from 'react'
 
 export type Hit = {
@@ -274,7 +275,10 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               href={hit.notionUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                recordRecentView(hit)
+              }}
               className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               Notionで開く
@@ -290,6 +294,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
           href={hit.notionUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => recordRecentView(hit)}
           className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
         >
           Notionで開く
