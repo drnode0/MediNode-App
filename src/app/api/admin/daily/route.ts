@@ -160,7 +160,11 @@ export async function GET() {
     try {
       const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
       const users = data?.users ?? []
-      signupsToday = users.filter((u) => isJstToday(u.created_at, now)).length
+      // 「登録を完了した人だけ」。OTPログインはメールを入れた時点で auth.users に行ができるため、
+      // メール確認済み（email_confirmed_at あり）に絞って未完了・テストの水増しを除く。
+      signupsToday = users.filter(
+        (u) => u.email_confirmed_at && isJstToday(u.created_at, now),
+      ).length
       const cutoff = now - 30 * 24 * 60 * 60 * 1000
       mau = users.filter((u) => u.last_sign_in_at && new Date(u.last_sign_in_at).getTime() >= cutoff).length
     } catch {
