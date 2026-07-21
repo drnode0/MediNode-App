@@ -1,0 +1,473 @@
+'use client'
+
+// 🗼 今日の管理（デイリー・コマンドセンター）。/admin の最上部に置く。
+//
+// 3層構成:
+//   A. ステータス帯   … 日次でチェックすべき外部ソースの「今の状態」をライブ表示
+//   B. 今日やること   … ライブ状態を内蔵したルーティン。チェックはlocalStorageで翌日自動リセット
+//   C. クイックリンク … 監視ダッシュボード・受付DB・媒体別URLコピー表
+//
+// データは GET /api/admin/daily（best-effort集約）。台帳本体(/api/admin/ledger)とは別fetchで、
+// 重い台帳を待たずに先に表示する。未接続ソースは自動でリンクに劣化する。
+
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  Activity,
+  AlertTriangle,
+  Check,
+  CheckSquare,
+  ChevronDown,
+  Copy,
+  CreditCard,
+  Database,
+  ExternalLink,
+  HelpCircle,
+  Mail,
+  MessageSquare,
+  RefreshCw,
+  Rocket,
+  Search,
+  Square,
+  Users,
+} from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
+import {
+  usageSignal,
+  pendingSignal,
+  failedSignal,
+  livenessSignal,
+  jstDateKey,
+  type Signal,
+} from '@/lib/admin-daily'
+
+type NotionSource = { configured: boolean; pending?: number; url: string | null }
+type StripeSource = { configured: boolean; todayCount?: number; failedCount?: number; url: string }
+type AppSource = { configured: boolean; up: boolean; ms: number; url: string }
+type VercelSource = { configured: boolean; state?: string; url: string }
+type UsageSource = { configured: boolean; used?: number; quota?: number; pct?: number; url: string }
+type LinkSource = { configured: boolean; url: string }
+
+type Daily = {
+  ok: true
+  signupsToday: number
+  feedback: NotionSource
+  cq: NotionSource
+  stripe: StripeSource
+  app: AppSource
+  vercel: VercelSource
+  algolia: UsageSource
+  resend: LinkSource
+  supabase: LinkSource
+}
+
+// シグナル→タイルの色クラス（枠・文字）。
+const SIGNAL_CLASS: Record<Signal, string> = {
+  ok: 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-900/10',
+  warn: 'border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-900/15',
+  alert: 'border-red-300 dark:border-red-700 bg-red-50/70 dark:bg-red-900/15',
+}
+const SIGNAL_DOT: Record<Signal, string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  alert: 'bg-red-500',
+}
+
+// 未接続タイルの見た目（点線・淡色）。
+const UNCONFIGURED_CLASS =
+  'border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40'
+
+const jstToday = () => jstDateKey(Date.now())
+const checksKey = (dateKey: string) => `medinode.admin.daily.checks.${dateKey}`
+
+function Tile({
+  icon: Icon,
+  label,
+  value,
+  signal,
+  configured,
+  url,
+}: {
+  icon: typeof Users
+  label: string
+  value: ReactNode
+  signal?: Signal
+  configured: boolean
+  url: string | null
+}) {
+  const cls = !configured ? UNCONFIGURED_CLASS : signal ? SIGNAL_CLASS[signal] : SIGNAL_CLASS.ok
+  const body = (
+    <div className={`rounded-xl border p-2.5 h-full ${cls}`}>
+      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+        <Icon className="w-3.5 h-3.5" aria-hidden />
+        <span className="truncate">{label}</span>
+        {configured && signal && (
+          <span className={`ml-auto w-1.5 h-1.5 rounded-full shrink-0 ${SIGNAL_DOT[signal]}`} aria-hidden />
+        )}
+      </div>
+      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1">
+        {configured ? value : <span className="text-gray-400 dark:text-gray-500">— 接続</span>}
+        {url && <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600 shrink-0" aria-hidden />}
+      </div>
+    </div>
+  )
+  if (!url) return body
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
+      {body}
+    </a>
+  )
+}
+
+// クイックリンクのボタン。
+function LinkChip({ icon: Icon, label, url }: { icon: typeof Users; label: string; url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap"
+    >
+      <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" aria-hidden />
+      {label}
+      <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600" aria-hidden />
+    </a>
+  )
+}
+
+export function DailyCommandCenter() {
+  const [data, setData] = useState<Daily | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [checks, setChecks] = useState<Record<string, boolean>>({})
+  const [openLinks, setOpenLinks] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/daily', { cache: 'no-store' })
+      if (res.ok) setData((await res.json()) as Daily)
+    } catch {
+      // best-effort。失敗しても台帳本体には影響しない。
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // チェックリスト状態の読み込み（当日キー）。日付が変われば空＝全未チェックに戻る。
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(checksKey(jstToday()))
+      if (raw) setChecks(JSON.parse(raw) as Record<string, boolean>)
+    } catch {
+      // localStorage 不可でも動作は続ける。
+    }
+  }, [])
+
+  const toggleCheck = useCallback((id: string) => {
+    setChecks((prev) => {
+      const next = { ...prev, [id]: !prev[id] }
+      try {
+        localStorage.setItem(checksKey(jstToday()), JSON.stringify(next))
+      } catch {
+        // 保存できなくてもUI上のチェックは効く。
+      }
+      return next
+    })
+  }, [])
+
+  const copy = useCallback(async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
+      window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500)
+    } catch {
+      window.prompt('コピーできませんでした。手動で選択してください', text)
+    }
+  }, [])
+
+  // 媒体別URL（LP入口）。LPのURLは env。未設定なら表は出さない。
+  const lpBase = process.env.NEXT_PUBLIC_LP_URL
+  const utmRows = useMemo(
+    () =>
+      lpBase
+        ? [
+            { label: 'X', url: `${lpBase}/?utm_source=x` },
+            { label: 'note', url: `${lpBase}/?utm_source=note` },
+            { label: 'LINE', url: `${lpBase}/?utm_source=line` },
+            { label: 'Notion', url: `${lpBase}/?utm_source=notion` },
+            { label: '直接（DM・口頭）', url: `${lpBase}/` },
+          ]
+        : [],
+    [lpBase],
+  )
+
+  // ステータス帯のタイル定義。
+  const tiles = useMemo(() => {
+    if (!data) return []
+    const d = data
+    return [
+      {
+        icon: Users,
+        label: '新規登録（今日）',
+        value: <>+{d.signupsToday}人</>,
+        signal: 'ok' as Signal,
+        configured: true,
+        url: '#ledger',
+      },
+      {
+        icon: MessageSquare,
+        label: 'フィードバック',
+        value: <>未対応 {d.feedback.pending ?? 0}件</>,
+        signal: pendingSignal(d.feedback.pending ?? 0),
+        configured: d.feedback.configured,
+        url: d.feedback.url,
+      },
+      {
+        icon: HelpCircle,
+        label: '臨床疑問(CQ)',
+        value: <>未対応 {d.cq.pending ?? 0}件</>,
+        signal: pendingSignal(d.cq.pending ?? 0),
+        configured: d.cq.configured,
+        url: d.cq.url,
+      },
+      {
+        icon: CreditCard,
+        label: '決済（今日）',
+        value: (
+          <>
+            {d.stripe.todayCount ?? 0}件
+            {(d.stripe.failedCount ?? 0) > 0 && (
+              <span className="text-red-600 dark:text-red-400">・失敗{d.stripe.failedCount}</span>
+            )}
+          </>
+        ),
+        signal: failedSignal(d.stripe.failedCount ?? 0),
+        configured: d.stripe.configured,
+        url: d.stripe.url,
+      },
+      {
+        icon: Activity,
+        label: 'アプリ生存',
+        value: d.app.up ? <>稼働中 {d.app.ms}ms</> : <>応答なし</>,
+        signal: livenessSignal(d.app.up),
+        configured: d.app.configured,
+        url: d.app.url || null,
+      },
+      {
+        icon: Rocket,
+        label: 'デプロイ',
+        value: <>{d.vercel.state ?? '—'}</>,
+        signal: d.vercel.state === 'ERROR' ? ('alert' as Signal) : ('ok' as Signal),
+        configured: d.vercel.configured,
+        url: d.vercel.url,
+      },
+      {
+        icon: Search,
+        label: 'Algolia（月）',
+        value: <>{d.algolia.pct ?? 0}%</>,
+        signal: usageSignal(d.algolia.pct ?? 0),
+        configured: d.algolia.configured,
+        url: d.algolia.url,
+      },
+    ]
+  }, [data])
+
+  // 今日やること（毎日）。ライブ状態を内蔵。
+  const dailySteps = useMemo(() => {
+    const d = data
+    return [
+      { id: 'signups', label: '新規登録・会員区分を見る', badge: d ? `今日 +${d.signupsToday}人` : '', url: '#ledger' },
+      {
+        id: 'feedback',
+        label: 'フィードバック新着を読む',
+        badge: d?.feedback.configured ? `未対応 ${d.feedback.pending ?? 0}件` : '未接続',
+        url: d?.feedback.url ?? null,
+      },
+      {
+        id: 'cq',
+        label: '臨床疑問の新着を確認',
+        badge: d?.cq.configured ? `未対応 ${d.cq.pending ?? 0}件` : '未接続',
+        url: d?.cq.url ?? null,
+      },
+      {
+        id: 'app',
+        label: 'アプリの生存確認',
+        badge: d?.app.configured ? (d.app.up ? '稼働中' : '応答なし') : '未接続',
+        url: d?.app.url || null,
+      },
+      {
+        id: 'deploy',
+        label: 'デプロイ・エラーを確認',
+        badge: d?.vercel.configured ? (d.vercel.state ?? '—') : 'リンクで確認',
+        url: d?.vercel.url ?? 'https://vercel.com/dashboard',
+      },
+      {
+        id: 'stripe',
+        label: '決済・プレミアム登録を確認',
+        badge: d?.stripe.configured
+          ? `今日 ${d.stripe.todayCount ?? 0}件${(d.stripe.failedCount ?? 0) > 0 ? `・失敗${d.stripe.failedCount}` : ''}`
+          : 'リンクで確認',
+        url: d?.stripe.url ?? 'https://dashboard.stripe.com/payments',
+      },
+    ]
+  }, [data])
+
+  const doneCount = dailySteps.filter((s) => checks[s.id]).length
+
+  return (
+    <section className="mb-6 rounded-2xl border border-brand-200 dark:border-brand-800/60 bg-white dark:bg-gray-800 overflow-hidden">
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between gap-2 px-4 py-3 bg-brand-50/70 dark:bg-brand-900/15 border-b border-brand-100 dark:border-brand-800/60">
+        <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          🗼 今日の管理
+          <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+            上から順に確認（{doneCount}/{dailySteps.length}）
+          </span>
+        </h2>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+          更新
+        </button>
+      </div>
+
+      <div className="p-4">
+        {/* A. ステータス帯 */}
+        {loading && !data ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500 py-4">
+            <Spinner className="w-4 h-4" />
+            状態を確認しています…
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5">
+            {tiles.map((t) => (
+              <Tile key={t.label} {...t} />
+            ))}
+          </div>
+        )}
+
+        {/* B. 今日やること */}
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">今日やること（毎日）</h3>
+        <ul className="space-y-1 mb-4">
+          {dailySteps.map((s, i) => {
+            const done = !!checks[s.id]
+            return (
+              <li
+                key={s.id}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+                  done ? 'opacity-50' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleCheck(s.id)}
+                  className="shrink-0 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+                  aria-pressed={done}
+                  aria-label={done ? 'チェックを外す' : 'チェックする'}
+                >
+                  {done ? (
+                    <CheckSquare className="w-4 h-4 text-brand-600 dark:text-brand-400" aria-hidden />
+                  ) : (
+                    <Square className="w-4 h-4" aria-hidden />
+                  )}
+                </button>
+                <span className="text-gray-400 dark:text-gray-500 text-xs w-4 shrink-0">{i + 1}</span>
+                <span className={`text-sm text-gray-800 dark:text-gray-100 ${done ? 'line-through' : ''}`}>
+                  {s.label}
+                </span>
+                {s.badge && (
+                  <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{s.badge}</span>
+                )}
+                {s.url && (
+                  <a
+                    href={s.url}
+                    target={s.url.startsWith('#') ? undefined : '_blank'}
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-brand-600 dark:text-brand-400 hover:underline"
+                    aria-label="開く"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+                  </a>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* C. クイックリンク（折りたたみ） */}
+        <button
+          type="button"
+          onClick={() => setOpenLinks((v) => !v)}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+        >
+          <ChevronDown className={`w-4 h-4 transition-transform ${openLinks ? 'rotate-180' : ''}`} aria-hidden />
+          クイックリンク（監視ダッシュボード・受付DB・貼るURL）
+        </button>
+        {openLinks && data && (
+          <div className="mt-3 space-y-4">
+            <div>
+              <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1.5">監視ダッシュボード</h4>
+              <div className="flex flex-wrap gap-2">
+                <LinkChip icon={Rocket} label="Vercel" url={data.vercel.url} />
+                <LinkChip icon={CreditCard} label="Stripe" url={data.stripe.url} />
+                <LinkChip icon={Search} label="Algolia" url={data.algolia.url} />
+                <LinkChip icon={Mail} label="Resend" url={data.resend.url} />
+                <LinkChip icon={Database} label="Supabase" url={data.supabase.url} />
+              </div>
+            </div>
+            {(data.feedback.url || data.cq.url) && (
+              <div>
+                <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1.5">受付DB（Notion）</h4>
+                <div className="flex flex-wrap gap-2">
+                  {data.feedback.url && <LinkChip icon={MessageSquare} label="フィードバックDB" url={data.feedback.url} />}
+                  {data.cq.url && <LinkChip icon={HelpCircle} label="臨床疑問受付DB" url={data.cq.url} />}
+                </div>
+              </div>
+            )}
+            {utmRows.length > 0 && (
+              <div>
+                <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 mb-1.5">
+                  媒体別 貼るURL（コピー用・末尾のutmで流入元を計測）
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {utmRows.map((r) => (
+                    <button
+                      key={r.label}
+                      type="button"
+                      onClick={() => void copy(r.url, r.label)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      title={r.url}
+                    >
+                      {copied === r.label ? (
+                        <Check className="w-4 h-4 text-brand-600 dark:text-brand-400" aria-hidden />
+                      ) : (
+                        <Copy className="w-4 h-4 text-gray-400 dark:text-gray-500" aria-hidden />
+                      )}
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 未接続の案内（1つでも未接続なら控えめに出す） */}
+        {data && (!data.feedback.configured || !data.cq.configured || !data.vercel.configured) && (
+          <p className="mt-3 text-[11px] text-gray-400 dark:text-gray-500 flex items-start gap-1">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden />
+            「— 接続」のタイルは環境変数（Notion DB ID／Vercelトークン等）を設定すると点灯します。設定するまではリンクとして機能します。
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}

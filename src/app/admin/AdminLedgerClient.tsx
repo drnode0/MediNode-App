@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
+  BarChart3,
   Check,
+  ChevronDown,
   Copy,
   CreditCard,
   Crown,
@@ -59,6 +61,7 @@ import {
   PREMIUM_MONTHLY_JPY,
 } from '@/lib/ledger-metrics'
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
+import { DailyCommandCenter } from './DailyCommandCenter'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -271,6 +274,8 @@ export function AdminLedgerClient() {
   const [onlyReferred, setOnlyReferred] = useState(false)
   const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
   const [copied, setCopied] = useState<string | null>(null)
+  // 分析・マーケ・安全の深掘りブロックの開閉（既定は閉じ、日次ビューを軽く保つ）。
+  const [showAnalytics, setShowAnalytics] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -792,6 +797,10 @@ ${label}`,
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
           登録ユーザーと契約状態の一覧です（管理者のみ閲覧できます）
         </p>
+
+        {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。
+            login/forbidden 画面では出さない（error時は非表示）。 */}
+        {!error && <DailyCommandCenter />}
         {!loading && !error && rows && campaignDaysLeft != null && (
           <div className="mb-6 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700">
             <Sparkles className="w-3.5 h-3.5" aria-hidden />
@@ -852,6 +861,20 @@ ${label}`,
               <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} help="referral_redemptions経由（友達紹介コード）で登録した人数の累計です。" />
             </div>
 
+            {/* 分析・マーケ・安全の深掘り。既定は閉じ、日次ビューを軽く保つ（🗼今日の管理が最上部）。 */}
+            <button
+              type="button"
+              onClick={() => setShowAnalytics((v) => !v)}
+              className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              aria-expanded={showAnalytics}
+            >
+              <BarChart3 className={`w-4 h-4 transition-transform ${showAnalytics ? '' : ''}`} aria-hidden />
+              詳しく見る（分析・マーケ・安全）
+              <ChevronDown className={`w-4 h-4 transition-transform ${showAnalytics ? 'rotate-180' : ''}`} aria-hidden />
+            </button>
+
+            {showAnalytics && (
+              <>
             {/* マーケ・経営サマリー: ファネル / 売上 / 継続 */}
             <div className="grid gap-3 mb-4 lg:grid-cols-2">
               <FunnelCard stages={funnel} />
@@ -1033,6 +1056,8 @@ ${label}`,
               <ContractIssuesPanel issues={contractIssues} />
               <AnomalyPanel signals={anomalies} />
             </div>
+              </>
+            )}
 
             {/* 検索＋プレミアム未利用の抽出 */}
             <div className="relative mb-2">
@@ -1078,7 +1103,7 @@ ${label}`,
             </div>
 
             {/* 台帳テーブル */}
-            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div id="ledger" className="scroll-mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
