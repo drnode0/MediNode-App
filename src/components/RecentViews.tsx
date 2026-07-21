@@ -4,12 +4,18 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, History } from 'lucide-react'
 import { loadRecentViews, clearRecentViews, recordRecentView, type RecentView } from '@/lib/recent-views'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 export function RecentViewsList() {
+  const { user, loading } = useAuth()
   const [views, setViews] = useState<RecentView[]>([])
+  // 認証が解決してから読む＝別ユーザーに変わった直後の再読込で、消去後の空を表示する。
+  // （AuthProvider が同じ認証更新の中で先に個人データを消してから user を更新するため、
+  //  user.id の変化で再読込すると前アカウントの残りは出ない。）
   useEffect(() => {
+    if (loading) return
     setViews(loadRecentViews())
-  }, [])
+  }, [user?.id, loading])
   if (views.length === 0) return null
 
   return (

@@ -7,6 +7,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
+import { reconcilePersonalDataForUser } from '@/lib/personal-data'
 
 type AuthState = {
   // Supabaseが未設定なら null のまま（ログイン機能を出さない）。
@@ -47,6 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session)
       setUser(data.session?.user ?? null)
       setLoading(false)
+      // 別ユーザーに変わっていたら、前の持ち主の端末ローカル個人データを消す。
+      reconcilePersonalDataForUser(data.session?.user?.id ?? null)
     })
 
     // ログイン・ログアウト・トークン更新を監視してstateを同期。
@@ -54,6 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(newSession)
       setUser(newSession?.user ?? null)
       setLoading(false)
+      // 同一ユーザーの更新では何もせず、別ユーザーに変わった時だけ消える。
+      reconcilePersonalDataForUser(newSession?.user?.id ?? null)
     })
 
     return () => {
