@@ -10,11 +10,12 @@ export function mergePrefs(patch: unknown): NotifyPrefs {
 }
 
 export async function getUserPrefs(admin: SupabaseClient, userId: string): Promise<NotifyPrefs> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('push_notify_prefs')
     .select('prefs')
     .eq('user_id', userId)
     .maybeSingle()
+  if (error) throw new Error(error.message)
   return parsePrefs(data?.prefs)
 }
 
@@ -23,8 +24,9 @@ export async function saveUserPrefs(
   userId: string,
   prefs: NotifyPrefs,
 ): Promise<void> {
-  await admin.from('push_notify_prefs').upsert(
+  const { error } = await admin.from('push_notify_prefs').upsert(
     { user_id: userId, prefs, updated_at: new Date().toISOString() },
     { onConflict: 'user_id' },
   )
+  if (error) throw new Error(error.message)
 }
