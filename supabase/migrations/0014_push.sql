@@ -36,3 +36,14 @@ drop policy if exists "push_notify_prefs own read" on public.push_notify_prefs;
 create policy "push_notify_prefs own read"
   on public.push_notify_prefs for select
   using (auth.uid() = user_id);
+
+-- 4) 当日二重送信防止ログ（送った日付のみ）。
+create table if not exists public.daily_push_log (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  sent_on date not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, sent_on)
+);
+
+alter table public.daily_push_log enable row level security;
+-- 読取ポリシーは作らない（service_role専用）。
