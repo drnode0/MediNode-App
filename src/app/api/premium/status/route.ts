@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveStatusByUserId } from '@/lib/supabase/subscriptions'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
+import { resolveEarlyAccess } from '@/lib/feature-access'
 
 export async function GET() {
   const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -33,6 +34,19 @@ export async function GET() {
     .filter(Boolean)
   const isAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase())
 
+  // 先行体験（マルチ部署串刺し検索）フラグ。env or 台帳 or GA。
+  // env/GA で決まる場合は DB 照会を省く。
+  let ledgerEarlyAccess: boolean | null = null
+  if (!resolveEarlyAccess({ email: user.email, ledgerEarlyAccess: null })) {
+    const { data: us } = await supabase
+      .from('user_settings')
+      .select('early_access')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    ledgerEarlyAccess = (us?.early_access as boolean | undefined) ?? null
+  }
+  const earlyAccess = resolveEarlyAccess({ email: user.email, ledgerEarlyAccess })
+
   const sub = isAdmin
     ? { active: true, status: 'comp_admin', currentPeriodEnd: null, trialEndsAt: null, cancelAtPeriodEnd: false }
     : await getActiveStatusByUserId(user.id)
@@ -42,6 +56,7 @@ export async function GET() {
       loggedIn: true,
       active: false,
       status: sub.status,
+      earlyAccess,
     })
   }
 
@@ -56,6 +71,7 @@ export async function GET() {
       active: true,
       status: sub.status,
       error: 'Algolia設定が不足しています',
+      earlyAccess,
     })
   }
 
@@ -72,6 +88,7 @@ export async function GET() {
     // 解約予約（期間末で終了・以降課金なし）。クライアントは currentPeriodEnd とセットで
     // 「解約手続き済み・◯/◯まで利用可能」を表示する。
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
+    earlyAccess,
     algolia: {
       appId: algoliaAppId,
       searchKey: issuePremiumSearchKey({
