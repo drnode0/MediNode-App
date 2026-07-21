@@ -7,6 +7,8 @@ export type AdminAction =
   | 'set_monitor'
   | 'unset_monitor'
   | 'export_csv'
+  | 'grant_early_access'
+  | 'revoke_early_access'
 
 // 監査ログを1件記録。テーブル未適用・失敗でも主アクションは止めない（握りつぶす）。
 export async function logAdminAction(

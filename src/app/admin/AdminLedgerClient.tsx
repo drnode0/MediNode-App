@@ -88,6 +88,7 @@ type LedgerRow = {
   viaReferral: boolean
   premiumUsedAt: string | null
   isMonitor: boolean
+  earlyAccess?: boolean
   hasStripe: boolean
   subCreatedAt: string | null
 }
@@ -417,6 +418,28 @@ ${label}`,
         await load()
       } catch (err) {
         window.alert(err instanceof Error ? err.message : 'モニター指定の変更に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
+  // 先行体験（マルチ部署串刺し検索）の開放 ON/OFF。user_settings.early_access を更新する。
+  const toggleEarlyAccess = useCallback(
+    async (row: LedgerRow) => {
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId, earlyAccess: !row.earlyAccess }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || '先行体験の変更に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '先行体験の変更に失敗しました')
       } finally {
         setBusy(null)
       }
@@ -1258,6 +1281,26 @@ ${label}`,
                                   <UserPlus className="w-3.5 h-3.5" aria-hidden />
                                 )}
                                 {r.isMonitor ? 'モニター' : 'モニター指定'}
+                              </button>
+                            )}
+                            {r.kind !== 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => void toggleEarlyAccess(r)}
+                                disabled={busy === r.userId}
+                                title={r.earlyAccess ? '先行体験を取り消す' : 'この人にマルチ部署串刺し検索を先行開放する'}
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
+                                  r.earlyAccess
+                                    ? 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
+                                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-teal-50 dark:hover:bg-teal-950/30'
+                                }`}
+                              >
+                                {r.earlyAccess ? (
+                                  <Check className="w-3.5 h-3.5" aria-hidden />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5" aria-hidden />
+                                )}
+                                {r.earlyAccess ? '先行体験' : '先行体験を開放'}
                               </button>
                             )}
                             {canDelete && (
