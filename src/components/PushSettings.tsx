@@ -61,17 +61,30 @@ export default function PushSettings() {
   }, [])
 
   const save = (next: NotifyPrefs) => {
+    const prev = prefs
     setPrefs(next)
-    void fetch('/api/push/prefs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prefs: next }),
-    })
-      .then(() => {
-        setSaveMsg('保存しました')
-        setTimeout(() => setSaveMsg(''), 2000)
-      })
-      .catch(() => {})
+    void (async () => {
+      try {
+        const res = await fetch('/api/push/prefs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefs: next }),
+        })
+        const data = await res.json().catch(() => ({ ok: false }))
+        if (res.ok && data?.ok) {
+          setSaveMsg('保存しました')
+          setTimeout(() => setSaveMsg(''), 2000)
+        } else {
+          setPrefs(prev)
+          setSaveMsg('保存できませんでした。時間をおいて再度お試しください。')
+          setTimeout(() => setSaveMsg(''), 3000)
+        }
+      } catch {
+        setPrefs(prev)
+        setSaveMsg('保存できませんでした。時間をおいて再度お試しください。')
+        setTimeout(() => setSaveMsg(''), 3000)
+      }
+    })()
   }
 
   if (!loaded) return null
