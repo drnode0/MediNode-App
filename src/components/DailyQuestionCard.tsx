@@ -44,6 +44,11 @@ function saveState(state: LocalState) {
 export function DailyQuestionCard() {
   const [data, setData] = useState<DailyQuestionPayload | null>(null)
   const [state, setState] = useState<LocalState | null>(null)
+  // 回答した「今このセッション」だけ完了メッセージを見せるためのフラグ。
+  // リロード後（既にdone）は false のまま＝最初から何も出さない。
+  const [justAnswered, setJustAnswered] = useState(false)
+  const [fading, setFading] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +67,18 @@ export function DailyQuestionCard() {
     }
   }, [])
 
+  // 回答直後だけ「おつかれさま」を数秒見せて、すっと消す
+  // （回答済みカードが居座って検索の邪魔にならないように）。
+  useEffect(() => {
+    if (!justAnswered) return
+    const fade = setTimeout(() => setFading(true), 1800)
+    const remove = setTimeout(() => setDismissed(true), 2400)
+    return () => {
+      clearTimeout(fade)
+      clearTimeout(remove)
+    }
+  }, [justAnswered])
+
   if (!data?.available || !data.question || !state) return null
   const q = data.question
 
@@ -79,16 +96,20 @@ export function DailyQuestionCard() {
     // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。
     void fetch('/api/daily-question/answered', { method: 'POST' }).catch(() => {})
     update({ done: true })
+    setJustAnswered(true)
   }
 
   const genreLabel = Array.isArray(q.genre) ? q.genre[0] : q.genre
 
-  // 回答済み: 小さな佇まいに変わる（連打で消費するものではない、が伝わる形）。
+  // 回答済み: 「おつかれさま」を一瞬だけ見せて、すっと消す。
+  // リロード後（justAnswered=false）やフェード完了後は最初から出さない
+  // ＝回答済みカードが居座らない。
   if (state.done) {
+    if (!justAnswered || dismissed) return null
     return (
-      <div className="mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5">
+      <div className={`mb-3 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}>
         <Check className="h-4 w-4 shrink-0 text-brand-500" />
-        <p className="text-xs text-gray-500 dark:text-gray-400">今日の1問はここまで。また明日、1問だけ。</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">おつかれさまでした。また明日。</p>
       </div>
     )
   }
