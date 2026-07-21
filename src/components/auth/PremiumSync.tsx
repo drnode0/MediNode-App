@@ -91,6 +91,14 @@ export function PremiumSync() {
         if (cancelled) return
         const current = getSettings() || DEFAULT_SETTINGS
 
+        // 先行体験（マルチ部署串刺し検索）フラグを反映。active/非activeを問わず同期する
+        // （フリー会員も対象になりうるため）。変化時のみ保存し、UI 反映のため軽くリロード。
+        if (typeof data.earlyAccess === 'boolean' && (current.earlyAccess ?? false) !== data.earlyAccess) {
+          saveSettings({ ...current, earlyAccess: data.earlyAccess })
+          window.location.reload()
+          return
+        }
+
         if (data.active && data.algolia) {
           // 契約有効 → プレミアムキーをこの端末の設定に反映。
           // 既に同じ値なら書き込まない（不要なリロード誘発を防ぐ）。

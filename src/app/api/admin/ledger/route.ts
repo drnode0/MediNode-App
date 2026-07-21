@@ -58,10 +58,13 @@ export async function GET() {
     // 設定を変えた・別端末でログイン復元した等でサーバー保存が走った時刻（検索のたびには動かない）。
     const { data: settings, error: setErr } = await admin
       .from('user_settings')
-      .select('user_id, updated_at')
+      .select('user_id, updated_at, early_access')
     if (setErr) throw new Error(`設定同期時刻の取得に失敗: ${setErr.message}`)
     const settingsByUser = new Map(
       (settings ?? []).map((s) => [s.user_id as string, s.updated_at as string | null]),
+    )
+    const earlyAccessByUser = new Map(
+      (settings ?? []).map((s) => [s.user_id as string, (s.early_access as boolean | undefined) ?? false]),
     )
 
     // 最終利用日（app_usage.last_used_at）。アプリを開くと1日1回記録される（/api/usage/ping）。
@@ -230,6 +233,8 @@ export async function GET() {
           premiumUsedAt: (u.user_metadata?.premium_last_used_at as string | undefined) ?? null,
           // 手動のモニター指定（オーナーが台帳から付ける）。流入元を「モニター」に上書きする。
           isMonitor: u.user_metadata?.is_monitor === true,
+          // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
+          earlyAccess: earlyAccessByUser.get(u.id) ?? false,
           // 課金からの解約（churn）判定用。Stripe顧客に紐づくかだけを boolean で（IDは出さない）。
           hasStripe: !!summary?.stripe_customer_id,
           // MRRの月次推移用。subscriptions に契約開始時刻の列が無いため現状は常に null
@@ -491,9 +496,32 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   try {
-    const { userId, isMonitor } = (await req.json()) as { userId?: unknown; isMonitor?: unknown }
+    const { userId, isMonitor, earlyAccess } = (await req.json()) as {
+      userId?: unknown
+      isMonitor?: unknown
+      earlyAccess?: unknown
+    }
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    // 先行体験（マルチ部署検索）の開放トグル。user_settings.early_access を更新する。
+    if (typeof earlyAccess === 'boolean') {
+      const admin = createAdminClient()
+      const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId)
+      if (uErr || !u?.user) {
+        return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+      }
+      const { error: upErr } = await admin
+        .from('user_settings')
+        .upsert({ user_id: userId, early_access: earlyAccess }, { onConflict: 'user_id' })
+      if (upErr) throw new Error(upErr.message)
+      await logAdminAction(admin, {
+        actorEmail: auth.email,
+        action: earlyAccess ? 'grant_early_access' : 'revoke_early_access',
+        targetUserId: userId,
+        targetEmail: u.user.email ?? null,
+      })
+      return NextResponse.json({ ok: true, userId, earlyAccess })
     }
     if (typeof isMonitor !== 'boolean') {
       return NextResponse.json({ error: 'isMonitor（真偽値）を指定してください' }, { status: 400 })

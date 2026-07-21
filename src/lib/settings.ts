@@ -1,5 +1,7 @@
 // ユーザーのAPIキー設定をlocalStorageで管理するユーティリティ
 
+import type { TeamConfig } from './teams'
+
 export type SearchMode = 'notion' | 'algolia'
 
 export type AppSettings = {
@@ -26,6 +28,11 @@ export type AppSettings = {
   teamNotionReferenceDbId: string
   // 部署のマニュアルDB（任意）
   teamNotionManualDbId: string
+  // 追加部署（先行体験・マルチ部署串刺し検索）。earlyAccess なアカウントだけ設定できる。
+  // 未設定/空 = 既存挙動と完全一致（サーバーは earlyAccess を再検証してからのみ使う）。
+  additionalTeams?: TeamConfig[]
+  // サーバー由来の先行体験フラグのミラー（表示制御のみ・判定の正はサーバー）。
+  earlyAccess?: boolean
 
   // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string

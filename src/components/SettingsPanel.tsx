@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
+import type { TeamConfig } from '@/lib/teams'
+import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { Spinner } from '@/components/Spinner'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -360,6 +362,27 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
+
+  // 追加部署（先行体験）。earlyAccess のときだけ編集 UI を出す。
+  const [additionalTeams, setAdditionalTeams] = useState<TeamConfig[]>(
+    () => (getSettings()?.additionalTeams ?? []).map((t) => ({ ...t })),
+  )
+  const earlyAccess = getSettings()?.earlyAccess === true
+
+  function saveAdditionalTeams(next: TeamConfig[]) {
+    const cleaned = next
+      .map((t) => ({
+        label: t.label.trim(),
+        notionToken: t.notionToken.trim(),
+        medicalDbId: t.medicalDbId ? extractNotionDbId(t.medicalDbId) : '',
+        referenceDbId: t.referenceDbId ? extractNotionDbId(t.referenceDbId) : undefined,
+        manualDbId: t.manualDbId ? extractNotionDbId(t.manualDbId) : undefined,
+      }))
+      .filter((t) => t.label && t.notionToken && t.medicalDbId)
+    const current = getSettings()
+    if (current) saveSettings({ ...current, additionalTeams: cleaned })
+    setAdditionalTeams(next)
+  }
 
   // セクションを開くたびに保存済み設定からフォームを読み直す。
   // パネルを開いたままログイン復元などで設定が入れ替わっても、古い（空の）スナップ
@@ -1089,6 +1112,29 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 >
                   部署DB接続を解除する
                 </button>
+              )}
+              {earlyAccess && (
+                <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">追加部署</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">先行体験</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">複数の部署DBを登録すると、検索・新着・ジャンルで横断して表示されます（先行体験中の機能です）。</p>
+                  {additionalTeams.map((t, i) => (
+                    <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+                      <input type="text" value={t.label} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="部署名（例：循環器）" className={inputCls} />
+                      <input type="password" value={t.notionToken} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, notionToken: e.target.value } : x))} placeholder="コネクトToken（ntn_...）" className={inputCls} />
+                      <input type="text" value={t.medicalDbId} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, medicalDbId: e.target.value } : x))} placeholder="Medical DB（URLまたはID）" className={inputCls} />
+                      <input type="text" value={t.referenceDbId ?? ''} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, referenceDbId: e.target.value } : x))} placeholder="Reference DB（任意）" className={inputCls} />
+                      <input type="text" value={t.manualDbId ?? ''} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, manualDbId: e.target.value } : x))} placeholder="Manual DB（任意）" className={inputCls} />
+                      <button onClick={() => saveAdditionalTeams(additionalTeams.filter((_, j) => j !== i))} className="w-full text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 py-1 transition-colors">この部署を削除</button>
+                    </div>
+                  ))}
+                  {additionalTeams.length < MAX_ADDITIONAL_TEAMS && (
+                    <button onClick={() => setAdditionalTeams((arr) => [...arr, { label: '', notionToken: '', medicalDbId: '' }])} className="w-full border border-dashed border-gray-300 dark:border-gray-600 rounded-xl py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">＋ 部署を追加</button>
+                  )}
+                  <button onClick={() => saveAdditionalTeams(additionalTeams)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors">追加部署を保存する</button>
+                </div>
               )}
             </div>
           )}
