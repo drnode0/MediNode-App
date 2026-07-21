@@ -32,10 +32,12 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import {
+  usagePct,
   usageSignal,
   pendingSignal,
   failedSignal,
   livenessSignal,
+  bytesToMB,
   jstDateKey,
   type Signal,
 } from '@/lib/admin-daily'
@@ -46,10 +48,12 @@ type AppSource = { configured: boolean; up: boolean; ms: number; url: string }
 type VercelSource = { configured: boolean; state?: string; url: string }
 type UsageSource = { configured: boolean; used?: number; quota?: number; pct?: number; url: string }
 type LinkSource = { configured: boolean; url: string }
+type SupabaseSource = { mau: number; mauQuota: number; dbBytes: number | null; dbQuota: number; url: string }
 
 type Daily = {
   ok: true
   signupsToday: number
+  supabase: SupabaseSource
   feedback: NotionSource
   cq: NotionSource
   stripe: StripeSource
@@ -57,7 +61,6 @@ type Daily = {
   vercel: VercelSource
   algolia: UsageSource
   resend: LinkSource
-  supabase: LinkSource
 }
 
 // シグナル→タイルの色クラス（枠・文字）。
@@ -114,6 +117,50 @@ function Tile({
   return (
     <a href={url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
       {body}
+    </a>
+  )
+}
+
+// 使用量ゲージ（無料枠に対する使用率のバー）。数値が取れないものはリンクにフォールバック。
+function UsageBar({
+  icon: Icon,
+  label,
+  text,
+  pct,
+  signal,
+  url,
+  fallback,
+}: {
+  icon: typeof Users
+  label: string
+  text?: string
+  pct?: number
+  signal?: Signal
+  url: string
+  fallback?: string
+}) {
+  const barColor = signal ? SIGNAL_DOT[signal] : 'bg-brand-500'
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/40"
+    >
+      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
+        <Icon className="w-3.5 h-3.5" aria-hidden />
+        <span className="truncate">{label}</span>
+        <span className="ml-auto text-gray-600 dark:text-gray-300 whitespace-nowrap">
+          {text ?? <span className="text-gray-400 dark:text-gray-500">{fallback ?? '—'}</span>}
+        </span>
+      </div>
+      {typeof pct === 'number' ? (
+        <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        </div>
+      ) : (
+        <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700" />
+      )}
     </a>
   )
 }
@@ -401,6 +448,55 @@ export function DailyCommandCenter() {
             )
           })}
         </ul>
+
+        {/* 枠の残り（無料枠に対する使用量） */}
+        {data && (
+          <div className="mb-4">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+              枠の残り（無料枠に対する使用量・今月）
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {data.supabase.dbBytes != null ? (
+                <UsageBar
+                  icon={Database}
+                  label="Supabase DB"
+                  text={`${bytesToMB(data.supabase.dbBytes)}/${bytesToMB(data.supabase.dbQuota)}MB`}
+                  pct={usagePct(data.supabase.dbBytes, data.supabase.dbQuota)}
+                  signal={usageSignal(usagePct(data.supabase.dbBytes, data.supabase.dbQuota))}
+                  url={data.supabase.url}
+                />
+              ) : (
+                <UsageBar icon={Database} label="Supabase DB" url={data.supabase.url} fallback="関数未適用" />
+              )}
+              <UsageBar
+                icon={Users}
+                label="推定MAU"
+                text={`${data.supabase.mau}/${data.supabase.mauQuota / 1000}k`}
+                pct={usagePct(data.supabase.mau, data.supabase.mauQuota)}
+                signal={usageSignal(usagePct(data.supabase.mau, data.supabase.mauQuota))}
+                url={data.supabase.url}
+              />
+              {data.algolia.configured && typeof data.algolia.pct === 'number' ? (
+                <UsageBar
+                  icon={Search}
+                  label="Algolia検索"
+                  text={`${data.algolia.pct}%`}
+                  pct={data.algolia.pct}
+                  signal={usageSignal(data.algolia.pct)}
+                  url={data.algolia.url}
+                />
+              ) : (
+                <UsageBar icon={Search} label="Algolia検索" url={data.algolia.url} fallback="—" />
+              )}
+              <UsageBar icon={Mail} label="Resend送信" url={data.resend.url} fallback="ダッシュボード" />
+              <UsageBar icon={Activity} label="Supabase egress" url={data.supabase.url} fallback="ダッシュボード" />
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+              8割で警告色。DB容量はデータの増え方、推定MAUは利用者規模の目安（無料枠 DB 500MB・MAU 5万・Algolia 1万検索/月）。
+              Resend送信量・egress はAPIが無いためリンクから確認。
+            </p>
+          </div>
+        )}
 
         {/* C. クイックリンク（折りたたみ） */}
         <button

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { AdminLedgerClient } from './AdminLedgerClient'
 
 export const metadata: Metadata = {
-  title: 'アカウント台帳 | MediNode',
-  description: '登録ユーザーと契約状態の一覧（管理者専用）',
+  title: '運用ダッシュボード | MediNode',
+  description: '日々の管理・会員・使用量・収支をまとめる管理者専用ダッシュボード',
   robots: { index: false, follow: false },
 }
 

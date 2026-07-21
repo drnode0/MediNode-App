@@ -10,7 +10,9 @@ import {
   jstDateKey,
   isJstToday,
   jstStartOfTodayMs,
+  bytesToMB,
 } from '../admin-daily'
+import { operatingCostTotal, type OperatingCost } from '../../config/operating-costs'
 
 describe('usagePct', () => {
   it('通常の割合を四捨五入で返す', () => {
@@ -119,5 +121,39 @@ describe('jstStartOfTodayMs', () => {
   it('JST今日の0時のUNIXミリ秒を返す', () => {
     const now = Date.parse('2026-07-21T05:00:00+09:00')
     expect(jstStartOfTodayMs(now)).toBe(Date.parse('2026-07-21T00:00:00+09:00'))
+  })
+})
+
+describe('bytesToMB', () => {
+  it('500MBちょうどを500.0で返す', () => {
+    expect(bytesToMB(500 * 1024 * 1024)).toBe(500)
+  })
+  it('小数1桁に丸める', () => {
+    expect(bytesToMB(1.25 * 1024 * 1024)).toBe(1.3)
+  })
+  it('不正値・負数は0', () => {
+    expect(bytesToMB(NaN)).toBe(0)
+    expect(bytesToMB(-100)).toBe(0)
+  })
+})
+
+describe('operatingCostTotal', () => {
+  it('月額を合計する', () => {
+    const costs: OperatingCost[] = [
+      { label: 'A', monthlyJpy: 3000 },
+      { label: 'B', monthlyJpy: 3800 },
+      { label: 'C', monthlyJpy: 0 },
+    ]
+    expect(operatingCostTotal(costs)).toBe(6800)
+  })
+  it('不正値は0として無視', () => {
+    const costs: OperatingCost[] = [
+      { label: 'A', monthlyJpy: 3000 },
+      { label: 'B', monthlyJpy: NaN },
+    ]
+    expect(operatingCostTotal(costs)).toBe(3000)
+  })
+  it('空配列は0', () => {
+    expect(operatingCostTotal([])).toBe(0)
   })
 })

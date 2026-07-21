@@ -75,3 +75,9 @@ export function isJstToday(iso: string | null | undefined, now: number): boolean
 export function jstStartOfTodayMs(now: number): number {
   return Date.parse(`${jstDateKey(now)}T00:00:00+09:00`)
 }
+
+// バイト→MB（小数1桁）。Supabase DB容量ゲージの表示用。
+export function bytesToMB(bytes: number): number {
+  if (!Number.isFinite(bytes) || bytes < 0) return 0
+  return Math.round((bytes / (1024 * 1024)) * 10) / 10
+}

@@ -62,6 +62,7 @@ import {
 } from '@/lib/ledger-metrics'
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
 import { DailyCommandCenter } from './DailyCommandCenter'
+import { OperatingCostCard } from './OperatingCostCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -762,7 +763,7 @@ ${label}`,
         <div className="flex items-center justify-between gap-3 mb-1">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" aria-hidden />
-            アカウント台帳
+            運用ダッシュボード
           </h1>
           <div className="flex items-center gap-2">
             <button
@@ -795,7 +796,7 @@ ${label}`,
           </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          登録ユーザーと契約状態の一覧です（管理者のみ閲覧できます）
+          日々の管理・会員・使用量・収支をまとめて見る管理者専用ダッシュボードです
         </p>
 
         {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。
@@ -860,6 +861,9 @@ ${label}`,
               />
               <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} help="referral_redemptions経由（友達紹介コード）で登録した人数の累計です。" />
             </div>
+
+            {/* 💰 運用コスト・収支（常時表示。売上MRRは computeRevenue から） */}
+            <OperatingCostCard mrrJpy={revenue.mrr} />
 
             {/* 分析・マーケ・安全の深掘り。既定は閉じ、日次ビューを軽く保つ（🗼今日の管理が最上部）。 */}
             <button

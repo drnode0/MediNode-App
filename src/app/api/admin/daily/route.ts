@@ -147,21 +147,47 @@ export async function GET() {
   if (!auth.ok) return auth.response
 
   const now = Date.now()
+  const SB_USAGE_URL = 'https://supabase.com/dashboard/project/_/settings/billing/usage'
 
-  // 今日の新規登録数（JST）。auth.users を軽く読むだけ（台帳の重い突合はしない）。
-  const signupsTodayP = (async () => {
+  // Supabase系: 今日の新規登録数・推定MAU（自前データから算出）・DB容量（RPC）。
+  // PATは不要。auth.users を1回読み、last_sign_in_at で直近30日のアクティブ数を数える。
+  // DB容量は get_db_size()（migration 0013）。関数未適用なら dbBytes=null（UIはリンクに劣化）。
+  const supabaseP = (async () => {
+    const admin = createAdminClient()
+    let signupsToday = 0
+    let mau = 0
+    let dbBytes: number | null = null
     try {
-      const admin = createAdminClient()
       const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      return (data?.users ?? []).filter((u) => isJstToday(u.created_at, now)).length
+      const users = data?.users ?? []
+      signupsToday = users.filter((u) => isJstToday(u.created_at, now)).length
+      const cutoff = now - 30 * 24 * 60 * 60 * 1000
+      mau = users.filter((u) => u.last_sign_in_at && new Date(u.last_sign_in_at).getTime() >= cutoff).length
     } catch {
-      return 0
+      // 取れなくても続行（0のまま）。
+    }
+    try {
+      const { data } = await admin.rpc('get_db_size')
+      const n = typeof data === 'number' ? data : data != null ? Number(data) : NaN
+      if (Number.isFinite(n)) dbBytes = n
+    } catch {
+      // 関数未適用なら null（DB容量ゲージはリンク表示）。
+    }
+    return {
+      signupsToday,
+      supabase: {
+        mau,
+        mauQuota: 50000,
+        dbBytes,
+        dbQuota: 500 * 1024 * 1024, // 無料枠 500MB
+        url: SB_USAGE_URL,
+      },
     }
   })()
 
   // 各ソースは独立に best-effort。失敗しても fallback に落として全体は返す。
   const settled = await Promise.allSettled([
-    signupsTodayP,
+    supabaseP,
     fetchNotionPending(process.env.FEEDBACK_NOTION_DB, process.env.FEEDBACK_NOTION_VIEW),
     fetchNotionPending(process.env.CQ_NOTION_DB, process.env.CQ_NOTION_VIEW),
     fetchStripe(now),
@@ -173,17 +199,22 @@ export async function GET() {
   const val = <T,>(i: number, fallback: T): T =>
     settled[i].status === 'fulfilled' ? (settled[i] as PromiseFulfilledResult<T>).value : fallback
 
+  const sb = val(0, {
+    signupsToday: 0,
+    supabase: { mau: 0, mauQuota: 50000, dbBytes: null as number | null, dbQuota: 500 * 1024 * 1024, url: SB_USAGE_URL },
+  })
+
   return NextResponse.json({
     ok: true,
-    signupsToday: val(0, 0),
+    signupsToday: sb.signupsToday,
+    supabase: sb.supabase,
     feedback: val(1, { configured: false, url: notionUrl(process.env.FEEDBACK_NOTION_DB, process.env.FEEDBACK_NOTION_VIEW) }),
     cq: val(2, { configured: false, url: notionUrl(process.env.CQ_NOTION_DB, process.env.CQ_NOTION_VIEW) }),
     stripe: val(3, { configured: false, url: 'https://dashboard.stripe.com/payments' }),
     app: val(4, { configured: false, up: false, ms: 0, url: process.env.NEXT_PUBLIC_APP_URL || '' }),
     vercel: val(5, { configured: false, url: 'https://vercel.com/dashboard' }),
     algolia: val(6, { configured: false, url: 'https://dashboard.algolia.com/' }),
-    // Resend・Supabase の使用量は安定した公開API/権限が要るため当面リンクのみ（週次チェック）。
+    // Resend の使用量は安定した公開API/権限が要るため当面リンクのみ（週次チェック）。
     resend: { configured: false, url: 'https://resend.com/emails' },
-    supabase: { configured: false, url: 'https://supabase.com/dashboard/project/_/settings/billing/usage' },
   })
 }
