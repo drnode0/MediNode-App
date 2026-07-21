@@ -60,6 +60,16 @@
 
 1. **②今日の1問が公開済みであること**（プライマーが②の初回回答直後に出るため）。序列どおり②公開が先。
 2. **解決済みCQの「投稿者→アカウント→購読」紐付けが取れるか**は実装時に要確認。取れないCQはプッシュ対象外にフォールバック（既存のアプリ内通知は維持）。
+   - **2026-07-22 調査結果（Task 11）: 紐付けは現状存在しない。`resolved_cq` プッシュは見送り確定。**
+     CQの受付は自前フォームではなく Notion DB（受付DB）への直接投稿で、`_core.ts`（`src/app/api/subscription/sync/_core.ts`）が
+     `投稿者職種`／`ペンネーム`（`posterName`/`posterRole`、由来=`現場の疑問`）だけを Algolia（サブスク用インデックス）へ同期する。
+     Supabaseの`auth.users.id`と結びつく項目は一切なく、`supabase/migrations/`（0001〜0014）にも投稿者↔user_idを持つテーブルは存在しない
+     （`daily_question_log`・`referral_codes`/`referral_redemptions`・`admin_audit_log`はいずれも無関係）。
+     「解決」判定もイベント検知ではなく、Notion→Algoliaのバッチ同期（`runSubscriptionSync`）でプロパティごと上書きされるだけで、
+     コード側に「このCQがこのタイミングで解決した」というフック地点自体が存在しない。
+     結論: `resolved_cq` プッシュは実装せず、既存のアプリ内表示（`ResolvedCqs`／`ResolvedCqBanner`）のみを維持する。
+     再検討する場合に必要なもの: (a) 受付フォームを自前化し投稿時に`user_id`を保存する、または (b) Notionページ↔アカウントの対応表を別途持つ、
+     のいずれか。どちらも現時点では未着手。
 3. ユーザー選択制のため cron はスロット離散化前提。自由分刻みは v2 以降。
 
 ## 個人データ・整合
