@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false })
   }
+  if (!body || typeof body !== 'object') return NextResponse.json({ ok: false })
   const endpoint = body.endpoint
   const p256dh = body.keys?.p256dh
   const auth = body.keys?.auth
@@ -48,14 +49,16 @@ export async function DELETE(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false })
   }
+  if (!body || typeof body !== 'object') return NextResponse.json({ ok: false })
   if (!body.endpoint) return NextResponse.json({ ok: false })
   try {
     const admin = createAdminClient()
-    await admin
+    const { error } = await admin
       .from('push_subscriptions')
       .update({ revoked_at: new Date().toISOString() })
       .eq('endpoint', body.endpoint)
       .eq('user_id', user.id)
+    if (error) throw new Error(error.message)
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ ok: false })
