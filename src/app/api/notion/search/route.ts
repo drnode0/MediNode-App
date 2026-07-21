@@ -613,7 +613,16 @@ export async function POST(req: NextRequest) {
     const requestedTeams = sanitizeAdditionalTeams(additionalTeams)
     if (requestedTeams.length > 0 && (await getSessionEarlyAccess())) {
       const extra = await queryAdditionalTeams(requestedTeams, mode, { keyword, genre, pageSize })
-      records.push(...extra)
+      if (extra.length > 0) {
+        records.push(...extra)
+        // 追加部署を後から足したので、順序保証のあるモードだけ再ソートする。
+        // extra があるときだけ実行し、非対象ユーザー（空）の出力は一切変えない。
+        if (mode === 'recent') {
+          records.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+        } else if (mode === 'manual') {
+          records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+        }
+      }
     }
 
     // 部署バッジに部署名（例: 救急）を表示するため、team レコードに teamLabel を一括付与する。
