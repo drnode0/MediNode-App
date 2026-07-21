@@ -12,7 +12,7 @@ export type OperatingCost = {
 
 export const OPERATING_COSTS: OperatingCost[] = [
   { label: 'Vercel Pro', monthlyJpy: 3000, note: '$20/月の概算' },
-  { label: 'Supabase', monthlyJpy: 0, note: '現在は無料枠（Pro化で約3,800円/月）' },
+  { label: 'Supabase Pro', monthlyJpy: 3800, note: '$25/月の概算・毎日バックアップ' },
   { label: 'Resend', monthlyJpy: 0, note: '現在は無料枠' },
   { label: 'Algolia', monthlyJpy: 0, note: '現在は無料枠' },
   { label: 'ドメイン', monthlyJpy: 0, note: '使っていれば入力' },
