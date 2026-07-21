@@ -117,19 +117,28 @@ async function fetchVercel() {
 }
 
 // Algolia: 当月の検索オペレーション数（Usage API・best-effort）。取れなければ configured:false。
-async function fetchAlgolia() {
+// 注意: Usage API は Premium プラン以上＋「Usage」ACL のキーが必要（Adminキーで代用できない場合あり）。
+// 無料プランでは 401/403 になり configured:false（＝リンク）に劣化する。専用キーは ALGOLIA_USAGE_KEY。
+async function fetchAlgolia(now: number) {
   const url = 'https://dashboard.algolia.com/'
   const appId = process.env.ALGOLIA_APP_ID
-  const apiKey = process.env.ALGOLIA_ADMIN_KEY
+  const apiKey = process.env.ALGOLIA_USAGE_KEY || process.env.ALGOLIA_ADMIN_KEY
   const quota = 10000 // 無料枠 10,000 検索/月（プラン変更時に更新）
   if (!appId || !apiKey) return { configured: false, url }
-  const res = await fetch('https://usage.algolia.com/1/usage/total_search_operations/period/month', {
+  // 当月1日0:00(UTC)〜現在。月次合計の概算として十分。
+  const d = new Date(now)
+  const startDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString()
+  const endDate = new Date(now).toISOString()
+  const params = new URLSearchParams({ startDate, endDate })
+  const res = await fetch(`https://usage.algolia.com/1/usage/total_search_operations?${params.toString()}`, {
     headers: { 'X-Algolia-Application-Id': appId, 'X-Algolia-API-Key': apiKey },
     signal: AbortSignal.timeout(4000),
   })
   if (!res.ok) throw new Error(`algolia ${res.status}`)
-  const data = (await res.json()) as { dates?: Array<{ v?: number }> }
-  const used = (data.dates ?? []).reduce((sum, d) => sum + (Number(d.v) || 0), 0)
+  // レスポンスは統計名をキーにした {t,v} の配列: { total_search_operations: [{t,v}, ...] }
+  const data = (await res.json()) as Record<string, Array<{ v?: number }> | undefined>
+  const series = data.total_search_operations ?? []
+  const used = series.reduce((sum, p) => sum + (Number(p?.v) || 0), 0)
   return { configured: true, used, quota, pct: usagePct(used, quota), url }
 }
 
@@ -158,7 +167,7 @@ export async function GET() {
     fetchStripe(now),
     fetchAppLiveness(),
     fetchVercel(),
-    fetchAlgolia(),
+    fetchAlgolia(now),
   ])
 
   const val = <T,>(i: number, fallback: T): T =>
