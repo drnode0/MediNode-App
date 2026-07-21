@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { isAdminEmail } from '@/lib/maintenance'
-import { PUSH_FLAG_KEY, parseStage, readPushStage, __resetPushStageCache } from '@/lib/push'
+import { PUSH_FLAG_KEY, parseStage, readPushStage, pushEnabledFor, __resetPushStageCache } from '@/lib/push'
 
 export async function GET() {
   const stage = await readPushStage()
@@ -14,7 +14,8 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     email = user?.email ?? null
   } catch {}
-  return NextResponse.json(isAdminEmail(email) ? { stage } : {})
+  const enabled = pushEnabledFor(stage, email)
+  return NextResponse.json({ enabled, ...(isAdminEmail(email) ? { stage } : {}) })
 }
 
 export async function POST(req: NextRequest) {

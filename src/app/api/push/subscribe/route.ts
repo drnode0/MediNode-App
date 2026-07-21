@@ -2,6 +2,7 @@
 // env/migration 未整備・未ログインは静かに {ok:false}（アプリは通常どおり）。
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { readPushStage, pushEnabledFor } from '@/lib/push'
 
 function ready(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -12,6 +13,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false })
+
+  // 権威側ゲート：stage/preview対象外は購読を受け付けない（オーナー限定preview姿勢の漏れ防止）。
+  const stage = await readPushStage()
+  if (!pushEnabledFor(stage, user.email)) return NextResponse.json({ ok: false })
 
   let body: { endpoint?: string; keys?: { p256dh?: string; auth?: string }; ua?: string }
   try {

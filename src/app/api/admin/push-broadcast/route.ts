@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendToUsers } from '@/lib/push-send'
+import { readPushStage, isPreviewEmail } from '@/lib/push'
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin()
@@ -22,6 +23,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'title と body は必須です' }, { status: 400 })
   }
 
+  // stage/preview姿勢を一斉送信にも反映（オーナー限定preview中に全員へ漏れないように）。
+  const stage = await readPushStage()
+  if (stage === 'off') return NextResponse.json({ ok: true, skipped: 'off', sent: 0, pruned: 0 })
+
   const admin = createAdminClient()
   const { data: subs, error } = await admin
     .from('push_subscriptions')
@@ -30,7 +35,17 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: `購読者の取得に失敗しました: ${error.message}` }, { status: 500 })
   }
-  const userIds = [...new Set((subs ?? []).map((s: { user_id: string }) => s.user_id))]
+  let userIds = [...new Set((subs ?? []).map((s: { user_id: string }) => s.user_id))]
+
+  if (stage === 'preview') {
+    const eligible: string[] = []
+    for (const uid of userIds) {
+      const { data: u, error: userError } = await admin.auth.admin.getUserById(uid)
+      if (userError) throw new Error(userError.message)
+      if (isPreviewEmail(u.user?.email)) eligible.push(uid)
+    }
+    userIds = eligible
+  }
 
   const res = await sendToUsers(admin, userIds, 'announce', {
     title: body.title,

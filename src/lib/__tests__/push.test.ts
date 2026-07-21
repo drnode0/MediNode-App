@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   parseStage, parseSlot, jstSlot, isPreviewEmail,
   parsePrefs, kindEnabled, DEFAULT_PREFS, DEFAULT_SLOT,
+  pushEnabledFor, currentSlotBucket,
 } from '../push'
 
 describe('parseStage', () => {
@@ -39,6 +40,38 @@ describe('isPreviewEmail', () => {
     process.env.PUSH_PREVIEW_EMAILS = 'Owner@Ex.com, mon@ex.com'
     expect(isPreviewEmail('owner@ex.com')).toBe(true)
     expect(isPreviewEmail('none@ex.com')).toBe(false)
+  })
+})
+
+describe('pushEnabledFor', () => {
+  it('on: 誰でも有効', () => {
+    delete process.env.COMP_ADMIN_EMAILS
+    delete process.env.PUSH_PREVIEW_EMAILS
+    expect(pushEnabledFor('on', 'anyone@ex.com')).toBe(true)
+    expect(pushEnabledFor('on', null)).toBe(true)
+  })
+  it('off: 誰も無効', () => {
+    process.env.PUSH_PREVIEW_EMAILS = 'owner@ex.com'
+    expect(pushEnabledFor('off', 'owner@ex.com')).toBe(false)
+    expect(pushEnabledFor('off', null)).toBe(false)
+  })
+  it('preview: 許可メールのみ有効', () => {
+    process.env.PUSH_PREVIEW_EMAILS = 'owner@ex.com'
+    delete process.env.COMP_ADMIN_EMAILS
+    expect(pushEnabledFor('preview', 'owner@ex.com')).toBe(true)
+    expect(pushEnabledFor('preview', 'other@ex.com')).toBe(false)
+    expect(pushEnabledFor('preview', null)).toBe(false)
+  })
+})
+
+describe('currentSlotBucket', () => {
+  it('分を30分バケットへ切り捨てる（JST）', () => {
+    // 2026-01-01T22:01:00Z = JST 2026-01-02 07:01
+    expect(currentSlotBucket(Date.parse('2026-01-01T22:01:00Z'))).toBe('07:00')
+    // JST 07:41
+    expect(currentSlotBucket(Date.parse('2026-01-01T22:41:00Z'))).toBe('07:30')
+    // JST 12:30 ちょうど
+    expect(currentSlotBucket(Date.parse('2026-01-02T03:30:00Z'))).toBe('12:30')
   })
 })
 

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/server'
-import { readPushStage, jstSlot, jstToday, isPreviewEmail } from '@/lib/push'
+import { readPushStage, currentSlotBucket, jstToday, isPreviewEmail } from '@/lib/push'
 import { getUserPrefs } from '@/lib/push-prefs'
 import { sendToUsers } from '@/lib/push-send'
 
 /**
  * Vercel Cron 専用：「今日の1問」デイリー通知。
  *
- * vercel.json の crons 設定（30分毎）から呼ばれる。現在のJSTスロットに設定した
- * ユーザーのうち、当日まだ送っていない人へ送る。stage=off の間は即returnするので、
- * 30分毎cron（Vercel Pro前提）を有効化する前でもエンドポイントは無害。
+ * vercel.json の crons 設定（30分毎）から呼ばれる。現在のJST 30分バケット（例: 07:01起動でも
+ * 07:00扱い）に設定したユーザーのうち、当日まだ送っていない人へ送る。Vercel Cronはスケジュールから
+ * 数十秒〜1分程度ずれて発火しリトライもないため、厳密な分一致だと丸ごと1コホートを取りこぼす。
+ * stage=off の間は即returnするので、30分毎cron（Vercel Pro前提）を有効化する前でもエンドポイントは無害。
  *
  * 認証:
  *   /api/cron/subscription-sync と同じ仕組みを流用。Vercel Cron はリクエストに
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
     if (stage === 'off') return NextResponse.json({ ok: true, skipped: 'off' })
 
     const admin = createAdminClient()
-    const slot = jstSlot()
+    const slot = currentSlotBucket()
     const today = jstToday()
 
     // 有効な購読を持つユーザー一覧（重複除去）。読取失敗を「対象なし」に化けさせない。

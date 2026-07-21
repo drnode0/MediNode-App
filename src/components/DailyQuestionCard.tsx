@@ -98,8 +98,17 @@ export function DailyQuestionCard() {
     // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。
     void fetch('/api/daily-question/answered', { method: 'POST' }).catch(() => {})
     if (shouldShowPrimer()) {
-      markPrimerSeen()
-      setPrimerOpen(true)
+      // push は stage/preview対象外のユーザーには見せない（オーナー限定preview姿勢が漏れないように）。
+      // 未対象なら markPrimerSeen を焼かない＝オーナーが後でpreview/onへ切り替えたら再提示できる。
+      void fetch('/api/push', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((d: { enabled?: boolean }) => {
+          if (d?.enabled) {
+            markPrimerSeen()
+            setPrimerOpen(true)
+          }
+        })
+        .catch(() => {})
     }
     update({ done: true })
     setJustAnswered(true)

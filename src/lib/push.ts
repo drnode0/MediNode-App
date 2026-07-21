@@ -33,6 +33,25 @@ export function isPreviewEmail(email: string | null | undefined): boolean {
   return list.includes(email.toLowerCase())
 }
 
+// push が有効か（stage別）。on=全員／preview=preview対象のみ／off=誰も対象外。
+// daily-question は公開機能（on）で全員回答するため、pushの露出面（primer/subscribe/broadcast/cron）は
+// 必ずこれで自己ゲートする（オーナー限定preview姿勢が漏れないように）。
+export function pushEnabledFor(stage: PushStage, email: string | null | undefined): boolean {
+  if (stage === 'on') return true
+  if (stage === 'preview') return isPreviewEmail(email)
+  return false
+}
+
+// 現在の30分バケット（JST HH:MM、分は :00 か :30 に切り捨て）。
+// Vercel Cron は概ね数十秒〜1分程度スケジュールからずれて発火するため、厳密な分一致だと
+// 07:00 スロットが 07:01 起動で丸ごと取りこぼれる（リトライなし）。バケット一致にして吸収する。
+export function currentSlotBucket(nowMs = Date.now()): string {
+  const jst = jstSlot(nowMs)
+  const [h, m] = jst.split(':')
+  const bucketMin = Number(m) < 30 ? '00' : '30'
+  return `${h}:${bucketMin}`
+}
+
 export type NotifyPrefs = {
   master: boolean
   daily: boolean
