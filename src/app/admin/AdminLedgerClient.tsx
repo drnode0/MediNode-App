@@ -1107,10 +1107,11 @@ ${label}`,
             </div>
 
             {/* 台帳テーブル */}
-            <div id="ledger" className="scroll-mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div id="ledger" className="scroll-mt-4 overflow-auto max-h-[70vh] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                {/* スクロールしても列名が分かるよう、見出し行を上部に固定（sticky）。行が透けないよう各thに背景を敷く。 */}
+                <thead className="sticky top-0 z-20">
+                  <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 shadow-sm [&>th]:bg-gray-50 dark:[&>th]:bg-gray-800">
                     <th className="px-4 py-3 font-medium">メール</th>
                     <th className="px-4 py-3 font-medium">区分</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">流入元</th>
@@ -1137,7 +1138,7 @@ ${label}`,
                     return (
                       <tr
                         key={r.userId}
-                        className="border-b border-gray-100 dark:border-gray-700/60 last:border-b-0"
+                        className="border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 odd:bg-gray-50/50 dark:odd:bg-gray-900/20 hover:bg-emerald-50/50 dark:hover:bg-gray-700/30"
                       >
                         <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                           <div className="flex items-center gap-1.5">
