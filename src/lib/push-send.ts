@@ -60,11 +60,12 @@ export async function sendToUsers(
   }
   if (allowed.length === 0) return { sent: 0, pruned: 0 }
 
-  const { data } = await admin
+  const { data, error } = await admin
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth, user_id')
     .in('user_id', allowed)
     .is('revoked_at', null)
+  if (error) throw new Error(error.message)
   const subs = (data ?? []) as SubRow[]
 
   let sent = 0
