@@ -486,7 +486,7 @@ export function DailyCommandCenter() {
                   url={data.algolia.url}
                 />
               ) : (
-                <UsageBar icon={Search} label="Algolia検索" url={data.algolia.url} fallback="—" />
+                <UsageBar icon={Search} label="Algolia検索" url={data.algolia.url} fallback="ダッシュボード" />
               )}
               <UsageBar icon={Mail} label="Resend送信" url={data.resend.url} fallback="ダッシュボード" />
               <UsageBar icon={Activity} label="Supabase egress" url={data.supabase.url} fallback="ダッシュボード" />
