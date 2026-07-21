@@ -120,3 +120,30 @@ earlyAccess?: boolean            // サーバー由来のフラグのミラー
 - 部署構成のサーバー保存 / 専用管理画面（方式C）。
 - 部署メンバー招待・共有権限管理。
 - Algolia / サブスク検索モードへの拡張（本機能は Notion モードの個人＋部署直読みが対象）。
+
+---
+
+## 実装状況（2026-07-22 完了）
+
+ブランチ `feature/early-access-multi-department`（`origin/main` 基点）に全12タスク実装済み。
+
+- 自動検証: `npx tsc --noEmit` clean / `npx vitest run` 202 passing（新規 teams 4・feature-access 7 を含む）/ `npm run build` compiled successfully。
+- 各タスクは実装→独立レビュー通過。検索ルート（Task8）と /admin 台帳（Task11）は専任レビュアーで spec✅・approved。
+- 追加で `src/lib/admin-audit.ts` の `AdminAction` union に `grant_early_access` / `revoke_early_access` を追加（監査ログ用・additive）。
+
+### 本番反映手順（オーナー実施）
+
+1. **migration 適用**: Supabase SQL Editor で `migrations/0009_user_settings_early_access.sql` を実行（追加のみ・既存データ無影響）。
+   ダッシュボード: https://supabase.com/dashboard → 該当プロジェクト → SQL Editor。
+2. **env 設定**: Vercel に `EARLY_ACCESS_EMAILS=<オーナーのメール>` を追加（カンマ区切りで複数可）。
+   ダッシュボード: https://vercel.com/dashboard → 該当プロジェクト → Settings → Environment Variables。
+   ※ 全体公開（GA）にするときは `MULTI_DEPARTMENT_GA=true` を追加するだけ（データ移行不要・巻き戻しは env を戻すだけ）。
+3. **マージ＆デプロイ**: `feature/early-access-multi-department` を main へマージ → 自動デプロイ。
+4. **指定アカウントを増やす**: `EARLY_ACCESS_EMAILS` に追記して再デプロイ、または /admin 台帳の「先行体験」トグルを ON（再デプロイ不要・即反映）。
+5. **Notion 実装ロードマップDB** の第1弾「マルチ部署串刺し検索」を「先行体験リリース」に更新。
+
+### オーナーによる手動確認（実 Notion トークンが必要なため未自動化）
+
+- オーナーのメールを `EARLY_ACCESS_EMAILS` に入れてログイン → 設定→部署 に「追加部署（先行体験）」セクションが出る。
+- 2 部署（ラベル＋鍵＋Medical DB）を登録 → 検索・新着・ジャンルで各部署の結果が部署名バッジ付きで横断表示される。
+- `EARLY_ACCESS_EMAILS` に含まれない別アカウントでは追加部署セクションが出ず、既存挙動が不変であること（検索結果・レイアウトとも従来どおり）。
