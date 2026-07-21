@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom'
 import { UserPlus, CheckCircle2, Mail, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
+import { suggestEmailCorrection, checkEmailDeliverable } from '@/lib/email-typo'
 
 type Props = {
   onClose: () => void
@@ -67,6 +68,8 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   }, [phase, mounted])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  // よくあるドメインのタイポ候補（例: gmial.com → gmail.com）。あれば入力欄下に提示。
+  const suggestion = suggestEmailCorrection(email)
 
   const sendLink = async () => {
     if (!emailValid) {
@@ -77,6 +80,14 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
     setError(null)
     setInfo(null)
     try {
+      // 実在しないドメイン宛て（打ち間違い）の送信を止める。届かないメールで
+      // 確認できない幽霊アカウントを作らないための入口チェック。
+      const deliverable = await checkEmailDeliverable(email.trim())
+      if (!deliverable) {
+        setError('このメールアドレスのドメインが見つかりません。つづりをご確認ください（このままでは確認コードのメールが届きません）。')
+        setLoading(false)
+        return
+      }
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
@@ -208,6 +219,15 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
               />
             </div>
+            {suggestion && (
+              <button
+                type="button"
+                onClick={() => { setEmail(suggestion); setError(null) }}
+                className="w-full text-left text-xs text-amber-700 dark:text-amber-400 hover:underline"
+              >
+                もしかして <span className="font-semibold">{suggestion}</span> ？（タップで修正）
+              </button>
+            )}
             {method === 'password' && !isRegister && (
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">パスワード</label>
@@ -256,7 +276,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             <div className="rounded-lg bg-gray-50 dark:bg-gray-700/40 p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
               <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にメールを送りました。<span className="font-medium">メール内の6桁コード</span>を、下の欄に入力してください。
               <br />
-              <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は、迷惑メールフォルダもご確認ください。</span>
+              <span className="text-[11px] text-gray-400">※ 数分待っても届かない場合は、迷惑メールフォルダをご確認ください。それでも届かないときは、別のメールアドレス（Gmail など普段お使いのもの）でお試しください。</span>
             </div>
 
             {/* 6桁コード入力（メールのコードを入力＝主軸。マジックリンクは廃止） */}

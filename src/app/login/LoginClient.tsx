@@ -14,6 +14,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Mail } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { suggestEmailCorrection, checkEmailDeliverable } from '@/lib/email-typo'
 import { useAuth } from '@/components/auth/AuthProvider'
 
 const OTP_ENABLED = true
@@ -51,6 +52,8 @@ export function LoginClient() {
   }, [authLoading, user, next, router])
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  // よくあるドメインのタイポ候補（例: gmial.com → gmail.com）。あれば入力欄下に提示。
+  const suggestion = suggestEmailCorrection(email)
 
   // フェーズごとに主入力へ自動フォーカス（メール欄→送信後は6桁コード欄）。
   const emailRef = useRef<HTMLInputElement>(null)
@@ -69,6 +72,14 @@ export function LoginClient() {
     setError(null)
     setInfo(null)
     try {
+      // 実在しないドメイン宛て（打ち間違い）の送信を止める。届かないメールで
+      // 確認できない幽霊アカウントを作らないための入口チェック。
+      const deliverable = await checkEmailDeliverable(email.trim())
+      if (!deliverable) {
+        setError('このメールアドレスのドメインが見つかりません。つづりをご確認ください（このままでは確認コードのメールが届きません）。')
+        setLoading(false)
+        return
+      }
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
@@ -189,6 +200,15 @@ export function LoginClient() {
               className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
             />
           </div>
+          {suggestion && (
+            <button
+              type="button"
+              onClick={() => { setEmail(suggestion); setError(null) }}
+              className="w-full text-left text-xs text-amber-700 dark:text-amber-400 hover:underline"
+            >
+              もしかして <span className="font-semibold">{suggestion}</span> ？（タップで修正）
+            </button>
+          )}
           {method === 'password' && (
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">パスワード</label>
@@ -236,7 +256,7 @@ export function LoginClient() {
             <Mail className="inline-block h-4 w-4 align-text-bottom mr-1" /><span className="font-medium">{email}</span> 宛にメールを送りました。<span className="font-medium">メール内の6桁コード</span>を、下の欄に入力してください。
             <br />
             <span className="text-[11px] text-gray-400">
-              ※ 数分待っても届かない場合は、迷惑メールフォルダもご確認ください。
+              ※ 数分待っても届かない場合は、迷惑メールフォルダをご確認ください。それでも届かないときは、別のメールアドレス（Gmail など普段お使いのもの）でお試しください。
             </span>
           </div>
 
