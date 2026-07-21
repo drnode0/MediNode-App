@@ -101,6 +101,103 @@ function DailyQuestionStageCard() {
   )
 }
 
+type PushStage = 'off' | 'preview' | 'on'
+
+// push通知の段階公開切替（off=非表示 / preview=許可メールのみ / on=全員）。
+// 現状は GET /api/push（管理者にはstageが返る）、切替は POST /api/push。
+// オーナー限定運用: 当面は preview（自分だけ）で運用し、on（全員公開）へは進めない。
+function PushStageCard() {
+  const [stage, setStage] = useState<PushStage | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/push', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d: { stage?: PushStage }) => setStage(d.stage ?? 'off'))
+      .catch(() => setError('状態の取得に失敗しました'))
+  }, [])
+
+  const setTo = useCallback(async (next: PushStage) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: next }),
+      })
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          setError('オーナーとしてログインが必要です（/login からログインしてください）')
+        } else {
+          const d = (await res.json().catch(() => null)) as { error?: string } | null
+          setError(d?.error ?? '切替に失敗しました')
+        }
+        return
+      }
+      const d = (await res.json()) as { stage: PushStage }
+      setStage(d.stage)
+    } catch {
+      setError('切替に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const STAGE_LABEL: Record<PushStage, string> = {
+    off: '非表示（OFF）',
+    preview: '先行お試し（許可メールのみ）',
+    on: '全員に公開（ON）',
+  }
+
+  return (
+    <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 className="text-sm font-bold text-gray-900">プッシュ通知の公開段階</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        preview は COMP_ADMIN_EMAILS＋PUSH_PREVIEW_EMAILS のアカウントにだけ配信されます。
+        当面は preview（自分だけ）で運用し、on（全員公開）へは進めない。
+      </p>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm text-gray-600">現在の段階</span>
+        <span
+          className={
+            stage === null
+              ? 'text-sm text-gray-400'
+              : stage === 'on'
+                ? 'rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700'
+                : stage === 'preview'
+                  ? 'rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700'
+                  : 'rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-600'
+          }
+        >
+          {stage === null ? '読み込み中…' : STAGE_LABEL[stage]}
+        </span>
+      </div>
+      <div className="mt-4 flex flex-col gap-2">
+        {(['preview', 'off', 'on'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            disabled={busy || stage === s}
+            onClick={() => setTo(s)}
+            className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-40 ${
+              s === 'on'
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : s === 'preview'
+                  ? 'bg-amber-500 text-white hover:bg-amber-600'
+                  : 'border border-gray-300 text-gray-600 hover:border-gray-400'
+            }`}
+          >
+            {STAGE_LABEL[s]}にする{s === 'on' ? '（当面は使わない）' : ''}
+          </button>
+        ))}
+      </div>
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+    </div>
+  )
+}
+
 export function MaintenanceAdminClient() {
   const [maintenance, setMaintenance] = useState<boolean | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
@@ -204,6 +301,8 @@ export function MaintenanceAdminClient() {
         </div>
 
         <DailyQuestionStageCard />
+
+        <PushStageCard />
 
         <div className="mt-5 flex flex-col gap-2 text-sm">
           <a className="text-brand-700 underline" href="/maintenance" target="_blank" rel="noopener noreferrer">
