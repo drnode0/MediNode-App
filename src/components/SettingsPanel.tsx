@@ -11,7 +11,7 @@ import {
   Gift, CheckCircle2, AlarmClock, ArrowRight,
   X, FlaskConical, Zap, RefreshCw, AlertTriangle, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText,
-  ExternalLink, ChevronRight, Globe, NotebookPen, CircleUserRound, Sprout,
+  ExternalLink, ChevronRight, Globe, NotebookPen, CircleUserRound, Sprout, Bell,
 } from 'lucide-react'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
@@ -25,6 +25,7 @@ import { type SettingsPanelSection } from '@/components/SearchErrors'
 import { ANNOUNCEMENTS } from '@/components/AppBanners'
 import { ResolvedCqHistory } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
+import PushSettings from '@/components/PushSettings'
 import dynamicImport from 'next/dynamic'
 import { FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
@@ -722,6 +723,14 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">表示のカスタマイズ</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">クイズタブ・CQボタンの表示/非表示</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
+              <button onClick={() => setSection('push')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300"><Bell className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">通知の設定</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">今日の1問・CQ回答・お知らせの通知ON/OFFと送信時刻</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
@@ -1476,6 +1485,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center">変更は設定を閉じたときに画面へ反映されます</p>
             </div>
           )}
+
+          {/* ── 通知の設定 ── */}
+          {section === 'push' && <PushSettings />}
 
           {/* ── セットアップやり直し（モード変更・DBセットアップの統合入口） ── */}
           {section === 'setup-redo' && (
