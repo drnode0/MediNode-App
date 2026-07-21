@@ -23,6 +23,7 @@ import {
   ExternalLink,
   HelpCircle,
   Mail,
+  Megaphone,
   MessageSquare,
   RefreshCw,
   Rocket,
@@ -183,6 +184,94 @@ function LinkChip({ icon: Icon, label, url }: { icon: typeof Users; label: strin
       {label}
       <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600" aria-hidden />
     </a>
+  )
+}
+
+// お知らせ一斉送信フォーム（Web Push）。POST /api/admin/push-broadcast を叩く。
+// 週1程度に留める運用ルールはUI注記のみ（サーバー側の回数制限はない）。
+function BroadcastForm() {
+  const [title, setTitle] = useState('')
+  const [bodyText, setBodyText] = useState('')
+  const [url, setUrl] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState<{ sent: number; pruned: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const send = useCallback(async () => {
+    if (!title.trim() || !bodyText.trim()) {
+      setError('件名と本文は必須です')
+      return
+    }
+    setSending(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/push-broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), body: bodyText.trim(), url: url.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '送信に失敗しました')
+      setResult({ sent: data.sent ?? 0, pruned: data.pruned ?? 0 })
+      setTitle('')
+      setBodyText('')
+      setUrl('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '送信に失敗しました')
+    } finally {
+      setSending(false)
+    }
+  }, [title, bodyText, url])
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+        <Megaphone className="w-3.5 h-3.5" aria-hidden />
+        お知らせ送信（Web Push）
+      </h3>
+      <div className="space-y-2 max-w-md">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="件名"
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+        />
+        <textarea
+          value={bodyText}
+          onChange={(e) => setBodyText(e.target.value)}
+          placeholder="本文"
+          rows={2}
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 resize-none"
+        />
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="リンク先URL（任意・未入力なら / ）"
+          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+        />
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={sending}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {sending && <Spinner className="w-3.5 h-3.5" />}
+          送信
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {result && (
+        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+          送信しました（成功 {result.sent}件・失効整理 {result.pruned}件）
+        </p>
+      )}
+      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+        お知らせは週1程度までにとどめる（頻度が高いと通知をオフにされやすくなるため、目安として自主的に守る）。
+      </p>
+    </div>
   )
 }
 
@@ -568,6 +657,9 @@ export function DailyCommandCenter() {
             「— 接続」のタイルは環境変数（Notion DB ID／Vercelトークン等）を設定すると点灯します。設定するまではリンクとして機能します。
           </p>
         )}
+
+        {/* D. お知らせ送信（オーナー操作） */}
+        <BroadcastForm />
       </div>
     </section>
   )
