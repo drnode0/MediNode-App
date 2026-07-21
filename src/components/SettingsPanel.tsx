@@ -328,6 +328,18 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // 通知の設定は作者限定機能。デフォルトは非表示にし、サーバーが「有効」と
+  // 判定したユーザーにだけメニュー項目を出す（stage=off・未ログイン・非対象は false のまま）。
+  const [pushEnabled, setPushEnabled] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/push', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((d) => { if (!cancelled) setPushEnabled(Boolean(d?.enabled)) })
+      .catch(() => { if (!cancelled) setPushEnabled(false) })
+    return () => { cancelled = true }
+  }, [])
+
   // セクション別編集フォーム
   const s0 = getSettings()
   const [notionForm, setNotionForm] = useState({
@@ -726,14 +738,16 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
-              <button onClick={() => setSection('push')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300"><Bell className="w-5 h-5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">通知の設定</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">今日の1問・CQ回答・お知らせの通知ON/OFFと送信時刻</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </button>
+              {pushEnabled && (
+                <button onClick={() => setSection('push')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300"><Bell className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">通知の設定</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">今日の1問・CQ回答・お知らせの通知ON/OFFと送信時刻</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </button>
+              )}
 
               {/* ── サポート ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
@@ -1486,8 +1500,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
             </div>
           )}
 
-          {/* ── 通知の設定 ── */}
-          {section === 'push' && <PushSettings />}
+          {/* ── 通知の設定（作者限定・pushEnabledで二重ガード） ── */}
+          {section === 'push' && pushEnabled && <PushSettings />}
 
           {/* ── セットアップやり直し（モード変更・DBセットアップの統合入口） ── */}
           {section === 'setup-redo' && (
