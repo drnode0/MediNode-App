@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
+import { sanitizeAdditionalTeams, type TeamConfig } from '@/lib/teams'
+import { getSessionEarlyAccess } from '@/lib/supabase/early-access'
 
 function extractText(prop: Record<string, unknown>): string {
   if (!prop) return ''
@@ -418,6 +420,64 @@ async function fetchBrowseRecords(
   return records
 }
 
+// 追加部署（先行体験）を、モードごとに既存の取得関数で横断検索する。
+// 各部署は独立クライアントで並列に引き、1部署が壊れても .catch で握り潰して他を守る。
+// 返す全レコードに team.label を teamLabel として刻む（結果カードの部署バッジ用）。
+async function queryAdditionalTeams(
+  teams: TeamConfig[],
+  mode: string,
+  opts: { keyword: string; genre: string; pageSize: number },
+): Promise<NotionRecord[]> {
+  const out: NotionRecord[] = []
+  await Promise.all(
+    teams.map(async (team) => {
+      const client = new Client({ auth: team.notionToken })
+      const label = team.label.trim() || '部署'
+      const collected: NotionRecord[] = []
+      try {
+        if (mode === 'recent') {
+          const med = await queryDb(client, team.medicalDbId, 'medical', '', 50, undefined, 'team').catch(() => null)
+          const ref = team.referenceDbId
+            ? await queryDb(client, team.referenceDbId, 'reference', '', 20, undefined, 'team').catch(() => null)
+            : null
+          if (med) collected.push(...med.records)
+          if (ref) collected.push(...ref.records)
+        } else if (mode === 'quiz') {
+          const q = await fetchQuizRecords(client, team.medicalDbId, 'team').catch(() => null)
+          if (q) collected.push(...q)
+        } else if (mode === 'browse') {
+          const med = await fetchBrowseRecords(client, team.medicalDbId, opts.genre, opts.pageSize, 'team', 'medical').catch(() => null)
+          const ref = team.referenceDbId
+            ? await fetchBrowseRecords(client, team.referenceDbId, opts.genre, opts.pageSize, 'team', 'reference').catch(() => null)
+            : null
+          if (med) collected.push(...med)
+          if (ref) collected.push(...ref)
+        } else if (mode === 'manual') {
+          if (team.manualDbId) {
+            const man = await queryDb(client, team.manualDbId, 'manual', opts.keyword, opts.pageSize, undefined, 'team').catch(() => null)
+            if (man) collected.push(...man.records)
+          }
+        } else {
+          // 通常検索（keyword 必須）
+          if (opts.keyword.trim()) {
+            const med = await queryDb(client, team.medicalDbId, 'medical', opts.keyword, opts.pageSize, undefined, 'team').catch(() => null)
+            const ref = team.referenceDbId
+              ? await queryDb(client, team.referenceDbId, 'reference', opts.keyword, 20, undefined, 'team').catch(() => null)
+              : null
+            if (med) collected.push(...med.records)
+            if (ref) collected.push(...ref.records)
+          }
+        }
+      } catch {
+        // この部署は握り潰して他部署・個人結果を守る。
+      }
+      for (const r of collected) r.teamLabel = label
+      out.push(...collected)
+    }),
+  )
+  return out
+}
+
 export async function POST(req: NextRequest) {
   // REQUIRE_LOGIN 有効時はセッション必須（S-3: middlewareに依存しない二重ゲート。
   // 未ログインで叩ける「任意トークンの代理リクエスト」＝オープンプロキシ化を防ぐ）。
@@ -444,6 +504,8 @@ export async function POST(req: NextRequest) {
       // teamOnly=true の時は個人(primary)DBをクエリせず、部署DBのみ取得する。
       // パワーモードで部署のみNotion直読みする際に、部署DBの二重クエリを避けるため。
       teamOnly = false,
+      // 追加部署（先行体験）。earlyAccess を再検証したうえでのみ使う。
+      additionalTeams,
     } = await req.json()
 
     // manualモードはマニュアルDB（個人 or 部署）だけで成立するため、医療DB必須を課さない。
@@ -546,11 +608,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 追加部署（先行体験）: earlyAccess をサーバーで再検証し、OK のときだけ横断検索する。
+    // additionalTeams が空/未指定なら DB 照会もせず、既存挙動と完全に一致する。
+    const requestedTeams = sanitizeAdditionalTeams(additionalTeams)
+    if (requestedTeams.length > 0 && (await getSessionEarlyAccess())) {
+      const extra = await queryAdditionalTeams(requestedTeams, mode, { keyword, genre, pageSize })
+      records.push(...extra)
+    }
+
     // 部署バッジに部署名（例: 救急）を表示するため、team レコードに teamLabel を一括付与する。
     // 各 fetch 関数ごとに付け忘れると再発するため、ここで一元的に注入する。
     const resolvedTeamLabel = (typeof teamLabel === 'string' && teamLabel.trim()) ? teamLabel.trim() : '部署'
     for (const r of records) {
-      if (r.owner === 'team') r.teamLabel = resolvedTeamLabel
+      if (r.owner === 'team' && !r.teamLabel) r.teamLabel = resolvedTeamLabel
     }
 
     return NextResponse.json({ records, total: records.length })
