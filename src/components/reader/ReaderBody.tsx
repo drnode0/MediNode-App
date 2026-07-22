@@ -98,7 +98,6 @@ function CalloutBlock({
   if (role === 'conclusion') {
     return (
       <div
-        data-block-index={index}
         data-tldr=""
         className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 my-3"
       >
@@ -114,10 +113,10 @@ function CalloutBlock({
 
   if (role === 'signature') {
     const [first, ...rest] = block.blocks
-    const hasHeadingText = first && first.kind === 'paragraph'
+    // 先頭行が太字のときだけ見出しに昇格する（太字でなければ忠実描画のため本文フローに残す）。
+    const hasHeadingText = first && first.kind === 'paragraph' && first.inlines.some((n) => n.bold)
     return (
       <div
-        data-block-index={index}
         className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 my-3"
       >
         <div className="flex gap-3">
@@ -140,7 +139,7 @@ function CalloutBlock({
 
   if (role === 'stamp') {
     return (
-      <div data-block-index={index} className="border-t border-b border-teal-500/30 py-2.5 my-3">
+      <div className="border-t border-b border-teal-500/30 py-2.5 my-3">
         <div className="flex gap-2 items-start">
           <CircleCheck className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="min-w-0 text-sm text-gray-600 dark:text-gray-300">
@@ -154,7 +153,7 @@ function CalloutBlock({
   // evidence / disclaimer / plain: 既存 CALLOUT_TONE 準拠（disclaimer は常に gray）。
   const tone = role === 'disclaimer' ? CALLOUT_TONE.gray_background : (block.color && CALLOUT_TONE[block.color]) || CALLOUT_TONE.gray_background
   return (
-    <div data-block-index={index} className={`border-l-4 rounded-r-lg px-3 py-2.5 my-3 ${tone}`}>
+    <div className={`border-l-4 rounded-r-lg px-3 py-2.5 my-3 ${tone}`}>
       <div className="flex gap-2">
         {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
         <div className="min-w-0">
@@ -182,7 +181,7 @@ function Block({
         const p = parseSectionHeading(block.inlines)
         if (p) {
           return (
-            <div data-block-index={index} className="flex items-start gap-2 mt-6 mb-2">
+            <div data-section={p.n} className="flex items-start gap-2 mt-6 mb-2">
               <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
@@ -193,7 +192,7 @@ function Block({
       }
       const size = block.level === 1 ? 'text-lg' : block.level === 2 ? 'text-base' : 'text-sm'
       return (
-        <h3 data-block-index={index} className={`${size} font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5`}>
+        <h3 className={`${size} font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5`}>
           <Inlines items={block.inlines} k={`h-${index}`} />
         </h3>
       )
@@ -202,7 +201,6 @@ function Block({
       const color = textColorClass(block, active)
       return (
         <p
-          data-block-index={index}
           className={`text-sm leading-relaxed my-2 transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           <Inlines items={block.inlines} k={`p-${index}`} />
@@ -213,17 +211,17 @@ function Block({
       return <CalloutBlock block={block} index={index} onImageClick={onImageClick} active={active} />
     case 'image':
       return (
-        <button type="button" data-block-index={index} onClick={() => onImageClick(block.url)} className="block w-full my-3">
+        <button type="button" onClick={() => onImageClick(block.url)} className="block w-full my-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={block.url} alt={block.caption ?? ''} className="w-full rounded-lg border border-gray-200 dark:border-gray-700" />
           {block.caption && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">{block.caption}</span>}
         </button>
       )
     case 'divider':
-      return <hr data-block-index={index} className="my-4 border-gray-200 dark:border-gray-700" />
+      return <hr className="my-4 border-gray-200 dark:border-gray-700" />
     case 'table':
       return (
-        <div data-block-index={index} className="overflow-x-auto my-3">
+        <div className="overflow-x-auto my-3">
           <table className="text-xs border-collapse">
             <tbody>
               {block.rows.map((row, r) => (
@@ -241,7 +239,7 @@ function Block({
       )
     case 'unsupported':
       return (
-        <p data-block-index={index} className="text-xs text-gray-400 dark:text-gray-500 my-1">
+        <p className="text-xs text-gray-400 dark:text-gray-500 my-1">
           {block.text}
         </p>
       )
@@ -254,7 +252,7 @@ type ListGroup = { kind: 'list'; ordered: boolean; items: ReaderInline[][]; inde
 type ItemGroup = { kind: 'item'; block: ReaderBlock; index: number }
 type Grouped = ItemGroup | ListGroup
 
-// 連続する list_item を ul/ol にまとめる。data-block-index はグループ先頭の元インデックスを保持する。
+// 連続する list_item を ul/ol にまとめる。index はキー生成用にグループ先頭の元インデックスを保持する。
 function groupBlocks(blocks: ReaderBlock[]): Grouped[] {
   const out: Grouped[] = []
   blocks.forEach((b, idx) => {
@@ -290,7 +288,6 @@ function RenderedBlocks({
           return (
             <Tag
               key={i}
-              data-block-index={g.index}
               className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2 space-y-1 text-sm`}
             >
               {g.items.map((it, j) => {
