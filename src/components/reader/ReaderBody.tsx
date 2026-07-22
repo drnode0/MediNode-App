@@ -3,6 +3,7 @@ import { CircleCheck } from 'lucide-react'
 import {
   calloutRole,
   parseSectionHeading,
+  sectionAnchor,
   isRecapText,
   type ReaderDoc,
   type ReaderBlock,
@@ -29,7 +30,7 @@ function renderText(text: string, key: string) {
   )
 }
 
-function Inlines({ items, k }: { items: ReaderInline[]; k: string }) {
+function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?: boolean }) {
   return (
     <>
       {items.map((n, i) => {
@@ -58,7 +59,7 @@ function Inlines({ items, k }: { items: ReaderInline[]; k: string }) {
         }
         return (
           <span key={i} className={cls}>
-            {renderText(n.text, `${k}-${i}`)}
+            {plain ? n.text : renderText(n.text, `${k}-${i}`)}
           </span>
         )
       })}
@@ -179,9 +180,10 @@ function Block({
     case 'heading': {
       if (block.level === 2) {
         const p = parseSectionHeading(block.inlines)
+        const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={p.n} className="flex items-start gap-2 mt-6 mb-2">
+            <div data-section={anchor} className="flex items-start gap-2 mt-6 mb-2">
               <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
@@ -189,11 +191,16 @@ function Block({
             </div>
           )
         }
+        return (
+          <h3 data-section={anchor} className="text-base font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5">
+            <Inlines items={block.inlines} k={`h-${index}`} plain />
+          </h3>
+        )
       }
-      const size = block.level === 1 ? 'text-lg' : block.level === 2 ? 'text-base' : 'text-sm'
+      const size = block.level === 1 ? 'text-lg' : 'text-sm'
       return (
         <h3 className={`${size} font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5`}>
-          <Inlines items={block.inlines} k={`h-${index}`} />
+          <Inlines items={block.inlines} k={`h-${index}`} plain />
         </h3>
       )
     }
