@@ -74,8 +74,8 @@ export function ReaderNavBar({
   // useEffect が常に走らせ続ける。
   if (!visible) return null
 
-  const jumpToSection = (n: number) => {
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-section="${n}"]`)
+  const jumpToSection = (anchor: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-section="${anchor}"]`)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       el.setAttribute('tabindex', '-1')
@@ -149,16 +149,18 @@ export function ReaderNavBar({
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">セクション</p>
               <ul>
                 {sections.map((s) => (
-                  <li key={s.index}>
+                  <li key={s.anchor}>
                     <button
                       type="button"
-                      onClick={() => jumpToSection(s.n)}
+                      onClick={() => jumpToSection(s.anchor)}
                       className="w-full min-h-[44px] flex items-center gap-2 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-brand-600 dark:hover:text-brand-300"
                     >
-                      <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0">
-                        {s.n}
-                      </span>
-                      <span className="truncate">{s.title}</span>
+                      {s.n != null && (
+                        <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0">
+                          {s.n}
+                        </span>
+                      )}
+                      <span className="truncate">{s.n != null ? `${s.n}. ${s.title}` : s.title}</span>
                     </button>
                   </li>
                 ))}
