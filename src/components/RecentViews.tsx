@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, History } from 'lucide-react'
 import { loadRecentViews, clearRecentViews, recordRecentView, type RecentView } from '@/lib/recent-views'
+import { recordCqView } from '@/lib/cq-views'
 import { useAuth } from '@/components/auth/AuthProvider'
 
 export function RecentViewsList() {
@@ -39,7 +40,7 @@ export function RecentViewsList() {
             href={v.notionUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => recordRecentView(v)}
+            onClick={() => { recordRecentView(v); recordCqView(v.objectID, v.owner) }}
             className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors"
           >
             <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />

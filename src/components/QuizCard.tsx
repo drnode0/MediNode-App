@@ -3,6 +3,7 @@ import { RotateCcw, Check, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
+import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
@@ -113,6 +114,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               href={hit.notionUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => recordCqView(hit.objectID, hit.owner)}
               className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
             >
               Notionで開く

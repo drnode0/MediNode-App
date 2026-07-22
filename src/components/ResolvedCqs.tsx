@@ -13,9 +13,10 @@
 // ============================================================
 
 import { useState, useEffect, useContext } from 'react'
-import { X, Sprout, ExternalLink, Star } from 'lucide-react'
+import { X, Sprout, ExternalLink, Star, Search } from 'lucide-react'
 import { fetchResolvedCqs, posterLabel, resolvedDateLabel, RESOLVED_CQ_SEEN_KEY, type ResolvedCq } from '@/lib/resolved-cqs'
 import { hasSubscriptionConfig } from '@/lib/algolia'
+import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 const BANNER_MAX_ITEMS = 3
 
@@ -88,11 +89,20 @@ export function ResolvedCqBanner() {
 // onOpenPremium: 非プレミアム向け登録導線（設定のプレミアムセクションを開く）。
 export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => void }) {
   const [items, setItems] = useState<ResolvedCq[] | null>(null)
+  // CQごとの参照回数（のべ閲覧回数）。下限を超えた分だけバッジで見せる。
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
   const isPremium = hasSubscriptionConfig()
 
   useEffect(() => {
     let cancelled = false
-    fetchResolvedCqs().then((r) => { if (!cancelled) setItems(r) })
+    fetchResolvedCqs().then((r) => {
+      if (cancelled) return
+      setItems(r)
+      const ids = r.map((c) => c.objectID).filter(Boolean)
+      if (ids.length > 0) {
+        fetchCqViewCounts(ids).then((c) => { if (!cancelled) setViewCounts(c) })
+      }
+    })
     return () => { cancelled = true }
   }, [])
 
@@ -141,11 +151,20 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
             <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{resolvedDateLabel(c.createdAt)}</span>
           </div>
           <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">{c.title}</p>
+          {/* 参照回数（のべ閲覧回数）。下限（VIEW_BADGE_MIN）を超えたときだけ静かに出す。
+              「あなただけが引いたのではない、同じ疑問をみんなが調べている」を事実で伝える。 */}
+          {(viewCounts[c.objectID] ?? 0) >= VIEW_BADGE_MIN && (
+            <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500">
+              <Search className="w-3 h-3 shrink-0" strokeWidth={2.2} />
+              これまで {viewCounts[c.objectID].toLocaleString()}回 調べられています
+            </p>
+          )}
           {c.notionUrl && (
             <a
               href={c.notionUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => recordCqView(c.objectID, 'subscription')}
               className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               ナレッジを読む

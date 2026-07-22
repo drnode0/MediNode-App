@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
+import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
 import PushPrimer, { shouldShowPrimer, markPrimerSeen } from './PushPrimer'
 
@@ -181,7 +182,7 @@ export function DailyQuestionCard() {
                   href={data.notionUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })}
+                  onClick={() => { recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' }); recordCqView(q.objectID, 'subscription') }}
                   className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
                 >
                   監修ページで続きを読む
