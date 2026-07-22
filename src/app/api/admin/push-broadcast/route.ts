@@ -23,35 +23,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'title と body は必須です' }, { status: 400 })
   }
 
-  // stage/preview姿勢を一斉送信にも反映（オーナー限定preview中に全員へ漏れないように）。
-  const stage = await readPushStage()
-  if (stage === 'off') return NextResponse.json({ ok: true, skipped: 'off', sent: 0, pruned: 0 })
+  // 予期せぬ例外（VAPID設定・getUserById・送信）でも必ずJSONを返す。
+  // 包まないと非JSONの500になり、クライアントの res.json() が
+  // 「The string did not match the expected pattern.」等の分かりにくいエラーになる。
+  try {
+    // stage/preview姿勢を一斉送信にも反映（オーナー限定preview中に全員へ漏れないように）。
+    const stage = await readPushStage()
+    if (stage === 'off') return NextResponse.json({ ok: true, skipped: 'off', sent: 0, pruned: 0 })
 
-  const admin = createAdminClient()
-  const { data: subs, error } = await admin
-    .from('push_subscriptions')
-    .select('user_id')
-    .is('revoked_at', null)
-  if (error) {
-    return NextResponse.json({ error: `購読者の取得に失敗しました: ${error.message}` }, { status: 500 })
-  }
-  let userIds = [...new Set((subs ?? []).map((s: { user_id: string }) => s.user_id))]
+    const admin = createAdminClient()
+    const { data: subs, error } = await admin
+      .from('push_subscriptions')
+      .select('user_id')
+      .is('revoked_at', null)
+    if (error) throw new Error(`購読者の取得に失敗しました: ${error.message}`)
+    let userIds = [...new Set((subs ?? []).map((s: { user_id: string }) => s.user_id))]
 
-  if (stage === 'preview') {
-    const eligible: string[] = []
-    for (const uid of userIds) {
-      const { data: u, error: userError } = await admin.auth.admin.getUserById(uid)
-      if (userError) throw new Error(userError.message)
-      if (isPreviewEmail(u.user?.email)) eligible.push(uid)
+    if (stage === 'preview') {
+      const eligible: string[] = []
+      for (const uid of userIds) {
+        const { data: u, error: userError } = await admin.auth.admin.getUserById(uid)
+        if (userError) throw new Error(userError.message)
+        if (isPreviewEmail(u.user?.email)) eligible.push(uid)
+      }
+      userIds = eligible
     }
-    userIds = eligible
-  }
 
-  const res = await sendToUsers(admin, userIds, 'announce', {
-    title: body.title,
-    body: body.body,
-    url: body.url || '/',
-    tag: 'announce',
-  })
-  return NextResponse.json({ ok: true, ...res })
+    const res = await sendToUsers(admin, userIds, 'announce', {
+      title: body.title,
+      body: body.body,
+      url: body.url || '/',
+      tag: 'announce',
+    })
+    return NextResponse.json({ ok: true, ...res })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '送信に失敗しました'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
