@@ -362,6 +362,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
+  // 追加部署の保存結果（成功／必須未入力）。他の保存と違いフィードバックが無く
+  // 「入れたのに保存されない」と誤解されていたため、専用の表示を持たせる。
+  const [addTeamMsg, setAddTeamMsg] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null)
 
   // 追加部署（先行体験）。earlyAccess のときだけ編集 UI を出す。
   const [additionalTeams, setAdditionalTeams] = useState<TeamConfig[]>(
@@ -370,18 +373,40 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const earlyAccess = getSettings()?.earlyAccess === true
 
   function saveAdditionalTeams(next: TeamConfig[]) {
-    const cleaned = next
-      .map((t) => ({
-        label: t.label.trim(),
-        notionToken: t.notionToken.trim(),
-        medicalDbId: t.medicalDbId ? extractNotionDbId(t.medicalDbId) : '',
-        referenceDbId: t.referenceDbId ? extractNotionDbId(t.referenceDbId) : undefined,
-        manualDbId: t.manualDbId ? extractNotionDbId(t.manualDbId) : undefined,
-      }))
-      .filter((t) => t.label && t.notionToken && t.medicalDbId)
-    const current = getSettings()
-    if (current) saveSettings({ ...current, additionalTeams: cleaned })
+    const normalized = next.map((t) => ({
+      label: t.label.trim(),
+      notionToken: t.notionToken.trim(),
+      medicalDbId: t.medicalDbId ? extractNotionDbId(t.medicalDbId) : '',
+      referenceDbId: t.referenceDbId ? extractNotionDbId(t.referenceDbId) : undefined,
+      manualDbId: t.manualDbId ? extractNotionDbId(t.manualDbId) : undefined,
+    }))
+    const isComplete = (t: TeamConfig) => !!(t.label && t.notionToken && t.medicalDbId)
+    const isBlank = (t: TeamConfig) =>
+      !t.label && !t.notionToken && !t.medicalDbId && !t.referenceDbId && !t.manualDbId
+    // 入力があるのに必須（部署名・Token・Medical DB）が欠けている行は保存できない。
+    // 以前は黙って捨てていたため「入れたのに保存されない」ように見えていた。理由を伝える。
+    const hasIncomplete = normalized.some((t) => !isComplete(t) && !isBlank(t))
+    const cleaned = normalized.filter(isComplete)
+
+    // getSettings() が null でも保存できるようにする（saveSection と同じ方針。
+    // 以前は if (current) で早期スキップしており、空状態だと保存ボタンが無反応だった）。
+    const cur = getSettings()
+    const base: AppSettings = cur ?? {
+      searchMode: currentMode === 'notion' ? 'notion' : 'algolia',
+      notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
+      algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
+      teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
+      subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
+      propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+    }
+    saveSettings({ ...base, additionalTeams: cleaned })
     setAdditionalTeams(next)
+    setAddTeamMsg(
+      hasIncomplete
+        ? { type: 'warn', text: '部署名・コネクトToken・Medical DB は必須です。未入力の部署は保存されていません。' }
+        : { type: 'ok', text: '保存しました' },
+    )
+    setTimeout(() => setAddTeamMsg(null), 3500)
   }
 
   // セクションを開くたびに保存済み設定からフォームを読み直す。
@@ -1153,6 +1178,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     <button onClick={() => setAdditionalTeams((arr) => [...arr, { label: '', notionToken: '', medicalDbId: '' }])} className="w-full border border-dashed border-gray-300 dark:border-gray-600 rounded-xl py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">＋ 部署を追加</button>
                   )}
                   <button onClick={() => saveAdditionalTeams(additionalTeams)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors">追加部署を保存する</button>
+                  {addTeamMsg && (
+                    <p className={`text-xs text-center ${addTeamMsg.type === 'ok' ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{addTeamMsg.text}</p>
+                  )}
                 </div>
               )}
             </div>
