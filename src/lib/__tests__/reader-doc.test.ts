@@ -52,6 +52,31 @@ describe('mapBlocks', () => {
     const out = mapBlocks([{ type: 'equation', equation: { expression: 'E=mc^2' } } as any])
     expect(out[0].kind).toBe('unsupported')
   })
+
+  it('list_item の子ブロックを落とさない（兄弟として保持）', () => {
+    const out = mapBlocks([{ type: 'bulleted_list_item', has_children: true,
+      bulleted_list_item: { rich_text: [rt('親')] },
+      children: [{ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [rt('子')] } }],
+    } as any])
+    expect(out).toEqual([
+      { kind: 'list_item', ordered: false, inlines: [{ text: '親' }] },
+      { kind: 'list_item', ordered: false, inlines: [{ text: '子' }] },
+    ])
+  })
+
+  it('callout の子は二重展開しない（callout内で消費）', () => {
+    const out = mapBlocks([{ type: 'callout', has_children: true,
+      callout: { rich_text: [rt('答え')], icon: { type: 'emoji', emoji: '⚡' }, color: 'yellow_background' },
+      children: [{ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [rt('点')] } }],
+    } as any])
+    expect(out.length).toBe(1)
+    expect(out[0].kind).toBe('callout')
+    const c = out[0] as any
+    expect(c.blocks).toEqual([
+      { kind: 'paragraph', inlines: [{ text: '答え' }] },
+      { kind: 'list_item', ordered: false, inlines: [{ text: '点' }] },
+    ])
+  })
 })
 
 describe('mapBlocksToReaderDoc', () => {

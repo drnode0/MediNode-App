@@ -93,6 +93,9 @@ export function mapBlocks(blocks: RawBlock[]): ReaderBlock[] {
       default:
         out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]` })
     }
+    if (b.children?.length && b.type !== 'callout' && b.type !== 'table') {
+      out.push(...mapBlocks(b.children))
+    }
   }
   return out
 }
