@@ -187,21 +187,63 @@ function LinkChip({ icon: Icon, label, url }: { icon: typeof Users; label: strin
   )
 }
 
+type BroadcastHistoryItem = {
+  id: string
+  title: string
+  body: string
+  url: string | null
+  sent: number
+  pruned: number
+  created_at: string
+}
+
 // お知らせ一斉送信フォーム（Web Push）。POST /api/admin/push-broadcast を叩く。
 // 週1程度に留める運用ルールはUI注記のみ（サーバー側の回数制限はない）。
+// 1回目の「送信」クリックでは即送信せず、内容確認ビューを経由してから送る。
 function BroadcastForm() {
   const [title, setTitle] = useState('')
   const [bodyText, setBodyText] = useState('')
   const [url, setUrl] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; pruned: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<BroadcastHistoryItem[]>([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
 
-  const send = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/push-broadcast')
+      if (res.ok) {
+        const data = (await res.json()) as { items?: BroadcastHistoryItem[] }
+        setHistory(data.items ?? [])
+      }
+    } catch {
+      // 履歴が取れなくても送信フォームの動作には影響させない。
+    } finally {
+      setHistoryLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
+
+  const requestConfirm = useCallback(() => {
     if (!title.trim() || !bodyText.trim()) {
       setError('件名と本文は必須です')
       return
     }
+    setError(null)
+    setResult(null)
+    setConfirming(true)
+  }, [title, bodyText])
+
+  const cancelConfirm = useCallback(() => {
+    setConfirming(false)
+  }, [])
+
+  const send = useCallback(async () => {
     setSending(true)
     setError(null)
     setResult(null)
@@ -217,12 +259,14 @@ function BroadcastForm() {
       setTitle('')
       setBodyText('')
       setUrl('')
+      setConfirming(false)
+      void loadHistory()
     } catch (e) {
       setError(e instanceof Error ? e.message : '送信に失敗しました')
     } finally {
       setSending(false)
     }
-  }, [title, bodyText, url])
+  }, [title, bodyText, url, loadHistory])
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -230,38 +274,71 @@ function BroadcastForm() {
         <Megaphone className="w-3.5 h-3.5" aria-hidden />
         お知らせ送信（Web Push）
       </h3>
-      <div className="space-y-2 max-w-md">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="件名"
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <textarea
-          value={bodyText}
-          onChange={(e) => setBodyText(e.target.value)}
-          placeholder="本文"
-          rows={2}
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-        />
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="リンク先URL（任意・未入力なら / ）"
-          className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <button
-          type="button"
-          onClick={() => void send()}
-          disabled={sending}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {sending && <Spinner className="w-3.5 h-3.5" />}
-          送信
-        </button>
-      </div>
+      {!confirming ? (
+        <div className="space-y-2 max-w-md">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="件名"
+            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <textarea
+            value={bodyText}
+            onChange={(e) => setBodyText(e.target.value)}
+            placeholder="本文"
+            rows={2}
+            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+          />
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="リンク先URL（任意・未入力なら / ）"
+            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <button
+            type="button"
+            onClick={requestConfirm}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            送信
+          </button>
+        </div>
+      ) : (
+        <div className="max-w-md rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">この内容で送信します</p>
+          <div className="text-sm">
+            <p className="font-semibold text-gray-900 dark:text-gray-100">{title.trim()}</p>
+            <p className="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{bodyText.trim()}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              リンク先: {url.trim() || '（未入力 → トップ /）'}
+            </p>
+          </div>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500">
+            送信対象は現在の公開段階に従います（preview＝あなたと指定アドレスのみ／on＝全員）。
+          </p>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={sending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {sending && <Spinner className="w-3.5 h-3.5" />}
+              この内容で送信
+            </button>
+            <button
+              type="button"
+              onClick={cancelConfirm}
+              disabled={sending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-50"
+            >
+              戻る
+            </button>
+          </div>
+        </div>
+      )}
       {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
       {result && (
         <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
@@ -271,6 +348,29 @@ function BroadcastForm() {
       <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
         お知らせは週1程度までにとどめる（頻度が高いと通知をオフにされやすくなるため、目安として自主的に守る）。
       </p>
+
+      <div className="mt-4">
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">送信履歴</h4>
+        {historyLoaded && history.length === 0 && (
+          <p className="text-xs text-gray-400 dark:text-gray-500">まだ送信履歴はありません。</p>
+        )}
+        {history.length > 0 && (
+          <ul className="space-y-1.5 max-w-md">
+            {history.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-1.5"
+              >
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{item.title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.body}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                  送信 {item.sent}件・{new Date(item.created_at).toLocaleString('ja-JP')}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

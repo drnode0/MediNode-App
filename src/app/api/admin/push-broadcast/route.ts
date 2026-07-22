@@ -55,9 +55,45 @@ export async function POST(req: NextRequest) {
       url: body.url || '/',
       tag: 'announce',
     })
+
+    // 送信履歴の記録はbest-effort。0015未適用等で失敗しても送信自体は成功済みなので握りつぶす。
+    try {
+      const { error: historyError } = await admin.from('push_broadcasts').insert({
+        title: body.title,
+        body: body.body,
+        url: body.url || null,
+        sent: res.sent,
+        pruned: res.pruned,
+        stage,
+        created_by: auth.email,
+      })
+      if (historyError) throw historyError
+    } catch {
+      // 履歴が残らなくても送信結果には影響させない。
+    }
+
     return NextResponse.json({ ok: true, ...res })
   } catch (err) {
     const message = err instanceof Error ? err.message : '送信に失敗しました'
     return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('push_broadcasts')
+      .select('id,title,body,url,sent,pruned,created_at')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (error) throw error
+    return NextResponse.json({ items: data ?? [] })
+  } catch {
+    // テーブル未作成（0015未適用）等でも静かに空配列を返す。
+    return NextResponse.json({ items: [] })
   }
 }
