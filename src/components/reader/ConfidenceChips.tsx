@@ -32,7 +32,7 @@ export function ConfidenceChips({
 
   return (
     <div className="flex flex-wrap items-center gap-2 my-2">
-      <span className="text-xs text-gray-500 dark:text-gray-400">確信度で拾う</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">マークで絞り込み</span>
       {marks.map((mark) => {
         const selected = active.has(mark)
         const tone = selected ? CHIP_TONE[mark].filled : CHIP_TONE[mark].outline

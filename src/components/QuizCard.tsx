@@ -1,11 +1,12 @@
 'use client'
-import { RotateCcw, Check, ExternalLink } from 'lucide-react'
+import { RotateCcw, Check, ExternalLink, BookOpen } from 'lucide-react'
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { isInAppReaderTarget } from '@/lib/subscription-open'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
@@ -30,7 +31,12 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
       {/* タイトル部分：常に表示 */}
       <button
         className="w-full text-left p-4"
-        onClick={() => !revealed && setRevealed(true)}
+        onClick={() => {
+          if (revealed) return
+          setRevealed(true)
+          // 答えを見た＝本文へ進む前兆。先読みして「本文を読む」を待たせない。
+          if (isInAppReaderTarget(hit.owner)) prefetchReaderDoc(hit.objectID)
+        }}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
@@ -117,10 +123,12 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               <button
                 type="button"
                 onClick={() => { recordCqView(hit.objectID, hit.owner); openReader(hit) }}
+                onPointerEnter={() => prefetchReaderDoc(hit.objectID)}
+                onFocus={() => prefetchReaderDoc(hit.objectID)}
                 className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
               >
-                Notionで開く
-                <ExternalLink className="w-3.5 h-3.5" />
+                本文を読む
+                <BookOpen className="w-3.5 h-3.5" />
               </button>
             ) : (
               <a

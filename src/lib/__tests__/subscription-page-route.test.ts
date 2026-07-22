@@ -54,7 +54,7 @@ describe('GET /api/subscription/page', () => {
     expect(retrieveMock).toHaveBeenCalledWith({ page_id: 'PAGEID' })
     expect(data.doc.title).toBe('T')
     expect(data.doc.blocks[0]).toEqual({ kind: 'heading', level: 2, inlines: [{ text: 'H' }] })
-    expect(res.headers.get('Cache-Control')).toContain('max-age=120')
+    expect(res.headers.get('Cache-Control')).toContain('max-age=600')
   })
 
   it('トークン未設定は 500', async () => {

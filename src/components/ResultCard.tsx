@@ -8,6 +8,7 @@ import { recordCqView } from '@/lib/cq-views'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
 import { hasSubscriptionConfig } from '@/lib/algolia'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useState, type KeyboardEvent } from 'react'
 
 export type Hit = {
@@ -110,7 +111,11 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   // 詳細（要約）を開いた瞬間を「参照」として1回だけ数える（閉→開のときのみ・
   // サブスク公開ナレッジのみ）。要約で満足してNotionへ飛ばない人も拾うための基準。
   const toggleExpanded = () => {
-    if (!expanded) recordCqView(hit.objectID, hit.owner)
+    if (!expanded) {
+      recordCqView(hit.objectID, hit.owner)
+      // 展開＝読む前兆。本文を先読みしておき「本文を読む」を待たせない。
+      if (inAppReader) prefetchReaderDoc(hit.objectID)
+    }
     setExpanded((v) => !v)
   }
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
@@ -126,17 +131,6 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
-      {/* サムネイル：サブスク（アプリ内リーダー対象）カードのみ。読み込み失敗時は非表示にし、
-          従来レイアウト（サムネなし）へフォールバックする。 */}
-      {inAppReader && (
-        <img
-          src={`/api/subscription/thumbnail?id=${encodeURIComponent(hit.objectID)}`}
-          loading="lazy"
-          alt=""
-          className="w-full h-24 object-cover rounded-t-xl"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      )}
       {/* メイン部分：タップ／キーボードで展開（要約ありの場合のみ） */}
       <div
         className={`p-4 ${hasExpandable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-inset' : ''}`}
@@ -309,7 +303,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
           </p>
           {hit.owner === 'subscription' && hit.headings && hit.headings.length > 0 && (
             <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Notionページの収録内容</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">収録内容</p>
               <ul className="space-y-0.5">
                 {hit.headings.map((h, i) => (
                   <li key={i} className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">・{h}</li>
@@ -337,7 +331,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
                 className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
               >
                 本文を読む
-                <ExternalLink className="w-3.5 h-3.5" />
+                <BookOpen className="w-3.5 h-3.5" />
               </button>
             ) : (
               <a
@@ -366,10 +360,12 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
           <button
             type="button"
             onClick={() => { recordCqView(hit.objectID, hit.owner); openReader(hit) }}
+            onPointerEnter={() => prefetchReaderDoc(hit.objectID)}
+            onFocus={() => prefetchReaderDoc(hit.objectID)}
             className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
           >
             本文を読む
-            <ExternalLink className="w-3.5 h-3.5" />
+            <BookOpen className="w-3.5 h-3.5" />
           </button>
         ) : (
           <a

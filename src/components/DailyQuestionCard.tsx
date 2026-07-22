@@ -4,12 +4,13 @@
 // 出題はサーバー（/api/daily-question）が決定（全員同じ1問・段階公開フラグで出し分け）。
 // 「覚えた/まだ」は既存quiz-srs（localStorage）に記録し、サーバーには回答日付だけを送る。
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
+import { BookOpen, Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { hasSubscriptionConfig } from '@/lib/algolia'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import PushPrimer, { shouldShowPrimer, markPrimerSeen } from './PushPrimer'
 
@@ -153,7 +154,11 @@ export function DailyQuestionCard() {
           {!state.revealed ? (
             <button
               type="button"
-              onClick={() => update({ revealed: true })}
+              onClick={() => {
+                update({ revealed: true })
+                // 答えを見た＝続きを読む前兆。先読みして「続きを読む」を待たせない。
+                if (data.notionUrl && hasSubscriptionConfig()) prefetchReaderDoc(q.objectID)
+              }}
               className="mt-3 inline-flex items-center gap-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
             >
               答えを見る
@@ -188,10 +193,12 @@ export function DailyQuestionCard() {
                       openReader({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })
                       recordCqView(q.objectID, 'subscription')
                     }}
+                    onPointerEnter={() => prefetchReaderDoc(q.objectID)}
+                    onFocus={() => prefetchReaderDoc(q.objectID)}
                     className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
                   >
-                    監修ページで続きを読む
-                    <ExternalLink className="h-3.5 w-3.5" />
+                    続きを読む
+                    <BookOpen className="h-3.5 w-3.5" />
                   </button>
                 ) : (
                   <a

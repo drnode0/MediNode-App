@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
     const page = await notion.pages.retrieve({ page_id: pageId })
     const blocks = await fetchPageBlocks(notion as any, pageId)
     const doc = mapBlocksToReaderDoc(page as any, blocks)
-    return NextResponse.json({ doc }, { headers: { 'Cache-Control': 'private, max-age=120' } })
+    // 本文は日次syncでしか変わらないので、ブラウザ側で長めに持たせて再訪のラグをなくす
+    // （private: 会員ゲート済みコンテンツを共有キャッシュに載せない）。
+    return NextResponse.json({ doc }, { headers: { 'Cache-Control': 'private, max-age=600, stale-while-revalidate=86400' } })
   } catch {
     return NextResponse.json({ error: 'fetch failed' }, { status: 502 })
   }

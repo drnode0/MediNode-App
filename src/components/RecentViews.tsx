@@ -2,11 +2,12 @@
 // 「最近見た」リスト。検索タブの空状態（検索語なし）で、最近開いたページへの再訪導線を出す。
 // 記録は結果カードのNotionリンククリック時（lib/recent-views.ts）。端末ローカルのみ。
 import { useEffect, useState } from 'react'
-import { ExternalLink, History } from 'lucide-react'
+import { BookOpen, ExternalLink, History } from 'lucide-react'
 import { loadRecentViews, clearRecentViews, recordRecentView, type RecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { isInAppReaderTarget } from '@/lib/subscription-open'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
 
 export function RecentViewsList() {
@@ -46,11 +47,13 @@ export function RecentViewsList() {
                 recordCqView(v.objectID, v.owner)
                 openReader({ objectID: v.objectID, title: v.title, notionUrl: v.notionUrl, knowledgeLevel: v.knowledgeLevel, owner: v.owner })
               }}
+              onPointerEnter={() => prefetchReaderDoc(v.objectID)}
+              onFocus={() => prefetchReaderDoc(v.objectID)}
               className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors w-full text-left"
             >
               <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
               <span className="flex-1 truncate">{v.title}</span>
-              <ExternalLink className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
+              <BookOpen className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
             </button>
           ) : (
             <a

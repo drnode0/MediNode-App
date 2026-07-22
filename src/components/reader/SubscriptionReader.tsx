@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { X, Star } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { recordRecentView } from '@/lib/recent-views'
+import { fetchReaderDoc, getCachedReaderDoc } from '@/lib/reader-prefetch'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
 import { ReaderBody } from './ReaderBody'
@@ -264,13 +265,18 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
 
   // フェッチ本体（レース保護: token/reqRef）。triggerRef には触れない — 初回オープンと
   // 再試行のどちらからも呼ばれるため、フォーカス復帰先の上書きはここで行ってはいけない。
+  // キャッシュ済み（プリフェッチ済み）ならローディングを挟まず即表示する。
   const runFetch = useCallback((h: ReaderHit) => {
     const token = ++reqRef.current
-    setHit(h); setDoc(null); setState('loading'); setZoom(null)
     recordRecentView(h)
-    fetch(`/api/subscription/page?id=${encodeURIComponent(h.objectID)}`)
-      .then(async (r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
-      .then((d) => { if (reqRef.current !== token) return; setDoc(d.doc); setState('idle') })
+    const cached = getCachedReaderDoc(h.objectID)
+    if (cached) {
+      setHit(h); setDoc(cached); setState('idle'); setZoom(null)
+      return
+    }
+    setHit(h); setDoc(null); setState('loading'); setZoom(null)
+    fetchReaderDoc(h.objectID)
+      .then((doc) => { if (reqRef.current !== token) return; setDoc(doc); setState('idle') })
       .catch(() => { if (reqRef.current !== token) return; setState('error') })
   }, [])
 

@@ -5,6 +5,7 @@
 import { Star } from 'lucide-react'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
 import { useReader } from '@/components/reader/SubscriptionReader'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 
 export function BookmarksList() {
   const { bookmarks, clearBookmarks } = useReaderMarks()
@@ -28,6 +29,8 @@ export function BookmarksList() {
             key={b.objectID}
             type="button"
             onClick={() => open(b)}
+            onPointerEnter={() => prefetchReaderDoc(b.objectID)}
+            onFocus={() => prefetchReaderDoc(b.objectID)}
             className="w-full flex items-start gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors text-left"
           >
             <Star className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" fill="currentColor" aria-hidden="true" />

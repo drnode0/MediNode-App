@@ -13,9 +13,10 @@
 // ============================================================
 
 import { useState, useEffect, useContext } from 'react'
-import { X, Sprout, ExternalLink, Star, Search } from 'lucide-react'
+import { X, Sprout, BookOpen, Star, Search } from 'lucide-react'
 import { fetchResolvedCqs, posterLabel, resolvedDateLabel, RESOLVED_CQ_SEEN_KEY, type ResolvedCq } from '@/lib/resolved-cqs'
 import { hasSubscriptionConfig } from '@/lib/algolia'
+import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { useReader } from '@/components/reader/SubscriptionReader'
@@ -170,10 +171,12 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
                 openReader({ objectID: c.objectID, title: c.title, notionUrl: c.notionUrl!, owner: 'subscription' })
                 recordCqView(c.objectID, 'subscription')
               }}
+              onPointerEnter={() => prefetchReaderDoc(c.objectID)}
+              onFocus={() => prefetchReaderDoc(c.objectID)}
               className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               ナレッジを読む
-              <ExternalLink className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
