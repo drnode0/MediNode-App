@@ -1,4 +1,6 @@
-export type ReaderInline = { text: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string }
+// color は Notion の annotations.color（'red' / 'yellow_background' 等・default は省略）。
+// 執筆側が付けた文字色・蛍光マーカーを読者にもそのまま届ける。
+export type ReaderInline = { text: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string; color?: string }
 
 export type ReaderBlock =
   | { kind: 'heading'; level: 1 | 2 | 3; inlines: ReaderInline[] }
@@ -21,7 +23,7 @@ export type ReaderDoc = {
 type RichText = {
   plain_text?: string
   href?: string | null
-  annotations?: { bold?: boolean; italic?: boolean; code?: boolean }
+  annotations?: { bold?: boolean; italic?: boolean; code?: boolean; color?: string }
   text?: { content?: string; link?: { url?: string } | null }
 }
 export type RawBlock = { type: string; has_children?: boolean; children?: RawBlock[] } & Record<string, any>
@@ -37,6 +39,7 @@ function inlines(rich: RichText[] | undefined): ReaderInline[] {
     if (a.bold) out.bold = true
     if (a.italic) out.italic = true
     if (a.code) out.code = true
+    if (a.color && a.color !== 'default') out.color = a.color
     if (href) out.href = href
     return out
   })

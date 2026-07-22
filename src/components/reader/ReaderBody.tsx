@@ -30,15 +30,44 @@ function renderText(text: string, key: string) {
   )
 }
 
+// Notion annotations.color → 表示クラス。_background 系は蛍光マーカー、単色系は文字色。
+// 折り返しでもマーカーが切れないよう box-decoration-clone を付ける。
+const MARKER_BASE = 'px-0.5 rounded-[3px] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
+const INLINE_COLOR: Record<string, string> = {
+  yellow_background: `bg-yellow-100 dark:bg-yellow-300/25 ${MARKER_BASE}`,
+  orange_background: `bg-orange-100 dark:bg-orange-300/25 ${MARKER_BASE}`,
+  red_background: `bg-red-100 dark:bg-red-400/25 ${MARKER_BASE}`,
+  pink_background: `bg-pink-100 dark:bg-pink-400/25 ${MARKER_BASE}`,
+  purple_background: `bg-purple-100 dark:bg-purple-400/25 ${MARKER_BASE}`,
+  blue_background: `bg-blue-100 dark:bg-blue-400/25 ${MARKER_BASE}`,
+  green_background: `bg-emerald-100 dark:bg-emerald-400/25 ${MARKER_BASE}`,
+  brown_background: `bg-amber-100 dark:bg-amber-400/25 ${MARKER_BASE}`,
+  gray_background: `bg-gray-100 dark:bg-gray-600/40 ${MARKER_BASE}`,
+  red: 'text-red-600 dark:text-red-400',
+  orange: 'text-orange-600 dark:text-orange-400',
+  yellow: 'text-yellow-700 dark:text-yellow-400',
+  green: 'text-emerald-700 dark:text-emerald-400',
+  blue: 'text-blue-600 dark:text-blue-400',
+  purple: 'text-purple-600 dark:text-purple-400',
+  pink: 'text-pink-600 dark:text-pink-400',
+  brown: 'text-amber-700 dark:text-amber-400',
+  gray: 'text-gray-500 dark:text-gray-400',
+}
+// 太字だけの強調にも薄いマーカーを敷き、重要箇所が「面」で目に入るようにする
+// （執筆側が色を付けている場合はそちらを優先）。
+const BOLD_MARKER = `bg-amber-100/70 dark:bg-amber-300/15 ${MARKER_BASE}`
+
 function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?: boolean }) {
   return (
     <>
       {items.map((n, i) => {
         // 太字は本気で太く（老眼でも強調が拾えるように）。font-medium では地の文と区別がつかない。
+        const color = n.color ? INLINE_COLOR[n.color] ?? '' : ''
         const cls = [
           n.bold ? 'font-bold' : '',
           n.italic ? 'italic' : '',
           n.code ? 'font-mono text-[0.85em] bg-gray-100 dark:bg-gray-700 px-1 rounded' : '',
+          plain ? '' : color || (n.bold && !n.code ? BOLD_MARKER : ''),
         ].join(' ')
         if (n.href) {
           // 直前のノードが確信度マーク単体なら、リンクの下線色をマークの意味色へ寄せる。
@@ -80,7 +109,9 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   const dim = isDimmed(block, active)
   if (dim) return 'text-gray-500 dark:text-gray-400'
   const text = block.kind === 'paragraph' || block.kind === 'list_item' ? block.inlines.map((x) => x.text).join('') : ''
-  if (isRecapText(text)) return 'text-gray-500 dark:text-gray-400 border-l-2 border-teal-500/30 pl-2.5'
+  // recap（→だから…）は節の持ち帰りポイント。淡色で沈めず、teal の小箱で「面」として立てる。
+  if (isRecapText(text))
+    return 'text-gray-700 dark:text-gray-300 font-medium bg-teal-50/70 dark:bg-teal-900/20 border-l-[3px] border-teal-500 rounded-r-md px-3 py-2'
   return 'text-gray-900 dark:text-gray-100'
 }
 
@@ -184,7 +215,7 @@ function Block({
         const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-2.5">
+            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
               <span className="text-sm font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
@@ -193,7 +224,7 @@ function Block({
           )
         }
         return (
-          <h3 data-section={anchor} className="text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-2">
+          <h3 data-section={anchor} className="text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
