@@ -82,7 +82,7 @@ export default function PushPrimer({ open, onClose }: { open: boolean; onClose: 
           <>
             <p className="text-base font-semibold text-slate-800">明日の1問を通知で受け取りますか？</p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              1日1問だけ、静かにお届けします。通知はいつでも設定からオフにできます。
+              1日1問だけプレミアムナレッジからお届けします。通知はいつでも設定からオフにできます。
             </p>
             <div className="mt-4 flex gap-2">
               <button onClick={onClose} className="flex-1 rounded-lg border border-slate-300 py-2 text-sm text-slate-600">
