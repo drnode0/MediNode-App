@@ -55,39 +55,46 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
       ]
     : [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: true }]
 
-  // 部署タブ・プレミアムタブは常に表示（未接続は薄くグレーアウト）
-  const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
+  // 固定タブ（全て・個人・プレミアム）は常に左に見える。順序不変で位置が動かない。
+  // 部署は右側の可動ゾーン（横スクロール）に置き、何個足してもレイアウトが崩れない。
+  const fixedOptions: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    ...teamChips,
     { id: 'subscription' as OwnerFilter, label: 'プレミアム', inactive: !hasSubscription },
   ]
   const openSettings = useContext(OpenSettingsContext)
+
+  const renderChip = (o: { id: OwnerFilter; label: string; inactive?: boolean }) => (
+    <button
+      key={o.id}
+      onClick={() => onChange(o.id)}
+      className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+        owner === o.id
+          ? o.id === 'subscription' && !hasSubscription
+            ? 'bg-purple-500 text-white'
+            : 'bg-brand-600 text-white'
+          : o.inactive
+            ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+      }`}
+    >
+      {o.id === 'subscription' && (
+        hasSubscription
+          ? <Star className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+          : <Lock className="w-3 h-3 inline -mt-0.5 mr-0.5" />
+      )}
+      {o.label}
+    </button>
+  )
+
   return (
     <div className="mb-2">
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {options.map((o) => (
-          <button
-            key={o.id}
-            onClick={() => onChange(o.id)}
-            className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-              owner === o.id
-                ? o.id === 'subscription' && !hasSubscription
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-brand-600 text-white'
-                : o.inactive
-                  ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {o.id === 'subscription' && (
-              hasSubscription
-                ? <Star className="w-3 h-3 inline -mt-0.5 mr-0.5" />
-                : <Lock className="w-3 h-3 inline -mt-0.5 mr-0.5" />
-            )}
-            {o.label}
-          </button>
-        ))}
+      <div className="flex gap-1.5 items-center">
+        {fixedOptions.map(renderChip)}
+        {/* 部署チップ＝可動ゾーン。残り幅を取り、はみ出したら横スクロール（固定タブは動かない）。 */}
+        <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {teamChips.map(renderChip)}
+        </div>
       </div>
       {/* 部署未接続のまま部署フィルタを選んだ場合の案内（全タブ共通でここに一元実装） */}
       {owner === 'team' && !hasTeam && (

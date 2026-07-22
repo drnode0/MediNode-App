@@ -158,29 +158,33 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
         ...additional.map((t) => ({ id: `team:${t.medicalDbId}` as OwnerFilter, label: t.label.trim() })),
       ]
     : [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: true }]
-  const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
+  // 固定タブ（全て・個人・プレミアム）＋ 部署の可動ゾーン（横スクロール）。
+  const fixedOptions: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    ...teamChips,
     { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription },
   ]
+  const renderChip = (o: { id: OwnerFilter; label: string; inactive?: boolean }) => (
+    <button
+      key={o.id}
+      onClick={() => onChange(o.id)}
+      className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+        owner === o.id
+          ? 'bg-brand-600 text-white'
+          : o.inactive
+            ? 'bg-gray-50 dark:bg-gray-700/40 dark:bg-gray-800 text-gray-300 dark:text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
+            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+      }`}
+    >
+      {o.label}
+    </button>
+  )
   return (
-    <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-            owner === o.id
-              ? 'bg-brand-600 text-white'
-              : o.inactive
-                ? 'bg-gray-50 dark:bg-gray-700/40 dark:bg-gray-800 text-gray-300 dark:text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="flex gap-1.5 mb-3 items-center">
+      {fixedOptions.map(renderChip)}
+      <div className="flex gap-1.5 overflow-x-auto flex-1 min-w-0 pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {teamChips.map(renderChip)}
+      </div>
     </div>
   )
 }
