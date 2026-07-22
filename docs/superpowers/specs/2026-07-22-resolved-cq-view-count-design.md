@@ -111,6 +111,25 @@ export function recordCqView(objectId: string, owner?: string) {
 - 適用まではバッジが出ないだけで、他機能・記録APIともに 200 のまま（無害）。
 - 必要 env は既存の `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`（追加なし）。
 
+## 追記（2026-07-22・実装後の確定変更）
+
+**カウント基準を「詳細を開いた時」に変更（当初はNotionジャンプ時）**
+- 理由：要約が優秀だとNotionへ飛ばず満足する人が多く、Notionジャンプのみだと
+  「良い要約ほど参照回数が少なく出る」逆転が起きる。「気になって開いた」を素直に測る。
+- ResultCard：要約あり＝カード展開（閉→開）の瞬間に1回加算（`toggleExpanded`）。
+  展開後のNotionジャンプでは二重に数えない（recordCqView を撤去、recordRecentView は残す）。
+  要約なし＝カード＝Notionリンクを開いた時に加算（従来どおり）。
+- 他面（今日の1問・最近見た・クイズ・解決一覧）は本文リンクを開いた時＝そのまま
+  （in-app展開が無いので「開いた＝ジャンプ」で一貫）。
+
+**全プレミアムナレッジへ拡張（表示先＝/admin ランキング）**
+- 記録は元々 owner==='subscription' 全件対象なので、CQに限らず全ナレッジの回数が貯まる。
+- 追加した表示：`GET /api/admin/cq-ranking`（requireAdmin。cq_views 上位＋サブスクIndexで
+  タイトル解決）＋ `KnowledgeRankingCard`（/admin 分析タブに「よく参照されているナレッジ」）。
+- env追加なし（SUBSCRIPTION_ALGOLIA_* は /api/resolved-cqs で既出）。マイグレーション追加もなし
+  （0016 の cq_views をそのまま使う）。
+- 利用者向けの検索カード等へのバッジ表示は今回やらない（作者の把握のみ）。
+
 ## ブランチ
 
 運用機能追加のため `main`（[[medinode-branch-workflow]]）。
