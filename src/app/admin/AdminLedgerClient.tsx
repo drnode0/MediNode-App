@@ -23,8 +23,10 @@ import {
   ExternalLink,
   Gift,
   Hourglass,
+  LayoutDashboard,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   Timer,
@@ -62,6 +64,7 @@ import {
 } from '@/lib/ledger-metrics'
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
 import { DailyCommandCenter } from './DailyCommandCenter'
+import { AdminSettingsPanel } from './AdminSettingsPanel'
 import { OperatingCostCard } from './OperatingCostCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
@@ -253,6 +256,56 @@ function csvCell(v: string | null): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
+// 運用ダッシュボードのタブ。長い1ページをスクロールせず切り替えて見るための分割単位。
+type AdminTab = 'today' | 'accounts' | 'analytics' | 'settings'
+const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
+  { key: 'today', label: '今日', icon: LayoutDashboard },
+  { key: 'accounts', label: 'アカウント', icon: Users },
+  { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
+  { key: 'settings', label: '配信・設定', icon: Settings },
+]
+
+// アカウント台帳の日付ソート対象列。
+type SortKey = 'createdAt' | 'lastSignInAt' | 'lastUsedAt'
+const SORT_LABEL: Record<SortKey, string> = {
+  createdAt: '登録日',
+  lastSignInAt: '最終ログイン',
+  lastUsedAt: '最終利用',
+}
+
+// クリックで並び替えできる日付列の見出し。有効列は矢印（▲昇順/▼降順）、それ以外は薄い↕。
+function SortableTh({
+  col,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  col: SortKey
+  activeKey: SortKey
+  dir: 'asc' | 'desc'
+  onSort: (k: SortKey) => void
+}) {
+  const active = activeKey === col
+  return (
+    <th className="px-4 py-3 font-medium whitespace-nowrap">
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
+        title={`${SORT_LABEL[col]}で並び替え`}
+      >
+        {SORT_LABEL[col]}
+        <span
+          className={`text-[10px] ${active ? 'text-brand-600 dark:text-brand-400' : 'text-gray-300 dark:text-gray-600'}`}
+          aria-hidden
+        >
+          {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  )
+}
+
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
@@ -276,8 +329,11 @@ export function AdminLedgerClient() {
   const [onlyReferred, setOnlyReferred] = useState(false)
   const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
   const [copied, setCopied] = useState<string | null>(null)
-  // 分析・マーケ・安全の深掘りブロックの開閉（既定は閉じ、日次ビューを軽く保つ）。
-  const [showAnalytics, setShowAnalytics] = useState(false)
+  // タブ切替（長い1ページを分割してスクロールを減らす）。既定は「今日」。
+  const [tab, setTab] = useState<AdminTab>('today')
+  // アカウント台帳のソート（日付列）。既定は登録日の新しい順。
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -568,6 +624,32 @@ ${label}`,
     )
   }, [rows, query, onlyUntouchedTrials, onlyReferred, isUntouchedPremium])
 
+  // 台帳の並び替え（日付列の昇順/降順）。null（未記録）は方向に関わらず常に末尾へ寄せる。
+  const sorted = useMemo(() => {
+    const ms = (v: string | null) => (v ? new Date(v).getTime() : null)
+    return [...filtered].sort((a, b) => {
+      const av = ms(a[sortKey])
+      const bv = ms(b[sortKey])
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return sortDir === 'asc' ? av - bv : bv - av
+    })
+  }, [filtered, sortKey, sortDir])
+
+  // 見出しクリックでソート。同じ列なら昇降トグル、別の列なら降順から。
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      } else {
+        setSortKey(key)
+        setSortDir('desc')
+      }
+    },
+    [sortKey],
+  )
+
   const counts = useMemo(() => {
     const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
     for (const r of rows ?? []) c[r.kind]++
@@ -822,17 +904,49 @@ ${label}`,
           日々の管理・会員・使用量・収支をまとめて見る管理者専用ダッシュボードです
         </p>
 
-        {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。
-            login/forbidden 画面では出さない（error時は非表示）。 */}
-        {!error && <DailyCommandCenter />}
-        {!loading && !error && rows && campaignDaysLeft != null && (
+        {/* タブ。長い1ページを切り替えて見る。login/forbidden 時は出さない。 */}
+        {!error && (
+          <div className="flex gap-1 mb-5 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+            {ADMIN_TABS.map((t) => {
+              const TabIcon = t.icon
+              const active = tab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    active
+                      ? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <TabIcon className="w-4 h-4" aria-hidden />
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。 */}
+        {!error && tab === 'today' && <DailyCommandCenter />}
+
+        {/* ⚙️ 配信・設定タブ（台帳データ非依存・自己完結なので loading/error に関わらず出す）。 */}
+        {!error && tab === 'settings' && (
+          <div className="mt-2 mb-8">
+            <AdminSettingsPanel />
+          </div>
+        )}
+        {!loading && !error && rows && tab === 'today' && campaignDaysLeft != null && (
           <div className="mb-6 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700">
             <Sparkles className="w-3.5 h-3.5" aria-hidden />
             公開記念キャンペーン期間中 — 残り{campaignDaysLeft}日（〜8/18）。自動トライアル7日・note特典30日・友達紹介14日
           </div>
         )}
 
-        {loading && (
+        {loading && tab !== 'settings' && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-12 justify-center">
             <Spinner className="w-4 h-4" />
             読み込んでいます…
@@ -863,7 +977,8 @@ ${label}`,
 
         {!loading && !error && rows && (
           <>
-            {/* KPIカード列: 規模と勢いをまず数字で */}
+            {/* 👥 アカウントタブ: KPIカード列（規模と勢い）＋台帳 */}
+            {tab === 'accounts' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
               <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} help="auth.usersの全アカウント数。管理者・本人・モニターも含む総登録数です。" />
               <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight help="直近7日にアプリ利用（app_usage）の記録がある人数（WAU）。" />
@@ -884,23 +999,12 @@ ${label}`,
               />
               <KpiCard icon={UserPlus} label="友達紹介で開始" value={referredCount || referralTotal} sub={topReferrers.length > 0 ? `${topReferrers.length}人が招待してくれた` : '紹介コード経由の累計'} help="referral_redemptions経由（友達紹介コード）で登録した人数の累計です。" />
             </div>
+            )}
 
-            {/* 💰 運用コスト・収支（常時表示。売上MRRは computeRevenue から） */}
-            <OperatingCostCard mrrJpy={revenue.mrr} />
+            {/* 📊 分析・マーケタブ: 運用コスト・収支＋深掘り（ファネル/売上/継続/グラフ/流入元/セットアップ/LP/安全） */}
+            {tab === 'analytics' && <OperatingCostCard mrrJpy={revenue.mrr} />}
 
-            {/* 分析・マーケ・安全の深掘り。既定は閉じ、日次ビューを軽く保つ（🗼今日の管理が最上部）。 */}
-            <button
-              type="button"
-              onClick={() => setShowAnalytics((v) => !v)}
-              className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-              aria-expanded={showAnalytics}
-            >
-              <BarChart3 className={`w-4 h-4 transition-transform ${showAnalytics ? '' : ''}`} aria-hidden />
-              詳しく見る（分析・マーケ・安全）
-              <ChevronDown className={`w-4 h-4 transition-transform ${showAnalytics ? 'rotate-180' : ''}`} aria-hidden />
-            </button>
-
-            {showAnalytics && (
+            {tab === 'analytics' && (
               <>
             {/* マーケ・経営サマリー: ファネル / 売上 / 継続 */}
             <div className="grid gap-3 mb-4 lg:grid-cols-2">
@@ -1086,6 +1190,8 @@ ${label}`,
               </>
             )}
 
+            {tab === 'accounts' && (
+              <>
             {/* 検索＋プレミアム未利用の抽出 */}
             <div className="relative mb-2">
               <Search
@@ -1140,16 +1246,16 @@ ${label}`,
                     <th className="px-4 py-3 font-medium whitespace-nowrap">流入元</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">紹介</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">登録日</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">最終ログイン</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">最終利用</th>
+                    <SortableTh col="createdAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableTh col="lastSignInAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableTh col="lastUsedAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
                     <th className="px-4 py-3 font-medium whitespace-nowrap">プレミアム利用</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">設定同期</th>
                     <th className="px-4 py-3 font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => {
+                  {sorted.map((r) => {
                     const Icon = KIND_STYLE[r.kind].icon
                     const canRevoke = r.kind === 'comp' || r.kind === 'trial' || r.kind === 'auto_trial'
                     // トライアル中でも「永続無料へ格上げ」できるようにする（期限終了を待たない）。
@@ -1323,7 +1429,7 @@ ${label}`,
                       </tr>
                     )
                   })}
-                  {filtered.length === 0 && (
+                  {sorted.length === 0 && (
                     <tr>
                       <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
                         該当するアカウントがありません
@@ -1352,10 +1458,14 @@ ${label}`,
               紹介: 「N人招待」＝この人が友達紹介で連れてきた人数（多い順は上のランキング参照）。
               「紹介で開始」＝この人自身が誰かの紹介コード経由で登録。友達紹介で開始した人数はKPIカードにも出ます。
             </p>
+              </>
+            )}
 
+            {tab === 'analytics' && (
             <div className="mt-4">
               <AuditLogSection log={auditLog} />
             </div>
+            )}
           </>
         )}
       </div>
