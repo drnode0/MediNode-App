@@ -94,6 +94,13 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
     || (isMedical ? 'border-l-brand-400' : recLevel ? (recIsDeep ? 'border-l-amber-500' : 'border-l-amber-200') : 'border-l-amber-400')
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
+
+  // 詳細（要約）を開いた瞬間を「参照」として1回だけ数える（閉→開のときのみ・
+  // サブスク公開ナレッジのみ）。要約で満足してNotionへ飛ばない人も拾うための基準。
+  const toggleExpanded = () => {
+    if (!expanded) recordCqView(hit.objectID, hit.owner)
+    setExpanded((v) => !v)
+  }
   const ownerBadge = hit.owner && hit.owner !== 'personal' ? OWNER_BADGE[hit.owner] : null
   const ownerLabel = ownerBadge
     ? (hit.owner === 'team' && hit.teamLabel ? hit.teamLabel : ownerBadge.label)
@@ -110,7 +117,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
       {/* メイン部分：タップ／キーボードで展開（要約ありの場合のみ） */}
       <div
         className={`p-4 ${hasExpandable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-inset' : ''}`}
-        onClick={() => hasExpandable && setExpanded((v) => !v)}
+        onClick={() => hasExpandable && toggleExpanded()}
         {...(hasExpandable
           ? {
               role: 'button',
@@ -119,7 +126,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               onKeyDown: (e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setExpanded((v) => !v)
+                  toggleExpanded()
                 }
               },
             }
@@ -279,7 +286,8 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               onClick={(e) => {
                 e.stopPropagation()
                 recordRecentView(hit)
-                recordCqView(hit.objectID, hit.owner)
+                // 参照カウントは「詳細を開いた時」に一本化（展開で既に加算済み）。
+                // ここ（要約を読んだ後のNotionジャンプ）では二重に数えない。
               }}
               className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
