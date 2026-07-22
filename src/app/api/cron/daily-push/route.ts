@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { readPushStage, currentSlotBucket, jstToday, isPreviewEmail } from '@/lib/push'
 import { getUserPrefs } from '@/lib/push-prefs'
 import { sendToUsers } from '@/lib/push-send'
+import { pickTodaysDailyQuestion } from '@/lib/daily-question-server'
+import { stripLeadingEmoji } from '@/lib/labels'
 
 /**
  * Vercel Cron 専用：「今日の1問」デイリー通知。
@@ -86,7 +88,16 @@ export async function GET(req: NextRequest) {
       targets.push(uid)
     }
 
-    const payload = { title: '今日の1問', body: '今日の1問が届いています。', url: '/', tag: 'daily-question' }
+    // 通知本文には「今日の問い」（疑問文タイトル）を出す＝開封率↑。
+    // 答え本文は出さない（ロック画面で"答えまで無料"が消費されないよう、問いだけ）。
+    // 取得失敗・候補ゼロのときは従来どおり汎用文にフォールバックし、配信自体は止めない。
+    let body = '今日の1問が届いています。'
+    if (targets.length > 0) {
+      const pick = await pickTodaysDailyQuestion()
+      const title = pick?.title ? stripLeadingEmoji(pick.title).trim() : ''
+      if (title) body = title
+    }
+    const payload = { title: '今日の1問', body, url: '/', tag: 'daily-question' }
     const res = await sendToUsers(admin, targets, 'daily', payload)
 
     // 送信記録（当日二重送信防止）。ベストエフォート：失敗しても次回runが再送するだけなので

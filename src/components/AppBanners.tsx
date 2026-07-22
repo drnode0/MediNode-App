@@ -5,9 +5,10 @@
 //   - FeedbackNudgeBanner: 使い込んだ人に1回だけ感想を依頼
 //   - PowerModeUpgradeBanner: シンプルモード利用者へのパワーモード誘導
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, type LucideIcon } from 'lucide-react'
+import { OpenSettingsContext } from '@/components/SearchErrors'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -30,6 +31,20 @@ export type Announcement = {
   links?: { label: string; url: string }[]
 }
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-07-23-daily-question',
+    date: '2026-07-23',
+    Icon: Sun,
+    title: '「今日の1問」が始まりました（通知でも受け取れます）',
+    body: '検索タブの一番上に、監修ナレッジから毎日1問をお届けします。答えまではどなたでもご覧になれます。回答のあとに出る案内から許可すると、翌日以降は通知でも受け取れます（1日1問だけ・いつでも設定からオフにできます）。ホーム画面に追加（PWA）した iPhone は iOS 16.4 以降で通知が届きます。',
+  },
+  {
+    id: '2026-07-23-inapp-reader',
+    date: '2026-07-23',
+    Icon: BookOpen,
+    title: 'プレミアムの続きが、アプリ内で読めるようになりました',
+    body: '外部ページに移らず、続きをアプリ内でそのまま読めるようになりました。読みやすい紙面で、行き来せずに最後まで読めます。（プレミアム表示中の方が対象です）',
+  },
   {
     id: '2026-07-19-launch-campaign',
     date: '2026-07-19',
@@ -72,18 +87,63 @@ export const ANNOUNCEMENTS: Announcement[] = [
 ]
 const LATEST_ANNOUNCEMENT = ANNOUNCEMENTS[0]
 
+// 未読件数を数える。既読ウォーターマーク（最後に見たお知らせid）より前＝新しいものを未読とする。
+//   ・未設定/未知idの新規ユーザー → 最新1件だけ未読扱い（大量表示で驚かせない）
+//   ・seen が [i] のid → [0]..[i-1] の i 件が未読
+function countUnreadAnnouncements(): number {
+  try {
+    const seen = localStorage.getItem(ANNOUNCEMENT_SEEN_KEY)
+    if (!seen) return Math.min(1, ANNOUNCEMENTS.length)
+    const idx = ANNOUNCEMENTS.findIndex((a) => a.id === seen)
+    if (idx === -1) return Math.min(1, ANNOUNCEMENTS.length)
+    return idx
+  } catch {
+    return 0
+  }
+}
+
+// ホームのお知らせバナー。
+//   未読0 → 出さない / 未読1 → 最新お知らせをフル表示（従来どおり）
+//   未読2件以上 → 個別に積まず「新しいお知らせがN件あります → 見る」に集約（うざくない原則）。
+//   ×・見る どちらでも全件既読化（＝最新idをウォーターマークに書く）。
 export function UpdateBanner() {
-  const [show, setShow] = useState(false)
+  const openSettings = useContext(OpenSettingsContext)
+  const [unread, setUnread] = useState(0)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const seen = localStorage.getItem(ANNOUNCEMENT_SEEN_KEY)
-    if (seen !== LATEST_ANNOUNCEMENT.id) setShow(true)
+    setUnread(countUnreadAnnouncements())
   }, [])
-  if (!show) return null
-  const dismiss = () => {
-    localStorage.setItem(ANNOUNCEMENT_SEEN_KEY, LATEST_ANNOUNCEMENT.id)
-    setShow(false)
+  if (unread <= 0) return null
+
+  const markAllSeen = () => {
+    try { localStorage.setItem(ANNOUNCEMENT_SEEN_KEY, LATEST_ANNOUNCEMENT.id) } catch {}
+    setUnread(0)
   }
+
+  if (unread >= 2) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
+        <div className="bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="shrink-0"><Megaphone className="h-5 w-5 text-brand-600 dark:text-brand-300" /></span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">新しいお知らせが{unread}件あります</p>
+            <p className="text-xs text-brand-700/80 dark:text-brand-300/80 mt-0.5">アプリの新機能・アップデート情報をまとめて確認できます。</p>
+          </div>
+          {openSettings && (
+            <button
+              onClick={() => { openSettings('announcements'); markAllSeen() }}
+              className="shrink-0 text-xs font-semibold text-brand-700 dark:text-brand-200 bg-white/70 dark:bg-brand-900/40 border border-brand-300 dark:border-brand-600 rounded-full px-3 py-1.5 hover:bg-white dark:hover:bg-brand-900/60 transition-colors"
+            >
+              見る
+            </button>
+          )}
+          <button onClick={markAllSeen} className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
+        </div>
+      </div>
+    )
+  }
+
+  // 未読1件: 最新お知らせをフル表示（従来UI）。
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
       <div className="bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl px-4 py-3 flex items-start gap-3">
@@ -107,7 +167,7 @@ export function UpdateBanner() {
           </div>
           <p className="text-[11px] text-brand-600/70 dark:text-brand-400/70 mt-2">過去のお知らせは 設定 →「お知らせ・更新履歴」から見返せます。</p>
         </div>
-        <button onClick={dismiss} className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
+        <button onClick={markAllSeen} className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
       </div>
     </div>
   )

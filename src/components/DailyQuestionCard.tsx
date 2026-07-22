@@ -3,8 +3,9 @@
 // 想起型: 問いを見て頭の中で答える → タップで答え（要約）→「覚えた/まだ」。10〜20秒で完結。
 // 出題はサーバー（/api/daily-question）が決定（全員同じ1問・段階公開フラグで出し分け）。
 // 「覚えた/まだ」は既存quiz-srs（localStorage）に記録し、サーバーには回答日付だけを送る。
-import { useEffect, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useState, type ReactNode } from 'react'
 import { BookOpen, Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
+import { OpenSettingsContext } from '@/components/SearchErrors'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
@@ -48,6 +49,7 @@ function saveState(state: LocalState) {
 
 export function DailyQuestionCard() {
   const { open: openReader } = useReader()
+  const openSettings = useContext(OpenSettingsContext)
   const [data, setData] = useState<DailyQuestionPayload | null>(null)
   const [state, setState] = useState<LocalState | null>(null)
   // 回答した「今このセッション」だけ完了メッセージを見せるためのフラグ。
@@ -213,7 +215,21 @@ export function DailyQuestionCard() {
                   </a>
                 )
               ) : (
-                <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">この続きは監修ライブラリで読めます。</p>
+                <div className="mt-3">
+                  <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                    答えまではどなたでもご覧になれます。専門医のプレミアムナレッジで続きが読めます。
+                  </p>
+                  {openSettings && (
+                    <button
+                      type="button"
+                      onClick={() => openSettings('subscription')}
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+                    >
+                      プレミアムを見る
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

@@ -9,31 +9,19 @@
 // （カード非表示になるだけでアプリは通常どおり動く）。
 
 import { NextRequest, NextResponse } from 'next/server'
-import algoliasearch from 'algoliasearch'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getActiveStatusByUserId } from '@/lib/supabase/subscriptions'
 import { requireAdmin } from '@/lib/admin-guard'
 import { isAdminEmail } from '@/lib/maintenance'
 import {
   DAILY_QUESTION_FLAG_KEY,
-  isDailyQuestionCandidate,
   isPreviewEmail,
   jstToday,
   parseStage,
-  pickDailyIndex,
   readDailyQuestionStage,
   __resetDailyQuestionStageCache,
 } from '@/lib/daily-question'
-
-type PoolHit = {
-  objectID: string
-  title?: string
-  aiSummary?: string
-  summary?: string
-  genre?: string | string[]
-  knowledgeLevel?: string
-  notionUrl?: string
-}
+import { pickTodaysDailyQuestion } from '@/lib/daily-question-server'
 
 export async function GET() {
   const stage = await readDailyQuestionStage()
@@ -56,56 +44,33 @@ export async function GET() {
     return NextResponse.json({ available: false })
   }
 
-  const appId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
-  const adminKey = process.env.SUBSCRIPTION_ALGOLIA_ADMIN_KEY
-  const indexName = process.env.SUBSCRIPTION_ALGOLIA_INDEX || 'Medical Knowledge_DB（サブスク用）'
-  if (!appId || !adminKey) return NextResponse.json({ available: false, ...adminExtra })
+  // 出題は共有ヘルパーで決定（cron/daily-push と同じ1問になる）。
+  const pick = await pickTodaysDailyQuestion()
+  if (!pick) return NextResponse.json({ available: false, ...adminExtra })
 
-  try {
-    const res = await algoliasearch(appId, adminKey)
-      .initIndex(indexName)
-      .search('', {
-        hitsPerPage: 1000,
-        attributesToRetrieve: ['title', 'aiSummary', 'summary', 'genre', 'knowledgeLevel', 'notionUrl'],
-        attributesToHighlight: [],
-      })
-
-    // 決定的選定: 候補を objectID でソートしてから日付ハッシュで1件選ぶ
-    // （Algoliaのランキング順は変動しうるため、並びを固定してから選ぶ）。
-    const pool = (res.hits as PoolHit[])
-      .filter(isDailyQuestionCandidate)
-      .sort((a, b) => (a.objectID < b.objectID ? -1 : 1))
-    const date = jstToday()
-    const idx = pickDailyIndex(date, pool.length)
-    if (idx < 0) return NextResponse.json({ available: false, ...adminExtra })
-    const q = pool[idx]
-
-    // プレミアム判定（premium/status と同じ規則: COMP_ADMIN_EMAILS は無条件active）。
-    let premium = false
-    if (isAdminEmail(email)) premium = true
-    else if (userId) {
-      try {
-        premium = (await getActiveStatusByUserId(userId)).active
-      } catch {}
-    }
-
-    return NextResponse.json({
-      available: true,
-      date,
-      question: {
-        objectID: q.objectID,
-        title: q.title || '',
-        genre: q.genre,
-        knowledgeLevel: q.knowledgeLevel,
-      },
-      answer: q.aiSummary || q.summary || '',
-      ...(premium && q.notionUrl ? { notionUrl: q.notionUrl } : {}),
-      premium,
-      ...adminExtra,
-    })
-  } catch {
-    return NextResponse.json({ available: false, ...adminExtra })
+  // プレミアム判定（premium/status と同じ規則: COMP_ADMIN_EMAILS は無条件active）。
+  let premium = false
+  if (isAdminEmail(email)) premium = true
+  else if (userId) {
+    try {
+      premium = (await getActiveStatusByUserId(userId)).active
+    } catch {}
   }
+
+  return NextResponse.json({
+    available: true,
+    date: jstToday(),
+    question: {
+      objectID: pick.objectID,
+      title: pick.title,
+      genre: pick.genre,
+      knowledgeLevel: pick.knowledgeLevel,
+    },
+    answer: pick.answer,
+    ...(premium && pick.notionUrl ? { notionUrl: pick.notionUrl } : {}),
+    premium,
+    ...adminExtra,
+  })
 }
 
 export async function POST(req: NextRequest) {
