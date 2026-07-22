@@ -40,6 +40,7 @@ function ReaderOverlay({
   zoom,
   onClose,
   onZoom,
+  onRetry,
 }: {
   hit: ReaderHit
   doc: ReaderDoc | null
@@ -47,6 +48,7 @@ function ReaderOverlay({
   zoom: string | null
   onClose: () => void
   onZoom: (u: string | null) => void
+  onRetry: () => void
 }) {
   useBodyScrollLock()
 
@@ -208,9 +210,25 @@ function ReaderOverlay({
           )}
           {state === 'error' && (
             <div className="py-8 text-center">
-              <p className="text-sm text-gray-500 mb-3">本文を表示できませんでした。</p>
-              <a href={hit.notionUrl} target="_blank" rel="noopener noreferrer"
-                className="text-sm text-brand-600 dark:text-brand-300 underline">Notionで開く</a>
+              <p className="text-sm text-gray-500 mb-3">
+                本文を表示できませんでした。時間をおいて再度お試しください。
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="text-sm text-brand-600 dark:text-brand-300 underline min-h-[44px] px-2"
+                >
+                  再試行
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-sm text-gray-500 dark:text-gray-400 underline min-h-[44px] px-2"
+                >
+                  閉じる
+                </button>
+              </div>
             </div>
           )}
           {state === 'idle' && doc && (
@@ -272,7 +290,15 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       {children}
       {mounted && hit
         ? createPortal(
-            <ReaderOverlay hit={hit} doc={doc} state={state} zoom={zoom} onClose={close} onZoom={setZoom} />,
+            <ReaderOverlay
+              hit={hit}
+              doc={doc}
+              state={state}
+              zoom={zoom}
+              onClose={close}
+              onZoom={setZoom}
+              onRetry={() => open(hit)}
+            />,
             document.body,
           )
         : null}
