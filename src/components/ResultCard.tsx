@@ -5,6 +5,9 @@ import { stripLeadingEmoji } from '@/lib/labels'
 import { readingMinutes } from '@/lib/content-stats'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
+import { useReader } from '@/components/reader/SubscriptionReader'
+import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
+import { hasSubscriptionConfig } from '@/lib/algolia'
 import { useState, type KeyboardEvent } from 'react'
 
 export type Hit = {
@@ -83,6 +86,12 @@ function parseEvidence(raw: string): { stars: number; label: string } {
 // isNew: 新着タブ専用。前回確認（既読水位）より後に追加されたプレミアム配信ページに
 // 小さな「New」チップを出す（判定は lib/author-additions.ts の isNewAuthorAddition）。
 export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
+  const { open: openReader } = useReader()
+  const { isRead, isBookmarked } = useReaderMarks()
+  const inAppReader = hit.owner === 'subscription' && hasSubscriptionConfig()
+  // 印（既読ドット・ブックマーク★）はアプリ内リーダー対象のカードのみに出す。
+  const cardIsRead = inAppReader && isRead(hit.objectID)
+  const cardIsBookmarked = inAppReader && isBookmarked(hit.objectID)
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
@@ -117,6 +126,17 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
+      {/* サムネイル：サブスク（アプリ内リーダー対象）カードのみ。読み込み失敗時は非表示にし、
+          従来レイアウト（サムネなし）へフォールバックする。 */}
+      {inAppReader && (
+        <img
+          src={`/api/subscription/thumbnail?id=${encodeURIComponent(hit.objectID)}`}
+          loading="lazy"
+          alt=""
+          className="w-full h-24 object-cover rounded-t-xl"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
+      )}
       {/* メイン部分：タップ／キーボードで展開（要約ありの場合のみ） */}
       <div
         className={`p-4 ${hasExpandable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-inset' : ''}`}
@@ -138,14 +158,38 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
         {/* タイトルは全幅で読ませる。情報源（Medical/Ref）バッジは左帯＋種別ピルと重複するため
             置かない。プレミアム/部署の所属バッジは下のピル行へ寄せ、右上は展開シェブロンだけにする。 */}
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-snug flex-1">
-            {(hit as any)._highlightResult
-              ? <Highlight attribute="title" hit={hit as any} />
-              : hit.title}
+          <h3
+            className={`font-semibold text-base leading-snug flex-1 flex items-start gap-1.5 ${
+              cardIsRead ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'
+            }`}
+          >
+            {/* 既読の淡いドット：見出しテキストを少しトーンダウンしつつ、意味は薄い印だけで伝える（既読ピルは出さない） */}
+            {cardIsRead && (
+              <span
+                className="mt-2 h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0"
+                aria-hidden="true"
+                title="既読"
+              />
+            )}
+            <span>
+              {(hit as any)._highlightResult
+                ? <Highlight attribute="title" hit={hit as any} />
+                : hit.title}
+            </span>
           </h3>
-          {hasExpandable && (
-            <span className="text-gray-300 shrink-0 mt-1">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>
-          )}
+          <div className="flex items-center gap-1 shrink-0 mt-1">
+            {cardIsBookmarked && (
+              <Star
+                className="w-3.5 h-3.5 text-amber-500"
+                fill="currentColor"
+                role="img"
+                aria-label="ブックマーク済み"
+              />
+            )}
+            {hasExpandable && (
+              <span className="text-gray-300">{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-1 mb-2">
@@ -282,37 +326,63 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
             </p>
           )}
           <div className="flex justify-end mt-3">
-            <a
-              href={hit.notionUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation()
-                recordRecentView(hit)
-                // 参照カウントは「詳細を開いた時」に一本化（展開で既に加算済み）。
-                // ここ（要約を読んだ後のNotionジャンプ）では二重に数えない。
-              }}
-              className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
-            >
-              Notionで開く
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {inAppReader ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  recordCqView(hit.objectID, hit.owner)
+                  openReader(hit)
+                }}
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+              >
+                本文を読む
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <a
+                href={hit.notionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  recordRecentView(hit)
+                  // 参照カウントは「詳細を開いた時」に一本化（展開で既に加算済み）。
+                  // ここ（要約を読んだ後のNotionジャンプ）では二重に数えない。
+                }}
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+              >
+                Notionで開く
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
         </div>
       )}
 
-      {/* 要約なし：カード全体がNotionリンク */}
+      {/* 要約なし：カード全体がNotionリンク（サブスクはリーダー起動ボタン） */}
       {!hasExpandable && (
-        <a
-          href={hit.notionUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => { recordRecentView(hit); recordCqView(hit.objectID, hit.owner) }}
-          className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
-        >
-          Notionで開く
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        inAppReader ? (
+          <button
+            type="button"
+            onClick={() => { recordCqView(hit.objectID, hit.owner); openReader(hit) }}
+            className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
+          >
+            本文を読む
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <a
+            href={hit.notionUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => { recordRecentView(hit); recordCqView(hit.objectID, hit.owner) }}
+            className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
+          >
+            Notionで開く
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )
       )}
     </div>
   )

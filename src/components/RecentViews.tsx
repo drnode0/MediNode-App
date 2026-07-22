@@ -6,9 +6,12 @@ import { ExternalLink, History } from 'lucide-react'
 import { loadRecentViews, clearRecentViews, recordRecentView, type RecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { isInAppReaderTarget } from '@/lib/subscription-open'
+import { useReader } from '@/components/reader/SubscriptionReader'
 
 export function RecentViewsList() {
   const { user, loading } = useAuth()
+  const { open: openReader } = useReader()
   const [views, setViews] = useState<RecentView[]>([])
   // 認証が解決してから読む＝別ユーザーに変わった直後の再読込で、消去後の空を表示する。
   // （AuthProvider が同じ認証更新の中で先に個人データを消してから user を更新するため、
@@ -34,20 +37,36 @@ export function RecentViewsList() {
         </button>
       </div>
       <div className="space-y-1.5">
-        {views.map((v) => (
-          <a
-            key={v.objectID}
-            href={v.notionUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => { recordRecentView(v); recordCqView(v.objectID, v.owner) }}
-            className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors"
-          >
-            <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
-            <span className="flex-1 truncate">{v.title}</span>
-            <ExternalLink className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
-          </a>
-        ))}
+        {views.map((v) =>
+          isInAppReaderTarget(v.owner) ? (
+            <button
+              key={v.objectID}
+              type="button"
+              onClick={() => {
+                recordCqView(v.objectID, v.owner)
+                openReader({ objectID: v.objectID, title: v.title, notionUrl: v.notionUrl, knowledgeLevel: v.knowledgeLevel, owner: v.owner })
+              }}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors w-full text-left"
+            >
+              <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
+              <span className="flex-1 truncate">{v.title}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
+            </button>
+          ) : (
+            <a
+              key={v.objectID}
+              href={v.notionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => { recordRecentView(v); recordCqView(v.objectID, v.owner) }}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors"
+            >
+              <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
+              <span className="flex-1 truncate">{v.title}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
+            </a>
+          )
+        )}
       </div>
     </div>
   )

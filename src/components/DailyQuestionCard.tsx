@@ -9,6 +9,8 @@ import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
+import { hasSubscriptionConfig } from '@/lib/algolia'
+import { useReader } from '@/components/reader/SubscriptionReader'
 import PushPrimer, { shouldShowPrimer, markPrimerSeen } from './PushPrimer'
 
 type DailyQuestionPayload = {
@@ -44,6 +46,7 @@ function saveState(state: LocalState) {
 }
 
 export function DailyQuestionCard() {
+  const { open: openReader } = useReader()
   const [data, setData] = useState<DailyQuestionPayload | null>(null)
   const [state, setState] = useState<LocalState | null>(null)
   // 回答した「今このセッション」だけ完了メッセージを見せるためのフラグ。
@@ -178,16 +181,30 @@ export function DailyQuestionCard() {
                 </button>
               </div>
               {data.notionUrl ? (
-                <a
-                  href={data.notionUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => { recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' }); recordCqView(q.objectID, 'subscription') }}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
-                >
-                  監修ページで続きを読む
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                hasSubscriptionConfig() ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openReader({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' })
+                      recordCqView(q.objectID, 'subscription')
+                    }}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+                  >
+                    監修ページで続きを読む
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <a
+                    href={data.notionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { recordRecentView({ objectID: q.objectID, title: q.title, notionUrl: data.notionUrl!, knowledgeLevel: q.knowledgeLevel, owner: 'subscription' }); recordCqView(q.objectID, 'subscription') }}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
+                  >
+                    監修ページで続きを読む
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )
               ) : (
                 <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">この続きは監修ライブラリで読めます。</p>
               )}

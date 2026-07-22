@@ -23,6 +23,8 @@ export const PERSONAL_DEVICE_KEYS = [
   'medinode_author_seen_v1', // 筆者追加分 既読水位
   'medinode_author_digest_at_v1', // 筆者追加分 ダイジェスト日時
   'medinode_push_primer_seen_v1', // 通知プライマーの既読水位
+  'medinode_reader_read_v1', // リーダー既読（見た）水位
+  'medinode_reader_bookmarks_v1', // リーダーのブックマーク
 ] as const
 
 // この端末で最後にログインしていたユーザーの id を覚えておくキー（機微でない）。

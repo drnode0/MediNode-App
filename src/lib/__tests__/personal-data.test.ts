@@ -6,6 +6,7 @@ import {
   clearPersonalDeviceData,
   reconcilePersonalDataForUser,
 } from '../personal-data'
+import { READ_KEY, BOOKMARKS_KEY } from '../reader-marks'
 
 // localStorage モック（Node環境）。
 const store = new Map<string, string>()
@@ -71,5 +72,12 @@ describe('reconcilePersonalDataForUser', () => {
     expect(r).toBe('noop')
     expect(store.get(LAST_USER_KEY)).toBe('userA')
     for (const k of PERSONAL_DEVICE_KEYS) expect(store.has(k)).toBe(true)
+  })
+})
+
+describe('reader-marks キーは個人データに含まれる', () => {
+  it('READ_KEY / BOOKMARKS_KEY が登録済み', () => {
+    expect(PERSONAL_DEVICE_KEYS).toContain(READ_KEY)
+    expect(PERSONAL_DEVICE_KEYS).toContain(BOOKMARKS_KEY)
   })
 })
