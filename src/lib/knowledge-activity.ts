@@ -134,6 +134,32 @@ export function computeSummary(
   return { last7, last30, daysSinceLastMedical, thisWeekMedical }
 }
 
+export type PaceStatus = { level: 'good' | 'warn' | 'alert' | 'idle'; message: string }
+
+// サマリーと週目標から「今の状況」を一言で（帯に出す）。判断はナレッジ本体基準。
+export function paceStatus(summary: ActivitySummary, weeklyGoal: number): PaceStatus {
+  const since = summary.daysSinceLastMedical
+  const week = summary.thisWeekMedical
+  const goal = Math.max(1, Math.round(weeklyGoal))
+  if (since == null) {
+    return { level: 'idle', message: 'まだナレッジの投稿がありません' }
+  }
+  if (since >= 7) {
+    return { level: 'alert', message: `${since}日ナレッジの投稿がありません。そろそろ更新を` }
+  }
+  if (week >= goal) {
+    return { level: 'good', message: `今週は目標達成（${week}件）。良いペースです` }
+  }
+  const remain = goal - week
+  if (since >= 3 || week === 0) {
+    return {
+      level: 'warn',
+      message: `今週はやや低調 — 目標まであと${remain}件。最後の投稿は${since}日前`,
+    }
+  }
+  return { level: 'good', message: `順調 — 今週あと${remain}件で目標です` }
+}
+
 export function buildWeekGrid(
   daily: Map<string, DayActivity>,
   nowMs: number,

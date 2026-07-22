@@ -442,15 +442,18 @@ export function CountBars({ items, label }: { items: Segment[]; label: string })
   )
 }
 
-// ---- 投稿ペース・ヒートマップ（2色・週グリッド） --------------------------
+// ---- 投稿ペース・ヒートマップ（読みやすさ優先の再設計） --------------------
 //
-// セル左半分=🩺Medical(グリーン階調)、右半分=📚Reference(アンバー階調)。
-// 階調は件数 0/1-2/3-4/5+ の4段。今日より後のセルは薄く（未来）。
+// パッと見て状況が分かることを最優先:
+//   - 色は「その日のナレッジ件数」を緑の濃淡1系統で（左右分割はやめた）
+//   - 参考文献も足した日は右上に小さなオレンジ点
+//   - 今日は青枠で明示、今日より後は薄く（未来）
+//   - 上に月ラベル、左に全曜日。ホバーで日付と内訳。
 
-const HEAT_CELL = 14
-const HEAT_GAP = 3
-const HEAT_PAD_TOP = 16 // 週ラベル用
-const HEAT_PAD_LEFT = 22 // 曜日ラベル用
+const HEAT_CELL = 18
+const HEAT_GAP = 4
+const HEAT_PAD_TOP = 22 // 月ラベル用
+const HEAT_PAD_LEFT = 24 // 曜日ラベル用
 const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
 
 function heatLevel(count: number): 0 | 1 | 2 | 3 {
@@ -460,18 +463,20 @@ function heatLevel(count: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-// 系列ごとの階調 fill クラス（Tailwind。ライト/ダーク対応）。level0 はグレー。
-const MEDICAL_FILL = [
-  'fill-gray-100 dark:fill-gray-700/50',
-  'fill-emerald-200 dark:fill-emerald-900/50',
-  'fill-emerald-400 dark:fill-emerald-700',
-  'fill-emerald-600 dark:fill-emerald-500',
+// ナレッジ件数の階調 fill クラス（Tailwind・ライト/ダーク対応）。
+// level0=無投稿は中立グレー、以降は緑が明るくなる（ダークでも必ず「活動>空白」の明度順）。
+const KNOWLEDGE_FILL = [
+  'fill-gray-100 dark:fill-gray-700',
+  'fill-emerald-200 dark:fill-emerald-700',
+  'fill-emerald-400 dark:fill-emerald-500',
+  'fill-emerald-600 dark:fill-emerald-400',
 ]
-const REFERENCE_FILL = [
-  'fill-gray-100 dark:fill-gray-700/50',
-  'fill-amber-200 dark:fill-amber-900/50',
-  'fill-amber-400 dark:fill-amber-700',
-  'fill-amber-600 dark:fill-amber-500',
+// 凡例スウォッチ用（fill ではなく bg クラス）。
+const KNOWLEDGE_BG = [
+  'bg-gray-100 dark:bg-gray-700',
+  'bg-emerald-200 dark:bg-emerald-700',
+  'bg-emerald-400 dark:bg-emerald-500',
+  'bg-emerald-600 dark:bg-emerald-400',
 ]
 
 export function HeatmapChart({
@@ -496,53 +501,76 @@ export function HeatmapChart({
         role="img"
         aria-label="ナレッジ投稿ペースのヒートマップ"
       >
-        {/* 曜日ラベル（月・水・金・日だけ間引き表示） */}
-        {WEEKDAY_LABELS.map((wd, i) =>
-          i % 2 === 0 ? (
+        {/* 月ラベル（月が変わる列の上に「M月」） */}
+        {columns.map((col, ci) => {
+          const month = Number(col[0].date.slice(5, 7))
+          const prevMonth = ci > 0 ? Number(columns[ci - 1][0].date.slice(5, 7)) : -1
+          if (ci !== 0 && month === prevMonth) return null
+          return (
             <text
-              key={wd}
-              x={0}
-              y={HEAT_PAD_TOP + i * (HEAT_CELL + HEAT_GAP) + HEAT_CELL - 2}
-              className="fill-gray-400 dark:fill-gray-500"
-              fontSize={9}
+              key={`m-${ci}`}
+              x={HEAT_PAD_LEFT + ci * (HEAT_CELL + HEAT_GAP)}
+              y={HEAT_PAD_TOP - 8}
+              className="fill-gray-500 dark:fill-gray-400"
+              fontSize={10}
             >
-              {wd}
+              {month}月
             </text>
-          ) : null,
-        )}
+          )
+        })}
+        {/* 曜日ラベル（全曜日） */}
+        {WEEKDAY_LABELS.map((wd, i) => (
+          <text
+            key={wd}
+            x={0}
+            y={HEAT_PAD_TOP + i * (HEAT_CELL + HEAT_GAP) + HEAT_CELL - 5}
+            className="fill-gray-400 dark:fill-gray-500"
+            fontSize={9}
+          >
+            {wd}
+          </text>
+        ))}
         {columns.map((col, ci) =>
           col.map((day, ri) => {
             const x = HEAT_PAD_LEFT + ci * (HEAT_CELL + HEAT_GAP)
             const y = HEAT_PAD_TOP + ri * (HEAT_CELL + HEAT_GAP)
             const future = day.date > todayKey
-            const medical = day.medicalNew + day.medicalEdit
-            const reference = day.referenceNew + day.referenceEdit
-            const opacity = future ? 0.25 : 1
+            const isToday = day.date === todayKey
+            const knowledge = day.medicalNew + day.medicalEdit
+            const hasRef = day.referenceNew + day.referenceEdit > 0
             return (
               <g
                 key={day.date}
-                opacity={opacity}
+                opacity={future ? 0.18 : 1}
                 onMouseEnter={() => !future && setHover({ x: x + HEAT_CELL, y, day })}
                 onMouseLeave={() => setHover(null)}
               >
-                {/* 左=medical */}
                 <rect
                   x={x}
                   y={y}
-                  width={HEAT_CELL / 2}
+                  width={HEAT_CELL}
                   height={HEAT_CELL}
-                  rx={1}
-                  className={MEDICAL_FILL[heatLevel(medical)]}
+                  rx={3}
+                  className={`${KNOWLEDGE_FILL[heatLevel(knowledge)]} stroke-gray-200 dark:stroke-gray-700`}
+                  strokeWidth={0.5}
                 />
-                {/* 右=reference */}
-                <rect
-                  x={x + HEAT_CELL / 2}
-                  y={y}
-                  width={HEAT_CELL / 2}
-                  height={HEAT_CELL}
-                  rx={1}
-                  className={REFERENCE_FILL[heatLevel(reference)]}
-                />
+                {/* 参考文献も足した日: 右上のオレンジ点 */}
+                {hasRef && !future && (
+                  <circle cx={x + HEAT_CELL - 4} cy={y + 4} r={3} className="fill-amber-500" />
+                )}
+                {/* 今日: 青枠で明示 */}
+                {isToday && (
+                  <rect
+                    x={x - 1.5}
+                    y={y - 1.5}
+                    width={HEAT_CELL + 3}
+                    height={HEAT_CELL + 3}
+                    rx={4}
+                    fill="none"
+                    className="stroke-blue-500 dark:stroke-blue-400"
+                    strokeWidth={2}
+                  />
+                )}
               </g>
             )
           }),
@@ -553,22 +581,36 @@ export function HeatmapChart({
           className="pointer-events-none absolute z-10 rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-gray-700"
           style={{ left: hover.x + 4, top: hover.y }}
         >
-          <div className="font-semibold">{fmtShort(hover.day.date)}</div>
-          <div>
-            🩺 新規{hover.day.medicalNew}・更新{hover.day.medicalEdit}
+          <div className="font-semibold">
+            {fmtShort(hover.day.date)}
+            {hover.day.date === todayKey ? '（今日）' : ''}
           </div>
           <div>
-            📚 新規{hover.day.referenceNew}・更新{hover.day.referenceEdit}
+            ナレッジ 新規{hover.day.medicalNew}・更新{hover.day.medicalEdit}
+          </div>
+          <div>
+            参考文献 新規{hover.day.referenceNew}・更新{hover.day.referenceEdit}
           </div>
         </div>
       )}
       {/* 凡例 */}
-      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-emerald-500" /> ナレッジ
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+        <span className="flex items-center gap-1.5">
+          少
+          <span className="flex gap-0.5">
+            {KNOWLEDGE_BG.map((bg, l) => (
+              <span key={l} className={`inline-block h-3.5 w-3.5 rounded-sm ${bg}`} />
+            ))}
+          </span>
+          多（ナレッジ件数）
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-amber-500" /> 参考文献
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+          参考文献も追加した日
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-3.5 rounded-sm border-2 border-blue-500 dark:border-blue-400" />
+          今日
         </span>
       </div>
     </div>

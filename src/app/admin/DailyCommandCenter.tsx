@@ -33,7 +33,8 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { HeatmapChart } from './AdminCharts'
-import type { DayActivity, ActivitySummary } from '@/lib/knowledge-activity'
+import { paceStatus } from '@/lib/knowledge-activity'
+import type { DayActivity, ActivitySummary, PaceStatus } from '@/lib/knowledge-activity'
 import {
   usagePct,
   usageSignal,
@@ -95,6 +96,14 @@ type PaceData = {
 const PACE_GOAL_KEY = 'medinode.admin.pace.weeklyGoal'
 const DEFAULT_WEEKLY_GOAL = 3
 const PACE_WEEK_OPTIONS = [12, 26, 52] as const
+
+// 状況ひとこと帯の色（レベル別）。
+const PACE_STATUS_CLASS: Record<PaceStatus['level'], { box: string; dot: string; text: string }> = {
+  good: { box: 'bg-emerald-50 dark:bg-emerald-900/15', dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300' },
+  warn: { box: 'bg-amber-50 dark:bg-amber-900/15', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
+  alert: { box: 'bg-red-50 dark:bg-red-900/15', dot: 'bg-red-500', text: 'text-red-700 dark:text-red-300' },
+  idle: { box: 'bg-gray-50 dark:bg-gray-800/40', dot: 'bg-gray-400', text: 'text-gray-600 dark:text-gray-300' },
+}
 
 function Tile({
   icon: Icon,
@@ -672,6 +681,18 @@ export function DailyCommandCenter() {
                 ))}
               </div>
             </div>
+
+            {/* 状況ひとこと（順調／低調／停滞） */}
+            {(() => {
+              const st = paceStatus(pace.summary!, weeklyGoal)
+              const c = PACE_STATUS_CLASS[st.level]
+              return (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 ${c.box}`}>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} aria-hidden />
+                  <span className={`text-xs ${c.text}`}>{st.message}</span>
+                </div>
+              )
+            })()}
 
             {/* サマリー行 */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300 mb-2">

@@ -4,7 +4,18 @@ import {
   computeSummary,
   buildWeekGrid,
   jstWeekdayMon0,
+  paceStatus,
+  type ActivitySummary,
 } from '@/lib/knowledge-activity'
+
+function summaryOf(daysSince: number | null, thisWeek: number): ActivitySummary {
+  return {
+    last7: { medical: 0, reference: 0 },
+    last30: { medical: 0, reference: 0 },
+    daysSinceLastMedical: daysSince,
+    thisWeekMedical: thisWeek,
+  }
+}
 
 // JST 2026-07-23 12:00 = UTC 2026-07-23T03:00:00Z
 const NOW = Date.parse('2026-07-23T03:00:00.000Z')
@@ -77,6 +88,28 @@ describe('computeSummary', () => {
   it('medical新規が皆無なら daysSinceLastMedical は null', () => {
     const daily = aggregateDaily([], [{ createdAt: '2026-07-22T01:00:00.000Z', lastEdited: '2026-07-22T01:00:00.000Z' }])
     expect(computeSummary(daily, NOW).daysSinceLastMedical).toBe(null)
+  })
+})
+
+describe('paceStatus', () => {
+  it('投稿ゼロ歴は idle', () => {
+    expect(paceStatus(summaryOf(null, 0), 3)).toEqual({ level: 'idle', message: expect.any(String) })
+  })
+  it('7日以上ゼロは alert', () => {
+    const s = paceStatus(summaryOf(8, 0), 3)
+    expect(s.level).toBe('alert')
+  })
+  it('週目標達成は good', () => {
+    expect(paceStatus(summaryOf(1, 3), 3).level).toBe('good')
+    expect(paceStatus(summaryOf(0, 5), 3).level).toBe('good')
+  })
+  it('未達かつ3日以上空くと warn（残り件数を出す）', () => {
+    const s = paceStatus(summaryOf(4, 1), 3)
+    expect(s.level).toBe('warn')
+    expect(s.message).toContain('あと2件')
+  })
+  it('未達でも直近に投稿ありなら good（順調）', () => {
+    expect(paceStatus(summaryOf(1, 2), 3).level).toBe('good')
   })
 })
 
