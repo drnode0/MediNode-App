@@ -11,10 +11,12 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2 } from 'lucide-react'
+import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2, HelpCircle } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { track } from '@vercel/analytics'
 import { getSettings, saveSettings } from '@/lib/settings'
+import { hasSubscriptionConfig } from '@/lib/algolia'
+import { CLINICAL_QUESTION_FORM_URL } from '@/lib/app-links'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { OpenSettingsContext } from './SearchErrors'
 
@@ -169,6 +171,8 @@ function CqCaptureModal({
   const [error, setError] = useState('')
   const [done, setDone] = useState<{ url: string } | null>(null)
   const [mounted, setMounted] = useState(false)
+  // 保存完了後の副導線用。会員はNotionフォームへ、未加入は設定のプレミアム紹介へ。
+  const openSettings = useContext(OpenSettingsContext)
 
   // 背景スクロールをロック（iOSでキーボード後に画面がズレない fixed 方式）。
   useBodyScrollLock()
@@ -304,6 +308,29 @@ function CqCaptureModal({
                   続けて残す
                 </button>
               </div>
+              {/* 答えが出ない疑問は、作者に投稿してプレミアムで解決してもらう副導線。
+                  入力中は出さず、保存できた後にそっと1行だけ添える（押し付けない）。
+                  会員はNotionフォームへ、未加入は設定のプレミアム紹介へ誘導。 */}
+              {hasSubscriptionConfig() ? (
+                <a
+                  href={CLINICAL_QUESTION_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+                  解決の糸口が見つからない疑問は、作者に投稿できます
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+              ) : openSettings ? (
+                <button
+                  onClick={() => { onClose(); openSettings('subscription') }}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+                  答えが出ない疑問は、作者に投稿できます（プレミアム）
+                </button>
+              ) : null}
               <button
                 onClick={onClose}
                 className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1"

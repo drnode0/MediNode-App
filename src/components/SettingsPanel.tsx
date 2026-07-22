@@ -772,16 +772,37 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </button>
               )}
 
-              {/* ── サポート ── */}
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
-              <button onClick={() => setSection('announcements')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-300"><Megaphone className="w-5 h-5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </button>
+              {/* ── 臨床疑問 ── */}
+              {/* 「臨床疑問を投稿する」は関連の深い「解決したみんなの臨床疑問」と
+                  同じグループの先頭に置く（サポートの外部リンク群に埋もれて
+                  見つからない、というモニター指摘への対応）。 */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">臨床疑問</p>
+              {/* 会員はNotionフォームへ。未加入の方にはグレー表示で見せ、タップで
+                  プレミアム紹介（subscription）へ誘導する（存在に気づいてもらう）。 */}
+              {hasSubscriptionConfig() ? (
+                <a
+                  href={CLINICAL_QUESTION_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+                >
+                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </a>
+              ) : (
+                <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"><HelpCircle className="w-5 h-5" /></span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-400 dark:text-gray-500">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 align-text-top" /></p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">プレミアム会員の機能です。専門医が選定し、ナレッジとして配信します（タップで詳細）</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </button>
+              )}
               {/* 解決したみんなの臨床疑問。一覧は全ユーザーに見せる（解決の実績とペースが
                   プレミアムの購買動機になる）。本文リンクはプレミアムのみ（ResolvedCqHistory側で制御）。
                   常設タブは増やさず、通知バナー（ResolvedCqBanner・会員のみ）＋ここからの一覧で完結させる。 */}
@@ -793,6 +814,38 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
+
+              {/* ── サポート ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">サポート</p>
+              <button onClick={() => setSection('announcements')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-300"><Megaphone className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">お知らせ・更新履歴</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">アプリの新機能・アップデート情報</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
+              <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><HelpCircle className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">使い方FAQの検索・エラーの対処法・診断ツール</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-500 dark:text-rose-300"><Send className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </a>
               <a
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -806,6 +859,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
+
+              {/* ── 読みもの・紹介 ── */}
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">読みもの・紹介</p>
               <a
                 href={NOTION_MAGAZINE_URL}
                 target="_blank"
@@ -845,43 +901,6 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </a>
-              <a
-                href={FEEDBACK_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
-              >
-                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-500 dark:text-rose-300"><Send className="w-5 h-5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
-                </div>
-                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </a>
-              {/* 臨床疑問の投稿（プレミアム限定）。Notionフォームの公開リンクへ。 */}
-              {hasSubscriptionConfig() && (
-                <a
-                  href={CLINICAL_QUESTION_FORM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
-                >
-                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                </a>
-              )}
-              <button onClick={() => setSection('help')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300"><HelpCircle className="w-5 h-5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">ヘルプ・よくあるエラー</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">使い方FAQの検索・エラーの対処法・診断ツール</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </button>
 
               {/* ── 危険ゾーン ── */}
               {/* 「🔄 セットアップをやり直す」は削除。動作が「🔀 モードを変更する」と
