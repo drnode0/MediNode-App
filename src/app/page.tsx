@@ -33,6 +33,7 @@ import { QuizCard } from '@/components/QuizCard'
 import { StudyNoteCard } from '@/components/StudyNoteCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
 import { RecentViewsList } from '@/components/RecentViews'
+import { BookmarksList } from '@/components/BookmarksList'
 import { SearchSuggest } from '@/components/SearchSuggest'
 import { recordRecentView } from '@/lib/recent-views'
 import { DailyQuestionCard } from '@/components/DailyQuestionCard'
@@ -80,6 +81,7 @@ import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type 
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 import { ReaderProvider } from '@/components/reader/SubscriptionReader'
+import { ReaderMarksProvider } from '@/components/reader/ReaderMarksProvider'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 import { PREMIUM_VERIFY_FLAG } from '@/components/auth/PremiumSync'
@@ -1282,6 +1284,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
             onSelect={handleSelect}
             onClear={clearHistory}
           />
+          <BookmarksList />
           <RecentViewsList />
           {/* 履歴ゼロ（初回）の白紙防止。パワーモードでも例示キーワードを出す
               （以前はNotionモードだけにあり、パワーモードでは何も出なかった）。 */}
@@ -1595,6 +1598,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       ) : !query && !hasSearched ? (
         <>
           <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
+          <BookmarksList />
           <RecentViewsList />
           {/* 履歴ゼロ（初回）の白紙画面を防ぐ: 例示キーワードをタップで即検索できるようにする */}
           {history.length === 0 && (
@@ -2813,6 +2817,7 @@ export default function Home() {
       <SubscriptionSearchProvider enableBridge={true}>
       <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
       <CqCaptureProvider>
+      <ReaderMarksProvider>
       <ReaderProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
@@ -2834,6 +2839,7 @@ export default function Home() {
         {tourModal}
       </div>
       </ReaderProvider>
+      </ReaderMarksProvider>
       </CqCaptureProvider>
       </OpenSettingsContext.Provider>
       </SubscriptionSearchProvider>
@@ -2903,6 +2909,7 @@ export default function Home() {
     <SubscriptionSearchProvider enableBridge={true}>
     <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
     <CqCaptureProvider>
+    <ReaderMarksProvider>
     <ReaderProvider>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
@@ -2934,6 +2941,7 @@ export default function Home() {
       {tourModal}
     </InstantSearch>
     </ReaderProvider>
+    </ReaderMarksProvider>
     </CqCaptureProvider>
     </OpenSettingsContext.Provider>
     </SubscriptionSearchProvider>
