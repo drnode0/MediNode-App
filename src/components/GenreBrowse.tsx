@@ -165,12 +165,12 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
     { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription },
   ]
   return (
-    <div className="flex gap-1 mb-3 flex-wrap">
+    <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map((o) => (
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
-          className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+          className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
             owner === o.id
               ? 'bg-brand-600 text-white'
               : o.inactive

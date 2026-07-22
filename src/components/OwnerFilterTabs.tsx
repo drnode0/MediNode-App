@@ -65,12 +65,12 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   const openSettings = useContext(OpenSettingsContext)
   return (
     <div className="mb-2">
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((o) => (
           <button
             key={o.id}
             onClick={() => onChange(o.id)}
-            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+            className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
               owner === o.id
                 ? o.id === 'subscription' && !hasSubscription
                   ? 'bg-purple-500 text-white'
