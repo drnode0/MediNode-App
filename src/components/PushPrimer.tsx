@@ -3,26 +3,9 @@
 // 自前シートで価値を伝えてから、OK時にだけネイティブ許可を呼ぶ（"あとで"はネイティブ許可を焼かない）。
 // iOS Safari 未インストール（standalone でない）時は許可を出せないので案内へ差し替える。
 import { useEffect, useState } from 'react'
+import { isIos, isStandalone, subscribeThisDevice } from '@/lib/push-client'
 
 const SEEN_KEY = 'medinode_push_primer_seen_v1' // 一度出したら当面出さない
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
-}
-
-function isStandalone(): boolean {
-  return (
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  )
-}
-
-function isIos(): boolean {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent)
-}
 
 export default function PushPrimer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [mode, setMode] = useState<'ask' | 'ios-install'>('ask')
@@ -35,31 +18,7 @@ export default function PushPrimer({ open, onClose }: { open: boolean; onClose: 
 
   const enable = async () => {
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        onClose()
-        return
-      }
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
-        onClose()
-        return
-      }
-      const reg = await navigator.serviceWorker.ready
-      const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-      if (!key) {
-        onClose()
-        return
-      }
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
-      })
-      const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, ua: navigator.userAgent }),
-      }).catch(() => {})
+      await subscribeThisDevice()
     } finally {
       onClose()
     }

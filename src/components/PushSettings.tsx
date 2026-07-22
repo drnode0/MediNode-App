@@ -5,6 +5,73 @@
 // （role="switch" のスイッチ・brand-600での点灯・dark対応）。オフはいつでも1〜2タップで戻せる。
 import { useEffect, useState } from 'react'
 import { DAILY_SLOTS, DEFAULT_PREFS, type NotifyPrefs } from '@/lib/push'
+import { getDeviceSubscribed, subscribeThisDevice, type SubscribeResult } from '@/lib/push-client'
+
+function deviceResultMessage(result: SubscribeResult): string {
+  if (result.ok) return 'この端末で受け取れるようになりました'
+  switch (result.reason) {
+    case 'ios-uninstalled':
+      return 'iPhoneでは、共有メニューから「ホーム画面に追加」でアプリとして開くと受け取れます'
+    case 'denied':
+      return '通知がブロックされています。端末の設定で許可してください'
+    case 'server-rejected':
+      return 'この端末では今は受け取れません（対象外）'
+    default:
+      return 'この端末では通知を利用できません'
+  }
+}
+
+function DeviceSubscribe() {
+  const [subscribed, setSubscribed] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    getDeviceSubscribed().then((v) => {
+      if (!cancelled) setSubscribed(v)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (subscribed === null) return null
+
+  const onClick = async () => {
+    setBusy(true)
+    setMsg('')
+    try {
+      const result = await subscribeThisDevice()
+      const nowSubscribed = await getDeviceSubscribed()
+      setSubscribed(nowSubscribed)
+      setMsg(deviceResultMessage(result))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="px-4 py-3.5 rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700">
+      {subscribed ? (
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">この端末は通知を受信できます</p>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">この端末はまだ通知を受け取れません</p>
+          <button
+            type="button"
+            onClick={onClick}
+            disabled={busy}
+            className="shrink-0 rounded-lg bg-teal-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+          >
+            この端末で通知を受け取る
+          </button>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{msg}</p>}
+    </div>
+  )
+}
 
 function Toggle({
   label,
@@ -94,6 +161,7 @@ export default function PushSettings() {
       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
         通知はオフにしても、いつでも1〜2タップで戻せます。
       </p>
+      <DeviceSubscribe />
       <Toggle label="通知を受け取る" on={prefs.master} onChange={(v) => save({ ...prefs, master: v })} />
       <div className="space-y-2">
         <Toggle
