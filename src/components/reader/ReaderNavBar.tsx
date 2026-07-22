@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useId, useMemo, useState, type MouseEvent, type RefObject } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Zap, List } from 'lucide-react'
 import { findTldr, tocSections, type ReaderDoc, type ReaderBlock } from '@/lib/reader-doc'
 import { docConfidenceMarks, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
 import { ConfidenceMark } from './ConfidenceMark'
@@ -33,12 +33,14 @@ export function ReaderNavBar({
   const [open, setOpen] = useState(false)
   const [progress, setProgress] = useState(0)
 
-  // ⚡ callout の可視性を監視し、画面外に出たらバーを表示する。IO 非対応環境では常に非表示のまま。
+  // ⚡ callout（無ければ最初のセクション見出し）の可視性を監視し、画面外に出たらバーを表示する。
+  // IO 非対応環境では常に非表示のまま。
   useEffect(() => {
-    if (!tldr) return
     if (typeof IntersectionObserver === 'undefined') return
     const root = scrollRef.current
-    const target = root?.querySelector('[data-tldr]') ?? null
+    const target = tldr
+      ? (root?.querySelector('[data-tldr]') ?? null)
+      : (root?.querySelector('[data-section]') ?? null)
     if (!root || !target) return
 
     const io = new IntersectionObserver(
@@ -68,7 +70,7 @@ export function ReaderNavBar({
     return () => el.removeEventListener('scroll', onScroll)
   }, [scrollRef])
 
-  if (!tldr) return null
+  if (!tldr && sections.length < 2) return null
   // ⚡ がまだ画面内にある間はバー本体を DOM に一切出さない（opacity-0 のみだと
   // min-h-[44px] 分の空きが常に残ってしまうため）。可視性の判定自体は上の
   // useEffect が常に走らせ続ける。
@@ -89,7 +91,7 @@ export function ReaderNavBar({
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const answerParagraphs = tldr.blocks.map(blockPlainText).filter(Boolean)
+  const answerParagraphs = tldr ? tldr.blocks.map(blockPlainText).filter(Boolean) : []
 
   return (
     <div className="sticky top-0 z-20">
@@ -106,7 +108,12 @@ export function ReaderNavBar({
             className={`w-4 h-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
             aria-hidden="true"
           />
-          <span className="truncate">この問いへの答え・目次</span>
+          {tldr ? (
+            <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <List className="w-4 h-4 shrink-0" aria-hidden="true" />
+          )}
+          <span className="truncate">{tldr ? 'この問いへの答え・目次' : '目次'}</span>
         </button>
         {active.size > 0 && (
           <button
