@@ -15,7 +15,8 @@ const getReaderDocCached = (pageId: string, token: string) =>
       const notion = new Client({ auth: token })
       const page = await notion.pages.retrieve({ page_id: pageId })
       const blocks = await fetchPageBlocks(notion, pageId)
-      return mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks)
+      // pageId を渡すと file 画像/cover が安定プロキシURLになる（署名URL失効対策）。
+      return mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
     },
     ['subscription-reader-doc', pageId],
     { revalidate: 3600 },

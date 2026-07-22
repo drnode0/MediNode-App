@@ -287,7 +287,7 @@ function PremiumCheckoutButtonInline() {
             if (!res.ok || !data.url) {
               // 未ログインの決済はサーバーが401で弾く（契約がアカウントに紐づかないため）。
               if (res.status === 401 || data.error === 'login_required') {
-                setError('カードの登録にはログインが必要です。ホーム右上のアカウント（👤）からログインしてからお試しください。')
+                setError('カードの登録にはログインが必要です。ホーム右上のアカウントアイコンからログインしてからお試しください。')
                 return
               }
               setError(data.error || '購入ページを開けませんでした')

@@ -14,6 +14,8 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
   Copy,
   CreditCard,
   Crown,
@@ -300,7 +302,7 @@ function SortableTh({
           className={`text-[10px] ${active ? 'text-brand-600 dark:text-brand-400' : 'text-gray-300 dark:text-gray-600'}`}
           aria-hidden
         >
-          {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+          {active ? (dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : <ChevronsUpDown className="w-3 h-3" />}
         </span>
       </button>
     </th>

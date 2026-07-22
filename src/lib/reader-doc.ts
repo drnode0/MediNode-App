@@ -59,11 +59,25 @@ function fileUrlOf(node: any): string | null {
   return node.external?.url ?? node.file?.url ?? null
 }
 
+// 画像URLの解決。Notionアップロード画像（type:'file'）の署名URLは約1hで失効するため、
+// pageId/blockId が渡されていれば安定したプロキシ（/api/subscription/image）URLに置き換える。
+// プロキシが表示のたびに新しい署名URLを取り直すので、doc をキャッシュしても画像が切れない。
+// external 画像は失効しないので直リンクのまま。proxyPath 未指定（テスト等）は従来どおり直リンク。
+function imageUrlOf(node: any, proxyPath: string | null): string {
+  if (!node) return ''
+  if (node.type === 'external') return node.external?.url ?? ''
+  if (node.type === 'file') {
+    if (proxyPath) return `/api/subscription/image?${proxyPath}`
+    return node.file?.url ?? ''
+  }
+  return fileUrlOf(node) ?? ''
+}
+
 function plain(rich: RichText[] | undefined): string {
   return inlines(rich).map((i) => i.text).join('')
 }
 
-export function mapBlocks(blocks: RawBlock[]): ReaderBlock[] {
+export function mapBlocks(blocks: RawBlock[], pageId?: string): ReaderBlock[] {
   const out: ReaderBlock[] = []
   for (const b of blocks || []) {
     switch (b.type) {
@@ -79,12 +93,14 @@ export function mapBlocks(blocks: RawBlock[]): ReaderBlock[] {
         const body: ReaderBlock[] = []
         const rich = inlines(b.callout?.rich_text)
         if (rich.length) body.push({ kind: 'paragraph', inlines: rich })
-        body.push(...mapBlocks(b.children || []))
+        body.push(...mapBlocks(b.children || [], pageId))
         out.push({ kind: 'callout', icon: iconOf(b.callout?.icon), color: b.callout?.color ?? null, blocks: body })
         break
       }
-      case 'image':
-        out.push({ kind: 'image', url: fileUrlOf(b.image) ?? '', caption: plain(b.image?.caption) || null }); break
+      case 'image': {
+        const proxyPath = pageId && b.id ? `id=${encodeURIComponent(pageId)}&b=${encodeURIComponent(String(b.id))}` : null
+        out.push({ kind: 'image', url: imageUrlOf(b.image, proxyPath), caption: plain(b.image?.caption) || null }); break
+      }
       case 'divider': out.push({ kind: 'divider' }); break
       case 'quote': out.push({ kind: 'paragraph', inlines: inlines(b.quote?.rich_text) }); break
       case 'table': {
@@ -97,7 +113,7 @@ export function mapBlocks(blocks: RawBlock[]): ReaderBlock[] {
         out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]` })
     }
     if (b.children?.length && b.type !== 'callout' && b.type !== 'table') {
-      out.push(...mapBlocks(b.children))
+      out.push(...mapBlocks(b.children, pageId))
     }
   }
   return out
@@ -111,13 +127,13 @@ function titleOf(props: Record<string, any> | undefined): string {
   return ''
 }
 
-export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[]): ReaderDoc {
+export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?: string): ReaderDoc {
   return {
     title: titleOf(page.properties),
     icon: iconOf(page.icon),
-    cover: fileUrlOf(page.cover),
+    cover: imageUrlOf(page.cover, pageId ? `id=${encodeURIComponent(pageId)}&cover=1` : null),
     lastEdited: page.last_edited_time ?? null,
-    blocks: mapBlocks(blocks),
+    blocks: mapBlocks(blocks, pageId),
   }
 }
 

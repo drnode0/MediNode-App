@@ -29,6 +29,7 @@ import {
   Rocket,
   Search,
   Square,
+  TowerControl,
   Users,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
@@ -628,7 +629,8 @@ export function DailyCommandCenter() {
       {/* ヘッダー */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 bg-brand-50/70 dark:bg-brand-900/15 border-b border-brand-100 dark:border-brand-800/60">
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          🗼 今日の管理
+          <TowerControl className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+          今日の管理
           <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
             上から順に確認（{doneCount}/{dailySteps.length}）
           </span>
@@ -663,8 +665,9 @@ export function DailyCommandCenter() {
         {pace?.ready && pace.columns && pace.summary && pace.todayKey && (
           <div className="mb-5">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                📈 ナレッジ投稿ペース
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5" />
+                ナレッジ投稿ペース
               </h3>
               <div className="flex items-center gap-1">
                 {PACE_WEEK_OPTIONS.map((w) => (
