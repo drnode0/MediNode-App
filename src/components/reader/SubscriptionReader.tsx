@@ -262,8 +262,9 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMounted(true) }, [])
 
-  const open = useCallback((h: ReaderHit) => {
-    triggerRef.current = (document.activeElement as HTMLElement | null) ?? null
+  // フェッチ本体（レース保護: token/reqRef）。triggerRef には触れない — 初回オープンと
+  // 再試行のどちらからも呼ばれるため、フォーカス復帰先の上書きはここで行ってはいけない。
+  const runFetch = useCallback((h: ReaderHit) => {
     const token = ++reqRef.current
     setHit(h); setDoc(null); setState('loading'); setZoom(null)
     recordRecentView(h)
@@ -272,6 +273,18 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       .then((d) => { if (reqRef.current !== token) return; setDoc(d.doc); setState('idle') })
       .catch(() => { if (reqRef.current !== token) return; setState('error') })
   }, [])
+
+  const open = useCallback((h: ReaderHit) => {
+    // オーバレイを開くきっかけとなった要素を捕捉するのは初回オープン時のみ。
+    triggerRef.current = (document.activeElement as HTMLElement | null) ?? null
+    runFetch(h)
+  }, [runFetch])
+
+  // エラー状態からの再試行。triggerRef は上書きしない（元々リーダーを開いた要素への
+  // フォーカス復帰を守るため）。レース保護は runFetch 側でそのまま効く。
+  const retry = useCallback(() => {
+    if (hit) runFetch(hit)
+  }, [runFetch, hit])
 
   const close = useCallback(() => {
     setHit(null); setDoc(null); setZoom(null)
@@ -297,7 +310,7 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
               zoom={zoom}
               onClose={close}
               onZoom={setZoom}
-              onRetry={() => open(hit)}
+              onRetry={retry}
             />,
             document.body,
           )
