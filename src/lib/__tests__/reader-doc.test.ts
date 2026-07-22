@@ -95,7 +95,7 @@ describe('mapBlocksToReaderDoc', () => {
   })
 })
 
-import { calloutRole, findTldr, tocSections, parseSectionHeading, isRecapText } from '../reader-doc'
+import { calloutRole, findTldr, tocSections, sectionAnchor, parseSectionHeading, isRecapText } from '../reader-doc'
 import type { ReaderDoc } from '../reader-doc'
 
 describe('calloutRole', () => {
@@ -131,17 +131,25 @@ describe('parseSectionHeading', () => {
   })
 })
 
+describe('sectionAnchor', () => {
+  it('番号付きは番号・番号無しは i+index', () => {
+    expect(sectionAnchor(2, 5)).toBe('2')
+    expect(sectionAnchor(null, 5)).toBe('i5')
+  })
+})
+
 describe('tocSections', () => {
-  it('level2 の番号付き見出しだけを目次に', () => {
+  it('全 level2 見出しを拾う（番号付き/番号無し）', () => {
     const d = doc([
       { kind: 'heading', level: 2, inlines: [{ text: '1. なぜ制限するか' }] },
       { kind: 'paragraph', inlines: [{ text: 'x' }] },
-      { kind: 'heading', level: 2, inlines: [{ text: '2. 上限' }] },
-      { kind: 'heading', level: 2, inlines: [{ text: '確信度の見方' }] },
+      { kind: 'heading', level: 2, inlines: [{ text: '📖 概要' }] },
+      { kind: 'heading', level: 1, inlines: [{ text: '# 見出し' }] },
+      { kind: 'heading', level: 3, inlines: [{ text: 'Primary' }] },
     ])
     expect(tocSections(d)).toEqual([
-      { n: 1, title: 'なぜ制限するか', index: 0 },
-      { n: 2, title: '上限', index: 2 },
+      { n: 1, title: 'なぜ制限するか', index: 0, anchor: '1' },
+      { n: null, title: '📖 概要', index: 2, anchor: 'i2' },
     ])
   })
 })

@@ -145,12 +145,18 @@ export function parseSectionHeading(inlines: ReaderInline[]): { n: number; rest:
   return { n: Number(m[1]), rest: m[2].trim() }
 }
 
-export function tocSections(doc: ReaderDoc): { n: number; title: string; index: number }[] {
-  const out: { n: number; title: string; index: number }[] = []
+export function sectionAnchor(n: number | null, index: number): string {
+  return n != null ? String(n) : `i${index}`
+}
+
+export function tocSections(doc: ReaderDoc): { n: number | null; title: string; index: number; anchor: string }[] {
+  const out: { n: number | null; title: string; index: number; anchor: string }[] = []
   doc.blocks.forEach((b, index) => {
     if (b.kind === 'heading' && b.level === 2) {
       const p = parseSectionHeading(b.inlines)
-      if (p) out.push({ n: p.n, title: p.rest, index })
+      const n = p ? p.n : null
+      const title = p ? p.rest : b.inlines.map((i) => i.text).join('').trim()
+      out.push({ n, title, index, anchor: sectionAnchor(n, index) })
     }
   })
   return out
