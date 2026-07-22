@@ -69,6 +69,10 @@ export function ReaderNavBar({
   }, [scrollRef])
 
   if (!tldr) return null
+  // ⚡ がまだ画面内にある間はバー本体を DOM に一切出さない（opacity-0 のみだと
+  // min-h-[44px] 分の空きが常に残ってしまうため）。可視性の判定自体は上の
+  // useEffect が常に走らせ続ける。
+  if (!visible) return null
 
   const jumpToSection = (n: number) => {
     const el = scrollRef.current?.querySelector<HTMLElement>(`[data-section="${n}"]`)
@@ -88,16 +92,11 @@ export function ReaderNavBar({
   const answerParagraphs = tldr.blocks.map(blockPlainText).filter(Boolean)
 
   return (
-    <div
-      className={`sticky top-0 z-20 transition-opacity duration-150 motion-reduce:transition-none ${
-        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`}
-      aria-hidden={!visible}
-    >
+    <div className="sticky top-0 z-20">
       <div
         id={barId}
         role="button"
-        tabIndex={visible ? 0 : -1}
+        tabIndex={0}
         aria-expanded={open}
         aria-controls={dropdownId}
         onClick={() => setOpen((o) => !o)}
@@ -119,12 +118,10 @@ export function ReaderNavBar({
         {active.size > 0 && (
           <button
             type="button"
-            disabled={!visible}
-            tabIndex={visible ? 0 : -1}
             onClick={scrollToChips}
             onKeyDown={(e) => e.stopPropagation()}
             aria-label="表示中の確信度フィルタへ戻る"
-            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center disabled:pointer-events-none"
+            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center"
           >
             {[...active].map((c) => (
               <ConfidenceMark key={c} kind={c} />
@@ -137,7 +134,7 @@ export function ReaderNavBar({
           aria-hidden="true"
         />
       </div>
-      {open && visible && (
+      {open && (
         <div
           id={dropdownId}
           role="region"

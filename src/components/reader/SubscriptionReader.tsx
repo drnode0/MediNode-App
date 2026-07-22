@@ -187,11 +187,11 @@ function ReaderOverlay({
             <X className="w-5 h-5" />
           </button>
         </div>
-        {active.size > 0 && (
-          <p aria-live="polite" className="sr-only">
-            {[...active].map((c) => CONFIDENCE_LABEL[c]).join('・')}を強調中・{matchCount}件
-          </p>
-        )}
+        <p aria-live="polite" className="sr-only">
+          {active.size > 0
+            ? `${[...active].map((c) => CONFIDENCE_LABEL[c]).join('・')}を強調中・${matchCount}件`
+            : ''}
+        </p>
         <div ref={scrollRef} className="overflow-y-auto px-4 py-4">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">
@@ -257,8 +257,12 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
 
   const close = useCallback(() => {
     setHit(null); setDoc(null); setZoom(null)
-    triggerRef.current?.focus?.()
+    // ReaderOverlay の unmount（＝背面 inert 解除の cleanup）はこの同期フレームでは
+    // まだ走っていない。inert 配下の要素への focus() は仕様上 no-op のため、
+    // コミット後（次フレーム）まで復帰を遅らせる。
+    const el = triggerRef.current
     triggerRef.current = null
+    requestAnimationFrame(() => { el?.focus?.() })
   }, [])
 
   const ctxValue = useMemo(() => ({ open }), [open])
