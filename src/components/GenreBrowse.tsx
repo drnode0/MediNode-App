@@ -11,8 +11,7 @@ import {
 } from '@/lib/algolia'
 import { getSettings } from '@/lib/settings'
 import { ResultCard, type Hit } from './ResultCard'
-
-type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
+import { isTeamOwner, teamIdOf, type OwnerFilter } from './OwnerFilterTabs'
 
 // 部署(team)はAlgoliaで管理しないため、Notionから直読みするフック。
 // /api/notion/search の mode:'browse' で部署DB全件を取得し、owner==='team'のみ採用。
@@ -28,6 +27,9 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
   const teamMedicalDbId = settings?.teamNotionMedicalDbId || ''
   const teamReferenceDbId = settings?.teamNotionReferenceDbId || ''
   const teamLabel = settings?.teamLabel || ''
+  // 追加部署（先行体験）。依存配列に入れて設定変更後に再取得させる。
+  const additionalTeams = settings?.additionalTeams
+  const additionalTeamsKey = JSON.stringify(additionalTeams ?? [])
 
   useEffect(() => {
     if (!teamToken || !teamMedicalDbId) {
@@ -49,6 +51,7 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
         teamNotionReferenceDbId: teamReferenceDbId || undefined,
         // 部署バッジに部署名（例: 救急）を表示するため渡す。
         teamLabel: teamLabel || undefined,
+        additionalTeams: additionalTeams && additionalTeams.length ? additionalTeams : undefined,
         teamOnly: true,
         mode: 'browse',
         pageSize: 200,
@@ -67,7 +70,8 @@ function useTeamGenreHits(): { teamHits: Hit[]; loading: boolean } {
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [teamToken, teamMedicalDbId, teamReferenceDbId, teamLabel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamToken, teamMedicalDbId, teamReferenceDbId, teamLabel, additionalTeamsKey])
 
   return { teamHits, loading }
 }
@@ -143,11 +147,21 @@ function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   hasSubscription: boolean
 }) {
   // 部署名（例: 救急）が設定されていればそれを表示。未設定なら「部署」。
-  const teamLabel = getSettings()?.teamLabel || ''
+  const settings = getSettings()
+  const teamLabel = settings?.teamLabel || ''
+  const teamTabLabel = teamLabel.trim() ? teamLabel.trim() : '部署'
+  const primaryTeamId = settings?.teamNotionMedicalDbId || ''
+  const additional = (settings?.additionalTeams ?? []).filter((t) => t.label?.trim() && t.medicalDbId)
+  const teamChips: { id: OwnerFilter; label: string; inactive?: boolean }[] = hasTeam
+    ? [
+        { id: (primaryTeamId ? `team:${primaryTeamId}` : 'team') as OwnerFilter, label: teamTabLabel },
+        ...additional.map((t) => ({ id: `team:${t.medicalDbId}` as OwnerFilter, label: t.label.trim() })),
+      ]
+    : [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: true }]
   const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    { id: 'team', label: teamLabel.trim() ? teamLabel.trim() : '部署', inactive: !hasTeam },
+    ...teamChips,
     { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription },
   ]
   return (
@@ -262,7 +276,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     let genres: Set<string>
     if (owner === 'subscription') {
       genres = new Set(Object.keys(mergedFacets.subscription))
-    } else if (owner === 'team') {
+    } else if (isTeamOwner(owner)) {
       genres = new Set(Object.keys(mergedFacets.team))
     } else if (owner === 'personal') {
       genres = new Set(Object.keys(mergedFacets.personal))
@@ -316,12 +330,12 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
         const subCount = mergedFacets.subscription[genre] || 0
         const total = owner === 'subscription'
           ? subCount
-          : owner === 'team'
+          : isTeamOwner(owner)
             ? teamCount
             : owner === 'personal'
               ? personalCount
               : personalCount + teamCount + subCount
-        const hasSub = subCount > 0 && owner !== 'personal' && owner !== 'team'
+        const hasSub = subCount > 0 && owner !== 'personal' && !isTeamOwner(owner)
         const hasTeam = teamCount > 0 && owner !== 'personal' && owner !== 'subscription'
         const isActive = selectedGenre === genre
         const tone = genreChipTone(genre)
@@ -468,7 +482,10 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
   const displayedHits = useMemo(() => {
     if (owner === 'subscription') return subHits
     if (owner === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
-    if (owner === 'team') return teamGenreHits
+    if (isTeamOwner(owner)) {
+      const id = teamIdOf(owner)
+      return id ? teamGenreHits.filter((h) => h.teamId === id) : teamGenreHits
+    }
     // all: 個人 → 部署 → サブスクの順に並べる（個人優先）
     const seen = new Set<string>()
     const merged: Hit[] = []
@@ -485,7 +502,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
   }, [owner, personalHits, subHits, teamGenreHits])
 
   // 個人側フィルタ: ownerに応じて絞る（部署はNotion由来なのでAlgolia個人側は無効化）
-  const personalFilter = owner === 'subscription' || owner === 'team'
+  const personalFilter = owner === 'subscription' || isTeamOwner(owner)
     ? 'owner:__none__'
     : owner === 'personal'
       ? `genre:"${genre}" AND (owner:personal OR NOT _exists_:owner)`
@@ -507,7 +524,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
         </button>
       </div>
 
-      {subLoading && owner !== 'personal' && owner !== 'team' && (
+      {subLoading && owner !== 'personal' && !isTeamOwner(owner) && (
         <p className="text-xs text-gray-400 mb-2">プレミアム読み込み中...</p>
       )}
 

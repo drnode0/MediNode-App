@@ -86,6 +86,8 @@ type NotionRecord = {
   source: 'medical' | 'reference' | 'manual'
   owner: 'personal' | 'team'
   teamLabel?: string
+  // 部署識別子（= その部署の medicalDbId）。部署ごとのフィルタチップ用。
+  teamId?: string
   title: string
   genre: string
   genreList: string[]
@@ -471,7 +473,7 @@ async function queryAdditionalTeams(
       } catch {
         // この部署は握り潰して他部署・個人結果を守る。
       }
-      for (const r of collected) r.teamLabel = label
+      for (const r of collected) { r.teamLabel = label; r.teamId = team.medicalDbId }
       out.push(...collected)
     }),
   )
@@ -628,8 +630,12 @@ export async function POST(req: NextRequest) {
     // 部署バッジに部署名（例: 救急）を表示するため、team レコードに teamLabel を一括付与する。
     // 各 fetch 関数ごとに付け忘れると再発するため、ここで一元的に注入する。
     const resolvedTeamLabel = (typeof teamLabel === 'string' && teamLabel.trim()) ? teamLabel.trim() : '部署'
+    // primary 部署の teamId（= その medicalDbId）。追加部署は queryAdditionalTeams で
+    // 既に teamId を持つため、!r.teamId のガードで上書きしない。
+    const primaryTeamId = typeof teamNotionMedicalDbId === 'string' ? teamNotionMedicalDbId : ''
     for (const r of records) {
       if (r.owner === 'team' && !r.teamLabel) r.teamLabel = resolvedTeamLabel
+      if (r.owner === 'team' && !r.teamId && primaryTeamId) r.teamId = primaryTeamId
     }
 
     return NextResponse.json({ records, total: records.length })

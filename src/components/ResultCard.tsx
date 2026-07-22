@@ -16,6 +16,9 @@ export type Hit = {
   manualType?: string
   publishedAt?: string
   teamLabel?: string
+  // 追加部署（先行体験）の識別子。部署ごとのフィルタチップで絞り込むのに使う。
+  // 値は各部署の medicalDbId（安定・移行不要）。primary 部署にも付与する。
+  teamId?: string
   genre?: string | string[]
   genreList?: string[]
   detailGenre?: string

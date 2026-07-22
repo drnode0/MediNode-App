@@ -7,10 +7,25 @@ import { getSettings } from '@/lib/settings'
 import { OpenSettingsContext } from './SearchErrors'
 import { Star, Lock } from 'lucide-react'
 
-export type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription'
+// 'team:<id>' は追加部署（先行体験）の特定部署を指す。<id> は各部署の medicalDbId。
+// bare 'team' は「全部署」または部署未接続の空状態を表す（従来挙動を保持）。
+export type OwnerFilter = 'all' | 'personal' | 'team' | 'subscription' | `team:${string}`
+
+// team 系（bare 'team' / 'team:<id>'）かどうか。
+export function isTeamOwner(o: OwnerFilter): boolean {
+  return o === 'team' || o.startsWith('team:')
+}
+
+// 'team:<id>' なら <id> を返す。bare 'team' や非team は null。
+export function teamIdOf(o: OwnerFilter): string | null {
+  return o.startsWith('team:') ? o.slice('team:'.length) : null
+}
 
 export function buildOwnerFilter(owner: OwnerFilter): string {
   if (owner === 'all') return ''
+  // 部署は Algolia に無い（Notion 直読み）。特定部署も含め owner:team に正規化する
+  // （Algolia 側は team ヒット無し＝空。実際の部署絞り込みは Notion ヒット側で行う）。
+  if (isTeamOwner(owner)) return 'owner:team'
   return `owner:${owner}`
 }
 
@@ -23,13 +38,28 @@ export function OwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
   // 部署名（例: 救急）が設定されていればそれを表示。未設定なら「部署」。
   // 全タブ共通のコンポーネントなので、ここで設定から直接読むことで
   // 呼び出し元ごとの渡し忘れ（再発の温床）を防ぐ。
-  const teamLabel = getSettings()?.teamLabel || ''
+  const settings = getSettings()
+  const teamLabel = settings?.teamLabel || ''
   const teamTabLabel = teamLabel.trim() ? teamLabel.trim() : '部署'
+  const primaryTeamId = settings?.teamNotionMedicalDbId || ''
+  // 追加部署（先行体験）。label と medicalDbId が揃ったものだけチップ化。
+  const additional = (settings?.additionalTeams ?? []).filter((t) => t.label?.trim() && t.medicalDbId)
+
+  // 部署チップ: 接続済みなら primary 部署 ＋ 追加部署ぶんを並べる。
+  // primary は medicalDbId があれば 'team:<id>'、無ければ bare 'team'（全部署・従来挙動）。
+  // 未接続なら bare 'team' の非活性チップ1つ（従来どおり未接続案内の入口）。
+  const teamChips: { id: OwnerFilter; label: string; inactive?: boolean }[] = hasTeam
+    ? [
+        { id: (primaryTeamId ? `team:${primaryTeamId}` : 'team') as OwnerFilter, label: teamTabLabel },
+        ...additional.map((t) => ({ id: `team:${t.medicalDbId}` as OwnerFilter, label: t.label.trim() })),
+      ]
+    : [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: true }]
+
   // 部署タブ・プレミアムタブは常に表示（未接続は薄くグレーアウト）
   const options: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    ...(hasTeam || true ? [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: !hasTeam }] : []),
+    ...teamChips,
     { id: 'subscription' as OwnerFilter, label: 'プレミアム', inactive: !hasSubscription },
   ]
   const openSettings = useContext(OpenSettingsContext)

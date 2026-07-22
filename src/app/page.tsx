@@ -77,7 +77,7 @@ import { ResolvedCqBanner } from '@/components/ResolvedCqs'
 import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
 import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, type AuthorAdditions } from '@/lib/author-additions'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
-import { OwnerFilterTabs, buildOwnerFilter, type OwnerFilter } from '@/components/OwnerFilterTabs'
+import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
@@ -187,7 +187,7 @@ function SubscriptionIndexBridge() {
 // owner='all' → 両方を出現順で交互マージ（Algoliaスコア順を擬似的に維持）
 // owner='personal' → 個人のみ
 // owner='subscription' → サブスクのみ
-// owner='team' → 個人の中からteamのみ
+// owner='team' → 個人の中からteamのみ（'team:<id>' なら該当部署のみ）
 function mergeHitsByOwnerFilter(
   personalHits: Hit[],
   subHits: Hit[],
@@ -195,7 +195,10 @@ function mergeHitsByOwnerFilter(
 ): Hit[] {
   if (owner === 'subscription') return subHits
   if (owner === 'personal') return personalHits.filter((h) => !h.owner || h.owner === 'personal')
-  if (owner === 'team') return personalHits.filter((h) => h.owner === 'team')
+  if (isTeamOwner(owner)) {
+    const id = teamIdOf(owner)
+    return personalHits.filter((h) => h.owner === 'team' && (id ? h.teamId === id : true))
+  }
   // 'all': 個人＋サブスクを「ラウンドロビン」で交互に混ぜる（関連度順の擬似マージ）
   const merged: Hit[] = []
   const max = Math.max(personalHits.length, subHits.length)
@@ -669,11 +672,10 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   ]
 
   // 個人側フィルタ: source:reference + ownerFilter
+  // 特定部署（team:<id>）は buildOwnerFilter が owner:team に正規化する（Algolia に team は無い）。
   const refOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
-    : ownerFilter === 'all'
-      ? ''
-      : `owner:${ownerFilter}`
+    : buildOwnerFilter(ownerFilter)
   const refPersonalFilter = refOwnerFilter
     ? `source:reference AND ${refOwnerFilter}`
     : 'source:reference'
@@ -681,7 +683,7 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   // サブスク側フィルタ: source:reference (プレミアム / all) or 無効化
   useEffect(() => {
     if (!ctx) return
-    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+    if (ownerFilter === 'personal' || isTeamOwner(ownerFilter)) {
       ctx.setSubFilters('owner:__none__')
     } else {
       ctx.setSubFilters('source:reference')
@@ -700,7 +702,10 @@ function ReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubsc
   const mergedHits = useMemo(() => {
     if (ownerFilter === 'subscription') return subHits
     if (ownerFilter === 'personal') return personalAndTeam.filter((h) => !h.owner || h.owner === 'personal')
-    if (ownerFilter === 'team') return personalAndTeam.filter((h) => h.owner === 'team')
+    if (isTeamOwner(ownerFilter)) {
+      const id = teamIdOf(ownerFilter)
+      return personalAndTeam.filter((h) => h.owner === 'team' && (id ? h.teamId === id : true))
+    }
     const seen = new Set<string>()
     const merged: Hit[] = []
     for (const h of personalAndTeam) { if (!seen.has(h.objectID)) { merged.push(h); seen.add(h.objectID) } }
@@ -823,7 +828,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription, newSince }: { hasTeam: b
 
   useEffect(() => {
     if (!ctx) return
-    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+    if (ownerFilter === 'personal' || isTeamOwner(ownerFilter)) {
       ctx.setSubFilters('owner:__none__')
     } else {
       ctx.setSubFilters('')
@@ -910,16 +915,14 @@ function QuizTabWithOwner({ hasTeam, hasSubscription }: { hasTeam: boolean; hasS
 
   const quizOwnerFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
-    : ownerFilter === 'all'
-      ? ''
-      : `owner:${ownerFilter}`
+    : buildOwnerFilter(ownerFilter)
   const quizPersonalFilter = quizOwnerFilter
     ? `source:medical AND ${quizOwnerFilter}`
     : 'source:medical'
 
   useEffect(() => {
     if (!ctx) return
-    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+    if (ownerFilter === 'personal' || isTeamOwner(ownerFilter)) {
       ctx.setSubFilters('owner:__none__')
     } else {
       ctx.setSubFilters('source:medical')
@@ -1243,12 +1246,12 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
   // 個人側のフィルタ：subscription専用タブの時は個人結果を空にする
   const personalFilter = ownerFilter === 'subscription'
     ? 'owner:__none__'
-    : buildOwnerFilter(ownerFilter === 'all' ? 'all' : ownerFilter)
+    : buildOwnerFilter(ownerFilter)
 
-  // サブスク側のフィルタ：'personal'/'team'の時は空にする、それ以外は通常検索
+  // サブスク側のフィルタ：'personal'/team系の時は空にする、それ以外は通常検索
   useEffect(() => {
     if (!ctx) return
-    if (ownerFilter === 'personal' || ownerFilter === 'team') {
+    if (ownerFilter === 'personal' || isTeamOwner(ownerFilter)) {
       ctx.setSubFilters('owner:__none__')
     } else {
       ctx.setSubFilters('')
@@ -1529,7 +1532,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   useEffect(() => {
     if (!ctx) return
     ctx.setQuery(query)
-    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : '')
+    ctx.setSubFilters(ownerFilter === 'personal' || isTeamOwner(ownerFilter) ? 'owner:__none__' : '')
     ctx.setSubHitsPerPage(100)
   }, [query, ownerFilter, ctx])
 
@@ -1627,7 +1630,7 @@ function NotionRecentTab({ hasTeam, hasSubscription, newSince }: { hasTeam: bool
 
   useEffect(() => {
     if (!ctx) return
-    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : '')
+    ctx.setSubFilters(ownerFilter === 'personal' || isTeamOwner(ownerFilter) ? 'owner:__none__' : '')
     ctx.setSubHitsPerPage(100)
   }, [ownerFilter, ctx])
 
@@ -1707,7 +1710,7 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
 
   useEffect(() => {
     if (!ctx) return
-    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : 'source:medical')
+    ctx.setSubFilters(ownerFilter === 'personal' || isTeamOwner(ownerFilter) ? 'owner:__none__' : 'source:medical')
     ctx.setSubHitsPerPage(100)
   }, [ownerFilter, ctx])
 
@@ -1893,7 +1896,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   const sortedGenres = useMemo(() => {
     let set: Set<string>
     if (ownerFilter === 'subscription') set = new Set(Object.keys(facets.subscription))
-    else if (ownerFilter === 'team') set = new Set(Object.keys(facets.team))
+    else if (isTeamOwner(ownerFilter)) set = new Set(Object.keys(facets.team))
     else if (ownerFilter === 'personal') set = new Set(Object.keys(facets.personal))
     else set = new Set([
       ...Object.keys(facets.personal),
@@ -1907,7 +1910,10 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   const displayRecords = useMemo(() => {
     if (ownerFilter === 'subscription') return subGenreHits
     if (ownerFilter === 'personal') return genreRecords.filter((h) => !h.owner || h.owner === 'personal')
-    if (ownerFilter === 'team') return genreRecords.filter((h) => h.owner === 'team')
+    if (isTeamOwner(ownerFilter)) {
+      const id = teamIdOf(ownerFilter)
+      return genreRecords.filter((h) => h.owner === 'team' && (id ? h.teamId === id : true))
+    }
     // all: 個人/部署 → プレミアム の順（重複除去）
     const seen = new Set<string>()
     const merged: Hit[] = []
@@ -1960,7 +1966,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           .catch(() => { setGenreError('取得に失敗しました'); return [] as Hit[] })
 
     // プレミアム（作者Algolia）
-    const subTask: Promise<Hit[]> = subEnabled && ownerFilter !== 'personal' && ownerFilter !== 'team'
+    const subTask: Promise<Hit[]> = subEnabled && ownerFilter !== 'personal' && !isTeamOwner(ownerFilter)
       ? createSubscriptionSearchClient()
           .initIndex(getSubscriptionIndexName())
           .search('', { filters: `genre:"${genre}"`, hitsPerPage: 50 })
@@ -2021,12 +2027,12 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
               const subCount = facets.subscription[genre] || 0
               const total = ownerFilter === 'subscription'
                 ? subCount
-                : ownerFilter === 'team'
+                : isTeamOwner(ownerFilter)
                   ? teamCount
                   : ownerFilter === 'personal'
                     ? personalCount
                     : personalCount + teamCount + subCount
-              const hasSub = subCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'team'
+              const hasSub = subCount > 0 && ownerFilter !== 'personal' && !isTeamOwner(ownerFilter)
               // 部署（チーム）にもこのジャンルがある場合の緑ドット。
               // 個人のみ／プレミアムのみ表示中は出さない（プレミアムの紫ドットと同じ思想）。
               const hasTeamDot = teamCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'subscription'
@@ -2279,7 +2285,7 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
   useEffect(() => {
     if (!ctx) return
-    ctx.setSubFilters(ownerFilter === 'personal' || ownerFilter === 'team' ? 'owner:__none__' : 'source:reference')
+    ctx.setSubFilters(ownerFilter === 'personal' || isTeamOwner(ownerFilter) ? 'owner:__none__' : 'source:reference')
     ctx.setSubHitsPerPage(100)
   }, [ownerFilter, ctx])
 
