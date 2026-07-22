@@ -79,6 +79,7 @@ import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, typ
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { ReaderProvider } from '@/components/reader/SubscriptionReader'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 import { PREMIUM_VERIFY_FLAG } from '@/components/auth/PremiumSync'
@@ -2812,6 +2813,7 @@ export default function Home() {
       <SubscriptionSearchProvider enableBridge={true}>
       <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
       <CqCaptureProvider>
+      <ReaderProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <PwaInstallBanner />
@@ -2831,6 +2833,7 @@ export default function Home() {
         {settingsModal}
         {tourModal}
       </div>
+      </ReaderProvider>
       </CqCaptureProvider>
       </OpenSettingsContext.Provider>
       </SubscriptionSearchProvider>
@@ -2900,6 +2903,7 @@ export default function Home() {
     <SubscriptionSearchProvider enableBridge={true}>
     <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
     <CqCaptureProvider>
+    <ReaderProvider>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
@@ -2929,6 +2933,7 @@ export default function Home() {
       {settingsModal}
       {tourModal}
     </InstantSearch>
+    </ReaderProvider>
     </CqCaptureProvider>
     </OpenSettingsContext.Provider>
     </SubscriptionSearchProvider>
