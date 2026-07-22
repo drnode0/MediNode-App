@@ -117,3 +117,45 @@ export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[]): ReaderD
     blocks: mapBlocks(blocks),
   }
 }
+
+export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'plain'
+
+// アイコン絵文字は異体字セレクタ/ZWJ を含みうるため includes で判定する。
+export function calloutRole(icon: string | null): CalloutRole {
+  if (!icon) return 'plain'
+  if (icon.includes('⚡')) return 'conclusion'
+  if (icon.includes('⚕')) return 'signature' // 🧑‍⚕️
+  if (icon.includes('🤖')) return 'stamp'
+  if (icon.includes('📚')) return 'evidence'
+  if (icon.includes('⚠')) return 'disclaimer'
+  return 'plain'
+}
+
+export function findTldr(doc: ReaderDoc): (ReaderBlock & { kind: 'callout' }) | null {
+  for (const b of doc.blocks) {
+    if (b.kind === 'callout' && calloutRole(b.icon) === 'conclusion') return b
+  }
+  return null
+}
+
+export function parseSectionHeading(inlines: ReaderInline[]): { n: number; rest: string } | null {
+  const text = inlines.map((i) => i.text).join('').trim()
+  const m = text.match(/^(\d+)\.\s*(.+)$/)
+  if (!m) return null
+  return { n: Number(m[1]), rest: m[2].trim() }
+}
+
+export function tocSections(doc: ReaderDoc): { n: number; title: string; index: number }[] {
+  const out: { n: number; title: string; index: number }[] = []
+  doc.blocks.forEach((b, index) => {
+    if (b.kind === 'heading' && b.level === 2) {
+      const p = parseSectionHeading(b.inlines)
+      if (p) out.push({ n: p.n, title: p.rest, index })
+    }
+  })
+  return out
+}
+
+export function isRecapText(text: string): boolean {
+  return /^\s*→/.test(text)
+}

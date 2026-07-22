@@ -94,3 +94,62 @@ describe('mapBlocksToReaderDoc', () => {
     expect(doc.lastEdited).toBe('2026-07-20T06:11:00.000Z')
   })
 })
+
+import { calloutRole, findTldr, tocSections, parseSectionHeading, isRecapText } from '../reader-doc'
+import type { ReaderDoc } from '../reader-doc'
+
+describe('calloutRole', () => {
+  it('アイコンから役割を導出（絵文字の異体字にも耐える）', () => {
+    expect(calloutRole('⚡')).toBe('conclusion')
+    expect(calloutRole('🧑‍⚕️')).toBe('signature')
+    expect(calloutRole('🤖')).toBe('stamp')
+    expect(calloutRole('📚')).toBe('evidence')
+    expect(calloutRole('⚠️')).toBe('disclaimer')
+    expect(calloutRole('💡')).toBe('plain')
+    expect(calloutRole(null)).toBe('plain')
+  })
+})
+
+const doc = (blocks: any[]): ReaderDoc => ({ title: 'T', icon: null, cover: null, lastEdited: null, blocks })
+
+describe('findTldr', () => {
+  it('⚡ callout を結論として返す', () => {
+    const c = { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [] }
+    expect(findTldr(doc([{ kind: 'heading', level: 1, inlines: [] }, c]))).toBe(c)
+  })
+  it('⚡ が無ければ null', () => {
+    expect(findTldr(doc([{ kind: 'callout', icon: '💡', color: null, blocks: [] }]))).toBeNull()
+  })
+})
+
+describe('parseSectionHeading', () => {
+  it('先頭番号と残りを分解', () => {
+    expect(parseSectionHeading([{ text: '2. 補正速度の上限で過補正を避ける' }])).toEqual({ n: 2, rest: '補正速度の上限で過補正を避ける' })
+  })
+  it('番号無しは null', () => {
+    expect(parseSectionHeading([{ text: '確信度の見方' }])).toBeNull()
+  })
+})
+
+describe('tocSections', () => {
+  it('level2 の番号付き見出しだけを目次に', () => {
+    const d = doc([
+      { kind: 'heading', level: 2, inlines: [{ text: '1. なぜ制限するか' }] },
+      { kind: 'paragraph', inlines: [{ text: 'x' }] },
+      { kind: 'heading', level: 2, inlines: [{ text: '2. 上限' }] },
+      { kind: 'heading', level: 2, inlines: [{ text: '確信度の見方' }] },
+    ])
+    expect(tocSections(d)).toEqual([
+      { n: 1, title: 'なぜ制限するか', index: 0 },
+      { n: 2, title: '上限', index: 2 },
+    ])
+  })
+})
+
+describe('isRecapText', () => {
+  it('→ 始まりを recap と判定', () => {
+    expect(isRecapText('→ だから上限を守る')).toBe(true)
+    expect(isRecapText('  → まとめ')).toBe(true)
+    expect(isRecapText('通常の主張。')).toBe(false)
+  })
+})
