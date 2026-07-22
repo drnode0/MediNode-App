@@ -32,7 +32,7 @@ import {
   Users,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { HeatmapChart } from './AdminCharts'
+import { HeatmapChart, CumulativeLinesChart, buildCumulativeSeries } from './AdminCharts'
 import { paceStatus } from '@/lib/knowledge-activity'
 import type { DayActivity, ActivitySummary, PaceStatus } from '@/lib/knowledge-activity'
 import {
@@ -92,6 +92,8 @@ type PaceData = {
   columns?: DayActivity[][]
   todayKey?: string
   summary?: ActivitySummary
+  cumulative?: { medicalCreated: string[]; referenceCreated: string[]; readerCreated: string[] }
+  totals?: { medical: number; reference: number; readerOrigin: number }
 }
 const PACE_GOAL_KEY = 'medinode.admin.pace.weeklyGoal'
 const DEFAULT_WEEKLY_GOAL = 3
@@ -750,6 +752,44 @@ export function DailyCommandCenter() {
             </div>
 
             <HeatmapChart columns={pace.columns} todayKey={pace.todayKey} />
+
+            {/* 累積の伸び（ライブラリ総数の推移） */}
+            {pace.cumulative && (
+              <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                  ライブラリの伸び（累積）
+                </h4>
+                <CumulativeLinesChart
+                  lines={[
+                    {
+                      name: 'ナレッジ総数',
+                      points: buildCumulativeSeries(pace.cumulative.medicalCreated),
+                      strokeClass: 'stroke-emerald-600 dark:stroke-emerald-400',
+                      dotClass: 'fill-emerald-600 dark:fill-emerald-400',
+                      swatchClass: 'bg-emerald-600 dark:bg-emerald-400',
+                      labelClass: 'fill-emerald-700 dark:fill-emerald-300',
+                    },
+                    {
+                      name: '参考文献総数',
+                      points: buildCumulativeSeries(pace.cumulative.referenceCreated),
+                      strokeClass: 'stroke-amber-500 dark:stroke-amber-400',
+                      dotClass: 'fill-amber-500 dark:fill-amber-400',
+                      swatchClass: 'bg-amber-500 dark:bg-amber-400',
+                      labelClass: 'fill-amber-700 dark:fill-amber-300',
+                    },
+                    {
+                      name: 'うち現場の疑問由来',
+                      points: buildCumulativeSeries(pace.cumulative.readerCreated),
+                      strokeClass: 'stroke-teal-500 dark:stroke-teal-400',
+                      dotClass: 'fill-teal-500 dark:fill-teal-400',
+                      swatchClass: 'bg-teal-500 dark:bg-teal-400',
+                      labelClass: 'fill-teal-700 dark:fill-teal-300',
+                      dashed: true,
+                    },
+                  ]}
+                />
+              </div>
+            )}
           </div>
         )}
 

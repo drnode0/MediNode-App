@@ -5,6 +5,7 @@ import {
   buildWeekGrid,
   jstWeekdayMon0,
   paceStatus,
+  isReaderOrigin,
   type ActivitySummary,
 } from '@/lib/knowledge-activity'
 
@@ -88,6 +89,16 @@ describe('computeSummary', () => {
   it('medical新規が皆無なら daysSinceLastMedical は null', () => {
     const daily = aggregateDaily([], [{ createdAt: '2026-07-22T01:00:00.000Z', lastEdited: '2026-07-22T01:00:00.000Z' }])
     expect(computeSummary(daily, NOW).daysSinceLastMedical).toBe(null)
+  })
+})
+
+describe('isReaderOrigin', () => {
+  it('由来=現場の疑問 のみ true', () => {
+    expect(isReaderOrigin('現場の疑問')).toBe(true)
+    expect(isReaderOrigin(' 現場の疑問 ')).toBe(true)
+    expect(isReaderOrigin('')).toBe(false)
+    expect(isReaderOrigin(null)).toBe(false)
+    expect(isReaderOrigin('その他')).toBe(false)
   })
 })
 

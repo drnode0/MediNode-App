@@ -616,3 +616,91 @@ export function HeatmapChart({
     </div>
   )
 }
+
+// ---- 累積の伸び線（ライブラリ総数の推移・複数系列） ------------------------
+//
+// ナレッジ総数・参考文献総数・（うち）現場の疑問由来 を1枚に。全系列で時間軸とY軸を共有。
+// 現場の疑問由来はナレッジの内数なので破線で「うち」を表現。
+
+// 色クラスは runtime 変換せず、呼び出し側でリテラル指定する（Tailwind JIT がソースを走査して
+// 実際に出力するクラスは「ソース中に文字列として現れるもの」だけのため）。
+export type CumulativeLine = {
+  name: string
+  points: DailyPoint[]
+  strokeClass: string // 折れ線: 'stroke-emerald-600 dark:stroke-emerald-400'
+  dotClass: string // 端の点: 'fill-emerald-600 dark:fill-emerald-400'
+  swatchClass: string // 凡例の丸: 'bg-emerald-600 dark:bg-emerald-400'
+  labelClass: string // 端の数値: 'fill-emerald-700 dark:fill-emerald-300'
+  dashed?: boolean
+}
+
+export function CumulativeLinesChart({ lines }: { lines: CumulativeLine[] }) {
+  const drawable = lines.filter((l) => l.points.length > 0)
+  const all = drawable.flatMap((l) => l.points)
+  if (all.length === 0) {
+    return <p className="text-xs text-gray-400 dark:text-gray-500 py-6 text-center">データがまだありません</p>
+  }
+  const times = all.map((p) => new Date(p.date).getTime())
+  const t0 = Math.min(...times)
+  const t1 = Math.max(...times)
+  const span = Math.max(t1 - t0, 1)
+  const max = Math.max(...all.map((p) => p.count), 1)
+  const xOf = (t: number) => PAD_L + ((t - t0) / span) * (CHART_W - PAD_L - PAD_R)
+  const yOf = (c: number) => PAD_T + (1 - c / max) * (CHART_H - PAD_T - PAD_B)
+
+  return (
+    <figure aria-label="ナレッジ・参考文献の累積推移">
+      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="w-full h-auto" role="img">
+        <line
+          x1={PAD_L}
+          y1={CHART_H - PAD_B}
+          x2={CHART_W - PAD_R}
+          y2={CHART_H - PAD_B}
+          className="stroke-gray-200 dark:stroke-gray-700"
+          strokeWidth="1"
+        />
+        {drawable.map((l) => {
+          const path = l.points
+            .map((p, i) => `${i === 0 ? 'M' : 'L'}${xOf(new Date(p.date).getTime()).toFixed(1)},${yOf(p.count).toFixed(1)}`)
+            .join(' ')
+          const last = l.points[l.points.length - 1]
+          const lx = xOf(new Date(last.date).getTime())
+          const ly = yOf(last.count)
+          return (
+            <g key={l.name}>
+              <path
+                d={path}
+                className={l.strokeClass}
+                strokeWidth="2"
+                fill="none"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                strokeDasharray={l.dashed ? '4 3' : undefined}
+              />
+              <circle cx={lx} cy={ly} r="3" className={l.dotClass} />
+              <text x={lx + 6} y={ly + 4} className={l.labelClass} fontSize="11" fontWeight="600">
+                {last.count}
+              </text>
+            </g>
+          )
+        })}
+        {/* 両端の日付 */}
+        <text x={PAD_L} y={CHART_H - 6} className="fill-gray-400 dark:fill-gray-500" fontSize="10">
+          {fmtShort(new Date(t0).toISOString())}
+        </text>
+        <text x={CHART_W - PAD_R} y={CHART_H - 6} textAnchor="end" className="fill-gray-400 dark:fill-gray-500" fontSize="10">
+          {fmtShort(new Date(t1).toISOString())}
+        </text>
+      </svg>
+      <figcaption className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+        {lines.map((l) => (
+          <span key={l.name} className="flex items-center gap-1.5">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${l.swatchClass}`} />
+            {l.name}
+            <b className="text-gray-700 dark:text-gray-200">{l.points.length ? l.points[l.points.length - 1].count : 0}</b>
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  )
+}

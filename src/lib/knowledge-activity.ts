@@ -134,6 +134,12 @@ export function computeSummary(
   return { last7, last30, daysSinceLastMedical, thisWeekMedical }
 }
 
+// 由来プロパティが「読者から投稿された臨床疑問」由来か。
+// サブスクMedical DBの 由来="現場の疑問" のページのみ true（ResultCard等と同じ判定）。
+export function isReaderOrigin(origin: string | null | undefined): boolean {
+  return (origin ?? '').trim() === '現場の疑問'
+}
+
 export type PaceStatus = { level: 'good' | 'warn' | 'alert' | 'idle'; message: string }
 
 // サマリーと週目標から「今の状況」を一言で（帯に出す）。判断はナレッジ本体基準。
