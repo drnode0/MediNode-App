@@ -97,7 +97,7 @@ export function ReaderNavBar({
       <div
         id={barId}
         role="button"
-        tabIndex={0}
+        tabIndex={visible ? 0 : -1}
         aria-expanded={open}
         aria-controls={dropdownId}
         onClick={() => setOpen((o) => !o)}
@@ -119,10 +119,12 @@ export function ReaderNavBar({
         {active.size > 0 && (
           <button
             type="button"
+            disabled={!visible}
+            tabIndex={visible ? 0 : -1}
             onClick={scrollToChips}
             onKeyDown={(e) => e.stopPropagation()}
             aria-label="表示中の確信度フィルタへ戻る"
-            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center"
+            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center disabled:pointer-events-none"
           >
             {[...active].map((c) => (
               <ConfidenceMark key={c} kind={c} />
@@ -131,11 +133,11 @@ export function ReaderNavBar({
         )}
         <span
           className="absolute left-0 bottom-0 h-[2px] bg-purple-500 dark:bg-purple-400 transition-[width] duration-150 motion-reduce:transition-none motion-reduce:duration-0"
-          style={{ width: `${progress}%` }}
+          style={{ width: `${Math.round(progress)}%` }}
           aria-hidden="true"
         />
       </div>
-      {open && (
+      {open && visible && (
         <div
           id={dropdownId}
           role="region"
@@ -158,7 +160,7 @@ export function ReaderNavBar({
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">セクション</p>
               <ul>
                 {sections.map((s) => (
-                  <li key={s.n}>
+                  <li key={s.index}>
                     <button
                       type="button"
                       onClick={() => jumpToSection(s.n)}
