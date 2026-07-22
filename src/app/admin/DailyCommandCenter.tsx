@@ -32,6 +32,8 @@ import {
   Users,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { HeatmapChart } from './AdminCharts'
+import type { DayActivity, ActivitySummary } from '@/lib/knowledge-activity'
 import {
   usagePct,
   usageSignal,
@@ -82,6 +84,17 @@ const UNCONFIGURED_CLASS =
 
 const jstToday = () => jstDateKey(Date.now())
 const checksKey = (dateKey: string) => `medinode.admin.daily.checks.${dateKey}`
+
+type PaceData = {
+  ready: boolean
+  weeks?: number
+  columns?: DayActivity[][]
+  todayKey?: string
+  summary?: ActivitySummary
+}
+const PACE_GOAL_KEY = 'medinode.admin.pace.weeklyGoal'
+const DEFAULT_WEEKLY_GOAL = 3
+const PACE_WEEK_OPTIONS = [12, 26, 52] as const
 
 function Tile({
   icon: Icon,
@@ -381,6 +394,9 @@ export function DailyCommandCenter() {
   const [checks, setChecks] = useState<Record<string, boolean>>({})
   const [openLinks, setOpenLinks] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [pace, setPace] = useState<PaceData | null>(null)
+  const [paceWeeks, setPaceWeeks] = useState<number>(12)
+  const [weeklyGoal, setWeeklyGoal] = useState<number>(DEFAULT_WEEKLY_GOAL)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -397,6 +413,43 @@ export function DailyCommandCenter() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // 投稿ペース（台帳・daily とは独立の best-effort fetch）。週切替で再取得。
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/admin/knowledge-activity?weeks=${paceWeeks}`, { cache: 'no-store' })
+        if (alive && res.ok) setPace((await res.json()) as PaceData)
+      } catch {
+        // best-effort。
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [paceWeeks])
+
+  // 週目標（localStorage）。
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PACE_GOAL_KEY)
+      const n = raw ? Number(raw) : NaN
+      if (Number.isFinite(n) && n > 0) setWeeklyGoal(n)
+    } catch {
+      // 既定値のまま。
+    }
+  }, [])
+
+  const updateGoal = useCallback((n: number) => {
+    const v = Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 99) : DEFAULT_WEEKLY_GOAL
+    setWeeklyGoal(v)
+    try {
+      localStorage.setItem(PACE_GOAL_KEY, String(v))
+    } catch {
+      // 保存不可でも UI は効く。
+    }
+  }, [])
 
   // チェックリスト状態の読み込み（当日キー）。日付が変われば空＝全未チェックに戻る。
   useEffect(() => {
@@ -592,6 +645,90 @@ export function DailyCommandCenter() {
             {tiles.map((t) => (
               <Tile key={t.label} {...t} />
             ))}
+          </div>
+        )}
+
+        {/* 投稿ペース（ナレッジ＋参考文献） */}
+        {pace?.ready && pace.columns && pace.summary && pace.todayKey && (
+          <div className="mb-5">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                📈 ナレッジ投稿ペース
+              </h3>
+              <div className="flex items-center gap-1">
+                {PACE_WEEK_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setPaceWeeks(w)}
+                    className={`px-2 py-0.5 text-xs rounded-md border ${
+                      paceWeeks === w
+                        ? 'border-brand-400 bg-brand-50 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    {w}週
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* サマリー行 */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300 mb-2">
+              <span>
+                直近7日{' '}
+                <b className="text-gray-900 dark:text-gray-100">
+                  ナレッジ{pace.summary.last7.medical}・文献{pace.summary.last7.reference}
+                </b>
+              </span>
+              <span>
+                30日{' '}
+                <b className="text-gray-900 dark:text-gray-100">
+                  ナレッジ{pace.summary.last30.medical}・文献{pace.summary.last30.reference}
+                </b>
+              </span>
+              <span>
+                最終投稿から{' '}
+                <b className="text-gray-900 dark:text-gray-100">
+                  {pace.summary.daysSinceLastMedical == null ? '—' : `${pace.summary.daysSinceLastMedical}日`}
+                </b>
+              </span>
+            </div>
+
+            {/* 週目標バー */}
+            <div className="flex items-center gap-2 mb-3 text-xs">
+              <span className="text-gray-500 dark:text-gray-400">今週のナレッジ</span>
+              <div className="relative h-2 w-32 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    pace.summary.thisWeekMedical >= weeklyGoal ? 'bg-brand-500' : 'bg-brand-300 dark:bg-brand-700'
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.round((pace.summary.thisWeekMedical / Math.max(1, weeklyGoal)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-gray-700 dark:text-gray-200">
+                {pace.summary.thisWeekMedical}/
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={weeklyGoal}
+                  onChange={(e) => updateGoal(Number(e.target.value))}
+                  className="w-10 mx-0.5 px-1 py-0 text-xs text-center rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
+                  aria-label="週目標件数"
+                />
+                件
+              </span>
+              {pace.summary.thisWeekMedical < weeklyGoal && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  あと{weeklyGoal - pace.summary.thisWeekMedical}件
+                </span>
+              )}
+            </div>
+
+            <HeatmapChart columns={pace.columns} todayKey={pace.todayKey} />
           </div>
         )}
 
