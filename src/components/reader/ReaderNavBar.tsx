@@ -93,35 +93,27 @@ export function ReaderNavBar({
 
   return (
     <div className="sticky top-0 z-20">
-      <div
-        id={barId}
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
-        aria-controls={dropdownId}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setOpen((o) => !o)
-          }
-        }}
-        className="relative w-full min-h-[44px] flex items-center justify-between gap-2 px-3 bg-purple-500/10 dark:bg-purple-400/10 backdrop-blur border-b border-purple-500/20 cursor-pointer"
-      >
-        <span className="flex items-center gap-1.5 text-sm font-medium text-purple-700 dark:text-purple-200 min-w-0">
+      <div className="relative w-full flex items-stretch bg-purple-500/10 dark:bg-purple-400/10 backdrop-blur border-b border-purple-500/20">
+        <button
+          type="button"
+          id={barId}
+          aria-expanded={open}
+          aria-controls={dropdownId}
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 min-h-[44px] flex items-center gap-1.5 px-3 text-sm font-medium text-purple-700 dark:text-purple-200 cursor-pointer"
+        >
           <ChevronDown
             className={`w-4 h-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
             aria-hidden="true"
           />
           <span className="truncate">この問いへの答え・目次</span>
-        </span>
+        </button>
         {active.size > 0 && (
           <button
             type="button"
             onClick={scrollToChips}
-            onKeyDown={(e) => e.stopPropagation()}
             aria-label="表示中の確信度フィルタへ戻る"
-            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center"
+            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center px-3"
           >
             {[...active].map((c) => (
               <ConfidenceMark key={c} kind={c} />

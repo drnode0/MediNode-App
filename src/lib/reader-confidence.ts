@@ -11,11 +11,19 @@ function textOf(inlines: ReaderInline[]): string {
   return inlines.map((i) => i.text).join('')
 }
 
+// U+FE0F（VARIATION SELECTOR-16）を除去する。⚠️ が本文へ渡る過程で選択子が
+// 落ち、裸の U+26A0 になるケースがあるため、比較前に両辺から正規化して吸収する。
+function stripVariationSelector(s: string): string {
+  return s.replace(/️/g, '')
+}
+
 // 本文行（paragraph / list_item）が含む確信度マーク。順序は ok,caut,unk。
+// マーク判定は VARIATION SELECTOR-16 の有無に依存しない（安全要件：⚠️ が裸の
+// U+26A0 として届いても必ず 'caut' として検出できること）。
 export function blockConfidence(block: ReaderBlock): Confidence[] {
   if (block.kind !== 'paragraph' && block.kind !== 'list_item') return []
-  const t = textOf(block.inlines)
-  return ORDER.filter((c) => t.includes(CONFIDENCE_MARKS[c]))
+  const t = stripVariationSelector(textOf(block.inlines))
+  return ORDER.filter((c) => t.includes(stripVariationSelector(CONFIDENCE_MARKS[c])))
 }
 
 export function docConfidenceMarks(blocks: ReaderBlock[]): Confidence[] {

@@ -182,6 +182,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               <Star
                 className="w-3.5 h-3.5 text-amber-500"
                 fill="currentColor"
+                role="img"
                 aria-label="ブックマーク済み"
               />
             )}

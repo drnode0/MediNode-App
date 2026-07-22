@@ -13,6 +13,11 @@ describe('blockConfidence', () => {
     expect(blockConfidence(li('議論あり。❓ 検索例'))).toEqual(['unk'])
     expect(blockConfidence(p('→ だからまとめ'))).toEqual([])
   })
+
+  it('VARIATION SELECTOR-16 抜けの裸 ⚠(U+26A0) でも caut を検出（安全要件）', () => {
+    // '⚠' のみ（'️' なし）
+    expect(blockConfidence(li('施設差あり。⚠ 総説'))).toEqual(['caut'])
+  })
 })
 
 describe('docConfidenceMarks', () => {
@@ -34,6 +39,9 @@ describe('isDimmed', () => {
   it('⚠️・❓ 行は常に保護（安全要件）', () => {
     expect(isDimmed(li('施設差。⚠️ x'), active('ok'))).toBe(false)
     expect(isDimmed(li('議論。❓ x'), active('ok'))).toBe(false)
+  })
+  it('VARIATION SELECTOR-16 抜けの裸 ⚠ 行も保護され続ける（安全要件）', () => {
+    expect(isDimmed(li('施設差。⚠ x'), active('ok'))).toBe(false)
   })
   it('✅ 行は active に ok が無ければ淡色化', () => {
     expect(isDimmed(li('確立。✅ x'), active('caut'))).toBe(true)
