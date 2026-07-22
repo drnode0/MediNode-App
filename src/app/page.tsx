@@ -2859,6 +2859,8 @@ export default function Home() {
       hasSubscription
     )
     return (
+      <ReaderMarksProvider>
+      <ReaderProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
         {header}
         <div className="max-w-2xl mx-auto px-4 py-8">
@@ -2899,6 +2901,8 @@ export default function Home() {
         </div>
         {settingsModal}
       </div>
+      </ReaderProvider>
+      </ReaderMarksProvider>
     )
   }
 
