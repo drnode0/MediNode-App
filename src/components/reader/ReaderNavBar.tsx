@@ -1,0 +1,192 @@
+'use client'
+import { useEffect, useId, useMemo, useState, type MouseEvent, type RefObject } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { findTldr, tocSections, type ReaderDoc, type ReaderBlock } from '@/lib/reader-doc'
+import { docConfidenceMarks, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
+import { ConfidenceMark } from './ConfidenceMark'
+
+// ⚡結論 callout の子ブロックを読める平文へ畳み込む（表・画像・区切り線は無視）。
+function blockPlainText(b: ReaderBlock): string {
+  if (b.kind === 'paragraph' || b.kind === 'list_item' || b.kind === 'heading') {
+    return b.inlines.map((i) => i.text).join('')
+  }
+  if (b.kind === 'callout') return b.blocks.map(blockPlainText).filter(Boolean).join(' ')
+  return ''
+}
+
+export function ReaderNavBar({
+  doc,
+  scrollRef,
+  active,
+}: {
+  doc: ReaderDoc
+  scrollRef: RefObject<HTMLDivElement>
+  active: Set<Confidence>
+}) {
+  const tldr = findTldr(doc)
+  const sections = useMemo(() => tocSections(doc), [doc])
+  const marks = useMemo(() => docConfidenceMarks(doc.blocks), [doc])
+  const barId = useId()
+  const dropdownId = `${barId}-dropdown`
+
+  const [visible, setVisible] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  // ⚡ callout の可視性を監視し、画面外に出たらバーを表示する。IO 非対応環境では常に非表示のまま。
+  useEffect(() => {
+    if (!tldr) return
+    if (typeof IntersectionObserver === 'undefined') return
+    const root = scrollRef.current
+    const target = root?.querySelector('[data-tldr]') ?? null
+    if (!root || !target) return
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry) setVisible(!entry.isIntersecting)
+      },
+      { root, rootMargin: '-8px 0px 0px 0px' },
+    )
+    io.observe(target)
+    return () => io.disconnect()
+  }, [tldr, scrollRef])
+
+  // スクロール容器の scroll イベントで読了インクを更新し、ドロップダウンを自動収納する。
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const onScroll = () => {
+      const denom = el.scrollHeight - el.clientHeight
+      const pct = denom > 0 ? Math.min(100, Math.max(0, (el.scrollTop / denom) * 100)) : 0
+      setProgress(pct)
+      setOpen(false)
+    }
+    onScroll()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollRef])
+
+  if (!tldr) return null
+
+  const jumpToSection = (n: number) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-section="${n}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.setAttribute('tabindex', '-1')
+      el.focus()
+    }
+    setOpen(false)
+  }
+
+  const scrollToChips = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const answerParagraphs = tldr.blocks.map(blockPlainText).filter(Boolean)
+
+  return (
+    <div
+      className={`sticky top-0 z-20 transition-opacity duration-150 motion-reduce:transition-none ${
+        visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+      aria-hidden={!visible}
+    >
+      <div
+        id={barId}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-controls={dropdownId}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpen((o) => !o)
+          }
+        }}
+        className="relative w-full min-h-[44px] flex items-center justify-between gap-2 px-3 bg-purple-500/10 dark:bg-purple-400/10 backdrop-blur border-b border-purple-500/20 cursor-pointer"
+      >
+        <span className="flex items-center gap-1.5 text-sm font-medium text-purple-700 dark:text-purple-200 min-w-0">
+          <ChevronDown
+            className={`w-4 h-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="truncate">この問いへの答え・目次</span>
+        </span>
+        {active.size > 0 && (
+          <button
+            type="button"
+            onClick={scrollToChips}
+            onKeyDown={(e) => e.stopPropagation()}
+            aria-label="表示中の確信度フィルタへ戻る"
+            className="flex items-center gap-1 shrink-0 min-h-[44px] min-w-[44px] justify-center"
+          >
+            {[...active].map((c) => (
+              <ConfidenceMark key={c} kind={c} />
+            ))}
+          </button>
+        )}
+        <span
+          className="absolute left-0 bottom-0 h-[2px] bg-purple-500 dark:bg-purple-400 transition-[width] duration-150 motion-reduce:transition-none motion-reduce:duration-0"
+          style={{ width: `${progress}%` }}
+          aria-hidden="true"
+        />
+      </div>
+      {open && (
+        <div
+          id={dropdownId}
+          role="region"
+          aria-labelledby={barId}
+          className="max-h-[60vh] overflow-y-auto bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm px-3 py-3"
+        >
+          {answerParagraphs.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">答え</p>
+              {answerParagraphs.map((t, i) => (
+                <p key={i} className="text-sm leading-relaxed text-gray-800 dark:text-gray-200 my-1">
+                  {t}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {sections.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">セクション</p>
+              <ul>
+                {sections.map((s) => (
+                  <li key={s.n}>
+                    <button
+                      type="button"
+                      onClick={() => jumpToSection(s.n)}
+                      className="w-full min-h-[44px] flex items-center gap-2 text-left text-sm text-gray-800 dark:text-gray-200 hover:text-brand-600 dark:hover:text-brand-300"
+                    >
+                      <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0">
+                        {s.n}
+                      </span>
+                      <span className="truncate">{s.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {marks.length > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-gray-200 dark:border-gray-700">
+              {marks.map((m) => (
+                <span key={m} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <ConfidenceMark kind={m} />
+                  {CONFIDENCE_LABEL[m]}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
