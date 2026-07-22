@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -81,22 +81,26 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [zoom, setZoom] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const reqRef = useRef(0)
 
   useEffect(() => { setMounted(true) }, [])
 
   const open = useCallback((h: ReaderHit) => {
+    const token = ++reqRef.current
     setHit(h); setDoc(null); setState('loading'); setZoom(null)
     recordRecentView(h)
     fetch(`/api/subscription/page?id=${encodeURIComponent(h.objectID)}`)
       .then(async (r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
-      .then((d) => { setDoc(d.doc); setState('idle') })
-      .catch(() => setState('error'))
+      .then((d) => { if (reqRef.current !== token) return; setDoc(d.doc); setState('idle') })
+      .catch(() => { if (reqRef.current !== token) return; setState('error') })
   }, [])
 
   const close = useCallback(() => { setHit(null); setDoc(null); setZoom(null) }, [])
 
+  const ctxValue = useMemo(() => ({ open }), [open])
+
   return (
-    <Ctx.Provider value={{ open }}>
+    <Ctx.Provider value={ctxValue}>
       {children}
       {mounted && hit
         ? createPortal(
