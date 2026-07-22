@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
+import type { DayActivity } from '@/lib/knowledge-activity'
 
 export type DailyPoint = { date: string; count: number }
 
@@ -437,6 +438,139 @@ export function CountBars({ items, label }: { items: Segment[]; label: string })
           <span className="w-8 text-right text-gray-500 dark:text-gray-400">{i.count}人</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---- 投稿ペース・ヒートマップ（2色・週グリッド） --------------------------
+//
+// セル左半分=🩺Medical(グリーン階調)、右半分=📚Reference(アンバー階調)。
+// 階調は件数 0/1-2/3-4/5+ の4段。今日より後のセルは薄く（未来）。
+
+const HEAT_CELL = 14
+const HEAT_GAP = 3
+const HEAT_PAD_TOP = 16 // 週ラベル用
+const HEAT_PAD_LEFT = 22 // 曜日ラベル用
+const WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
+
+function heatLevel(count: number): 0 | 1 | 2 | 3 {
+  if (count <= 0) return 0
+  if (count <= 2) return 1
+  if (count <= 4) return 2
+  return 3
+}
+
+// 系列ごとの階調 fill クラス（Tailwind。ライト/ダーク対応）。level0 はグレー。
+const MEDICAL_FILL = [
+  'fill-gray-100 dark:fill-gray-700/50',
+  'fill-emerald-200 dark:fill-emerald-900/50',
+  'fill-emerald-400 dark:fill-emerald-700',
+  'fill-emerald-600 dark:fill-emerald-500',
+]
+const REFERENCE_FILL = [
+  'fill-gray-100 dark:fill-gray-700/50',
+  'fill-amber-200 dark:fill-amber-900/50',
+  'fill-amber-400 dark:fill-amber-700',
+  'fill-amber-600 dark:fill-amber-500',
+]
+
+export function HeatmapChart({
+  columns,
+  todayKey,
+}: {
+  columns: DayActivity[][]
+  todayKey: string
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; day: DayActivity } | null>(null)
+  const weeks = columns.length
+  const width = HEAT_PAD_LEFT + weeks * (HEAT_CELL + HEAT_GAP)
+  const height = HEAT_PAD_TOP + 7 * (HEAT_CELL + HEAT_GAP)
+
+  return (
+    <div className="relative overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        className="max-w-full"
+        role="img"
+        aria-label="ナレッジ投稿ペースのヒートマップ"
+      >
+        {/* 曜日ラベル（月・水・金・日だけ間引き表示） */}
+        {WEEKDAY_LABELS.map((wd, i) =>
+          i % 2 === 0 ? (
+            <text
+              key={wd}
+              x={0}
+              y={HEAT_PAD_TOP + i * (HEAT_CELL + HEAT_GAP) + HEAT_CELL - 2}
+              className="fill-gray-400 dark:fill-gray-500"
+              fontSize={9}
+            >
+              {wd}
+            </text>
+          ) : null,
+        )}
+        {columns.map((col, ci) =>
+          col.map((day, ri) => {
+            const x = HEAT_PAD_LEFT + ci * (HEAT_CELL + HEAT_GAP)
+            const y = HEAT_PAD_TOP + ri * (HEAT_CELL + HEAT_GAP)
+            const future = day.date > todayKey
+            const medical = day.medicalNew + day.medicalEdit
+            const reference = day.referenceNew + day.referenceEdit
+            const opacity = future ? 0.25 : 1
+            return (
+              <g
+                key={day.date}
+                opacity={opacity}
+                onMouseEnter={() => !future && setHover({ x: x + HEAT_CELL, y, day })}
+                onMouseLeave={() => setHover(null)}
+              >
+                {/* 左=medical */}
+                <rect
+                  x={x}
+                  y={y}
+                  width={HEAT_CELL / 2}
+                  height={HEAT_CELL}
+                  rx={1}
+                  className={MEDICAL_FILL[heatLevel(medical)]}
+                />
+                {/* 右=reference */}
+                <rect
+                  x={x + HEAT_CELL / 2}
+                  y={y}
+                  width={HEAT_CELL / 2}
+                  height={HEAT_CELL}
+                  rx={1}
+                  className={REFERENCE_FILL[heatLevel(reference)]}
+                />
+              </g>
+            )
+          }),
+        )}
+      </svg>
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-gray-700"
+          style={{ left: hover.x + 4, top: hover.y }}
+        >
+          <div className="font-semibold">{fmtShort(hover.day.date)}</div>
+          <div>
+            🩺 新規{hover.day.medicalNew}・更新{hover.day.medicalEdit}
+          </div>
+          <div>
+            📚 新規{hover.day.referenceNew}・更新{hover.day.referenceEdit}
+          </div>
+        </div>
+      )}
+      {/* 凡例 */}
+      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-sm bg-emerald-500" /> ナレッジ
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-sm bg-amber-500" /> 参考文献
+        </span>
+      </div>
     </div>
   )
 }
