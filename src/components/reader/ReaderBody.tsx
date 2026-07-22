@@ -1,4 +1,5 @@
 'use client'
+import { createContext, useContext } from 'react'
 import { CircleCheck } from 'lucide-react'
 import {
   calloutRole,
@@ -57,17 +58,24 @@ const INLINE_COLOR: Record<string, string> = {
 // （執筆側が色を付けている場合はそちらを優先）。
 const BOLD_MARKER = `bg-amber-100/70 dark:bg-amber-300/15 ${MARKER_BASE}`
 
+// 既に背景色のある領域（結論・署名・査読スタンプなどのボックスやrecap）では、
+// 自動マーカーを重ねると塗りだらけになる。そこでは太字は太字のままにする。
+// Notionで明示的に付けた色（n.color）はボックス内でも尊重する。
+const NoAutoMarkerCtx = createContext(false)
+
 function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?: boolean }) {
+  const noAutoMarker = useContext(NoAutoMarkerCtx)
   return (
     <>
       {items.map((n, i) => {
         // 太字は本気で太く（老眼でも強調が拾えるように）。font-medium では地の文と区別がつかない。
         const color = n.color ? INLINE_COLOR[n.color] ?? '' : ''
+        const autoMarker = !noAutoMarker && n.bold && !n.code ? BOLD_MARKER : ''
         const cls = [
           n.bold ? 'font-bold' : '',
           n.italic ? 'italic' : '',
           n.code ? 'font-mono text-[0.85em] bg-gray-100 dark:bg-gray-700 px-1 rounded' : '',
-          plain ? '' : color || (n.bold && !n.code ? BOLD_MARKER : ''),
+          plain ? '' : color || autoMarker,
         ].join(' ')
         if (n.href) {
           // 直前のノードが確信度マーク単体なら、リンクの下線色をマークの意味色へ寄せる。
@@ -238,16 +246,22 @@ function Block({
     }
     case 'paragraph': {
       const color = textColorClass(block, active)
+      const recap = isRecapText(block.inlines.map((x) => x.text).join(''))
+      const body = <Inlines items={block.inlines} k={`p-${index}`} />
       return (
         <p
           className={`text-base leading-[1.9] my-2.5 break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
-          <Inlines items={block.inlines} k={`p-${index}`} />
+          {recap ? <NoAutoMarkerCtx.Provider value={true}>{body}</NoAutoMarkerCtx.Provider> : body}
         </p>
       )
     }
     case 'callout':
-      return <CalloutBlock block={block} index={index} onImageClick={onImageClick} active={active} />
+      return (
+        <NoAutoMarkerCtx.Provider value={true}>
+          <CalloutBlock block={block} index={index} onImageClick={onImageClick} active={active} />
+        </NoAutoMarkerCtx.Provider>
+      )
     case 'image':
       return (
         <button type="button" onClick={() => onImageClick(block.url)} className="block w-full my-3">
