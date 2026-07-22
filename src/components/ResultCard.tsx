@@ -121,6 +121,17 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
+      {/* サムネイル：サブスク（アプリ内リーダー対象）カードのみ。読み込み失敗時は非表示にし、
+          従来レイアウト（サムネなし）へフォールバックする。 */}
+      {inAppReader && (
+        <img
+          src={`/api/subscription/thumbnail?id=${encodeURIComponent(hit.objectID)}`}
+          loading="lazy"
+          alt=""
+          className="w-full h-24 object-cover rounded-t-xl"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
+      )}
       {/* メイン部分：タップ／キーボードで展開（要約ありの場合のみ） */}
       <div
         className={`p-4 ${hasExpandable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-inset' : ''}`}
