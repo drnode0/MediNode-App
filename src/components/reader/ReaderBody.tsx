@@ -34,8 +34,9 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
   return (
     <>
       {items.map((n, i) => {
+        // 太字は本気で太く（老眼でも強調が拾えるように）。font-medium では地の文と区別がつかない。
         const cls = [
-          n.bold ? 'font-medium' : '',
+          n.bold ? 'font-bold' : '',
           n.italic ? 'italic' : '',
           n.code ? 'font-mono text-[0.85em] bg-gray-100 dark:bg-gray-700 px-1 rounded' : '',
         ].join(' ')
@@ -51,7 +52,7 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`出典: ${n.text}`}
-              className={`${cls} ${linkColor} underline underline-offset-2`}
+              className={`${cls} ${linkColor} underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
             >
               {n.text}
             </a>
@@ -80,7 +81,7 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   if (dim) return 'text-gray-500 dark:text-gray-400'
   const text = block.kind === 'paragraph' || block.kind === 'list_item' ? block.inlines.map((x) => x.text).join('') : ''
   if (isRecapText(text)) return 'text-gray-500 dark:text-gray-400 border-l-2 border-teal-500/30 pl-2.5'
-  return 'text-gray-800 dark:text-gray-200'
+  return 'text-gray-900 dark:text-gray-100'
 }
 
 function CalloutBlock({
@@ -100,7 +101,7 @@ function CalloutBlock({
     return (
       <div
         data-tldr=""
-        className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 my-3"
+        className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3.5 py-3 my-4"
       >
         <div className="flex gap-2">
           {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
@@ -118,7 +119,7 @@ function CalloutBlock({
     const hasHeadingText = first && first.kind === 'paragraph' && first.inlines.some((n) => n.bold)
     return (
       <div
-        className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2.5 my-3"
+        className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3.5 py-3 my-4"
       >
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 overflow-hidden">
@@ -127,7 +128,7 @@ function CalloutBlock({
           </div>
           <div className="min-w-0">
             {hasHeadingText && (
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              <p className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
                 <Inlines items={first.inlines} k={`sig-h-${index}`} />
               </p>
             )}
@@ -154,7 +155,7 @@ function CalloutBlock({
   // evidence / disclaimer / plain: 既存 CALLOUT_TONE 準拠（disclaimer は常に gray）。
   const tone = role === 'disclaimer' ? CALLOUT_TONE.gray_background : (block.color && CALLOUT_TONE[block.color]) || CALLOUT_TONE.gray_background
   return (
-    <div className={`border-l-4 rounded-r-lg px-3 py-2.5 my-3 ${tone}`}>
+    <div className={`border-l-4 rounded-r-lg px-3.5 py-3 my-4 ${tone}`}>
       <div className="flex gap-2">
         {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
         <div className="min-w-0">
@@ -183,23 +184,23 @@ function Block({
         const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={anchor} className="flex items-start gap-2 mt-6 mb-2">
-              <span className="text-[13px] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-[22px] h-[22px] rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
+            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-2.5">
+              <span className="text-sm font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
-              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
+              <h3 className="text-[17px] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
             </div>
           )
         }
         return (
-          <h3 data-section={anchor} className="text-base font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5">
+          <h3 data-section={anchor} className="text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-2">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
       }
-      const size = block.level === 1 ? 'text-lg' : 'text-sm'
+      const size = block.level === 1 ? 'text-xl font-bold' : 'text-base font-semibold'
       return (
-        <h3 className={`${size} font-medium text-gray-900 dark:text-gray-100 mt-5 mb-1.5`}>
+        <h3 className={`${size} text-gray-900 dark:text-gray-100 mt-7 mb-2`}>
           <Inlines items={block.inlines} k={`h-${index}`} plain />
         </h3>
       )
@@ -208,7 +209,7 @@ function Block({
       const color = textColorClass(block, active)
       return (
         <p
-          className={`text-sm leading-relaxed my-2 transition-colors duration-150 motion-reduce:transition-none ${color}`}
+          className={`text-base leading-[1.9] my-2.5 break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           <Inlines items={block.inlines} k={`p-${index}`} />
         </p>
@@ -229,7 +230,7 @@ function Block({
     case 'table':
       return (
         <div className="overflow-x-auto my-3">
-          <table className="text-xs border-collapse">
+          <table className="text-sm border-collapse">
             <tbody>
               {block.rows.map((row, r) => (
                 <tr key={r}>
@@ -295,7 +296,7 @@ function RenderedBlocks({
           return (
             <Tag
               key={i}
-              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2 space-y-1 text-sm`}
+              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2.5 space-y-1.5 text-base`}
             >
               {g.items.map((it, j) => {
                 const pseudo: ReaderBlock = { kind: 'list_item', ordered: g.ordered, inlines: it }
@@ -303,7 +304,7 @@ function RenderedBlocks({
                 return (
                   <li
                     key={j}
-                    className={`leading-relaxed transition-colors duration-150 motion-reduce:transition-none ${color}`}
+                    className={`leading-[1.85] break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
                   >
                     <Inlines items={it} k={`li-${i}-${j}`} />
                   </li>
@@ -340,7 +341,7 @@ export function ReaderBody({
           <img src={doc.cover} alt="" className="w-full rounded-lg" />
         </button>
       )}
-      <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
+      <h2 className="text-xl font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
         {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
         {doc.title}
       </h2>

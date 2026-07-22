@@ -9,6 +9,11 @@ vi.mock('@notionhq/client', () => ({
 }))
 vi.mock('@/lib/premium-access', () => ({ resolveRequestPremium: premiumMock }))
 vi.mock('@/lib/api-guard', () => ({ requireSessionIfLoginRequired: guardMock }))
+// テスト環境にはNextのincremental cache実体がないため、unstable_cacheは素通しにする
+// （キャッシュ層の有無に依らずルートのロジックを検証する）。
+vi.mock('next/cache', () => ({
+  unstable_cache: (fn: (...a: unknown[]) => unknown) => fn,
+}))
 
 import { GET } from '../../app/api/subscription/page/route'
 import { NextRequest } from 'next/server'

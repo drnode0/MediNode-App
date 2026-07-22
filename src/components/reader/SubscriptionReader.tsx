@@ -195,7 +195,10 @@ function ReaderOverlay({
             ? `${[...active].map((c) => CONFIDENCE_LABEL[c]).join('・')}を強調中・${matchCount}件`
             : ''}
         </p>
-        <div ref={scrollRef} className="overflow-y-auto px-4 py-4">
+        {/* overflow-x-hidden＋overscroll-contain: スマホで縦スクロール中に横へずれる
+            （幅超過コンテンツで水平パンが起きる）のを封じる。表は自前の overflow-x-auto で横スクロール可。 */}
+        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4">
+          <div className="mx-auto w-full max-w-2xl">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">
               <div aria-hidden="true">
@@ -239,6 +242,7 @@ function ReaderOverlay({
               <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} />
             </>
           )}
+          </div>
         </div>
       </div>
       {zoom && (
