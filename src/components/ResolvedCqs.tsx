@@ -18,6 +18,7 @@ import { fetchResolvedCqs, posterLabel, resolvedDateLabel, RESOLVED_CQ_SEEN_KEY,
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
 import { OpenSettingsContext } from '@/components/SearchErrors'
+import { useReader } from '@/components/reader/SubscriptionReader'
 const BANNER_MAX_ITEMS = 3
 
 export function ResolvedCqBanner() {
@@ -88,6 +89,7 @@ export function ResolvedCqBanner() {
 // 設定 →「解決したみんなの臨床疑問」の一覧本体。全ユーザーが開ける。
 // onOpenPremium: 非プレミアム向け登録導線（設定のプレミアムセクションを開く）。
 export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => void }) {
+  const { open: openReader } = useReader()
   const [items, setItems] = useState<ResolvedCq[] | null>(null)
   // CQごとの参照回数（のべ閲覧回数）。下限を超えた分だけバッジで見せる。
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
@@ -160,16 +162,19 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
             </p>
           )}
           {c.notionUrl && (
-            <a
-              href={c.notionUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => recordCqView(c.objectID, 'subscription')}
+            // notionUrl は hasSubscriptionConfig() が真のときだけ fetchResolvedCqs が返す
+            // （lib/resolved-cqs.ts）＝ここに来る時点で既にプレミアム確定。常にアプリ内で開く。
+            <button
+              type="button"
+              onClick={() => {
+                openReader({ objectID: c.objectID, title: c.title, notionUrl: c.notionUrl!, owner: 'subscription' })
+                recordCqView(c.objectID, 'subscription')
+              }}
               className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
             >
               ナレッジを読む
               <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </button>
           )}
         </div>
       ))}

@@ -5,8 +5,11 @@ import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
+import { isInAppReaderTarget } from '@/lib/subscription-open'
+import { useReader } from '@/components/reader/SubscriptionReader'
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
+  const { open: openReader } = useReader()
   const [revealed, setRevealed] = useState(false)
   // 「覚えた／まだ」の自己申告（このカードで申告済みならその結果を保持して表示を変える）。
   const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
@@ -110,16 +113,27 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
             >
               隠す
             </button>
-            <a
-              href={hit.notionUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => recordCqView(hit.objectID, hit.owner)}
-              className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
-            >
-              Notionで開く
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {isInAppReaderTarget(hit.owner) ? (
+              <button
+                type="button"
+                onClick={() => { recordCqView(hit.objectID, hit.owner); openReader(hit) }}
+                className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
+              >
+                Notionで開く
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <a
+                href={hit.notionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => recordCqView(hit.objectID, hit.owner)}
+                className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
+              >
+                Notionで開く
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
         </div>
       )}
