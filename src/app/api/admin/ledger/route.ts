@@ -56,16 +56,27 @@ export async function GET() {
 
     // 設定同期の時刻（user_settings.updated_at）。ログインより実際の利用に近い目安として台帳に出す。
     // 設定を変えた・別端末でログイン復元した等でサーバー保存が走った時刻（検索のたびには動かない）。
-    const { data: settings, error: setErr } = await admin
-      .from('user_settings')
-      .select('user_id, updated_at, early_access')
-    if (setErr) throw new Error(`設定同期時刻の取得に失敗: ${setErr.message}`)
-    const settingsByUser = new Map(
-      (settings ?? []).map((s) => [s.user_id as string, s.updated_at as string | null]),
-    )
-    const earlyAccessByUser = new Map(
-      (settings ?? []).map((s) => [s.user_id as string, (s.early_access as boolean | undefined) ?? false]),
-    )
+    // early_access 列（先行体験フラグ）は未適用の環境があり得るため、無ければ updated_at だけで続行する
+    //（0004 の app_usage と同じ「未適用でも落とさない」方針）。
+    const settingsByUser = new Map<string, string | null>()
+    const earlyAccessByUser = new Map<string, boolean>()
+    {
+      type SettingsRow = { user_id: string; updated_at: string | null; early_access?: boolean | null }
+      const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
+      let rows: SettingsRow[]
+      if (withEarly.error) {
+        // early_access 列が無い等で失敗したら、必須の updated_at だけで再取得して続行。
+        const basic = await admin.from('user_settings').select('user_id, updated_at')
+        if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
+        rows = (basic.data ?? []) as SettingsRow[]
+      } else {
+        rows = (withEarly.data ?? []) as SettingsRow[]
+      }
+      for (const s of rows) {
+        settingsByUser.set(s.user_id, s.updated_at ?? null)
+        earlyAccessByUser.set(s.user_id, s.early_access ?? false)
+      }
+    }
 
     // 最終利用日（app_usage.last_used_at）。アプリを開くと1日1回記録される（/api/usage/ping）。
     // マイグレーション 0004 未適用の環境ではテーブルが無いので、失敗しても列を「—」にして続行する。

@@ -1122,7 +1122,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   <p className="text-xs text-gray-500 dark:text-gray-400">複数の部署DBを登録すると、検索・新着・ジャンルで横断して表示されます（先行体験中の機能です）。</p>
                   {additionalTeams.map((t, i) => (
                     <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-2">
-                      <input type="text" value={t.label} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="部署名（例：循環器）" className={inputCls} />
+                      <input type="text" value={t.label} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} placeholder="部署名（例：循環器病棟、研修医教育）" className={inputCls} />
                       <input type="password" value={t.notionToken} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, notionToken: e.target.value } : x))} placeholder="コネクトToken（ntn_...）" className={inputCls} />
                       <input type="text" value={t.medicalDbId} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, medicalDbId: e.target.value } : x))} placeholder="Medical DB（URLまたはID）" className={inputCls} />
                       <input type="text" value={t.referenceDbId ?? ''} onChange={(e) => setAdditionalTeams((arr) => arr.map((x, j) => j === i ? { ...x, referenceDbId: e.target.value } : x))} placeholder="Reference DB（任意）" className={inputCls} />
