@@ -4,6 +4,7 @@ import { ChevronDown, Zap, List } from 'lucide-react'
 import { findTldr, tocSections, type ReaderDoc, type ReaderBlock } from '@/lib/reader-doc'
 import { docConfidenceMarks, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
 import { ConfidenceMark } from './ConfidenceMark'
+import { sectionHeadingParts } from '@/lib/title-display'
 
 // ⚡結論 callout の子ブロックを読める平文へ畳み込む（表・画像・区切り線は無視）。
 function blockPlainText(b: ReaderBlock): string {
@@ -167,7 +168,17 @@ export function ReaderNavBar({
                           {s.n}
                         </span>
                       )}
-                      <span className="truncate">{s.n != null ? `${s.n}. ${s.title}` : s.title}</span>
+                      {s.n != null ? (
+                        <span className="truncate">{`${s.n}. ${s.title}`}</span>
+                      ) : (() => {
+                        const { Icon: SecIcon, text: secText } = sectionHeadingParts(s.title)
+                        return (
+                          <span className="truncate">
+                            {SecIcon && <SecIcon className="inline-block align-[-0.125em] mr-1 h-3.5 w-3.5 text-gray-400 dark:text-gray-500" aria-hidden />}
+                            {secText}
+                          </span>
+                        )
+                      })()}
                     </button>
                   </li>
                 ))}

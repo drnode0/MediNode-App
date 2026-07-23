@@ -5,7 +5,11 @@
 //     ＝Notion側で絵文字が付いていても付いていなくても同じアイコンになる。
 //   ・タイトル先頭の絵文字は **常に非表示**（表示直前に剥がす。データ側のキーは保持）。
 // 種別が取れないときだけタイトル先頭の絵文字をフォールバックに使う。
-import { Lightbulb, MessageCircleQuestion, ClipboardList, FileText, Bookmark, BookOpen, Library, type LucideIcon } from 'lucide-react'
+import {
+  Lightbulb, MessageCircleQuestion, ClipboardList, FileText, Bookmark, BookOpen, Library,
+  Target, BarChart3, Users, TrendingUp, AlertTriangle, MessageSquare, FlaskConical, Pill, Stethoscope, BookText,
+  type LucideIcon,
+} from 'lucide-react'
 import { stripLeadingEmoji } from '@/lib/labels'
 
 type IconDef = { Icon: LucideIcon; color: string }
@@ -18,6 +22,33 @@ const REF_CARD: IconDef = { Icon: Bookmark, color: 'text-amber-500 dark:text-amb
 const TEXTBOOK: IconDef = { Icon: BookOpen, color: 'text-brand-500 dark:text-brand-400' }
 // 精読ノート/文献カードのどちらでもない参考文献の汎用アイコン（別デザイン）。
 const REF_GENERIC: IconDef = { Icon: Library, color: 'text-amber-500 dark:text-amber-400' }
+
+// 本文セクション見出しの「テンプレ固定絵文字」→ lucide。ここに載っている既知セクションだけ
+// アイコン化し、それ以外の任意の絵文字は本文の忠実性を保つため触らない（残す）。
+const SECTION_ICON: { emoji: string; Icon: LucideIcon }[] = [
+  { emoji: '📖', Icon: BookOpen },        // 概要
+  { emoji: '📄', Icon: FileText },        // 要約（構造化）
+  { emoji: '🎯', Icon: Target },          // PICO
+  { emoji: '📊', Icon: BarChart3 },       // 研究デザイン・方法
+  { emoji: '👥', Icon: Users },           // 対象患者の特性（Baseline）
+  { emoji: '📈', Icon: TrendingUp },      // 主要結果
+  { emoji: '⚠️', Icon: AlertTriangle },   // Limitation・バイアス
+  { emoji: '💬', Icon: MessageSquare },   // Discussion
+  { emoji: '📚', Icon: BookText },        // 書誌・参考
+  { emoji: '🔬', Icon: FlaskConical },    // 実験・方法
+  { emoji: '💊', Icon: Pill },            // 薬剤
+  { emoji: '🩺', Icon: Stethoscope },     // 臨床
+]
+
+// セクション見出しを「既知テンプレ絵文字→lucideアイコン＋絵文字を除いた本文」に分解する。
+// 既知セクション以外（未マップの絵文字・絵文字なし）は Icon=null＋本文そのまま（＝忠実に残す）。
+export function sectionHeadingParts(text: string | null | undefined): { Icon: LucideIcon | null; text: string } {
+  // 異体字セレクタ(U+FE0F)の有無を吸収して先頭絵文字を照合する。
+  const head = (text ?? '').trimStart().replace(/️/g, '')
+  const found = SECTION_ICON.find((e) => head.startsWith(e.emoji.replace(/️/g, '')))
+  if (found) return { Icon: found.Icon, text: stripLeadingEmoji(text) }
+  return { Icon: null, text: text ?? '' }
+}
 
 // 種別文字列（knowledgeLevel='💡 ナレッジ' / recordingLevel='📄 精読ノート' 等）→ アイコン。
 // 値はアプリが作る固定選択肢なので、絵文字でもキーワードでも安全に拾える。

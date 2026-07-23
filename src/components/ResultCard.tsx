@@ -2,7 +2,7 @@
 import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, BookOpen, Sprout, type LucideIcon } from 'lucide-react'
 import { Highlight } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
-import { titleParts } from '@/lib/title-display'
+import { titleParts, sectionHeadingParts } from '@/lib/title-display'
 import { readingMinutes } from '@/lib/content-stats'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
@@ -322,9 +322,17 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
             <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">収録内容</p>
               <ul className="space-y-0.5">
-                {hit.headings.map((h, i) => (
-                  <li key={i} className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">・{h}</li>
-                ))}
+                {hit.headings.map((h, i) => {
+                  const { Icon: SecIcon, text: secText } = sectionHeadingParts(h)
+                  return (
+                    <li key={i} className="flex items-start gap-1 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                      {SecIcon
+                        ? <SecIcon className="mt-[1.5px] h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden />
+                        : <span aria-hidden>・</span>}
+                      <span className="min-w-0">{secText}</span>
+                    </li>
+                  )
+                })}
                 {(hit.sectionCount ?? 0) > hit.headings.length && (
                   <li className="text-xs text-gray-400 dark:text-gray-500">…ほか{(hit.sectionCount ?? 0) - hit.headings.length}セクション</li>
                 )}

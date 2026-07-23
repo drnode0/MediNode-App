@@ -11,7 +11,7 @@ import {
   type ReaderInline,
 } from '@/lib/reader-doc'
 import { CONFIDENCE_MARKS, isDimmed, type Confidence } from '@/lib/reader-confidence'
-import { KnowledgeTitle } from '@/lib/title-display'
+import { KnowledgeTitle, sectionHeadingParts } from '@/lib/title-display'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
 
 // CONFIDENCE_MARKS からマーク文字を導出する（表記ゆれ防止：分割用正規表現と判定マップを同一ソースから作る）。
@@ -230,6 +230,17 @@ function Block({
               </span>
               <h3 className="text-[17px] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
             </div>
+          )
+        }
+        // 番号なしH2＝テンプレ固定セクション（📄要約/🎯PICO等）。既知セクション絵文字だけ
+        // lucideアイコンに置換し、それ以外の見出しは忠実描画のまま（絵文字も残す）。
+        const { Icon: SecIcon, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
+        if (SecIcon) {
+          return (
+            <h3 data-section={anchor} className="flex items-center gap-2 text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <SecIcon className="h-[1.05em] w-[1.05em] shrink-0 text-gray-400 dark:text-gray-500" aria-hidden />
+              <span className="min-w-0">{secText}</span>
+            </h3>
           )
         }
         return (
