@@ -225,6 +225,61 @@ type BroadcastHistoryItem = {
 // お知らせ一斉送信フォーム（Web Push）。POST /api/admin/push-broadcast を叩く。
 // 週1程度に留める運用ルールはUI注記のみ（サーバー側の回数制限はない）。
 // 1回目の「送信」クリックでは即送信せず、内容確認ビューを経由してから送る。
+function SubscriptionSyncButton() {
+  const [syncing, setSyncing] = useState(false)
+  const [result, setResult] = useState<{ medical: number; reference: number; total: number; at: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = useCallback(async () => {
+    setSyncing(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/subscription-sync', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '同期に失敗しました')
+      const synced = data.synced ?? { medical: 0, reference: 0, total: 0 }
+      setResult({
+        medical: synced.medical ?? 0,
+        reference: synced.reference ?? 0,
+        total: synced.total ?? 0,
+        at: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '同期に失敗しました')
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+        <RefreshCw className="w-3.5 h-3.5" aria-hidden />
+        サブスクをアプリに同期
+      </h3>
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={syncing}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+      >
+        {syncing ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
+        {syncing ? '同期中…' : 'サブスクをアプリに同期'}
+      </button>
+      {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {result && (
+        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+          同期しました（医療{result.medical}件・文献{result.reference}件／{result.at}）
+        </p>
+      )}
+      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+        Notionのサブスク側を編集したら押す。毎朝6時にも自動で同期されます。
+      </p>
+    </div>
+  )
+}
+
 function BroadcastForm() {
   const [title, setTitle] = useState('')
   const [bodyText, setBodyText] = useState('')
@@ -959,7 +1014,10 @@ export function DailyCommandCenter() {
           </p>
         )}
 
-        {/* D. お知らせ送信（オーナー操作） */}
+        {/* D. サブスク同期（オーナー操作・スマホから1タップ） */}
+        <SubscriptionSyncButton />
+
+        {/* E. お知らせ送信（オーナー操作） */}
         <BroadcastForm />
       </div>
     </section>
