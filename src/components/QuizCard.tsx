@@ -5,6 +5,7 @@ import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
+import { KnowledgeTitle } from '@/lib/title-display'
 import { isInAppReaderTarget } from '@/lib/subscription-open'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
@@ -41,7 +42,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <span className="text-xs text-gray-300 mr-2">#{index + 1}</span>
-            <span className="font-semibold text-gray-900 dark:text-gray-100 text-base">{stripLeadingEmoji(hit.title)}</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100 text-base"><KnowledgeTitle title={hit.title} level={hit.knowledgeLevel || hit.recordingLevel} source={hit.source} /></span>
           </div>
           {!revealed && (
             <span className="shrink-0 text-xs text-brand-500 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-700 rounded-full px-2 py-0.5">

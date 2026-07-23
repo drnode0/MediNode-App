@@ -5,7 +5,7 @@
 //     ＝Notion側で絵文字が付いていても付いていなくても同じアイコンになる。
 //   ・タイトル先頭の絵文字は **常に非表示**（表示直前に剥がす。データ側のキーは保持）。
 // 種別が取れないときだけタイトル先頭の絵文字をフォールバックに使う。
-import { Lightbulb, MessageCircleQuestion, ClipboardList, FileText, Bookmark, BookOpen, type LucideIcon } from 'lucide-react'
+import { Lightbulb, MessageCircleQuestion, ClipboardList, FileText, Bookmark, BookOpen, Library, type LucideIcon } from 'lucide-react'
 import { stripLeadingEmoji } from '@/lib/labels'
 
 type IconDef = { Icon: LucideIcon; color: string }
@@ -16,6 +16,8 @@ const SUMMARY: IconDef = { Icon: ClipboardList, color: 'text-sky-500 dark:text-s
 const DEEP_NOTE: IconDef = { Icon: FileText, color: 'text-amber-600 dark:text-amber-400' }
 const REF_CARD: IconDef = { Icon: Bookmark, color: 'text-amber-500 dark:text-amber-400' }
 const TEXTBOOK: IconDef = { Icon: BookOpen, color: 'text-brand-500 dark:text-brand-400' }
+// 精読ノート/文献カードのどちらでもない参考文献の汎用アイコン（別デザイン）。
+const REF_GENERIC: IconDef = { Icon: Library, color: 'text-amber-500 dark:text-amber-400' }
 
 // 種別文字列（knowledgeLevel='💡 ナレッジ' / recordingLevel='📄 精読ノート' 等）→ アイコン。
 // 値はアプリが作る固定選択肢なので、絵文字でもキーワードでも安全に拾える。
@@ -54,7 +56,7 @@ export function titleParts(
   const def =
     iconForLevel(opts?.level) ??
     iconForTitleEmoji(title) ??
-    (opts?.source === 'reference' ? DEEP_NOTE : null)
+    (opts?.source === 'reference' ? REF_GENERIC : null)
   return { Icon: def?.Icon ?? null, color: def?.color ?? '', text: stripLeadingEmoji(title) }
 }
 
