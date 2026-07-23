@@ -169,7 +169,7 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
             <button
               type="button"
               onClick={() => {
-                openReader({ objectID: c.objectID, title: c.title, notionUrl: c.notionUrl!, owner: 'subscription' })
+                openReader({ objectID: c.objectID, title: c.title, notionUrl: c.notionUrl!, knowledgeLevel: '💡 ナレッジ', owner: 'subscription' })
                 recordCqView(c.objectID, 'subscription')
               }}
               onPointerEnter={() => prefetchReaderDoc(c.objectID)}
