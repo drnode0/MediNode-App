@@ -11,6 +11,7 @@ import {
   type ReaderInline,
 } from '@/lib/reader-doc'
 import { CONFIDENCE_MARKS, isDimmed, type Confidence } from '@/lib/reader-confidence'
+import { KnowledgeTitle } from '@/lib/title-display'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
 
 // CONFIDENCE_MARKS からマーク文字を導出する（表記ゆれ防止：分割用正規表現と判定マップを同一ソースから作る）。
@@ -388,7 +389,7 @@ export function ReaderBody({
       )}
       <h2 className="text-xl font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
         {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
-        {doc.title}
+        <KnowledgeTitle title={doc.title} />
       </h2>
       <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
     </div>

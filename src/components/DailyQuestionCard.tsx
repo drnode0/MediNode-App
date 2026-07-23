@@ -6,6 +6,7 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react'
 import { BookOpen, Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { OpenSettingsContext } from '@/components/SearchErrors'
+import { KnowledgeTitle } from '@/lib/title-display'
 import { recordQuizResult } from '@/lib/quiz-srs'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
@@ -151,7 +152,7 @@ export function DailyQuestionCard() {
               </span>
             )}
           </div>
-          <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100">{q.title}</p>
+          <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100"><KnowledgeTitle title={q.title} /></p>
 
           {!state.revealed ? (
             <button

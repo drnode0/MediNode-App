@@ -166,9 +166,16 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               />
             )}
             <span>
-              {(hit as any)._highlightResult
-                ? <Highlight attribute="title" hit={hit as any} />
-                : hit.title}
+              {(() => {
+                // 種別はこのカードのバッジ（levelMeta.Icon）で示すので、タイトル先頭の絵文字は表示から外す。
+                // Algoliaハイライトは保持したまま、ハイライト値の先頭絵文字だけ剥がす（データ側は不変）。
+                const hr = (hit as { _highlightResult?: { title?: { value?: string } } })._highlightResult
+                if (hr?.title?.value) {
+                  const stripped = { ...hit, _highlightResult: { ...hr, title: { ...hr.title, value: stripLeadingEmoji(hr.title.value) } } }
+                  return <Highlight attribute="title" hit={stripped as any} />
+                }
+                return stripLeadingEmoji(hit.title)
+              })()}
             </span>
           </h3>
           <div className="flex items-center gap-1 shrink-0 mt-1">

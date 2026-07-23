@@ -6,6 +6,7 @@ import { Star } from 'lucide-react'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
+import { KnowledgeTitle } from '@/lib/title-display'
 
 export function BookmarksList() {
   const { bookmarks, clearBookmarks } = useReaderMarks()
@@ -35,7 +36,7 @@ export function BookmarksList() {
           >
             <Star className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" fill="currentColor" aria-hidden="true" />
             <span className="flex-1 min-w-0">
-              <span className="block truncate font-medium">{b.title}</span>
+              <span className="block truncate font-medium"><KnowledgeTitle title={b.title} /></span>
               {b.summary && (
                 <span className="block text-xs text-gray-400 dark:text-gray-500 line-clamp-2 mt-0.5">
                   {b.summary}

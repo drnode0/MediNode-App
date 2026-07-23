@@ -20,6 +20,7 @@ import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { useReader } from '@/components/reader/SubscriptionReader'
+import { KnowledgeTitle, titleParts } from '@/lib/title-display'
 const BANNER_MAX_ITEMS = 3
 
 export function ResolvedCqBanner() {
@@ -62,7 +63,7 @@ export function ResolvedCqBanner() {
           <ul className="mt-1 space-y-1">
             {items.map((c) => (
               <li key={c.objectID} className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
-                {resolvedDateLabel(c.createdAt)}、{posterLabel(c)}の疑問「{c.title}」をナレッジとして公開しました。
+                {resolvedDateLabel(c.createdAt)}、{posterLabel(c)}の疑問「{titleParts(c.title).text}」をナレッジとして公開しました。
               </li>
             ))}
           </ul>
@@ -153,7 +154,7 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
             </span>
             <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{resolvedDateLabel(c.createdAt)}</span>
           </div>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">{c.title}</p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug"><KnowledgeTitle title={c.title} /></p>
           {/* 参照回数（のべ閲覧回数）。下限（VIEW_BADGE_MIN）を超えたときだけ静かに出す。
               「あなただけが引いたのではない、同じ疑問をみんなが調べている」を事実で伝える。 */}
           {(viewCounts[c.objectID] ?? 0) >= VIEW_BADGE_MIN && (
