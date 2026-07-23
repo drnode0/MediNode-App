@@ -17,6 +17,10 @@ export type ReaderHit = {
   notionUrl: string
   knowledgeLevel?: string
   owner?: string
+  // 「最近見た」の種別アイコン判定用（title-display）。渡せる呼び出し元は必ず渡す。
+  // これを落とすと、リーダー経由で開いた項目が最近見たで種別アイコン無しになる。
+  source?: string
+  recordingLevel?: string
   // ブックマークの見本表示・「最近見た」補完用。渡せる呼び出し元だけ渡す（無ければ省略）。
   summary?: string
 }

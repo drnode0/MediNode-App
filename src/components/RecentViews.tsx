@@ -46,7 +46,7 @@ export function RecentViewsList() {
               type="button"
               onClick={() => {
                 recordCqView(v.objectID, v.owner)
-                openReader({ objectID: v.objectID, title: v.title, notionUrl: v.notionUrl, knowledgeLevel: v.knowledgeLevel, owner: v.owner })
+                openReader({ objectID: v.objectID, title: v.title, notionUrl: v.notionUrl, knowledgeLevel: v.knowledgeLevel, recordingLevel: v.recordingLevel, source: v.source, owner: v.owner })
               }}
               onPointerEnter={() => prefetchReaderDoc(v.objectID)}
               onFocus={() => prefetchReaderDoc(v.objectID)}
