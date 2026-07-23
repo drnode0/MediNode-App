@@ -7,6 +7,9 @@ export type RecentView = {
   title: string
   notionUrl: string
   knowledgeLevel?: string
+  // 種別アイコン判定用（title-display）。参考文献は knowledgeLevel を持たないため source を残す。
+  source?: string
+  recordingLevel?: string
   owner?: string
   at: string // 開いた日時（ISO）
 }
@@ -48,6 +51,8 @@ export function recordRecentView(hit: {
   title: string
   notionUrl: string
   knowledgeLevel?: string
+  source?: string
+  recordingLevel?: string
   owner?: string
 }) {
   try {
@@ -56,6 +61,8 @@ export function recordRecentView(hit: {
       title: hit.title,
       notionUrl: hit.notionUrl,
       knowledgeLevel: hit.knowledgeLevel,
+      source: hit.source,
+      recordingLevel: hit.recordingLevel,
       owner: hit.owner,
       at: new Date().toISOString(),
     })

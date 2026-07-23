@@ -154,7 +154,7 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
             </span>
             <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{resolvedDateLabel(c.createdAt)}</span>
           </div>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug"><KnowledgeTitle title={c.title} /></p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug"><KnowledgeTitle title={c.title} level="💡 ナレッジ" /></p>
           {/* 参照回数（のべ閲覧回数）。下限（VIEW_BADGE_MIN）を超えたときだけ静かに出す。
               「あなただけが引いたのではない、同じ疑問をみんなが調べている」を事実で伝える。 */}
           {(viewCounts[c.objectID] ?? 0) >= VIEW_BADGE_MIN && (

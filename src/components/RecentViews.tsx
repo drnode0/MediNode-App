@@ -53,7 +53,7 @@ export function RecentViewsList() {
               className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors w-full text-left"
             >
               <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
-              <span className="flex-1 truncate"><KnowledgeTitle title={v.title} /></span>
+              <span className="flex-1 truncate"><KnowledgeTitle title={v.title} level={v.knowledgeLevel || v.recordingLevel} source={v.source} /></span>
               <BookOpen className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
             </button>
           ) : (
@@ -66,7 +66,7 @@ export function RecentViewsList() {
               className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-700 dark:text-gray-200 hover:border-brand-400 transition-colors"
             >
               <History className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
-              <span className="flex-1 truncate"><KnowledgeTitle title={v.title} /></span>
+              <span className="flex-1 truncate"><KnowledgeTitle title={v.title} level={v.knowledgeLevel || v.recordingLevel} source={v.source} /></span>
               <ExternalLink className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0" />
             </a>
           )

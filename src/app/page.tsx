@@ -36,6 +36,7 @@ import { RecentViewsList } from '@/components/RecentViews'
 import { BookmarksList } from '@/components/BookmarksList'
 import { SearchSuggest } from '@/components/SearchSuggest'
 import { recordRecentView } from '@/lib/recent-views'
+import { recentGroupIndex } from '@/lib/recent-grouping'
 import { DailyQuestionCard } from '@/components/DailyQuestionCard'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreDotLegend } from '@/components/GenreBrowse'
 
@@ -392,12 +393,7 @@ function RecentHits() {
   ]
 
   for (const hit of hits as unknown as Hit[]) {
-    const d = new Date(hit.createdAt || hit.lastEdited)
-    const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-    if (diffDays < 1) groups[0].hits.push(hit)
-    else if (diffDays < 7) groups[1].hits.push(hit)
-    else if (diffDays < 30) groups[2].hits.push(hit)
-    else groups[3].hits.push(hit)
+    groups[recentGroupIndex(hit.createdAt || hit.lastEdited, now.getTime())].hits.push(hit)
   }
 
   if (hits.length === 0) {
@@ -863,12 +859,7 @@ function RecentTabWithOwner({ hasTeam, hasSubscription, newSince }: { hasTeam: b
     { label: 'それ以前', hits: [] },
   ]
   for (const hit of visibleHits) {
-    const d = new Date(hit.createdAt || hit.lastEdited)
-    const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-    if (diffDays < 1) groups[0].hits.push(hit)
-    else if (diffDays < 7) groups[1].hits.push(hit)
-    else if (diffDays < 30) groups[2].hits.push(hit)
-    else groups[3].hits.push(hit)
+    groups[recentGroupIndex(hit.createdAt || hit.lastEdited, now.getTime())].hits.push(hit)
   }
 
   return (
@@ -1656,12 +1647,7 @@ function NotionRecentTab({ hasTeam, hasSubscription, newSince }: { hasTeam: bool
   ]
 
   for (const hit of merged) {
-    const d = new Date(hit.createdAt || hit.lastEdited)
-    const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-    if (diffDays < 1) groups[0].hits.push(hit)
-    else if (diffDays < 7) groups[1].hits.push(hit)
-    else if (diffDays < 30) groups[2].hits.push(hit)
-    else groups[3].hits.push(hit)
+    groups[recentGroupIndex(hit.createdAt || hit.lastEdited, now.getTime())].hits.push(hit)
   }
 
   const ownerTabs = (

@@ -152,7 +152,7 @@ export function DailyQuestionCard() {
               </span>
             )}
           </div>
-          <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100"><KnowledgeTitle title={q.title} /></p>
+          <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100"><KnowledgeTitle title={q.title} level={q.knowledgeLevel} /></p>
 
           {!state.revealed ? (
             <button
