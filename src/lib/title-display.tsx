@@ -8,6 +8,7 @@
 import {
   Lightbulb, MessageCircleQuestion, ClipboardList, FileText, Bookmark, BookOpen, Library,
   Target, BarChart3, Users, TrendingUp, AlertTriangle, MessageSquare, FlaskConical, Pill, Stethoscope, BookText,
+  Link2, Pin, Search,
   type LucideIcon,
 } from 'lucide-react'
 import { stripLeadingEmoji } from '@/lib/labels'
@@ -23,31 +24,38 @@ const TEXTBOOK: IconDef = { Icon: BookOpen, color: 'text-brand-500 dark:text-bra
 // 精読ノート/文献カードのどちらでもない参考文献の汎用アイコン（別デザイン）。
 const REF_GENERIC: IconDef = { Icon: Library, color: 'text-amber-500 dark:text-amber-400' }
 
-// 本文セクション見出しの「テンプレ固定絵文字」→ lucide。ここに載っている既知セクションだけ
-// アイコン化し、それ以外の任意の絵文字は本文の忠実性を保つため触らない（残す）。
-const SECTION_ICON: { emoji: string; Icon: LucideIcon }[] = [
-  { emoji: '📖', Icon: BookOpen },        // 概要
-  { emoji: '📄', Icon: FileText },        // 要約（構造化）
-  { emoji: '🎯', Icon: Target },          // PICO
-  { emoji: '📊', Icon: BarChart3 },       // 研究デザイン・方法
-  { emoji: '👥', Icon: Users },           // 対象患者の特性（Baseline）
-  { emoji: '📈', Icon: TrendingUp },      // 主要結果
-  { emoji: '⚠️', Icon: AlertTriangle },   // Limitation・バイアス
-  { emoji: '💬', Icon: MessageSquare },   // Discussion
-  { emoji: '📚', Icon: BookText },        // 書誌・参考
-  { emoji: '🔬', Icon: FlaskConical },    // 実験・方法
-  { emoji: '💊', Icon: Pill },            // 薬剤
-  { emoji: '🩺', Icon: Stethoscope },     // 臨床
+// 本文セクション見出しの「テンプレ固定絵文字」→ lucideアイコン＋色。ここに載っている既知
+// セクションだけアイコン化し、それ以外の任意の絵文字は本文の忠実性を保つため触らない（残す）。
+// 色はセクションごとに変えて、全部同じ灰色にならないようにする（一覧の見分けやすさ優先）。
+const SECTION_ICON: { emoji: string; Icon: LucideIcon; color: string }[] = [
+  { emoji: '📖', Icon: BookOpen,        color: 'text-slate-500 dark:text-slate-400' },   // 概要
+  { emoji: '📄', Icon: FileText,        color: 'text-blue-500 dark:text-blue-400' },     // 要約（構造化）／論文の客観情報
+  { emoji: '🎯', Icon: Target,          color: 'text-rose-500 dark:text-rose-400' },     // PICO
+  { emoji: '📊', Icon: BarChart3,       color: 'text-violet-500 dark:text-violet-400' }, // 研究デザイン・方法
+  { emoji: '👥', Icon: Users,           color: 'text-teal-500 dark:text-teal-400' },     // 対象患者の特性（Baseline）
+  { emoji: '📈', Icon: TrendingUp,      color: 'text-emerald-500 dark:text-emerald-400' },// 主要結果
+  { emoji: '⚠️', Icon: AlertTriangle,   color: 'text-amber-500 dark:text-amber-400' },   // Limitation・バイアス
+  { emoji: '💬', Icon: MessageSquare,   color: 'text-sky-500 dark:text-sky-400' },       // Discussion
+  { emoji: '🔗', Icon: Link2,           color: 'text-cyan-600 dark:text-cyan-400' },     // 出典リンク
+  { emoji: '📚', Icon: BookText,        color: 'text-amber-600 dark:text-amber-400' },   // 書誌・参考
+  { emoji: '🔬', Icon: FlaskConical,    color: 'text-indigo-500 dark:text-indigo-400' }, // 実験・方法
+  { emoji: '💊', Icon: Pill,            color: 'text-pink-500 dark:text-pink-400' },     // 薬剤
+  { emoji: '🩺', Icon: Stethoscope,     color: 'text-teal-600 dark:text-teal-400' },     // 臨床
+  { emoji: '📌', Icon: Pin,             color: 'text-orange-500 dark:text-orange-400' }, // ポイント／注記
+  { emoji: '🔎', Icon: Search,          color: 'text-gray-500 dark:text-gray-400' },     // 検索例
+  { emoji: '🔍', Icon: Search,          color: 'text-gray-500 dark:text-gray-400' },
 ]
 
-// セクション見出しを「既知テンプレ絵文字→lucideアイコン＋絵文字を除いた本文」に分解する。
+// セクション見出しを「既知テンプレ絵文字→lucideアイコン＋色＋絵文字を除いた本文」に分解する。
 // 既知セクション以外（未マップの絵文字・絵文字なし）は Icon=null＋本文そのまま（＝忠実に残す）。
-export function sectionHeadingParts(text: string | null | undefined): { Icon: LucideIcon | null; text: string } {
+export function sectionHeadingParts(
+  text: string | null | undefined,
+): { Icon: LucideIcon | null; color: string; text: string } {
   // 異体字セレクタ(U+FE0F)の有無を吸収して先頭絵文字を照合する。
   const head = (text ?? '').trimStart().replace(/️/g, '')
   const found = SECTION_ICON.find((e) => head.startsWith(e.emoji.replace(/️/g, '')))
-  if (found) return { Icon: found.Icon, text: stripLeadingEmoji(text) }
-  return { Icon: null, text: text ?? '' }
+  if (found) return { Icon: found.Icon, color: found.color, text: stripLeadingEmoji(text) }
+  return { Icon: null, color: '', text: text ?? '' }
 }
 
 // 種別文字列（knowledgeLevel='💡 ナレッジ' / recordingLevel='📄 精読ノート' 等）→ アイコン。

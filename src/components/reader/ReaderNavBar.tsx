@@ -171,10 +171,10 @@ export function ReaderNavBar({
                       {s.n != null ? (
                         <span className="truncate">{`${s.n}. ${s.title}`}</span>
                       ) : (() => {
-                        const { Icon: SecIcon, text: secText } = sectionHeadingParts(s.title)
+                        const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(s.title)
                         return (
                           <span className="truncate">
-                            {SecIcon && <SecIcon className="inline-block align-[-0.125em] mr-1 h-3.5 w-3.5 text-gray-400 dark:text-gray-500" aria-hidden />}
+                            {SecIcon && <SecIcon className={`inline-block align-[-0.125em] mr-1 h-3.5 w-3.5 ${secColor}`} aria-hidden />}
                             {secText}
                           </span>
                         )

@@ -323,11 +323,11 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">収録内容</p>
               <ul className="space-y-0.5">
                 {hit.headings.map((h, i) => {
-                  const { Icon: SecIcon, text: secText } = sectionHeadingParts(h)
+                  const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(h)
                   return (
                     <li key={i} className="flex items-start gap-1 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
                       {SecIcon
-                        ? <SecIcon className="mt-[1.5px] h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden />
+                        ? <SecIcon className={`mt-[1.5px] h-3.5 w-3.5 shrink-0 ${secColor}`} aria-hidden />
                         : <span aria-hidden>・</span>}
                       <span className="min-w-0">{secText}</span>
                     </li>

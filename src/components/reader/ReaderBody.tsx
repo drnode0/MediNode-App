@@ -234,11 +234,11 @@ function Block({
         }
         // 番号なしH2＝テンプレ固定セクション（📄要約/🎯PICO等）。既知セクション絵文字だけ
         // lucideアイコンに置換し、それ以外の見出しは忠実描画のまま（絵文字も残す）。
-        const { Icon: SecIcon, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
+        const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
         if (SecIcon) {
           return (
             <h3 data-section={anchor} className="flex items-center gap-2 text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <SecIcon className="h-[1.05em] w-[1.05em] shrink-0 text-gray-400 dark:text-gray-500" aria-hidden />
+              <SecIcon className={`h-[1.05em] w-[1.05em] shrink-0 ${secColor}`} aria-hidden />
               <span className="min-w-0">{secText}</span>
             </h3>
           )
@@ -250,6 +250,17 @@ function Block({
         )
       }
       const size = block.level === 1 ? 'text-xl font-bold' : 'text-base font-semibold'
+      // H1/H3 の見出しも同様に、既知テンプレ絵文字ならアイコン化（未知は忠実描画のまま）。
+      const h13 = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
+      if (h13.Icon) {
+        const H13Icon = h13.Icon
+        return (
+          <h3 className={`flex items-center gap-2 ${size} text-gray-900 dark:text-gray-100 mt-7 mb-2`}>
+            <H13Icon className={`h-[1.05em] w-[1.05em] shrink-0 ${h13.color}`} aria-hidden />
+            <span className="min-w-0">{h13.text}</span>
+          </h3>
+        )
+      }
       return (
         <h3 className={`${size} text-gray-900 dark:text-gray-100 mt-7 mb-2`}>
           <Inlines items={block.inlines} k={`h-${index}`} plain />
