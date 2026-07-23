@@ -1,6 +1,6 @@
 'use client'
 import { useHits, Configure } from 'react-instantsearch'
-import { Lightbulb, ClipboardList, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { Lightbulb, ClipboardList, X, ChevronUp, ChevronDown, Search } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import {
   createSearchClient,
@@ -12,6 +12,15 @@ import {
 import { getSettings } from '@/lib/settings'
 import { ResultCard, type Hit } from './ResultCard'
 import { isTeamOwner, teamIdOf, type OwnerFilter } from './OwnerFilterTabs'
+import {
+  genreHueIndex,
+  mergeGenreKeys,
+  pickRepresentativeVariant,
+  genreFacetFilter,
+  genreMatchesCanonical,
+  departmentColorToken,
+  type DepartmentColorToken,
+} from '@/lib/genre'
 
 // 部署(team)はAlgoliaで管理しないため、Notionから直読みするフック。
 // /api/notion/search の mode:'browse' で部署DB全件を取得し、owner==='team'のみ採用。
@@ -88,12 +97,13 @@ function getHitGenres(h: Hit): string[] {
 // ジャンルボタンの折りたたみ閾値（これを超えたら「すべて表示」で展開）
 const GENRE_SHOW_LIMIT = 12
 
-// 個人・部署・サブスクのファセットを別々に持つ
+// 個人・サブスクのファセット（Algolia由来）。部署は per-team で別管理（teamFacetsByTeam）。
 type FacetData = {
   personal: Record<string, number>
-  team: Record<string, number>
   subscription: Record<string, number>
 }
+// 部署ごとのジャンル件数: teamId → (genreKey → count)
+type TeamFacetsByTeam = Record<string, Record<string, number>>
 
 // ハイブリッドソート: 番号付き(01.〜) → 番号なし(あいうえお順) → INBOX最後
 function hybridSort(a: string, b: string): number {
@@ -121,60 +131,120 @@ const CHIP_TONES = [
   { active: 'bg-violet-500 text-white border-transparent shadow-sm', idle: 'bg-violet-50 dark:bg-violet-900/25 border-violet-100 dark:border-violet-800 text-violet-900 dark:text-violet-200 hover:border-violet-300' },
   { active: 'bg-rose-500 text-white border-transparent shadow-sm', idle: 'bg-rose-50 dark:bg-rose-900/25 border-rose-100 dark:border-rose-800 text-rose-900 dark:text-rose-200 hover:border-rose-300' },
 ]
-// 色の決め方: 「01.総論」「05.循環」のような番号プレフィックスがあれば、
-// その番号で5色を順に巡回する（01=常盤→02=琥珀→03=空→04=菫→05=薔薇→06=常盤…）。
-// 並び順どおりに色が回るので、隣り合うジャンルは必ず違う色になる。
-// 番号がないジャンルは名前のハッシュで安定的に決める（いつ見ても同じ色）。
+// 色相の決め方は genreHueIndex（lib/genre）に集約。番号プレフィックスがあれば番号順、
+// 無ければ名前ハッシュで安定的に色相を決める。背景トーン(CHIP_TONES)と左色帯(ACCENT)が
+// 同じ色相indexを共有するので、同じジャンルは常に同じ色相になる。
+// page.tsx（searchタブのジャンル絞り込みチップ）でも使うため戻り値は不変。
 export function genreChipTone(genre: string): { active: string; idle: string } {
-  const m = genre.trim().match(/^(\d{1,2})[.．]/)
-  if (m) {
-    const n = parseInt(m[1], 10)
-    return CHIP_TONES[(((n - 1) % CHIP_TONES.length) + CHIP_TONES.length) % CHIP_TONES.length]
-  }
-  let h = 0
-  for (const ch of genre) h = (h + (ch.codePointAt(0) || 0)) % 997
-  return CHIP_TONES[h % CHIP_TONES.length]
+  return CHIP_TONES[genreHueIndex(genre, CHIP_TONES.length)]
+}
+
+// ジャンルチップの「中立地＋左色帯」用トーン。CHIP_TONESと同じ5色相の並び。
+// bar=左端の色帯、selBg=選択中の地の薄tint。
+const ACCENT_BARS = [
+  'bg-brand-400 dark:bg-brand-500',
+  'bg-amber-400 dark:bg-amber-500',
+  'bg-sky-400 dark:bg-sky-500',
+  'bg-violet-400 dark:bg-violet-500',
+  'bg-rose-400 dark:bg-rose-500',
+]
+const ACCENT_SEL_BG = [
+  'bg-brand-50 dark:bg-brand-900/25',
+  'bg-amber-50 dark:bg-amber-900/25',
+  'bg-sky-50 dark:bg-sky-900/25',
+  'bg-violet-50 dark:bg-violet-900/25',
+  'bg-rose-50 dark:bg-rose-900/25',
+]
+function genreAccentTone(genre: string): { bar: string; selBg: string } {
+  const i = genreHueIndex(genre, ACCENT_BARS.length)
+  return { bar: ACCENT_BARS[i], selBg: ACCENT_SEL_BG[i] }
+}
+
+// 部署カラー（token→Tailwindクラス）。全キーをリテラルで持つことでTailwindが検出できる。
+const DEPT_DOT_BG: Record<DepartmentColorToken, string> = {
+  green: 'bg-green-500',
+  amber: 'bg-amber-500',
+  sky: 'bg-sky-500',
+  rose: 'bg-rose-500',
+  teal: 'bg-teal-500',
+  orange: 'bg-orange-500',
+}
+const DEPT_CHIP: Record<DepartmentColorToken, { active: string; idle: string }> = {
+  green: { active: 'bg-green-600 text-white', idle: 'bg-green-50 text-green-700 dark:bg-green-900/25 dark:text-green-300' },
+  amber: { active: 'bg-amber-500 text-white', idle: 'bg-amber-50 text-amber-700 dark:bg-amber-900/25 dark:text-amber-300' },
+  sky: { active: 'bg-sky-600 text-white', idle: 'bg-sky-50 text-sky-700 dark:bg-sky-900/25 dark:text-sky-300' },
+  rose: { active: 'bg-rose-500 text-white', idle: 'bg-rose-50 text-rose-700 dark:bg-rose-900/25 dark:text-rose-300' },
+  teal: { active: 'bg-teal-600 text-white', idle: 'bg-teal-50 text-teal-700 dark:bg-teal-900/25 dark:text-teal-300' },
+  orange: { active: 'bg-orange-500 text-white', idle: 'bg-orange-50 text-orange-700 dark:bg-orange-900/25 dark:text-orange-300' },
+}
+
+// 部署メタ（順序リスト）。追加順の index で色を割り当て、1個目=緑。
+// フィルタチップ・ドット・凡例が同じソースを使うことで色がずれないようにする。
+type TeamMeta = { id: string; label: string; colorToken: DepartmentColorToken; ownerFilterId: OwnerFilter }
+function orderedTeams(hasTeam: boolean): TeamMeta[] {
+  if (!hasTeam) return []
+  const settings = getSettings()
+  const teamLabel = (settings?.teamLabel || '').trim() || '部署'
+  const primaryId = settings?.teamNotionMedicalDbId || ''
+  const additional = (settings?.additionalTeams ?? []).filter((t) => t.label?.trim() && t.medicalDbId)
+  const base: { id: string; label: string }[] = [
+    { id: primaryId, label: teamLabel },
+    ...additional.map((t) => ({ id: t.medicalDbId, label: t.label.trim() })),
+  ]
+  return base.map((t, i) => ({
+    id: t.id,
+    label: t.label,
+    colorToken: departmentColorToken(i),
+    ownerFilterId: (t.id ? `team:${t.id}` : 'team') as OwnerFilter,
+  }))
 }
 
 function displayGenreName(g: string): string {
   return g.replace(/^\d+\./, '')
 }
 
-function GenreOwnerFilterTabs({ owner, onChange, hasTeam, hasSubscription }: {
+// ジャンルタブ専用のフィルタチップ（アプリ全体共用の OwnerFilterTabs とは別物）。
+// 「ジャンルの時だけ薄く色をつける」要望に応え、プレミアム=紫・各部署=部署色で着色する。
+// 全て/個人は中立ダーク（部署の緑と衝突させないため）。
+type GenreChipOpt = { id: OwnerFilter; label: string; inactive?: boolean; token?: DepartmentColorToken; premium?: boolean }
+function GenreOwnerFilterTabs({ owner, onChange, teams, hasTeam, hasSubscription }: {
   owner: OwnerFilter
   onChange: (v: OwnerFilter) => void
+  teams: TeamMeta[]
   hasTeam: boolean
   hasSubscription: boolean
 }) {
-  // 部署名（例: 救急）が設定されていればそれを表示。未設定なら「部署」。
-  const settings = getSettings()
-  const teamLabel = settings?.teamLabel || ''
-  const teamTabLabel = teamLabel.trim() ? teamLabel.trim() : '部署'
-  const primaryTeamId = settings?.teamNotionMedicalDbId || ''
-  const additional = (settings?.additionalTeams ?? []).filter((t) => t.label?.trim() && t.medicalDbId)
-  const teamChips: { id: OwnerFilter; label: string; inactive?: boolean }[] = hasTeam
-    ? [
-        { id: (primaryTeamId ? `team:${primaryTeamId}` : 'team') as OwnerFilter, label: teamTabLabel },
-        ...additional.map((t) => ({ id: `team:${t.medicalDbId}` as OwnerFilter, label: t.label.trim() })),
-      ]
+  const teamTabLabel = (getSettings()?.teamLabel || '').trim() || '部署'
+  const teamChips: GenreChipOpt[] = hasTeam
+    ? teams.map((t) => ({ id: t.ownerFilterId, label: t.label, token: t.colorToken }))
     : [{ id: 'team' as OwnerFilter, label: teamTabLabel, inactive: true }]
-  // 固定タブ（全て・個人・プレミアム）＋ 部署の可動ゾーン（横スクロール）。
-  const fixedOptions: { id: OwnerFilter; label: string; inactive?: boolean }[] = [
+  const fixedOptions: GenreChipOpt[] = [
     { id: 'all', label: '全て' },
     { id: 'personal', label: '個人' },
-    { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription },
+    { id: 'subscription', label: 'プレミアム', inactive: !hasSubscription, premium: true },
   ]
-  const renderChip = (o: { id: OwnerFilter; label: string; inactive?: boolean }) => (
+  const chipClass = (o: GenreChipOpt): string => {
+    const active = owner === o.id
+    if (o.inactive) {
+      return 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700'
+    }
+    if (o.token) {
+      return active ? DEPT_CHIP[o.token].active : `${DEPT_CHIP[o.token].idle} hover:brightness-95`
+    }
+    if (o.premium) {
+      return active
+        ? 'bg-violet-600 text-white'
+        : 'bg-violet-50 text-violet-700 dark:bg-violet-900/25 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40'
+    }
+    return active
+      ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+  }
+  const renderChip = (o: GenreChipOpt) => (
     <button
       key={o.id}
       onClick={() => onChange(o.id)}
-      className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-        owner === o.id
-          ? 'bg-brand-600 text-white'
-          : o.inactive
-            ? 'bg-gray-50 dark:bg-gray-700/40 dark:bg-gray-800 text-gray-300 dark:text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700'
-            : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-      }`}
+      className={`shrink-0 text-xs font-medium px-3 py-1 rounded-full transition-colors ${chipClass(o)}`}
     >
       {o.label}
     </button>
@@ -214,21 +284,26 @@ export function GenreDotLegend({ showTeam, showSub }: { showTeam: boolean; showS
   )
 }
 
-function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
-  onGenreSelect: (genre: string | null) => void
+// 統合済みジャンル（1チップぶん）。key=正規化表示名、variants=束ねた元キー、rep=色/並びの代表。
+type MergedGenreRow = { key: string; variants: string[]; rep: string }
+
+function GenreList({ onGenreSelect, selectedGenre, owner, teamFacetsByTeam, teams }: {
+  onGenreSelect: (sel: { key: string; variants: string[] } | null) => void
   selectedGenre: string | null
   owner: OwnerFilter
-  teamFacets: Record<string, number>
+  teamFacetsByTeam: TeamFacetsByTeam
+  teams: TeamMeta[]
 }) {
-  const [facetData, setFacetData] = useState<FacetData>({ personal: {}, team: {}, subscription: {} })
+  const [facetData, setFacetData] = useState<FacetData>({ personal: {}, subscription: {} })
   const [loading, setLoading] = useState(true)
   const [showAll, setShowAll] = useState(false)
+  const [filterText, setFilterText] = useState('')
   const subEnabled = hasSubscriptionConfig()
 
   useEffect(() => {
     let cancelled = false
     const idx = createSearchClient().initIndex(getIndexName())
-    const tasks: Promise<{ source: 'personal' | 'team' | 'subscription'; facets: Record<string, number> }>[] = []
+    const tasks: Promise<{ source: 'personal' | 'subscription'; facets: Record<string, number> }>[] = []
 
     // 個人（owner:personal または ownerなし）
     tasks.push(
@@ -257,7 +332,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
 
     Promise.all(tasks).then((results) => {
       if (cancelled) return
-      const next: FacetData = { personal: {}, team: {}, subscription: {} }
+      const next: FacetData = { personal: {}, subscription: {} }
       for (const r of results) {
         next[r.source] = r.facets
       }
@@ -268,32 +343,53 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     return () => { cancelled = true }
   }, [subEnabled])
 
-  // 部署ファセットはNotion由来（teamFacets）を採用してマージ
-  const mergedFacets = useMemo<FacetData>(() => ({
-    personal: facetData.personal,
-    team: teamFacets,
-    subscription: facetData.subscription,
-  }), [facetData, teamFacets])
-
-  // ownerFilterに応じてジャンル一覧をフィルタ
-  const sortedGenres = useMemo(() => {
-    let genres: Set<string>
-    if (owner === 'subscription') {
-      genres = new Set(Object.keys(mergedFacets.subscription))
-    } else if (isTeamOwner(owner)) {
-      genres = new Set(Object.keys(mergedFacets.team))
-    } else if (owner === 'personal') {
-      genres = new Set(Object.keys(mergedFacets.personal))
-    } else {
-      // all: 個人・部署・サブスク全て
-      genres = new Set([
-        ...Object.keys(mergedFacets.personal),
-        ...Object.keys(mergedFacets.team),
-        ...Object.keys(mergedFacets.subscription),
-      ])
+  // 全部署を合算したジャンル件数（union と「全て」ビューの件数に使う）。
+  const teamAggregate = useMemo(() => {
+    const agg: Record<string, number> = {}
+    for (const tid of Object.keys(teamFacetsByTeam)) {
+      for (const [g, c] of Object.entries(teamFacetsByTeam[tid])) agg[g] = (agg[g] || 0) + c
     }
-    return Array.from(genres).sort(hybridSort)
-  }, [mergedFacets, owner])
+    return agg
+  }, [teamFacetsByTeam])
+
+  // ownerに応じた「生のファセットキー」集合。
+  const rawKeys = useMemo<string[]>(() => {
+    if (owner === 'subscription') return Object.keys(facetData.subscription)
+    if (isTeamOwner(owner)) {
+      const id = teamIdOf(owner)
+      return Object.keys(id ? teamFacetsByTeam[id] || {} : teamAggregate)
+    }
+    if (owner === 'personal') return Object.keys(facetData.personal)
+    return [
+      ...Object.keys(facetData.personal),
+      ...Object.keys(teamAggregate),
+      ...Object.keys(facetData.subscription),
+    ]
+  }, [owner, facetData, teamFacetsByTeam, teamAggregate])
+
+  // 同名統合＋代表variantで並べ替え（番号順を代表variantで維持）。
+  const mergedGenres = useMemo<MergedGenreRow[]>(() => {
+    return mergeGenreKeys(rawKeys)
+      .map((m) => ({ ...m, rep: pickRepresentativeVariant(m.variants) }))
+      .sort((a, b) => hybridSort(a.rep, b.rep))
+  }, [rawKeys])
+
+  // 現在のownerでの件数（束ねた全variantを合算）。
+  const countFor = (m: MergedGenreRow): number => {
+    const sum = (facet: Record<string, number>) => m.variants.reduce((n, v) => n + (facet[v] || 0), 0)
+    if (owner === 'subscription') return sum(facetData.subscription)
+    if (isTeamOwner(owner)) {
+      const id = teamIdOf(owner)
+      return sum(id ? teamFacetsByTeam[id] || {} : teamAggregate)
+    }
+    if (owner === 'personal') return sum(facetData.personal)
+    return sum(facetData.personal) + sum(teamAggregate) + sum(facetData.subscription)
+  }
+  // このジャンルを持つ部署（順序保持）。ドット・凡例に使う。
+  const teamsWithGenre = (m: MergedGenreRow): TeamMeta[] =>
+    teams.filter((t) => m.variants.some((v) => (teamFacetsByTeam[t.id]?.[v] || 0) > 0))
+  const hasSubFor = (m: MergedGenreRow): boolean =>
+    m.variants.some((v) => (facetData.subscription[v] || 0) > 0)
 
   if (loading) {
     return (
@@ -303,7 +399,7 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     )
   }
 
-  if (sortedGenres.length === 0) {
+  if (mergedGenres.length === 0) {
     return (
       <div className="bg-brand-50 dark:bg-brand-900/40 border border-brand-200 dark:border-brand-700 rounded-xl p-4 text-sm text-brand-800 leading-relaxed">
         <p className="font-medium mb-2"><Lightbulb className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />ジャンルを使ってみよう</p>
@@ -318,69 +414,103 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacets }: {
     )
   }
 
-  const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
-  const hiddenCount = sortedGenres.length - visibleGenres.length
-  // 凡例は「全て」表示中かつ画面内にドットが実在する時だけ。単独フィルタ中は
-  // ドットの意味が自明（絞り込み対象そのもの）なので出さない。
-  const showTeamLegend = owner === 'all' && visibleGenres.some((g) => (mergedFacets.team[g] || 0) > 0)
-  const showSubLegend = owner === 'all' && visibleGenres.some((g) => (mergedFacets.subscription[g] || 0) > 0)
+  const isFiltering = filterText.trim().length > 0
+  const q = filterText.trim().toLowerCase()
+  const filtered = isFiltering ? mergedGenres.filter((m) => m.key.toLowerCase().includes(q)) : mergedGenres
+  // 絞り込み中は折りたたみを解除して全件表示。
+  const visible = showAll || isFiltering ? filtered : filtered.slice(0, GENRE_SHOW_LIMIT)
+  const hiddenCount = filtered.length - visible.length
+  // 絞り込み入力はジャンルが多い時だけ（うざくない原則）。
+  const showFilterInput = mergedGenres.length > GENRE_SHOW_LIMIT
+  // 凡例は「全て」表示中、画面内に実際にドットがある部署/プレミアムだけ列挙。
+  const legendTeams = owner === 'all'
+    ? teams.filter((t) => visible.some((m) => m.variants.some((v) => (teamFacetsByTeam[t.id]?.[v] || 0) > 0)))
+    : []
+  const showSubLegend = owner === 'all' && visible.some((m) => hasSubFor(m))
 
   return (
     <>
+    {showFilterInput && (
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder="ジャンルを絞り込む"
+          className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:border-brand-400"
+        />
+        {isFiltering && (
+          <button
+            onClick={() => setFilterText('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            aria-label="絞り込みをクリア"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    )}
+    {visible.length === 0 ? (
+      <p className="text-center text-sm text-gray-400 py-6">「{filterText.trim()}」に一致するジャンルはありません</p>
+    ) : (
     <div className="grid grid-cols-2 gap-2 mb-4">
-      {visibleGenres.map((genre) => {
-        const personalCount = mergedFacets.personal[genre] || 0
-        const teamCount = mergedFacets.team[genre] || 0
-        const subCount = mergedFacets.subscription[genre] || 0
-        const total = owner === 'subscription'
-          ? subCount
-          : isTeamOwner(owner)
-            ? teamCount
-            : owner === 'personal'
-              ? personalCount
-              : personalCount + teamCount + subCount
-        const hasSub = subCount > 0 && owner !== 'personal' && !isTeamOwner(owner)
-        const hasTeam = teamCount > 0 && owner !== 'personal' && owner !== 'subscription'
-        const isActive = selectedGenre === genre
-        const tone = genreChipTone(genre)
+      {visible.map((m) => {
+        const total = countFor(m)
+        const isActive = selectedGenre === m.key
+        const accent = genreAccentTone(m.rep)
+        const dotTeams = owner === 'all' ? teamsWithGenre(m) : []
+        const showSub = owner === 'all' && hasSubFor(m)
         return (
           <button
-            key={genre}
-            onClick={() => onGenreSelect(isActive ? null : genre)}
-            className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
-              isActive ? tone.active : tone.idle
+            key={m.key}
+            onClick={() => onGenreSelect(isActive ? null : { key: m.key, variants: m.variants })}
+            className={`relative overflow-hidden text-left pl-4 pr-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
+              isActive ? accent.selBg : 'bg-white dark:bg-gray-800/60'
             }`}
           >
+            <span className={`absolute left-0 top-0 bottom-0 w-1 ${accent.bar}`} aria-hidden />
             <span className="flex items-center gap-1.5 min-w-0">
-              <span className="truncate">{displayGenreName(genre)}</span>
-              {hasTeam && (
+              <span className="truncate text-gray-800 dark:text-gray-200">{m.key}</span>
+              {dotTeams.map((t) => (
                 <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isActive ? 'bg-green-200' : 'bg-green-500'
-                  }`}
-                  title="部署にもあります"
-                  aria-label="部署にもあります"
+                  key={t.id || t.label}
+                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${DEPT_DOT_BG[t.colorToken]}`}
+                  title={`${t.label}にもあります`}
+                  aria-label={`${t.label}にもあります`}
                 />
-              )}
-              {hasSub && (
+              ))}
+              {showSub && (
                 <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isActive ? 'bg-purple-200' : 'bg-purple-500'
-                  }`}
+                  className="inline-block w-1.5 h-1.5 rounded-full shrink-0 bg-purple-500"
                   title="プレミアムにもあります"
                   aria-label="プレミアムにもあります"
                 />
               )}
             </span>
-            <span className={`text-xs shrink-0 ${isActive ? 'text-white/70' : 'opacity-50'}`}>
-              {total}
-            </span>
+            <span className="text-xs shrink-0 text-gray-500 dark:text-gray-400 opacity-70">{total}</span>
           </button>
         )
       })}
     </div>
-    <GenreDotLegend showTeam={showTeamLegend} showSub={showSubLegend} />
-    {(hiddenCount > 0 || showAll) && sortedGenres.length > GENRE_SHOW_LIMIT && (
+    )}
+    {(legendTeams.length > 0 || showSubLegend) && (
+      <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500 -mt-1 mb-3">
+        {legendTeams.map((t) => (
+          <span key={t.id || t.label} className="inline-flex items-center gap-1.5">
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${DEPT_DOT_BG[t.colorToken]}`} />
+            {t.label}にもあります
+          </span>
+        ))}
+        {showSubLegend && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500" />
+            プレミアムにもあります
+          </span>
+        )}
+      </p>
+    )}
+    {!isFiltering && (hiddenCount > 0 || showAll) && filtered.length > GENRE_SHOW_LIMIT && (
       <button
         onClick={() => setShowAll((v) => !v)}
         className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 py-2 mb-4 inline-flex items-center justify-center gap-1"
@@ -446,8 +576,9 @@ function PersonalHitsCollector({ onLoaded }: { onLoaded: (hits: Hit[]) => void }
   return null
 }
 
-function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
+function SelectedGenreView({ genre, variants, onClear, owner, teamGenreHits }: {
   genre: string
+  variants: string[]
   onClear: () => void
   owner: OwnerFilter
   teamGenreHits: Hit[]
@@ -457,9 +588,12 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
   const [subHits, setSubHits] = useState<Hit[]>([])
   const [subLoading, setSubLoading] = useState(subEnabled)
 
+  // 統合チップは束ねた全variantをORで引く（片方のvariantしか出ない事故を防ぐ）。
+  const genreFilter = genreFacetFilter(variants)
+
   // サブスクは直接Algoliaから取得
   useEffect(() => {
-    if (!subEnabled) {
+    if (!subEnabled || !genreFilter) {
       setSubHits([])
       setSubLoading(false)
       return
@@ -468,7 +602,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
     setSubLoading(true)
     createSubscriptionSearchClient()
       .initIndex(getSubscriptionIndexName())
-      .search('', { filters: `genre:"${genre}"`, hitsPerPage: 50 })
+      .search('', { filters: genreFilter, hitsPerPage: 50 })
       .then((res) => {
         if (cancelled) return
         const hits = (res as unknown as { hits: Hit[] }).hits || []
@@ -480,7 +614,7 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
         setSubLoading(false)
       })
     return () => { cancelled = true }
-  }, [genre, subEnabled])
+  }, [genreFilter, subEnabled])
 
   // ownerFilterに基づいてヒットをマージ（部署はNotion由来 teamGenreHits）
   const displayedHits = useMemo(() => {
@@ -505,12 +639,13 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
     return merged
   }, [owner, personalHits, subHits, teamGenreHits])
 
-  // 個人側フィルタ: ownerに応じて絞る（部署はNotion由来なのでAlgolia個人側は無効化）
-  const personalFilter = owner === 'subscription' || isTeamOwner(owner)
+  // 個人側フィルタ: ownerに応じて絞る（部署はNotion由来なのでAlgolia個人側は無効化）。
+  // 統合variantをORでまとめ、個人絞り込み時は owner 条件と AND する。
+  const personalFilter = owner === 'subscription' || isTeamOwner(owner) || !genreFilter
     ? 'owner:__none__'
     : owner === 'personal'
-      ? `genre:"${genre}" AND (owner:personal OR NOT _exists_:owner)`
-      : `genre:"${genre}"`
+      ? `(${genreFilter}) AND (owner:personal OR NOT _exists_:owner)`
+      : `(${genreFilter})`
 
   return (
     <>
@@ -544,35 +679,42 @@ function SelectedGenreView({ genre, onClear, owner, teamGenreHits }: {
 }
 
 export function GenreBrowse({ hasTeam = false, hasSubscription = false }: { hasTeam?: boolean; hasSubscription?: boolean }) {
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
+  // 選択は正規化キー＋束ねたvariant集合で保持（統合チップの全variantを引くため）。
+  const [selected, setSelected] = useState<{ key: string; variants: string[] } | null>(null)
   const [owner, setOwner] = useState<OwnerFilter>('all')
   // 部署(team)はNotionから直読み
   const { teamHits } = useTeamGenreHits()
 
-  // 部署ジャンルファセット（teamHitsから集計）
-  const teamFacets = useMemo(() => {
-    const counts: Record<string, number> = {}
+  // 部署メタ（追加順・色つき）。フィルタチップ／ドット／凡例が共有する。
+  // settings由来（部署の増減で変わる）なので毎レンダー計算（安価）。
+  const teams = orderedTeams(hasTeam)
+
+  // 部署ジャンルファセットを teamId ごとに集計（部署色ドット・件数に使う）。
+  const teamFacetsByTeam = useMemo<TeamFacetsByTeam>(() => {
+    const byTeam: TeamFacetsByTeam = {}
     for (const h of teamHits) {
-      for (const g of getHitGenres(h)) counts[g] = (counts[g] || 0) + 1
+      const tid = h.teamId || ''
+      const bucket = (byTeam[tid] ||= {})
+      for (const g of getHitGenres(h)) bucket[g] = (bucket[g] || 0) + 1
     }
-    return counts
+    return byTeam
   }, [teamHits])
 
-  // 選択ジャンルに一致する部署hits
+  // 選択ジャンル（正規化キー）に一致する部署hits。番号有無の揺れを正規化で吸収。
   const teamGenreHits = useMemo(() => {
-    if (!selectedGenre) return []
-    return teamHits.filter((h) => getHitGenres(h).includes(selectedGenre))
-  }, [teamHits, selectedGenre])
+    if (!selected) return []
+    return teamHits.filter((h) => genreMatchesCanonical(getHitGenres(h), selected.key))
+  }, [teamHits, selected])
 
   return (
     <div>
       <div className="sticky top-[88px] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-1">
-        <GenreOwnerFilterTabs owner={owner} onChange={(v) => { setOwner(v); setSelectedGenre(null) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+        <GenreOwnerFilterTabs owner={owner} onChange={(v) => { setOwner(v); setSelected(null) }} teams={teams} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
-      {selectedGenre ? (
-        <SelectedGenreView genre={selectedGenre} onClear={() => setSelectedGenre(null)} owner={owner} teamGenreHits={teamGenreHits} />
+      {selected ? (
+        <SelectedGenreView genre={selected.key} variants={selected.variants} onClear={() => setSelected(null)} owner={owner} teamGenreHits={teamGenreHits} />
       ) : (
-        <GenreList onGenreSelect={setSelectedGenre} selectedGenre={selectedGenre} owner={owner} teamFacets={teamFacets} />
+        <GenreList onGenreSelect={setSelected} selectedGenre={null} owner={owner} teamFacetsByTeam={teamFacetsByTeam} teams={teams} />
       )}
     </div>
   )
