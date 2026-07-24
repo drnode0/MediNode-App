@@ -68,9 +68,12 @@ readerのヘッダー行（Star/✕ の左）に、CQ捕捉ボタンを1つ足�
 - **MVPでは表示のみ**。由来をCQ本文／プロパティへ保存する正式対応は Spec 2（API拡張時）に寄せる。
 - `open(prefill)` の現行シグネチャは prefill をテキスト欄の初期値に使う想定のため、「ソースchip表示用の文脈」を既存テキスト初期値と混ぜない形で渡す（例: `open({ sourceTitle, sourceUrl })` のように prefill を構造化するか、別引数を足す）。実装時に `useCqCapture` のAPI形を最小拡張する。
 
-### 4. 未接続時の挙動
+### 4. 未接続時の挙動（計画中に更新）
 
-個人Notion未接続（`!enabled`）なら、既存と同じ `CqSetupGuideModal` を開く。挙動をホームFABと揃える。設定ガイドも reader の inert を逃がす必要がある（同じく `data-reader-portal` 扱い）。
+reader内CQボタンは、`useCqCapture()` が非null（＝個人Notion接続済み・非表示でない・`CqCaptureProvider` 配下）のときだけ描画する。未接続・非表示・Provider非包含ブランチでは**ボタン自体を出さない**。
+
+- 当初案（ホームFABと同じく未接続時に `CqSetupGuideModal` を開く）は、計画時に次の事実で見直した: (a) `useCqCapture()` は未接続時に null を返すため、reader からガイドを開くには context 面の追加が要る。 (b) page.tsx の中央render分岐には `CqCaptureProvider` が無く、そこでは null になる。 (c) 既存 `CqCaptureSuggestion` も `if (!openCq) return null` で自らを隠すのが確立パターン。
+- よって「読書中に行き止まりのガイドを出す」より「使える人にだけ静かに出す」を採る。ホームFABは従来どおり未接続者にガイドを出すので、獲得導線は失われない。
 
 ### 5. 非表示設定の尊重
 
