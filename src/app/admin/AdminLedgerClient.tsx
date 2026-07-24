@@ -29,7 +29,6 @@ import {
   Megaphone,
   RefreshCw,
   Search,
-  Settings,
   ShieldCheck,
   Sparkles,
   Timer,
@@ -70,6 +69,7 @@ import { DailyCommandCenter } from './DailyCommandCenter'
 import { EngagementSection } from './EngagementSection'
 import { MessageCatalog } from './MessageCatalog'
 import { AdminSettingsPanel } from './AdminSettingsPanel'
+import { BroadcastForm } from './DailyCommandCenter'
 import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
@@ -263,13 +263,12 @@ function csvCell(v: string | null): string {
 }
 
 // 運用ダッシュボードのタブ。長い1ページをスクロールせず切り替えて見るための分割単位。
-type AdminTab = 'today' | 'accounts' | 'analytics' | 'messages' | 'settings'
+type AdminTab = 'today' | 'accounts' | 'analytics' | 'delivery'
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'today', label: '今日', icon: LayoutDashboard },
   { key: 'accounts', label: 'アカウント', icon: Users },
   { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
-  { key: 'messages', label: '通知・表示', icon: Megaphone },
-  { key: 'settings', label: '配信・設定', icon: Settings },
+  { key: 'delivery', label: '通知・配信', icon: Megaphone },
 ]
 
 // アカウント台帳の日付ソート対象列。
@@ -940,17 +939,25 @@ ${label}`,
         {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。 */}
         {!error && tab === 'today' && <DailyCommandCenter />}
 
-        {/* 📣 通知・表示タブ（カタログ＝台帳データ非依存・自己完結）。 */}
-        {!error && tab === 'messages' && (
-          <div className="mt-2">
-            <MessageCatalog />
-          </div>
-        )}
-
-        {/* ⚙️ 配信・設定タブ（台帳データ非依存・自己完結なので loading/error に関わらず出す）。 */}
-        {!error && tab === 'settings' && (
+        {/* 📣 通知・配信タブ（台帳データ非依存・自己完結）。
+            上＝操作卓（実際にON/OFF・段階切替・お知らせ送信）／下＝全カタログ（棚卸し・現在地）。 */}
+        {!error && tab === 'delivery' && (
           <div className="mt-2 mb-8">
-            <AdminSettingsPanel />
+            <section className="mb-6">
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">
+                操作卓（ここで実際に切り替える）
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                メンテナンス・今日の1問・プッシュの段階と、お知らせ一斉送信。全体の一覧は下の「アプリが出しているもの一覧」で。
+              </p>
+              <AdminSettingsPanel />
+              <div className="mt-4">
+                <BroadcastForm />
+              </div>
+            </section>
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
+              <MessageCatalog />
+            </div>
           </div>
         )}
         {!loading && !error && rows && tab === 'today' && campaignDaysLeft != null && (
@@ -960,7 +967,7 @@ ${label}`,
           </div>
         )}
 
-        {loading && tab !== 'settings' && (
+        {loading && tab !== 'delivery' && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-12 justify-center">
             <Spinner className="w-4 h-4" />
             読み込んでいます…

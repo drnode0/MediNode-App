@@ -3,7 +3,7 @@
 // 📣 通知・表示タブ：アプリがユーザーに出している全メッセージの「棚卸し（一覧＋現在地）」。
 // レジストリ（src/lib/message-catalog.ts）をカテゴリ別に描画し、app_flags の3キーは
 // /api/admin/message-status のライブ状態を重ねる。
-// 役割分担: このタブ＝一覧・現状把握。実際のON/OFF・段階切替は「配信・設定」タブ。
+// 役割分担: 同じ「通知・配信」タブ内で、上＝操作卓（実際に切替）／このカタログ＝一覧・現状把握。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, RefreshCw, Info } from 'lucide-react'
@@ -105,7 +105,7 @@ function ItemCard({ item, status }: { item: CatalogItem; status: Status | null }
       )}
       {envTrap && (
         <p className={`mt-2 text-[11px] rounded-lg border px-2 py-1 ${HEALTH_STYLE['env-override']}`}>
-          環境変数がこのフラグを上書き中。「配信・設定」タブの段階切替が効きません。
+          環境変数がこのフラグを上書き中。上の操作卓で段階を切り替えても効きません。
         </p>
       )}
     </div>
@@ -183,7 +183,7 @@ export function MessageCatalog() {
       <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/40 p-3 flex items-start gap-2">
         <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" aria-hidden />
         <p className="text-xs text-gray-600 dark:text-gray-300">
-          このタブは<b>棚卸し（全部の一覧と、今どうなっているか）</b>です。実際の<b>ON/OFF・段階切替は「配信・設定」タブ</b>で行います。
+          ここから下は<b>棚卸し（全部の一覧と、今どうなっているか）</b>です。実際の<b>ON/OFF・段階切替は上の「操作卓」</b>で行います。
           全{summary.total}種のうち、その場で操作できるのは<b>{summary.controllable}種</b>（メンテ／今日の1問／プッシュ段階＋お知らせ送信）。
         </p>
       </div>
