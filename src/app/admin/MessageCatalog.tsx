@@ -395,6 +395,57 @@ export function MessageCatalog() {
         </p>
       </div>
 
+      {/* 使い方：チャネルの使い分け（折りたたみ） */}
+      <details className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+          使い方：どのチャネルをいつ使う？
+        </summary>
+        <div className="px-3 pb-3 pt-1 text-xs text-gray-600 dark:text-gray-300 space-y-3">
+          <p className="text-gray-500 dark:text-gray-400">
+            「お知らせ」「通知」は<b>“何を”の呼び名</b>で、<b>“どう届けるか”（チャネル）とは別の軸</b>です。届け方は大きく2つ。
+          </p>
+
+          <div className="rounded-lg border border-gray-100 dark:border-gray-700 p-2.5">
+            <p className="font-semibold text-gray-800 dark:text-gray-100">🔔 Web Push（外に届く）</p>
+            <p className="mt-0.5">
+              アプリを<b>閉じていても</b>端末に届く。届くのは<b>通知を許可した人だけ</b>。
+              向いてる用途＝<b>「戻ってきて／今やって」</b>（今日の1問・時間依存の大事な告知）。
+              <b className="text-amber-700 dark:text-amber-300">貴重な弾。乱発すると通知を切られる</b>ので、重要なときだけ。
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-100 dark:border-gray-700 p-2.5">
+            <p className="font-semibold text-gray-800 dark:text-gray-100">📄 画面バナー（中で見せる）</p>
+            <p className="mt-0.5">
+              アプリを<b>開いた時だけ</b>見える。<b>開いた全員</b>が対象。
+              向いてる用途＝<b>「ついでにお知らせ」</b>（更新・新機能・状況）。邪魔せず、<b>記録として残せる</b>。
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-100 dark:border-gray-700 p-2.5">
+            <p className="font-semibold text-gray-800 dark:text-gray-100">✨ 静かなNew・バッジ</p>
+            <p className="mt-0.5">
+              「新しい中身がある」<b>気配だけ</b>を出す（新着ドット・Newチップ・参照回数など）。
+              告知とは用途が違い、<b>自動</b>で出る。基本さわらなくてよい。
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-brand-100 dark:border-brand-800/50 bg-brand-50/40 dark:bg-brand-900/10 p-2.5">
+            <p className="font-semibold text-gray-800 dark:text-gray-100">🗣 この場での投稿（お知らせ一斉送信フォーム）</p>
+            <p className="mt-0.5">
+              <b>デプロイなしで“いま”送れる唯一の手段</b>。書いて送るとWeb Pushで飛ぶ。
+              <b className="text-amber-700 dark:text-amber-300">現状の制約：Web Pushにだけ出て、アプリ内のお知らせ履歴には残らない</b>
+              （あとで開いた人には見えない）。アプリ内の「お知らせ/更新バナー」は今はコード追記＋デプロイが必要。
+            </p>
+          </div>
+
+          <p className="text-gray-500 dark:text-gray-400">
+            <b>使い分けの目安</b>：更新・新機能＝画面バナー（残す）／どうしても今すぐ気づかせたい＝Web Push（呼び戻す）。
+            本当に重要な告知は<b>両方</b>が理想（push で気づかせ、バナー＋履歴で見逃しを防ぐ）。
+          </p>
+        </div>
+      </details>
+
       {/* 気にかけておくこと（本当に手を打つべきものだけ） */}
       {attentionItems.length > 0 && (
         <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-900/10 p-3">
