@@ -26,6 +26,7 @@ import {
   Gift,
   Hourglass,
   LayoutDashboard,
+  Megaphone,
   RefreshCw,
   Search,
   Settings,
@@ -67,6 +68,7 @@ import {
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
 import { DailyCommandCenter } from './DailyCommandCenter'
 import { EngagementSection } from './EngagementSection'
+import { MessageCatalog } from './MessageCatalog'
 import { AdminSettingsPanel } from './AdminSettingsPanel'
 import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
@@ -261,11 +263,12 @@ function csvCell(v: string | null): string {
 }
 
 // 運用ダッシュボードのタブ。長い1ページをスクロールせず切り替えて見るための分割単位。
-type AdminTab = 'today' | 'accounts' | 'analytics' | 'settings'
+type AdminTab = 'today' | 'accounts' | 'analytics' | 'messages' | 'settings'
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'today', label: '今日', icon: LayoutDashboard },
   { key: 'accounts', label: 'アカウント', icon: Users },
   { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
+  { key: 'messages', label: '通知・表示', icon: Megaphone },
   { key: 'settings', label: '配信・設定', icon: Settings },
 ]
 
@@ -936,6 +939,13 @@ ${label}`,
 
         {/* 🗼 今日の管理（デイリー・コマンドセンター）。台帳の読み込みを待たず独立表示。 */}
         {!error && tab === 'today' && <DailyCommandCenter />}
+
+        {/* 📣 通知・表示タブ（カタログ＝台帳データ非依存・自己完結）。 */}
+        {!error && tab === 'messages' && (
+          <div className="mt-2">
+            <MessageCatalog />
+          </div>
+        )}
 
         {/* ⚙️ 配信・設定タブ（台帳データ非依存・自己完結なので loading/error に関わらず出す）。 */}
         {!error && tab === 'settings' && (
