@@ -455,8 +455,15 @@ function BroadcastForm() {
   )
 }
 
+// 利用状況ヘッドライン（/api/admin/engagement の一部）。深掘りは分析タブの EngagementSection。
+type UsageHeadline = {
+  usage: { today: number; yesterday: number; avg7: number } | null
+  members: { active: number; total: number; pct: number } | null
+}
+
 export function DailyCommandCenter() {
   const [data, setData] = useState<Daily | null>(null)
+  const [eng, setEng] = useState<UsageHeadline | null>(null)
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState<Record<string, boolean>>({})
   const [openLinks, setOpenLinks] = useState(false)
@@ -467,11 +474,17 @@ export function DailyCommandCenter() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    // daily と engagement を並列取得（更新ボタンで両方リフレッシュ）。互いに独立の best-effort。
+    const daily = fetch('/api/admin/daily', { cache: 'no-store' })
+      .then((res) => (res.ok ? (res.json() as Promise<Daily>) : null))
+      .then((d) => d && setData(d))
+      .catch(() => {})
+    const engagement = fetch('/api/admin/engagement', { cache: 'no-store' })
+      .then((res) => (res.ok ? (res.json() as Promise<UsageHeadline>) : null))
+      .then((e) => e && setEng(e))
+      .catch(() => {})
     try {
-      const res = await fetch('/api/admin/daily', { cache: 'no-store' })
-      if (res.ok) setData((await res.json()) as Daily)
-    } catch {
-      // best-effort。失敗しても台帳本体には影響しない。
+      await Promise.all([daily, engagement])
     } finally {
       setLoading(false)
     }
@@ -715,6 +728,52 @@ export function DailyCommandCenter() {
             ))}
           </div>
         )}
+
+        {/* 利用状況（実利用・ユニーク人数）。のべではなく1人1日1カウント。深掘りは分析タブ。 */}
+        <div className="mb-5">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5" aria-hidden />
+            利用状況（実利用・ユニーク人数）
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-2.5">
+              <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">今日 使った人</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {eng?.usage ? `${eng.usage.today}人` : '—'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-2.5">
+              <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">昨日 使った人</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {eng?.usage ? `${eng.usage.yesterday}人` : '—'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-2.5">
+              <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">7日平均 / 日</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {eng?.usage ? `${eng.usage.avg7}人` : '—'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-2.5">
+              <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">会員稼働率（7日）</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {eng?.members ? (
+                  <>
+                    {eng.members.pct}%
+                    <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                      {eng.members.active}/{eng.members.total}人
+                    </span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+            1人1日1カウント（のべではない）。実利用の下限＝過小評価側。導入日以降ぶんのみ。詳しい継続・離脱は「分析・マーケ」タブ。
+          </p>
+        </div>
 
         {/* 投稿ペース（ナレッジ＋参考文献） */}
         {pace?.ready && pace.columns && pace.summary && pace.todayKey && (

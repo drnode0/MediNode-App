@@ -66,6 +66,7 @@ import {
 } from '@/lib/ledger-metrics'
 import { ContractIssuesPanel, AnomalyPanel, AuditLogSection } from './SafetyPanels'
 import { DailyCommandCenter } from './DailyCommandCenter'
+import { EngagementSection } from './EngagementSection'
 import { AdminSettingsPanel } from './AdminSettingsPanel'
 import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
@@ -1006,6 +1007,7 @@ ${label}`,
 
             {/* 📊 分析・マーケタブ: 運用コスト・収支＋深掘り（ファネル/売上/継続/グラフ/流入元/セットアップ/LP/安全） */}
             {tab === 'analytics' && <OperatingCostCard mrrJpy={revenue.mrr} />}
+            {tab === 'analytics' && <EngagementSection />}
             {tab === 'analytics' && <KnowledgeRankingCard />}
 
             {tab === 'analytics' && (
