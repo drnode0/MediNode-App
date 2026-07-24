@@ -29,6 +29,9 @@ export type CatalogItem = {
   control: string // 制御の説明（人間可読）
   controllable: boolean // オーナーがランタイムで操作できるか
   flag?: CatalogFlag // ライブ状態（ON/preview/OFF）を出す対象
+  // このフラグの「主たる操作行」＝行内に切替コントロールを出す（1フラグ1行だけ true）。
+  // 同じフラグを共有する他行（例: お知らせ一斉送信はpush段階を共有）は false のまま。
+  primaryControl?: boolean
   storageKeys?: string[]
   file?: string // 主な参照
   health?: { level: HealthLevel; note: string }
@@ -60,6 +63,7 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '段階フラグ（off/preview/on）のみ。文面・時間帯はロジック＋cronで固定',
     controllable: true,
     flag: 'push',
+    primaryControl: true,
     file: 'src/app/api/cron/daily-push/route.ts',
   },
   {
@@ -226,6 +230,7 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '段階フラグ（off/preview/on）＋出題内容はサーバ設定',
     controllable: true,
     flag: 'daily_question',
+    primaryControl: true,
     file: 'src/components/DailyQuestionCard.tsx',
   },
   {
@@ -249,6 +254,7 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '✅ /admin からON/OFF（唯一のフル操作な表示）',
     controllable: true,
     flag: 'maintenance',
+    primaryControl: true,
     file: 'src/components/MaintenanceGate.tsx',
   },
   {

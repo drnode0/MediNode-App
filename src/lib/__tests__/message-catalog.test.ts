@@ -44,6 +44,25 @@ describe('MESSAGE_CATALOG 整合性', () => {
     expect(byId.get('push-daily')?.health).toBeUndefined()
     expect(byId.get('modal-onboarding')?.health).toBeUndefined()
   })
+
+  it('行内コントロールは1フラグ1行だけ（primaryControl）', () => {
+    const byId = new Map(MESSAGE_CATALOG.map((i) => [i.id, i]))
+    // 各フラグの主操作行
+    expect(byId.get('gate-maintenance')?.primaryControl).toBe(true)
+    expect(byId.get('card-daily-question')?.primaryControl).toBe(true)
+    expect(byId.get('push-daily')?.primaryControl).toBe(true)
+    // 同じ push フラグを共有するお知らせ送信は主操作行にしない（段階の二重操作を避ける）
+    expect(byId.get('push-announce')?.primaryControl).toBeUndefined()
+    // primaryControl は必ず flag を伴い、フラグごとに1つだけ
+    const byFlag = new Map<string, number>()
+    for (const it of MESSAGE_CATALOG) {
+      if (it.primaryControl) {
+        expect(it.flag).toBeTruthy()
+        byFlag.set(it.flag!, (byFlag.get(it.flag!) ?? 0) + 1)
+      }
+    }
+    for (const [, n] of byFlag) expect(n).toBe(1)
+  })
 })
 
 describe('summarizeCatalog', () => {
