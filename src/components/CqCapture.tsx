@@ -105,6 +105,19 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
   useEffect(() => {
     setMounted(true)
   }, [])
+  // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
+  // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
+  // 閉じてしまい、body-scroll-lockが非LIFOで解除されて画面が固まりうる。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
   if (!mounted) return null
 
   const modal = (
@@ -189,6 +202,19 @@ function CqCaptureModal({
   useEffect(() => {
     setMounted(true)
   }, [])
+  // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
+  // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
+  // 閉じてしまい、body-scroll-lockが非LIFOで解除されて画面が固まりうる。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
 
   const handleSave = async () => {
     const trimmed = title.trim()
