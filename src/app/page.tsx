@@ -75,6 +75,7 @@ const SettingsPanel = dynamicImport(
 )
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
+import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
 import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
 import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, type AuthorAdditions } from '@/lib/author-additions'
@@ -2809,6 +2810,7 @@ export default function Home() {
         {header}
         <PwaInstallBanner />
         <UpdateBanner />
+        <TrialLifecycleNotice />
         <ResolvedCqBanner />
         <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />
@@ -2906,6 +2908,7 @@ export default function Home() {
         {header}
         <PwaInstallBanner />
         <UpdateBanner />
+        <TrialLifecycleNotice />
         <ResolvedCqBanner />
         <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />

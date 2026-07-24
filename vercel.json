@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/daily-push",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/trial-lifecycle",
+      "schedule": "0 23 * * *"
     }
   ]
 }
