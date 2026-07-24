@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2, HelpCircle } from 'lucide-react'
+import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2, HelpCircle, BookOpen } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { track } from '@vercel/analytics'
 import { getSettings, saveSettings } from '@/lib/settings'
@@ -20,7 +20,12 @@ import { CLINICAL_QUESTION_FORM_URL } from '@/lib/app-links'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { OpenSettingsContext } from './SearchErrors'
 
-const CqCaptureContext = createContext<((prefill?: string) => void) | null>(null)
+// 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示のみ）。
+export type CqSource = { title?: string; url?: string }
+
+const CqCaptureContext = createContext<
+  ((prefill?: string, source?: CqSource) => void) | null
+>(null)
 
 // 開く関数を返す。個人のNotionが未設定（部署のみ／プレミアムのみ等）なら null。
 export function useCqCapture() {
@@ -30,6 +35,7 @@ export function useCqCapture() {
 export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [prefill, setPrefill] = useState('')
+  const [source, setSource] = useState<CqSource | undefined>(undefined)
   // 案内モーダルの「このボタンを使わない」で即時に消すためのローカル状態。
   // 永続化は settings.hideCqButton（設定の「表示のカスタマイズ」で戻せる）。
   const [hiddenNow, setHiddenNow] = useState(false)
@@ -38,10 +44,11 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
   const enabled = !!(settings?.notionToken && settings?.notionMedicalDbId)
   const hidden = hiddenNow || !!settings?.hideCqButton
 
-  const openCapture = useCallback((p?: string) => {
+  const openCapture = useCallback((p?: string, s?: CqSource) => {
     setPrefill(p || '')
+    setSource(s)
     setOpen(true)
-    track('cq_capture_open', { prefilled: p ? 'yes' : 'no' })
+    track('cq_capture_open', { prefilled: p ? 'yes' : 'no', fromReader: s ? 'yes' : 'no' })
   }, [])
 
   const hideForever = useCallback(() => {
@@ -80,6 +87,7 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
           <CqCaptureModal
             initialTitle={prefill}
             searchMode={settings?.searchMode || 'algolia'}
+            source={source}
             onClose={() => setOpen(false)}
           />
         ) : (
@@ -100,7 +108,7 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
   if (!mounted) return null
 
   const modal = (
-    <div className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
+    <div data-reader-portal="" className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
       <div
         className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-lg mx-auto [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
@@ -160,10 +168,12 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
 function CqCaptureModal({
   initialTitle,
   searchMode,
+  source,
   onClose,
 }: {
   initialTitle: string
   searchMode: string
+  source?: CqSource
   onClose: () => void
 }) {
   const [title, setTitle] = useState(initialTitle)
@@ -217,7 +227,7 @@ function CqCaptureModal({
   if (!mounted) return null
 
   const modal = (
-    <div className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
+    <div data-reader-portal="" className="fixed inset-0 z-[9999] bg-black/40" onClick={onClose}>
       <div
         className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl max-w-lg mx-auto [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
@@ -242,6 +252,12 @@ function CqCaptureModal({
 
           {!done ? (
             <>
+              {source?.title && (
+                <div className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 px-2.5 py-1.5 text-xs text-purple-700 dark:text-purple-300">
+                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">「{source.title}」を読んで</span>
+                </div>
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
                 あとで調べる疑問を、NotionのMedical DBに「❓ CQ」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。
               </p>
