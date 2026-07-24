@@ -8,6 +8,24 @@
 import { useState, useEffect } from 'react'
 import { FlaskConical } from 'lucide-react'
 
+// プレミアム決済を開始する共通ヘルパ（POST → Stripe Checkout へリダイレクト）。
+// SubscriptionPromoPanel / SettingsPanel の既存 handleCheckout と同じ挙動。成功時は遷移するため
+// 返らない。失敗時のみ { ok:false, error } を返す（呼び出し側でメッセージ表示）。
+export async function startPremiumCheckout(userId?: string): Promise<{ ok: false; error: string } | void> {
+  try {
+    const res = await fetch('/api/premium/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.url) return { ok: false, error: data.error || '購入ページを開けませんでした' }
+    window.location.href = data.url
+  } catch {
+    return { ok: false, error: 'ネットワークエラーが発生しました' }
+  }
+}
+
 // 決済環境の状態（テストモードか）を取得する共通フック。
 // Stripe Secret Key が sk_test_ のときだけ testMode=true。ライブ化すると自動で false。
 export function usePremiumPaymentMode() {
