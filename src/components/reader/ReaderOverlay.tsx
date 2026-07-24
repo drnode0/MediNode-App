@@ -4,7 +4,7 @@
 // 閉じ込め、アプリ初期バンドル（立ち上がり）を軽く保つ。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Star, MessageCircleQuestion } from 'lucide-react'
-import { useCqCapture } from '@/components/CqCapture'
+import { useCqCaptureButton } from '@/components/CqCapture'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
@@ -39,8 +39,9 @@ export default function ReaderOverlay({
 
   const { isBookmarked, toggleBookmark, markRead } = useReaderMarks()
 
-  // reader内からのCQ捕捉。未接続・非表示・Provider非包含ブランチでは null → ボタン非表示。
-  const openCq = useCqCapture()
+  // reader内からのCQ捕捉。CQボタンは誰にでも出す（hidden/Provider非包含のときだけ null）。
+  // 押下時、個人Notion未接続なら設定ガイド（個人DB登録が必要な旨）が開く。
+  const openCq = useCqCaptureButton()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)

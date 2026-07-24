@@ -32,6 +32,16 @@ export function useCqCapture() {
   return useContext(CqCaptureContext)
 }
 
+// CQ捕捉ボタン用オープナー。CQボタンは誰にでも出し、押下時に個人Notion接続が
+// あれば捕捉フォーム、無ければ設定ガイド（個人DB登録が必要な旨）を開く。
+// useCqCapture() と違い、未接続でも非null（hidden のときだけ null）。
+const CqCaptureButtonContext = createContext<
+  ((prefill?: string, source?: CqSource) => void) | null
+>(null)
+export function useCqCaptureButton() {
+  return useContext(CqCaptureButtonContext)
+}
+
 export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [prefill, setPrefill] = useState('')
@@ -61,10 +71,15 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
 
   // 非表示設定中はFAB・モーダルとも出さない（ゼロ件画面などからの open導線も無効化）。
   if (hidden) {
-    return <CqCaptureContext.Provider value={null}>{children}</CqCaptureContext.Provider>
+    return (
+      <CqCaptureButtonContext.Provider value={null}>
+        <CqCaptureContext.Provider value={null}>{children}</CqCaptureContext.Provider>
+      </CqCaptureButtonContext.Provider>
+    )
   }
 
   return (
+    <CqCaptureButtonContext.Provider value={openCapture}>
     <CqCaptureContext.Provider value={enabled ? openCapture : null}>
       {children}
       {/* FABは常時表示。個人Notion未設定の人には案内モーダルを出す
@@ -94,6 +109,7 @@ export function CqCaptureProvider({ children }: { children: React.ReactNode }) {
           <CqSetupGuideModal onClose={() => setOpen(false)} onHide={hideForever} />
         ))}
     </CqCaptureContext.Provider>
+    </CqCaptureButtonContext.Provider>
   )
 }
 
