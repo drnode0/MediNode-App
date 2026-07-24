@@ -173,18 +173,6 @@ export default function ReaderOverlay({
             >
               <Star className="w-5 h-5" fill={pressed ? 'currentColor' : 'none'} />
             </button>
-            {openCq && (
-              <button
-                type="button"
-                onClick={() => openCq(undefined, { title: hit.title, url: hit.notionUrl })}
-                aria-label="この記事を読んで浮かんだ疑問をCQとして残す"
-                title="疑問をCQとして残す"
-                className="inline-flex items-center gap-1 min-h-[44px] px-2 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
-              >
-                <MessageCircleQuestion className="w-5 h-5" strokeWidth={2.2} />
-                <span className="text-xs font-bold">CQ</span>
-              </button>
-            )}
           </div>
           <button type="button" onClick={onClose} aria-label="閉じる" className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
             <X className="w-5 h-5" />
@@ -197,7 +185,7 @@ export default function ReaderOverlay({
         </p>
         {/* overflow-x-hidden＋overscroll-contain: スマホで縦スクロール中に横へずれる
             （幅超過コンテンツで水平パンが起きる）のを封じる。表は自前の overflow-x-auto で横スクロール可。 */}
-        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4">
+        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-4 pt-4 pb-20">
           <div className="mx-auto w-full max-w-2xl">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">
@@ -244,6 +232,20 @@ export default function ReaderOverlay({
           )}
           </div>
         </div>
+        {/* CQ捕捉は片手でも押しやすいシート右下に浮かせる（ホームFABと同じ位置・見た目）。
+            sheet は fixed＝absolute の基準。sticky な目次バーは上端なので衝突しない。 */}
+        {openCq && (
+          <button
+            type="button"
+            onClick={() => openCq(undefined, { title: hit.title, url: hit.notionUrl })}
+            aria-label="この記事を読んで浮かんだ疑問をCQとして残す"
+            title="疑問をCQとして残す"
+            className="absolute z-10 right-4 [bottom:max(1rem,calc(env(safe-area-inset-bottom)+0.5rem))] flex items-center gap-1.5 pl-3.5 pr-4 py-3 rounded-full bg-amber-400 hover:bg-amber-300 text-amber-950 shadow-lg shadow-amber-900/30 ring-1 ring-amber-500/40 transition-colors"
+          >
+            <MessageCircleQuestion className="w-5 h-5" strokeWidth={2.2} />
+            <span className="text-sm font-bold">CQ</span>
+          </button>
+        )}
       </div>
       {zoom && (
         <div data-reader-portal="" className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4" onClick={() => onZoom(null)}>
