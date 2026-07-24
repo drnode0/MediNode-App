@@ -68,12 +68,15 @@ readerのヘッダー行（Star/✕ の左）に、CQ捕捉ボタンを1つ足�
 - **MVPでは表示のみ**。由来をCQ本文／プロパティへ保存する正式対応は Spec 2（API拡張時）に寄せる。
 - `open(prefill)` の現行シグネチャは prefill をテキスト欄の初期値に使う想定のため、「ソースchip表示用の文脈」を既存テキスト初期値と混ぜない形で渡す（例: `open({ sourceTitle, sourceUrl })` のように prefill を構造化するか、別引数を足す）。実装時に `useCqCapture` のAPI形を最小拡張する。
 
-### 4. 未接続時の挙動（計画中に更新）
+### 4. 未接続時の挙動（オーナー指示で確定＝ホームFAB挙動に統一）
 
-reader内CQボタンは、`useCqCapture()` が非null（＝個人Notion接続済み・非表示でない・`CqCaptureProvider` 配下）のときだけ描画する。未接続・非表示・Provider非包含ブランチでは**ボタン自体を出さない**。
+reader内CQボタンは、ホームFABと同じく**誰にでも出す**（非表示設定 `hideCqButton` の時だけ出さない）。押下時に個人Notion接続があれば捕捉フォーム、無ければ **`CqSetupGuideModal`（個人DBの登録が必要な旨の文言）** を開く。
 
-- 当初案（ホームFABと同じく未接続時に `CqSetupGuideModal` を開く）は、計画時に次の事実で見直した: (a) `useCqCapture()` は未接続時に null を返すため、reader からガイドを開くには context 面の追加が要る。 (b) page.tsx の中央render分岐には `CqCaptureProvider` が無く、そこでは null になる。 (c) 既存 `CqCaptureSuggestion` も `if (!openCq) return null` で自らを隠すのが確立パターン。
-- よって「読書中に行き止まりのガイドを出す」より「使える人にだけ静かに出す」を採る。ホームFABは従来どおり未接続者にガイドを出すので、獲得導線は失われない。
+- オーナー指示: 「CQボタンは誰にでも出る。ただしCQを残すには個人DB（個人Notion Medical DB）の登録が必要だという文言を出す」。
+- 実装: reader は `useCqCapture()`（＝接続時のみ非null）ではなく、新設の **`useCqCaptureButton()`** を使う。これは「hidden の時だけ null、それ以外は常にオープナーを返す」。オープナーは Provider の `openCapture` そのもので、`enabled` に応じて捕捉フォーム／設定ガイドを出し分ける（FABと同一ロジック）。
+  - `useCqCapture()` の既存セマンティクス（未接続で null）は変えない → 既存consumer（`CqCaptureSuggestion` = page.tsx、ホームのゼロ件リンク）は無変更のまま。reader だけ挙動を変える。
+  - 経緯: 当初計画は「接続者にだけ静かに出す（未接続は非表示）」だったが、オーナー指示で「誰にでも出す＋登録要の文言」に確定。設定ガイドは Task 1 で `data-reader-portal` 付与済み・Escapeハンドラ修正済みのため reader 上でも正しく開閉する。
+- 文言: 既存 `CqSetupGuideModal` が「気になった疑問をあなた自身のNotion（Medical DB）に『❓ CQ』として書き込む機能。ご利用には個人のNotion接続の設定が必要」と説明済み。これを再利用する（新規コピーは足さない）。
 
 ### 5. 非表示設定の尊重
 
