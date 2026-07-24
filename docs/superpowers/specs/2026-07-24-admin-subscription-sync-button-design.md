@@ -53,3 +53,24 @@ Notionのサブスク側ページを編集した直後に、スマホの `/admin
 ## デプロイ
 - 運用修正なので `main` へコミット → push で Vercel 自動デプロイ。
 - env 追加なし。migration なし。
+
+## 追記（2026-07-24）: 本文が更新されない不具合の根因と修正
+**症状**: 同期ボタンを押しても、Notionで編集した本文がプレミアム・アプリ版の文書に反映されない。
+
+**根因（systematic-debugging で特定）**: プレミアム・リーダーの本文は `/api/subscription/page` が
+`unstable_cache(..., { revalidate: 3600 })`（Vercel Data Cache・**1時間**）で共有キャッシュしている。
+同期ボタンが呼ぶ `runSubscriptionSync()` は **Algolia（検索メタ）だけ**を再インデックスし、この本文キャッシュ
+には一切触れない。よってNotion本文の編集は最大1時間反映されない（ボタンを押しても無関係）。
+※service workerは `/api/*` を素通し（無関係）。ブラウザHTTPキャッシュ(max-age=600+SWR)とクライアント
+内メモリMap(10分)は短命で自己回復するため副次的。
+
+**修正**: 本文キャッシュにタグを付け、全同期経路で `revalidateTag` によりパージする。
+- `src/lib/reader-cache.ts`（新規）: `SUBSCRIPTION_READER_TAG` ＋ `revalidateSubscriptionReaderDocs()`
+  （Next 16 は第2引数必須のため Route Handler 向けに `'max'` を渡す。内部実装上、profile値に依らず
+  タグは `pendingRevalidatedTags` に積まれ確実に失効する）。
+- `/api/subscription/page`: `unstable_cache` の options に `tags: [SUBSCRIPTION_READER_TAG]` を追加。
+- 3つの同期経路（admin / secret / cron）で同期成功時に `revalidateSubscriptionReaderDocs()` を呼ぶ。
+
+**効果**: ボタンを押す → 本文キャッシュが失効 → 次にリーダーを開くと最新Notion本文を取得。
+**オーナー確認時の注意**: 押した直後は端末側の短命キャッシュ（ブラウザ10分/クライアントMap10分）で
+古いまま見える場合がある。確実に確認するにはアプリを一度リロードしてから文書を開く。

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runSubscriptionSync, isSyncSecretValid } from './_core'
+import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 
 /**
  * サブスクリプション用 sync API（手動実行）
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
 
+    // プレミアム本文の共有キャッシュも失効させ、次のリーダーで最新Notion本文を返す。
+    revalidateSubscriptionReaderDocs()
     return NextResponse.json(result)
   } catch (err) {
     console.error('Subscription sync error:', err)

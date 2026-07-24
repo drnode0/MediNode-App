@@ -5,6 +5,7 @@ import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { resolveRequestPremium } from '@/lib/premium-access'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
+import { SUBSCRIPTION_READER_TAG } from '@/lib/reader-cache'
 
 // 本文はプレミアム全員で同一なので、Notionからの取得結果をサーバー側（Vercel Data Cache）で
 // 共有キャッシュする。誰かが一度読めば、以後1時間は全員 Notion API 往復なしの即応答になる。
@@ -19,7 +20,9 @@ const getReaderDocCached = (pageId: string, token: string) =>
       return mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
     },
     ['subscription-reader-doc', pageId],
-    { revalidate: 3600 },
+    // tags を付けることで、サブスク同期時に revalidateTag で明示パージできる
+    // （付けないと最大1時間は古い本文が返り続ける）。
+    { revalidate: 3600, tags: [SUBSCRIPTION_READER_TAG] },
   )()
 
 export async function GET(req: NextRequest) {

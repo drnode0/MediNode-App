@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { runSubscriptionSync } from '../../subscription/sync/_core'
+import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 
 /**
  * サブスク同期の手動トリガー（オーナー限定・スマホから1タップ用）。
@@ -24,6 +25,9 @@ export async function POST() {
     if (!('success' in result)) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
+    // Algolia（検索メタ）だけでなく、プレミアム本文の共有キャッシュも失効させる。
+    // これをしないと編集後もリーダー本文が最大1時間古いまま返る。
+    revalidateSubscriptionReaderDocs()
     return NextResponse.json(result)
   } catch (err) {
     console.error('Admin subscription sync error:', err)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { runSubscriptionSync } from '../../subscription/sync/_core'
+import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 
 /**
  * Vercel Cron 専用：サブスク用Notion → サブスク用Algolia の自動同期。
@@ -48,6 +49,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
 
+    // 日次syncでもプレミアム本文の共有キャッシュを失効させる（翌朝は最新本文で始まる）。
+    revalidateSubscriptionReaderDocs()
     console.log('Cron subscription sync OK:', JSON.stringify(result.synced))
     return NextResponse.json(result)
   } catch (err) {
