@@ -33,12 +33,16 @@ describe('MESSAGE_CATALOG 整合性', () => {
     }
   })
 
-  it('既知の要注意3件が health 付きで存在する', () => {
+  it('改善候補・準備中の項目が health 付きで存在する', () => {
     const byId = new Map(MESSAGE_CATALOG.map((i) => [i.id, i]))
-    expect(byId.get('push-resolved-cq')?.health?.level).toBe('dead')
-    expect(byId.get('banner-announcement')?.health?.level).toBe('hardcoded')
+    expect(byId.get('push-resolved-cq')?.health?.level).toBe('unwired')
+    expect(byId.get('banner-announcement')?.health?.level).toBe('gap')
     // env罠はライブ判定なのでレジストリ側は push-daily が flag:push を持つことだけ確認
     expect(byId.get('push-daily')?.flag).toBe('push')
+    // 実装済みで正常なものには health を付けない（今日の1問カード等）
+    expect(byId.get('card-daily-question')?.health).toBeUndefined()
+    expect(byId.get('push-daily')?.health).toBeUndefined()
+    expect(byId.get('modal-onboarding')?.health).toBeUndefined()
   })
 })
 

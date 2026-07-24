@@ -1,16 +1,17 @@
 'use client'
 
-// 📣 通知・表示タブ：アプリがユーザーに出している全メッセージのカタログ（見える化）。
-// レジストリ（src/lib/message-catalog.ts）をカテゴリ別に描画し、
-// app_flags の3キーは /api/admin/message-status のライブ状態を重ねて表示する。
-// phase1＝見える化に徹する（操作は既存の「配信・設定」タブへ誘導）。
+// 📣 通知・表示タブ：アプリがユーザーに出している全メッセージの「棚卸し（一覧＋現在地）」。
+// レジストリ（src/lib/message-catalog.ts）をカテゴリ別に描画し、app_flags の3キーは
+// /api/admin/message-status のライブ状態を重ねる。
+// 役割分担: このタブ＝一覧・現状把握。実際のON/OFF・段階切替は「配信・設定」タブ。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, RefreshCw, Circle } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Info } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import {
   MESSAGE_CATALOG,
   CHANNEL_LABELS,
+  HEALTH_LABELS,
   summarizeCatalog,
   type MessageChannel,
   type CatalogItem,
@@ -27,23 +28,13 @@ type Status = {
 
 const CHANNEL_ORDER: MessageChannel[] = ['push', 'banner', 'modal', 'quiet', 'settings']
 
+// 改善候補=琥珀 / 準備中=石板 / env上書き=琥珀。どれも「不快」ではなく「気にかけておく」色。
 const HEALTH_STYLE: Record<HealthLevel, string> = {
-  ok: '',
-  hardcoded:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60',
-  dead: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/60',
+  gap: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60',
+  unwired:
+    'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700',
   'env-override':
     'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60',
-  'preview-locked':
-    'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800/60',
-}
-
-const HEALTH_TEXT: Record<HealthLevel, string> = {
-  ok: '',
-  hardcoded: 'ハードコード',
-  dead: '死にチャネル',
-  'env-override': 'env上書き中',
-  'preview-locked': 'preview運用',
 }
 
 function StageBadge({ stage }: { stage: 'off' | 'preview' | 'on' }) {
@@ -70,75 +61,53 @@ function liveStage(item: CatalogItem, status: Status | null): 'off' | 'preview' 
 
 function ItemCard({ item, status }: { item: CatalogItem; status: Status | null }) {
   const stage = liveStage(item, status)
-  // env上書きが効いている flag 項目はライブ⚠を重ねる。
   const envTrap =
     (item.flag === 'push' && status?.pushEnvOverride) ||
     (item.flag === 'daily_question' && status?.dailyQuestionEnvOverride)
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.name}</span>
-            {stage && <StageBadge stage={stage} />}
-            {item.controllable && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
-                操作可
-              </span>
-            )}
-          </div>
-          <dl className="mt-1.5 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
-            <div className="flex gap-1.5">
-              <dt className="shrink-0 text-gray-400 dark:text-gray-500">どこで</dt>
-              <dd>{item.where}</dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt className="shrink-0 text-gray-400 dark:text-gray-500">条件</dt>
-              <dd>{item.trigger}</dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt className="shrink-0 text-gray-400 dark:text-gray-500">頻度</dt>
-              <dd>{item.frequency}</dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt className="shrink-0 text-gray-400 dark:text-gray-500">制御</dt>
-              <dd>{item.control}</dd>
-            </div>
-          </dl>
-          {(item.health && item.health.level !== 'ok') || envTrap ? (
-            <div className="mt-2 flex flex-col gap-1">
-              {item.health && item.health.level !== 'ok' && (
-                <span
-                  className={`inline-flex items-start gap-1 self-start px-2 py-1 rounded-lg border text-[11px] ${HEALTH_STYLE[item.health.level]}`}
-                >
-                  <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden />
-                  <span>
-                    <b>{HEALTH_TEXT[item.health.level]}</b>
-                    {item.health.note ? ` — ${item.health.note}` : ''}
-                  </span>
-                </span>
-              )}
-              {envTrap && (
-                <span
-                  className={`inline-flex items-start gap-1 self-start px-2 py-1 rounded-lg border text-[11px] ${HEALTH_STYLE['env-override']}`}
-                >
-                  <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden />
-                  <span>
-                    <b>env上書き中</b> — 環境変数がこのフラグを上書きしています。管理UIの段階切替が効きません。
-                  </span>
-                </span>
-              )}
-            </div>
-          ) : null}
-          {(item.storageKeys?.length || item.file) && (
-            <p className="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500 break-all">
-              {item.file}
-              {item.storageKeys?.length ? ` ・ ${item.storageKeys.join(' / ')}` : ''}
-            </p>
-          )}
-        </div>
+      {/* 見出し：名前＋現在の状態＋操作可＋注意チップ */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.name}</span>
+        {stage && <StageBadge stage={stage} />}
+        {item.controllable && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+            操作可
+          </span>
+        )}
+        {item.health && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${HEALTH_STYLE[item.health.level]}`}>
+            {HEALTH_LABELS[item.health.level]}
+          </span>
+        )}
+        {envTrap && (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${HEALTH_STYLE['env-override']}`}>
+            {HEALTH_LABELS['env-override']}
+          </span>
+        )}
       </div>
+
+      {/* 条件（いちばん知りたい1行） */}
+      <p className="mt-1.5 text-xs text-gray-700 dark:text-gray-200">{item.trigger}</p>
+
+      {/* 補助：どこで・頻度・制御（淡色で1〜2行に圧縮） */}
+      <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+        {item.where}　·　{item.frequency}
+      </p>
+      <p className="text-[11px] text-gray-400 dark:text-gray-500">制御：{item.control}</p>
+
+      {/* 注意の詳細（該当時のみ・淡い色で） */}
+      {item.health && (
+        <p className={`mt-2 text-[11px] rounded-lg border px-2 py-1 ${HEALTH_STYLE[item.health.level]}`}>
+          {item.health.note}
+        </p>
+      )}
+      {envTrap && (
+        <p className={`mt-2 text-[11px] rounded-lg border px-2 py-1 ${HEALTH_STYLE['env-override']}`}>
+          環境変数がこのフラグを上書き中。「配信・設定」タブの段階切替が効きません。
+        </p>
+      )}
     </div>
   )
 }
@@ -171,6 +140,28 @@ export function MessageCatalog() {
     return m
   }, [])
 
+  // 気にかけておくこと＝レジストリの health（改善候補/準備中）＋ライブのenv上書き。
+  const attentionItems = useMemo(() => {
+    const list = summary.issues.map((it) => ({
+      name: it.name,
+      label: HEALTH_LABELS[it.health!.level],
+      note: it.health!.note,
+    }))
+    if (status?.pushEnvOverride)
+      list.push({
+        name: 'プッシュ通知',
+        label: HEALTH_LABELS['env-override'],
+        note: '環境変数 PUSH_STAGE が段階を上書き中。管理UIの切替が効きません。',
+      })
+    if (status?.dailyQuestionEnvOverride)
+      list.push({
+        name: '今日の1問',
+        label: HEALTH_LABELS['env-override'],
+        note: '環境変数 DAILY_QUESTION_STAGE が段階を上書き中。管理UIの切替が効きません。',
+      })
+    return list
+  }, [summary, status])
+
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-2 mb-1">
@@ -187,27 +178,31 @@ export function MessageCatalog() {
           状態を更新
         </button>
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        全{summary.total}種のうち、オーナーがその場で操作できるのは<b>{summary.controllable}種</b>だけ
-        （メンテ／今日の1問／push段階＋お知らせ送信）。要注意<b className="text-amber-600 dark:text-amber-400">{summary.issues.length}件</b>。
-        段階(ON/preview/OFF)の切替は「配信・設定」タブから。
-      </p>
 
-      {/* 要注意の頭出し */}
-      {summary.issues.length > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/15 p-3">
-          <h3 className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-1.5">
+      {/* 使い分けの明記 */}
+      <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/40 p-3 flex items-start gap-2">
+        <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" aria-hidden />
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          このタブは<b>棚卸し（全部の一覧と、今どうなっているか）</b>です。実際の<b>ON/OFF・段階切替は「配信・設定」タブ</b>で行います。
+          全{summary.total}種のうち、その場で操作できるのは<b>{summary.controllable}種</b>（メンテ／今日の1問／プッシュ段階＋お知らせ送信）。
+        </p>
+      </div>
+
+      {/* 気にかけておくこと（本当に手を打つべきものだけ） */}
+      {attentionItems.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-900/10 p-3">
+          <h3 className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
-            要注意（今は表示のみ・修正は別途）
+            気にかけておくこと（{attentionItems.length}）
           </h3>
-          <ul className="space-y-1">
-            {summary.issues.map((it) => (
-              <li key={it.id} className="flex items-baseline gap-1.5 text-xs text-gray-700 dark:text-gray-200">
-                <Circle className="w-1.5 h-1.5 mt-1.5 shrink-0 fill-amber-500 text-amber-500" aria-hidden />
-                <span>
-                  <b>{it.name}</b>：{HEALTH_TEXT[it.health!.level]}
-                  {it.health!.note ? ` — ${it.health!.note}` : ''}
+          <ul className="space-y-1.5">
+            {attentionItems.map((it, i) => (
+              <li key={`${it.name}-${i}`} className="text-xs text-gray-700 dark:text-gray-200">
+                <span className="font-semibold">{it.name}</span>
+                <span className="mx-1.5 text-[10px] px-1.5 py-0.5 rounded bg-white/70 dark:bg-gray-800/60 border border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-300">
+                  {it.label}
                 </span>
+                <span className="text-gray-500 dark:text-gray-400">{it.note}</span>
               </li>
             ))}
           </ul>
