@@ -280,7 +280,8 @@ function SubscriptionSyncButton() {
   )
 }
 
-function BroadcastForm() {
+// お知らせ一斉送信フォーム。運用の集約に伴い「通知・配信」タブ（操作卓）から描画する。
+export function BroadcastForm() {
   const [title, setTitle] = useState('')
   const [bodyText, setBodyText] = useState('')
   const [url, setUrl] = useState('')
@@ -1075,9 +1076,7 @@ export function DailyCommandCenter() {
 
         {/* D. サブスク同期（オーナー操作・スマホから1タップ） */}
         <SubscriptionSyncButton />
-
-        {/* E. お知らせ送信（オーナー操作） */}
-        <BroadcastForm />
+        {/* お知らせ一斉送信は「通知・配信」タブの操作卓へ集約（重複表示を避けるためここでは出さない）。 */}
       </div>
     </section>
   )

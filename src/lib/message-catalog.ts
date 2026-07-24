@@ -11,7 +11,11 @@
 
 export type MessageChannel = 'push' | 'banner' | 'modal' | 'quiet' | 'settings'
 
-export type HealthLevel = 'ok' | 'hardcoded' | 'dead' | 'env-override' | 'preview-locked'
+// 「気にかけておくと良い」項目だけに付ける（正常なものには付けない）。
+//   gap          … 改善候補（今の作り方だと運用に手間・毎回デプロイ等）
+//   unwired      … トグルはあるが中身が未実装（＝押しても効かない）
+//   env-override … 環境変数がフラグを上書きしていて管理UIが効かない（ライブ判定）
+export type HealthLevel = 'gap' | 'unwired' | 'env-override'
 
 export type CatalogFlag = 'maintenance' | 'daily_question' | 'push'
 
@@ -25,6 +29,9 @@ export type CatalogItem = {
   control: string // 制御の説明（人間可読）
   controllable: boolean // オーナーがランタイムで操作できるか
   flag?: CatalogFlag // ライブ状態（ON/preview/OFF）を出す対象
+  // このフラグの「主たる操作行」＝行内に切替コントロールを出す（1フラグ1行だけ true）。
+  // 同じフラグを共有する他行（例: お知らせ一斉送信はpush段階を共有）は false のまま。
+  primaryControl?: boolean
   storageKeys?: string[]
   file?: string // 主な参照
   health?: { level: HealthLevel; note: string }
@@ -39,11 +46,9 @@ export const CHANNEL_LABELS: Record<MessageChannel, string> = {
 }
 
 export const HEALTH_LABELS: Record<HealthLevel, string> = {
-  ok: '正常',
-  hardcoded: 'ハードコード（要デプロイ）',
-  dead: '死にチャネル（無効）',
-  'env-override': 'env上書きの罠',
-  'preview-locked': 'preview運用中',
+  gap: '改善候補',
+  unwired: '準備中（送信は未実装）',
+  'env-override': 'env上書き中',
 }
 
 export const MESSAGE_CATALOG: CatalogItem[] = [
@@ -58,8 +63,8 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '段階フラグ（off/preview/on）のみ。文面・時間帯はロジック＋cronで固定',
     controllable: true,
     flag: 'push',
+    primaryControl: true,
     file: 'src/app/api/cron/daily-push/route.ts',
-    health: { level: 'preview-locked', note: '現在は preview 運用（意図的・本人と指定アドレスのみ）' },
   },
   {
     id: 'push-announce',
@@ -72,19 +77,21 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: true,
     flag: 'push',
     file: 'src/app/api/admin/push-broadcast/route.ts',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'push-resolved-cq',
     name: '解決CQ通知（Push）',
     channel: 'push',
-    where: '（現状は出ない）',
-    trigger: 'ユーザー設定にトグルはあるが、送信するコードが存在しない',
+    where: '（現在は送信されない）',
+    trigger: 'ユーザー設定に受け取りトグルはあるが、送信する処理がまだ無い',
     frequency: '—',
-    control: '実質無効',
+    control: 'トグルのみ・送信は未実装',
     controllable: false,
-    file: 'src/lib/push.ts（kind定義のみ・sender無し）',
-    health: { level: 'dead', note: 'トグルはあるが送信元が無い＝押しても何も起きない。要判断（実装 or 撤去）' },
+    file: 'src/lib/push.ts（kind定義のみ・送信処理なし）',
+    health: {
+      level: 'unwired',
+      note: '受け取り設定はあるが送信処理が未実装。実装するか、当面は設定トグルを隠すかを決める。',
+    },
   },
 
   // ── 画面バナー ─────────────────────────────────────────────
@@ -99,7 +106,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_pwa_banner_dismissed_v1'],
     file: 'src/components/AppBanners.tsx',
-    health: { level: 'hardcoded', note: 'コードのみ。表示条件・文面はソース固定' },
   },
   {
     id: 'banner-announcement',
@@ -112,7 +118,10 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_announcement_seen_v1'],
     file: 'src/components/AppBanners.tsx（ANNOUNCEMENTS[]）',
-    health: { level: 'hardcoded', note: '最大のギャップ：お知らせを出すたびコード編集＋デプロイが必要' },
+    health: {
+      level: 'gap',
+      note: '告知のたびにコード編集＋再デプロイが必要。将来はNotion/管理画面から出せるようにするのが候補。',
+    },
   },
   {
     id: 'banner-resolved-cq',
@@ -125,7 +134,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_resolved_cq_seen_v1'],
     file: 'src/components/ResolvedCqs.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'banner-author-digest',
@@ -138,7 +146,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_author_seen_v1', 'medinode_author_digest_at_v1'],
     file: 'src/lib/author-additions.ts',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'banner-feedback',
@@ -151,7 +158,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_fb_nudge_done', 'medinode_first_use_at', 'medinode_search_count'],
     file: 'src/components/AppBanners.tsx',
-    health: { level: 'hardcoded', note: '閾値・文面はソース固定。/adminで頻度調整できない' },
   },
   {
     id: 'banner-power',
@@ -164,7 +170,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_power_banner_dismissed_v1'],
     file: 'src/components/AppBanners.tsx',
-    health: { level: 'hardcoded', note: 'コードのみ' },
   },
 
   // ── モーダル・全画面 ───────────────────────────────────────
@@ -179,7 +184,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_push_primer_seen_v1'],
     file: 'src/components/PushPrimer.tsx',
-    health: { level: 'ok', note: 'push段階に連動' },
   },
   {
     id: 'modal-feature-tour',
@@ -192,7 +196,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medical_search_feature_tour_done_v1'],
     file: 'src/components/FeatureTour.tsx',
-    health: { level: 'hardcoded', note: 'コードのみ' },
   },
   {
     id: 'modal-onboarding',
@@ -205,7 +208,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medical_search_onboarding_done_v4'],
     file: 'src/components/OnboardingScreen.tsx',
-    health: { level: 'hardcoded', note: 'コードのみ' },
   },
   {
     id: 'modal-setup',
@@ -217,7 +219,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'ハードコードのフロー',
     controllable: false,
     file: 'src/components/SetupWizard.tsx',
-    health: { level: 'hardcoded', note: 'コードのみ' },
   },
   {
     id: 'card-daily-question',
@@ -229,8 +230,8 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '段階フラグ（off/preview/on）＋出題内容はサーバ設定',
     controllable: true,
     flag: 'daily_question',
+    primaryControl: true,
     file: 'src/components/DailyQuestionCard.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'toast-auth',
@@ -242,7 +243,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '認証フロー駆動（ハードコード）',
     controllable: false,
     file: 'src/components/auth/AuthNotice.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'gate-maintenance',
@@ -254,8 +254,8 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '✅ /admin からON/OFF（唯一のフル操作な表示）',
     controllable: true,
     flag: 'maintenance',
+    primaryControl: true,
     file: 'src/components/MaintenanceGate.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'bar-offline',
@@ -267,7 +267,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'ランタイム状態（操作不要）',
     controllable: false,
     file: 'src/components/PwaRuntime.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'notice-search-error',
@@ -279,7 +278,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'エラー駆動（操作不要）',
     controllable: false,
     file: 'src/components/SearchErrors.tsx',
-    health: { level: 'ok', note: '' },
   },
 
   // ── 静かな通知 ─────────────────────────────────────────────
@@ -294,7 +292,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     controllable: false,
     storageKeys: ['medinode_author_seen_v1'],
     file: 'src/lib/author-additions.ts',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'quiet-cq-viewcount',
@@ -306,7 +303,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'データ駆動。しきい値10はコード定数',
     controllable: false,
     file: 'src/lib/cq-views.ts（VIEW_BADGE_MIN=10）',
-    health: { level: 'hardcoded', note: 'しきい値10はソース定数。/admin調整不可' },
   },
   {
     id: 'quiet-recording-level',
@@ -318,7 +314,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'Notionプロパティ（オーナーが値で制御）',
     controllable: false,
     file: 'src/components/ResultCard.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'quiet-origin-badge',
@@ -330,7 +325,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: 'Notionプロパティ（オーナーが値で制御）',
     controllable: false,
     file: 'src/components/ResultCard.tsx',
-    health: { level: 'ok', note: '' },
   },
   {
     id: 'quiet-recency',
@@ -342,7 +336,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '自動（操作不要）',
     controllable: false,
     file: 'src/lib/recent-grouping.ts',
-    health: { level: 'ok', note: '' },
   },
 
   // ── 設定内の文脈バナー ─────────────────────────────────────
@@ -356,7 +349,6 @@ export const MESSAGE_CATALOG: CatalogItem[] = [
     control: '課金状態データ駆動',
     controllable: false,
     file: 'src/components/SettingsPanel.tsx',
-    health: { level: 'ok', note: '' },
   },
 ]
 
@@ -381,7 +373,7 @@ export function summarizeCatalog(items: CatalogItem[]): CatalogSummary {
   for (const it of items) {
     byChannel[it.channel] += 1
     if (it.controllable) controllable += 1
-    if (it.health && it.health.level !== 'ok') issues.push(it)
+    if (it.health) issues.push(it)
   }
   return { total: items.length, byChannel, controllable, issues }
 }

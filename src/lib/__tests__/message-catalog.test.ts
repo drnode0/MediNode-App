@@ -33,12 +33,35 @@ describe('MESSAGE_CATALOG 整合性', () => {
     }
   })
 
-  it('既知の要注意3件が health 付きで存在する', () => {
+  it('改善候補・準備中の項目が health 付きで存在する', () => {
     const byId = new Map(MESSAGE_CATALOG.map((i) => [i.id, i]))
-    expect(byId.get('push-resolved-cq')?.health?.level).toBe('dead')
-    expect(byId.get('banner-announcement')?.health?.level).toBe('hardcoded')
+    expect(byId.get('push-resolved-cq')?.health?.level).toBe('unwired')
+    expect(byId.get('banner-announcement')?.health?.level).toBe('gap')
     // env罠はライブ判定なのでレジストリ側は push-daily が flag:push を持つことだけ確認
     expect(byId.get('push-daily')?.flag).toBe('push')
+    // 実装済みで正常なものには health を付けない（今日の1問カード等）
+    expect(byId.get('card-daily-question')?.health).toBeUndefined()
+    expect(byId.get('push-daily')?.health).toBeUndefined()
+    expect(byId.get('modal-onboarding')?.health).toBeUndefined()
+  })
+
+  it('行内コントロールは1フラグ1行だけ（primaryControl）', () => {
+    const byId = new Map(MESSAGE_CATALOG.map((i) => [i.id, i]))
+    // 各フラグの主操作行
+    expect(byId.get('gate-maintenance')?.primaryControl).toBe(true)
+    expect(byId.get('card-daily-question')?.primaryControl).toBe(true)
+    expect(byId.get('push-daily')?.primaryControl).toBe(true)
+    // 同じ push フラグを共有するお知らせ送信は主操作行にしない（段階の二重操作を避ける）
+    expect(byId.get('push-announce')?.primaryControl).toBeUndefined()
+    // primaryControl は必ず flag を伴い、フラグごとに1つだけ
+    const byFlag = new Map<string, number>()
+    for (const it of MESSAGE_CATALOG) {
+      if (it.primaryControl) {
+        expect(it.flag).toBeTruthy()
+        byFlag.set(it.flag!, (byFlag.get(it.flag!) ?? 0) + 1)
+      }
+    }
+    for (const [, n] of byFlag) expect(n).toBe(1)
   })
 })
 
