@@ -3,7 +3,8 @@
 // 本文レンダラ・目次・確信度チップ・lucide などリーダーでしか使わない重い依存はこのファイルに
 // 閉じ込め、アプリ初期バンドル（立ち上がり）を軽く保つ。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Star } from 'lucide-react'
+import { X, Star, MessageCircleQuestion } from 'lucide-react'
+import { useCqCapture } from '@/components/CqCapture'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
@@ -37,6 +38,9 @@ export default function ReaderOverlay({
   useBodyScrollLock()
 
   const { isBookmarked, toggleBookmark, markRead } = useReaderMarks()
+
+  // reader内からのCQ捕捉。未接続・非表示・Provider非包含ブランチでは null → ボタン非表示。
+  const openCq = useCqCapture()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -168,6 +172,18 @@ export default function ReaderOverlay({
             >
               <Star className="w-5 h-5" fill={pressed ? 'currentColor' : 'none'} />
             </button>
+            {openCq && (
+              <button
+                type="button"
+                onClick={() => openCq(undefined, { title: hit.title, url: hit.notionUrl })}
+                aria-label="この記事を読んで浮かんだ疑問をCQとして残す"
+                title="疑問をCQとして残す"
+                className="inline-flex items-center gap-1 min-h-[44px] px-2 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+              >
+                <MessageCircleQuestion className="w-5 h-5" strokeWidth={2.2} />
+                <span className="text-xs font-bold">CQ</span>
+              </button>
+            )}
           </div>
           <button type="button" onClick={onClose} aria-label="閉じる" className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
             <X className="w-5 h-5" />
