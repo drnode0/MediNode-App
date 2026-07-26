@@ -189,7 +189,7 @@ export function EngagementSection() {
                     <span className="inline-flex items-center justify-center w-5 h-5 shrink-0 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-[11px] font-bold">
                       {i + 1}
                     </span>
-                    <span className="truncate text-gray-800 dark:text-gray-100">
+                    <span className="flex-1 min-w-0 truncate text-gray-800 dark:text-gray-100">
                       {c.title ?? c.objectId.replace(/^subscription_/, '').slice(0, 12) + '…'}
                     </span>
                     <span className="ml-auto shrink-0 font-semibold text-gray-700 dark:text-gray-200">

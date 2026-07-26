@@ -205,6 +205,22 @@ function fmtDateTime(iso: string | null): string {
   return `${jst.toISOString().slice(0, 10)} ${jst.toISOString().slice(11, 16)}`
 }
 
+// 「◯分前 / ◯時間前 / ◯日前」の相対表記（直近の並びを一目で）。
+function relTime(iso: string | null): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  const diff = Date.now() - t
+  if (diff < 60_000) return 'たった今'
+  const min = Math.floor(diff / 60_000)
+  if (min < 60) return `${min}分前`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}時間前`
+  const day = Math.floor(hr / 24)
+  if (day < 30) return `${day}日前`
+  return `${Math.floor(day / 30)}ヶ月前`
+}
+
 // 日付セル。ホバー（スマホは長押し）で時刻まで見える。
 function DateCell({ iso }: { iso: string | null }) {
   return (
@@ -750,6 +766,22 @@ ${label}`,
     return { breakdown, wau: breakdown.within7, mau: breakdown.within7 + breakdown.within30 }
   }, [rows])
 
+  // 直近見ていたアカウント: 「最後に見た形跡」(最終利用/ログイン/設定同期の最新)が新しい順に上位15。
+  // スマホでも横スクロールせずに「誰がいつ見ていたか」を確認できる軽い一覧。
+  const recentlyActive = useMemo(() => {
+    return (rows ?? [])
+      .map((r) => {
+        const times = [r.lastUsedAt, r.lastSignInAt, r.settingsUpdatedAt]
+          .filter((v): v is string => !!v)
+          .map((v) => new Date(v).getTime())
+          .filter((n) => !Number.isNaN(n))
+        return { r, seen: times.length ? Math.max(...times) : 0 }
+      })
+      .filter((x) => x.seen > 0)
+      .sort((a, b) => b.seen - a.seen)
+      .slice(0, 15)
+  }, [rows])
+
   // 登録者数の累積推移（全期間）。
   const cumulative = useMemo(() => buildCumulativeSeries((rows ?? []).map((r) => r.createdAt)), [rows])
 
@@ -1012,6 +1044,42 @@ ${label}`,
             </div>
             )}
 
+            {/* 直近見ていたアカウント（スマホでも横スクロール不要の軽い一覧） */}
+            {tab === 'accounts' && (
+              <section className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-brand-600 dark:text-brand-400" aria-hidden />
+                  直近見ていたアカウント
+                </h2>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">
+                  「最後に見た形跡」（最終利用・最終ログイン・設定同期の最新）が新しい順・上位15。時刻は右のセルを長押しで確認。
+                </p>
+                {recentlyActive.length === 0 ? (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 py-2">まだ利用形跡がありません（蓄積待ち）。</p>
+                ) : (
+                  <ol className="space-y-1">
+                    {recentlyActive.map(({ r, seen }, i) => (
+                      <li key={r.userId} className="flex items-baseline gap-2 text-sm">
+                        <span className="w-5 shrink-0 text-right text-xs font-bold text-gray-400 dark:text-gray-500">{i + 1}</span>
+                        <span
+                          className="flex-1 min-w-0 truncate text-gray-800 dark:text-gray-100"
+                          title={maskEmails ? undefined : (r.email ?? undefined)}
+                        >
+                          {maskEmails ? maskEmail(r.email) : (r.email ?? '（メール不明）')}
+                        </span>
+                        <span
+                          className="shrink-0 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
+                          title={fmtDateTime(new Date(seen).toISOString()) || undefined}
+                        >
+                          {relTime(new Date(seen).toISOString())}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            )}
+
             {/* 📊 分析・マーケタブ: 運用コスト・収支＋深掘り（ファネル/売上/継続/グラフ/流入元/セットアップ/LP/安全） */}
             {tab === 'analytics' && <OperatingCostCard mrrJpy={revenue.mrr} />}
             {tab === 'analytics' && <EngagementSection />}
@@ -1058,7 +1126,7 @@ ${label}`,
                       <li key={`${ev.date}-${ev.label}`} className="flex items-baseline gap-1.5 text-xs text-gray-600 dark:text-gray-300">
                         <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 dark:bg-amber-500 text-white dark:text-gray-900 text-[10px] font-bold shrink-0 self-center" aria-hidden>{i + 1}</span>
                         <span className="text-gray-400 dark:text-gray-500 shrink-0">{formatEventStamp(ev.date)}</span>
-                        <span className="truncate">{ev.label}</span>
+                        <span className="flex-1 min-w-0 truncate">{ev.label}</span>
                         <span className="ml-auto shrink-0 font-semibold text-gray-800 dark:text-gray-100">
                           {ev.ongoing ? `${ev.elapsedDays}日目 +${ev.count}人` : `7日で +${ev.count}人`}
                         </span>
@@ -1179,7 +1247,7 @@ ${label}`,
                   {topReferrers.map((r, i) => (
                     <li key={r.userId} className="flex items-baseline gap-2 text-sm">
                       <span className="text-amber-500 dark:text-amber-400 font-bold w-5 shrink-0 text-right">{i + 1}</span>
-                      <span className="truncate text-gray-800 dark:text-gray-100" title={maskEmails ? undefined : (r.email ?? undefined)}>
+                      <span className="flex-1 min-w-0 truncate text-gray-800 dark:text-gray-100" title={maskEmails ? undefined : (r.email ?? undefined)}>
                         {maskEmails ? maskEmail(r.email) : (r.email ?? '（メール不明）')}
                       </span>
                       <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300">
