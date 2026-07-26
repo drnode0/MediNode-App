@@ -6,9 +6,11 @@ import { sendToUsers } from '@/lib/push-send'
 import {
   classifyTrialLifecycle,
   shouldNotify,
+  isAdminEmail,
   NOTIFIED_META_KEY,
   ENDING_SOON_WINDOW_MS,
   ENDED_GRACE_MS,
+  TRIAL_PLANS,
   type TrialLifecycleStage,
 } from '@/lib/trial-lifecycle'
 import {
@@ -107,6 +109,7 @@ export async function GET(req: NextRequest) {
       .from('subscriptions')
       .select('user_id, trial_ends_at, stripe_customer_id, plan')
       .is('stripe_customer_id', null)
+      .in('plan', [...TRIAL_PLANS]) // カードなしトライアル（trial/auto_trial）のみ。comp/premiumは除外
       .not('trial_ends_at', 'is', null)
       .gte('trial_ends_at', iso(now - ENDED_GRACE_MS))
       .lte('trial_ends_at', iso(now + ENDING_SOON_WINDOW_MS))
@@ -127,6 +130,9 @@ export async function GET(req: NextRequest) {
       const { data: u, error: userErr } = await admin.auth.admin.getUserById(row.user_id)
       if (userErr || !u?.user) continue
       const user = u.user
+      // 管理者（COMP_ADMIN_EMAILS）は override でプレミアム＝トライアル失効でアクセスを
+      // 失わないので通知しない（オーナー/モニターへの誤送信を防ぐ）。
+      if (isAdminEmail(user.email, process.env.COMP_ADMIN_EMAILS)) continue
       const meta = (user.user_metadata ?? {}) as Record<string, string | undefined>
 
       if (!shouldNotify(stageForRow, row.trial_ends_at, meta)) continue
