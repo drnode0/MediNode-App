@@ -2174,6 +2174,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
             <p>・Notion の「ジャンル」プロパティから自動でまとめています</p>
             <p>・先頭に <span className="font-mono">01.</span> <span className="font-mono">02.</span> と番号を付けると、この並び順に揃います</p>
             <p>・同じ名前のジャンルは 1 つにまとめて表示しています</p>
+            <p>・「循環」「循環器」のように名前が違うものは別のままです。まとめたい時は Notion 側で名前を揃えてください</p>
           </div>
         </div>
       )}
