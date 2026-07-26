@@ -2168,6 +2168,13 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       {!(ownerFilter === 'subscription' && !hasSubscription) && !selected && !genresLoading && mergedGenres.length > 0 && (
         <div className="text-center py-6 text-gray-400 dark:text-gray-500">
           <p className="text-sm">ジャンルを選択してください</p>
+          {/* 下の余白に、ジャンルの使い方を控えめに。罫線なし・薄いグレーで静かに。 */}
+          <div className="mt-8 max-w-xs mx-auto text-left text-xs leading-relaxed text-gray-300 dark:text-gray-600 space-y-1">
+            <p className="font-medium text-gray-400 dark:text-gray-500">ジャンルについて</p>
+            <p>・Notion の「ジャンル」プロパティから自動でまとめています</p>
+            <p>・先頭に <span className="font-mono">01.</span> <span className="font-mono">02.</span> と番号を付けると、この並び順に揃います</p>
+            <p>・同じ名前のジャンルは 1 つにまとめて表示しています</p>
+          </div>
         </div>
       )}
     </div>
