@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   classifyTrialLifecycle,
   shouldNotify,
+  isAdminEmail,
+  isTrialPlan,
   ENDING_SOON_WINDOW_MS,
   ENDED_GRACE_MS,
   type TrialLifecycleStage,
@@ -51,6 +53,46 @@ describe('classifyTrialLifecycle', () => {
   it('不正な日付文字列は none（クラッシュしない）', () => {
     const sub = { trial_ends_at: 'not-a-date', stripe_customer_id: null, plan: 'trial' }
     expect(classifyTrialLifecycle(sub, { now: NOW })).toBe('none')
+  })
+
+  // ── 誤送信バグの回帰テスト ──
+  // comp/premium 等に古い trial_ends_at が残っていても、通知対象にしない。
+  it('【回帰】plan=comp で期限が窓内でも none（アクセスを失わない人に誤送信しない）', () => {
+    const sub = { trial_ends_at: iso(NOW + 20 * H), stripe_customer_id: null, plan: 'comp' }
+    expect(classifyTrialLifecycle(sub, { now: NOW })).toBe('none')
+  })
+
+  it('【回帰】plan=premium（カードなし行の残骸）でも none', () => {
+    const sub = { trial_ends_at: iso(NOW - 2 * H), stripe_customer_id: null, plan: 'premium' }
+    expect(classifyTrialLifecycle(sub, { now: NOW })).toBe('none')
+  })
+
+  it('【回帰】plan=null は対象外（none）', () => {
+    const sub = { trial_ends_at: iso(NOW + 20 * H), stripe_customer_id: null, plan: null }
+    expect(classifyTrialLifecycle(sub, { now: NOW })).toBe('none')
+  })
+
+  it('trial/auto_trial のみ isTrialPlan=true', () => {
+    expect(isTrialPlan('trial')).toBe(true)
+    expect(isTrialPlan('auto_trial')).toBe(true)
+    expect(isTrialPlan('comp')).toBe(false)
+    expect(isTrialPlan('premium')).toBe(false)
+    expect(isTrialPlan(null)).toBe(false)
+  })
+})
+
+describe('isAdminEmail（管理者除外）', () => {
+  const csv = 'owner@example.com, monitor@example.com'
+  it('管理者メールは true（大文字小文字/前後空白を吸収）', () => {
+    expect(isAdminEmail('OWNER@example.com', csv)).toBe(true)
+    expect(isAdminEmail('monitor@example.com', csv)).toBe(true)
+  })
+  it('一般ユーザーは false', () => {
+    expect(isAdminEmail('user@example.com', csv)).toBe(false)
+  })
+  it('email なし / CSV未設定は false', () => {
+    expect(isAdminEmail(null, csv)).toBe(false)
+    expect(isAdminEmail('owner@example.com', undefined)).toBe(false)
   })
 
   it('窓の境界: ちょうど ENDING_SOON_WINDOW_MS 先は ending_soon（含む）', () => {

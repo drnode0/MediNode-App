@@ -19,6 +19,24 @@ export type TrialSubShape = {
   plan?: string | null
 }
 
+// 「カードなしトライアル」の plan 値。これ以外（comp/premium/null）は、たとえ古い
+// trial_ends_at が残っていても対象外にする（comp/管理者などアクセスを失わない人への誤送信を防ぐ）。
+export const TRIAL_PLANS = ['trial', 'auto_trial'] as const
+export function isTrialPlan(plan: string | null | undefined): boolean {
+  return plan === 'trial' || plan === 'auto_trial'
+}
+
+// 管理者（COMP_ADMIN_EMAILS）はメール override でプレミアムなので、トライアル行が
+// 期限切れになってもアクセスを失わない → お知らせ対象から除外する。
+export function isAdminEmail(email: string | null | undefined, adminEmailsCsv: string | undefined): boolean {
+  if (!email) return false
+  const list = (adminEmailsCsv || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  return list.includes(email.toLowerCase())
+}
+
 export function classifyTrialLifecycle(
   sub: TrialSubShape,
   opts: { now: number; endingSoonWindowMs?: number; endedGraceMs?: number },
@@ -29,6 +47,9 @@ export function classifyTrialLifecycle(
 
   // カードトライアル（Stripe管理）は触らない。
   if (sub.stripe_customer_id) return 'none'
+  // カードなしトライアル（trial/auto_trial）だけが対象。comp/premium などに残った
+  // 古い trial_ends_at では通知しない（誤送信の根本原因だった）。
+  if (!isTrialPlan(sub.plan)) return 'none'
   if (!sub.trial_ends_at) return 'none'
 
   const end = Date.parse(sub.trial_ends_at)
