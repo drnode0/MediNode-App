@@ -900,14 +900,14 @@ ${label}`,
   }, [rows])
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8 max-lg:overflow-x-clip">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" aria-hidden />
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-1">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
+            <Users className="w-5 h-5 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
             運用ダッシュボード
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setMaskEmails((v) => !v)}
