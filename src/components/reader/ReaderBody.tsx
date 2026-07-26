@@ -296,14 +296,20 @@ function Block({
     case 'divider':
       return <hr className="my-4 border-gray-200 dark:border-gray-700" />
     case 'table':
+      // セルは文字色を明示する。未指定だとダークモードで地の既定色（黒寄り）を継承し、
+      // 暗い背景に沈んで読めなくなる（段落・見出しは dark:text-gray-100 を明示済み）。
+      // 枠線も gray-700 では背景 gray-800 とほぼ同色で構造が追えないため一段強める。
       return (
         <div className="overflow-x-auto my-3">
-          <table className="text-sm border-collapse">
+          <table className="text-sm border-collapse text-gray-800 dark:text-gray-100">
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={r}>
+                <tr key={r} className="dark:even:bg-white/[0.03]">
                   {row.map((cell, c) => (
-                    <td key={c} className="border border-gray-200 dark:border-gray-700 px-2 py-1">
+                    <td
+                      key={c}
+                      className="border border-gray-300 dark:border-gray-600 px-2.5 py-1.5 align-top leading-relaxed"
+                    >
                       <Inlines items={cell} k={`t-${index}-${r}-${c}`} />
                     </td>
                   ))}

@@ -15,7 +15,7 @@
 //    再インストール→新ビルドの全チャンク先読みが走る）。
 //    上げ忘れても推移的先読みでシェルは自己完結に保たれる
 //    （旧キャッシュが残って肥大するだけで、動作は壊れない）。
-const CACHE_VERSION = 'medinode-v20'
+const CACHE_VERSION = 'medinode-v21'
 const NAV_NETWORK_TIMEOUT = 4000 // 初回起動でネットワークを待つ上限（ms）
 const APP_SHELL = [
   '/',
