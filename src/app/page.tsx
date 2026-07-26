@@ -38,7 +38,13 @@ import { SearchSuggest } from '@/components/SearchSuggest'
 import { recordRecentView } from '@/lib/recent-views'
 import { recentGroupIndex } from '@/lib/recent-grouping'
 import { DailyQuestionCard } from '@/components/DailyQuestionCard'
-import { GenreBrowse, genreChipTone, GenreHitsList, GenreDotLegend } from '@/components/GenreBrowse'
+import { GenreBrowse, genreChipTone, GenreHitsList, GenreOwnerFilterTabs, orderedTeams, genreAccentTone, DEPT_DOT_BG, type TeamMeta } from '@/components/GenreBrowse'
+import {
+  mergeGenreKeys,
+  pickRepresentativeVariant,
+  genreFacetFilter,
+  canonicalGenreKey,
+} from '@/lib/genre'
 
 import { SyncPanel } from '@/components/SyncPanel'
 
@@ -1803,15 +1809,19 @@ function NotionQuizTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubs
 }
 
 // Notionモード：ジャンル別タブ（パワーモードのGenreBrowseと同等。個人/部署はNotion由来、プレミアムは作者Algolia）
-type GenreFacet = { personal: Record<string, number>; team: Record<string, number>; subscription: Record<string, number> }
+// 部署は teamId ごとに集計（部署色ドット・件数用）。personal/subscription は従来どおり。
+type GenreFacet = { personal: Record<string, number>; teamByTeam: Record<string, Record<string, number>>; subscription: Record<string, number> }
 
 function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const settings = getSettings()
-  const [facets, setFacets] = useState<GenreFacet>({ personal: {}, team: {}, subscription: {} })
+  const teams = orderedTeams(hasTeam)
+  const [facets, setFacets] = useState<GenreFacet>({ personal: {}, teamByTeam: {}, subscription: {} })
   const [genresLoading, setGenresLoading] = useState(true)
   const [genresError, setGenresError] = useState('')
   const [showAll, setShowAll] = useState(false)
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
+  const [filterText, setFilterText] = useState('')
+  // 選択は正規化キー＋束ねたvariant集合で保持（統合チップの全variantを引くため）。
+  const [selected, setSelected] = useState<{ key: string; variants: string[] } | null>(null)
   const [genreRecords, setGenreRecords] = useState<Hit[]>([])
   const [subGenreHits, setSubGenreHits] = useState<Hit[]>([])
   const [genreLoading, setGenreLoading] = useState(false)
@@ -1848,21 +1858,26 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       .then((data) => {
         const records: Hit[] = Array.isArray(data.records) ? data.records : []
         const personal: Record<string, number> = {}
-        const team: Record<string, number> = {}
+        const teamByTeam: Record<string, Record<string, number>> = {}
         for (const rec of records) {
           let list: string[]
           if (rec.genreList && rec.genreList.length) list = rec.genreList
           else if (Array.isArray(rec.genre)) list = rec.genre
           else if (rec.genre) list = [rec.genre]
           else list = ['INBOX']
-          const bucket = rec.owner === 'team' ? team : personal
-          for (const g of list) bucket[g] = (bucket[g] || 0) + 1
+          if (rec.owner === 'team') {
+            const tid = rec.teamId || ''
+            const bucket = (teamByTeam[tid] ||= {})
+            for (const g of list) bucket[g] = (bucket[g] || 0) + 1
+          } else {
+            for (const g of list) personal[g] = (personal[g] || 0) + 1
+          }
         }
-        return { personal, team }
+        return { personal, teamByTeam }
       })
       .catch(() => {
         setGenresError('取得に失敗しました')
-        return { personal: {} as Record<string, number>, team: {} as Record<string, number> }
+        return { personal: {} as Record<string, number>, teamByTeam: {} as Record<string, Record<string, number>> }
       })
 
     // プレミアム（作者Algolia）：ファセット取得
@@ -1876,7 +1891,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
     Promise.all([notionTask, subTask]).then(([notionRes, subscription]) => {
       if (cancelled) return
-      setFacets({ personal: notionRes.personal, team: notionRes.team, subscription })
+      setFacets({ personal: notionRes.personal, teamByTeam: notionRes.teamByTeam, subscription })
       setGenresLoading(false)
     })
 
@@ -1884,19 +1899,44 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ownerFilterに応じたジャンル一覧（hybridSortで並べ替え）
-  const sortedGenres = useMemo(() => {
-    let set: Set<string>
-    if (ownerFilter === 'subscription') set = new Set(Object.keys(facets.subscription))
-    else if (isTeamOwner(ownerFilter)) set = new Set(Object.keys(facets.team))
-    else if (ownerFilter === 'personal') set = new Set(Object.keys(facets.personal))
-    else set = new Set([
-      ...Object.keys(facets.personal),
-      ...Object.keys(facets.team),
-      ...Object.keys(facets.subscription),
-    ])
-    return Array.from(set).sort(hybridSort)
-  }, [facets, ownerFilter])
+  // 全部署を合算した件数（union・「全て」件数用）
+  const teamAgg = useMemo(() => {
+    const agg: Record<string, number> = {}
+    for (const tid of Object.keys(facets.teamByTeam)) {
+      for (const [g, c] of Object.entries(facets.teamByTeam[tid])) agg[g] = (agg[g] || 0) + c
+    }
+    return agg
+  }, [facets.teamByTeam])
+
+  // ownerFilterに応じた生キー → 同名統合（代表variantで色/並び）
+  const mergedGenres = useMemo(() => {
+    let keys: string[]
+    if (ownerFilter === 'subscription') keys = Object.keys(facets.subscription)
+    else if (isTeamOwner(ownerFilter)) {
+      const id = teamIdOf(ownerFilter)
+      keys = Object.keys(id ? facets.teamByTeam[id] || {} : teamAgg)
+    } else if (ownerFilter === 'personal') keys = Object.keys(facets.personal)
+    else keys = [...Object.keys(facets.personal), ...Object.keys(teamAgg), ...Object.keys(facets.subscription)]
+    return mergeGenreKeys(keys)
+      .map((m) => ({ ...m, rep: pickRepresentativeVariant(m.variants) }))
+      .sort((a, b) => hybridSort(a.rep, b.rep))
+  }, [facets, teamAgg, ownerFilter])
+
+  // 現在ownerでの件数（束ねた全variant合算）
+  const countFor = (variants: string[]): number => {
+    const sum = (facet: Record<string, number>) => variants.reduce((n, v) => n + (facet[v] || 0), 0)
+    if (ownerFilter === 'subscription') return sum(facets.subscription)
+    if (isTeamOwner(ownerFilter)) {
+      const id = teamIdOf(ownerFilter)
+      return sum(id ? facets.teamByTeam[id] || {} : teamAgg)
+    }
+    if (ownerFilter === 'personal') return sum(facets.personal)
+    return sum(facets.personal) + sum(teamAgg) + sum(facets.subscription)
+  }
+  const teamsWithGenre = (variants: string[]): TeamMeta[] =>
+    teams.filter((t) => variants.some((v) => (facets.teamByTeam[t.id]?.[v] || 0) > 0))
+  const hasSubFor = (variants: string[]): boolean =>
+    variants.some((v) => (facets.subscription[v] || 0) > 0)
 
   // 選択ジャンルの表示用ヒット（個人/部署=Notion、プレミアム=Algolia）をownerFilterでマージ
   const displayRecords = useMemo(() => {
@@ -1914,54 +1954,58 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     return merged
   }, [ownerFilter, genreRecords, subGenreHits])
 
-  const handleGenreSelect = async (genre: string | null) => {
-    if (!genre || selectedGenre === genre) {
-      setSelectedGenre(null)
+  const handleGenreSelect = async (sel: { key: string; variants: string[] } | null) => {
+    if (!sel || selected?.key === sel.key) {
+      setSelected(null)
       setGenreRecords([])
       setSubGenreHits([])
       return
     }
-    setSelectedGenre(genre)
+    setSelected(sel)
     if (!settings) return
     setGenreLoading(true)
     setGenreError('')
     setGenreRecords([])
     setSubGenreHits([])
 
-    // 個人/部署（Notion由来）
-    const notionTask = ownerFilter === 'subscription'
+    // Notion側: 統合variantのうち個人/部署に実在するものを各fetchしてマージ（統合チップの全variantを引く）
+    const notionVariants = ownerFilter === 'subscription'
+      ? []
+      : sel.variants.filter((v) => (facets.personal[v] || 0) > 0 || Object.values(facets.teamByTeam).some((b) => (b[v] || 0) > 0))
+    const notionTask: Promise<Hit[]> = notionVariants.length === 0
       ? Promise.resolve([] as Hit[])
-      : window.fetch('/api/notion/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            notionToken: settings.notionToken,
-            notionMedicalDbId: settings.notionMedicalDbId,
-            // 参考文献もジャンルタブに表示するため Reference DB も渡す。
-            notionReferenceDbId: settings.notionReferenceDbId || undefined,
-            teamNotionToken: settings.teamNotionToken || undefined,
-            teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
-            teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
-            teamLabel: settings.teamLabel || undefined,
-            additionalTeams: settings.additionalTeams && settings.additionalTeams.length ? settings.additionalTeams : undefined,
-            mode: 'browse',
-            genre,
-            pageSize: 100,
-          }),
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            const records: Hit[] = Array.isArray(data.records) ? data.records : []
-            records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
-            return records
-          })
-          .catch(() => { setGenreError('取得に失敗しました'); return [] as Hit[] })
+      : Promise.all(notionVariants.map((v) =>
+          window.fetch('/api/notion/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              notionToken: settings.notionToken,
+              notionMedicalDbId: settings.notionMedicalDbId,
+              notionReferenceDbId: settings.notionReferenceDbId || undefined,
+              teamNotionToken: settings.teamNotionToken || undefined,
+              teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+              teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+              teamLabel: settings.teamLabel || undefined,
+              additionalTeams: settings.additionalTeams && settings.additionalTeams.length ? settings.additionalTeams : undefined,
+              mode: 'browse',
+              genre: v,
+              pageSize: 100,
+            }),
+          }).then((r) => r.json()).then((data) => (Array.isArray(data.records) ? (data.records as Hit[]) : []))
+        )).then((lists) => {
+          const seen = new Set<string>()
+          const out: Hit[] = []
+          for (const lst of lists) for (const h of lst) { if (!seen.has(h.objectID)) { out.push(h); seen.add(h.objectID) } }
+          out.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+          return out
+        }).catch(() => { setGenreError('取得に失敗しました'); return [] as Hit[] })
 
-    // プレミアム（作者Algolia）
-    const subTask: Promise<Hit[]> = subEnabled && ownerFilter !== 'personal' && !isTeamOwner(ownerFilter)
+    // プレミアム側: sub facetに実在するvariantをOR一発取得
+    const subVariants = sel.variants.filter((v) => (facets.subscription[v] || 0) > 0)
+    const subTask: Promise<Hit[]> = subEnabled && ownerFilter !== 'personal' && !isTeamOwner(ownerFilter) && subVariants.length > 0
       ? createSubscriptionSearchClient()
           .initIndex(getSubscriptionIndexName())
-          .search('', { filters: `genre:"${genre}"`, hitsPerPage: 50 })
+          .search('', { filters: genreFacetFilter(subVariants), hitsPerPage: 50 })
           .then((res) => {
             const hits = (res as unknown as { hits: Hit[] }).hits || []
             return hits.map((h) => ({ ...h, owner: 'subscription' as const }))
@@ -1978,15 +2022,23 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     }
   }
 
-  const visibleGenres = showAll ? sortedGenres : sortedGenres.slice(0, GENRE_SHOW_LIMIT)
-  // ドット凡例（GenreBrowseと同条件）：「全て」表示中かつ画面内にドットがある時だけ。
-  const showTeamLegend = ownerFilter === 'all' && visibleGenres.some((g) => (facets.team[g] || 0) > 0)
-  const showSubLegend = ownerFilter === 'all' && visibleGenres.some((g) => (facets.subscription[g] || 0) > 0)
+  // フィルタ＋折りたたみ（絞り込み中は全件展開）
+  const isFiltering = filterText.trim().length > 0
+  const q = filterText.trim().toLowerCase()
+  const filtered = isFiltering ? mergedGenres.filter((m) => m.key.toLowerCase().includes(q)) : mergedGenres
+  const visible = showAll || isFiltering ? filtered : filtered.slice(0, GENRE_SHOW_LIMIT)
+  const hiddenCount = filtered.length - visible.length
+  const showFilterInput = mergedGenres.length > GENRE_SHOW_LIMIT
+  // 凡例：「全て」表示中、画面内に実際にドットがある部署/プレミアムだけ列挙。
+  const legendTeams = ownerFilter === 'all'
+    ? teams.filter((t) => visible.some((m) => m.variants.some((v) => (facets.teamByTeam[t.id]?.[v] || 0) > 0)))
+    : []
+  const showSubLegend = ownerFilter === 'all' && visible.some((m) => hasSubFor(m.variants))
 
   return (
     <div>
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 pt-1 -mx-4 px-4 mb-2">
-        <OwnerFilterTabs owner={ownerFilter} onChange={(v) => { setOwnerFilter(v); setSelectedGenre(null); setGenreRecords([]); setSubGenreHits([]) }} hasTeam={hasTeam} hasSubscription={hasSubscription} />
+        <GenreOwnerFilterTabs owner={ownerFilter} onChange={(v) => { setOwnerFilter(v); setSelected(null); setGenreRecords([]); setSubGenreHits([]) }} teams={teams} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
       {ownerFilter === 'subscription' && !hasSubscription ? (
         <SubscriptionPromoPanel />
@@ -1994,7 +2046,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <div className="text-center py-8 text-gray-400"><Spinner className="w-4 h-4 mr-1.5" />ジャンルを読み込み中...</div>
       ) : genresError ? (
         <SearchErrorNotice error={genresError} />
-      ) : sortedGenres.length === 0 ? (
+      ) : mergedGenres.length === 0 ? (
         <div className="text-center py-14 px-4 space-y-4">
           <div className="flex justify-center text-gray-300 dark:text-gray-600"><FolderOpen className="h-12 w-12" /></div>
           <div>
@@ -2012,71 +2064,89 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         </div>
       ) : (
         <>
+          {showFilterInput && (
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                placeholder="ジャンルを絞り込む"
+                className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:border-brand-400"
+              />
+              {isFiltering && (
+                <button onClick={() => setFilterText('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" aria-label="絞り込みをクリア">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+          {visible.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-6">「{filterText.trim()}」に一致するジャンルはありません</p>
+          ) : (
           <div className="grid grid-cols-2 gap-2 mb-2">
-            {visibleGenres.map((genre) => {
-              const personalCount = facets.personal[genre] || 0
-              const teamCount = facets.team[genre] || 0
-              const subCount = facets.subscription[genre] || 0
-              const total = ownerFilter === 'subscription'
-                ? subCount
-                : isTeamOwner(ownerFilter)
-                  ? teamCount
-                  : ownerFilter === 'personal'
-                    ? personalCount
-                    : personalCount + teamCount + subCount
-              const hasSub = subCount > 0 && ownerFilter !== 'personal' && !isTeamOwner(ownerFilter)
-              // 部署（チーム）にもこのジャンルがある場合の緑ドット。
-              // 個人のみ／プレミアムのみ表示中は出さない（プレミアムの紫ドットと同じ思想）。
-              const hasTeamDot = teamCount > 0 && ownerFilter !== 'personal' && ownerFilter !== 'subscription'
-              const isActive = selectedGenre === genre
-              const tone = genreChipTone(genre)
+            {visible.map((m) => {
+              const total = countFor(m.variants)
+              const isActive = selected?.key === m.key
+              const accent = genreAccentTone(m.rep)
+              const dotTeams = ownerFilter === 'all' ? teamsWithGenre(m.variants) : []
+              const showSub = ownerFilter === 'all' && hasSubFor(m.variants)
               return (
                 <button
-                  key={genre}
-                  onClick={() => handleGenreSelect(genre)}
-                  className={`text-left px-3 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
-                    isActive ? tone.active : tone.idle
+                  key={m.key}
+                  onClick={() => handleGenreSelect(isActive ? null : { key: m.key, variants: m.variants })}
+                  className={`relative overflow-hidden text-left pl-4 pr-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium transition-all flex items-center justify-between gap-2 hover:shadow-sm ${
+                    isActive ? accent.selBg : 'bg-white dark:bg-gray-800/60'
                   }`}
                 >
+                  <span className={`absolute left-0 top-0 bottom-0 w-1 ${accent.bar}`} aria-hidden />
                   <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="truncate">{displayGenreName(genre)}</span>
-                    {hasTeamDot && (
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-green-200' : 'bg-green-500'}`}
-                        title="部署にもあります"
-                        aria-label="部署にもあります"
-                      />
-                    )}
-                    {hasSub && (
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-purple-200' : 'bg-purple-500'}`}
-                        title="プレミアムにもあります"
-                        aria-label="プレミアムにもあります"
-                      />
+                    <span className="truncate text-gray-800 dark:text-gray-200">{m.key}</span>
+                    {dotTeams.map((t) => (
+                      <span key={t.id || t.label} className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${DEPT_DOT_BG[t.colorToken]}`} title={`${t.label}にもあります`} aria-label={`${t.label}にもあります`} />
+                    ))}
+                    {showSub && (
+                      <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0 bg-purple-500" title="プレミアムにもあります" aria-label="プレミアムにもあります" />
                     )}
                   </span>
-                  <span className={`text-xs shrink-0 ${isActive ? 'text-white/70' : 'opacity-50'}`}>{total}</span>
+                  <span className="text-xs shrink-0 text-gray-500 dark:text-gray-400 opacity-70">{total}</span>
                 </button>
               )
             })}
           </div>
-          <GenreDotLegend showTeam={showTeamLegend} showSub={showSubLegend} />
-          {sortedGenres.length > GENRE_SHOW_LIMIT && (
+          )}
+          {(legendTeams.length > 0 || showSubLegend) && (
+            <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500 -mt-1 mb-3">
+              {legendTeams.map((t) => (
+                <span key={t.id || t.label} className="inline-flex items-center gap-1.5">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${DEPT_DOT_BG[t.colorToken]}`} />
+                  {t.label}にもあります
+                </span>
+              ))}
+              {showSubLegend && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  プレミアムにもあります
+                </span>
+              )}
+            </p>
+          )}
+          {!isFiltering && filtered.length > GENRE_SHOW_LIMIT && (
             <button
               onClick={() => setShowAll((v) => !v)}
               className="w-full text-xs text-gray-400 hover:text-brand-500 dark:text-gray-500 dark:hover:text-brand-400 py-2 transition-colors inline-flex items-center justify-center gap-1"
             >
               {showAll
                 ? <><ChevronUp className="w-3.5 h-3.5" />折りたたむ</>
-                : <><ChevronDown className="w-3.5 h-3.5" />すべて表示（残り {sortedGenres.length - GENRE_SHOW_LIMIT} 件）</>}
+                : <><ChevronDown className="w-3.5 h-3.5" />すべて表示（残り {hiddenCount} 件）</>}
             </button>
           )}
         </>
       )}
-      {!(ownerFilter === 'subscription' && !hasSubscription) && selectedGenre && (
+      {!(ownerFilter === 'subscription' && !hasSubscription) && selected && (
         <>
           <div className="flex items-center justify-between mb-3 mt-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{displayGenreName(selectedGenre)}</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selected.key}</p>
             <button
               onClick={() => handleGenreSelect(null)}
               className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
@@ -2095,7 +2165,7 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
           )}
         </>
       )}
-      {!(ownerFilter === 'subscription' && !hasSubscription) && !selectedGenre && !genresLoading && sortedGenres.length > 0 && (
+      {!(ownerFilter === 'subscription' && !hasSubscription) && !selected && !genresLoading && mergedGenres.length > 0 && (
         <div className="text-center py-6 text-gray-400 dark:text-gray-500">
           <p className="text-sm">ジャンルを選択してください</p>
         </div>

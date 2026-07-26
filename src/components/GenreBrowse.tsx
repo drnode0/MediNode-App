@@ -155,13 +155,13 @@ const ACCENT_SEL_BG = [
   'bg-violet-50 dark:bg-violet-900/25',
   'bg-rose-50 dark:bg-rose-900/25',
 ]
-function genreAccentTone(genre: string): { bar: string; selBg: string } {
+export function genreAccentTone(genre: string): { bar: string; selBg: string } {
   const i = genreHueIndex(genre, ACCENT_BARS.length)
   return { bar: ACCENT_BARS[i], selBg: ACCENT_SEL_BG[i] }
 }
 
 // 部署カラー（token→Tailwindクラス）。全キーをリテラルで持つことでTailwindが検出できる。
-const DEPT_DOT_BG: Record<DepartmentColorToken, string> = {
+export const DEPT_DOT_BG: Record<DepartmentColorToken, string> = {
   green: 'bg-green-500',
   amber: 'bg-amber-500',
   sky: 'bg-sky-500',
@@ -180,8 +180,8 @@ const DEPT_CHIP: Record<DepartmentColorToken, { active: string; idle: string }> 
 
 // 部署メタ（順序リスト）。追加順の index で色を割り当て、1個目=緑。
 // フィルタチップ・ドット・凡例が同じソースを使うことで色がずれないようにする。
-type TeamMeta = { id: string; label: string; colorToken: DepartmentColorToken; ownerFilterId: OwnerFilter }
-function orderedTeams(hasTeam: boolean): TeamMeta[] {
+export type TeamMeta = { id: string; label: string; colorToken: DepartmentColorToken; ownerFilterId: OwnerFilter }
+export function orderedTeams(hasTeam: boolean): TeamMeta[] {
   if (!hasTeam) return []
   const settings = getSettings()
   const teamLabel = (settings?.teamLabel || '').trim() || '部署'
@@ -207,7 +207,7 @@ function displayGenreName(g: string): string {
 // 「ジャンルの時だけ薄く色をつける」要望に応え、プレミアム=紫・各部署=部署色で着色する。
 // 全て/個人は中立ダーク（部署の緑と衝突させないため）。
 type GenreChipOpt = { id: OwnerFilter; label: string; inactive?: boolean; token?: DepartmentColorToken; premium?: boolean }
-function GenreOwnerFilterTabs({ owner, onChange, teams, hasTeam, hasSubscription }: {
+export function GenreOwnerFilterTabs({ owner, onChange, teams, hasTeam, hasSubscription }: {
   owner: OwnerFilter
   onChange: (v: OwnerFilter) => void
   teams: TeamMeta[]
