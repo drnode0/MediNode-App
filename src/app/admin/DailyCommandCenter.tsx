@@ -280,6 +280,63 @@ function SubscriptionSyncButton() {
   )
 }
 
+// 管理者専用：メール配信（Resend）の疎通テスト。自分宛に1通だけ送って届くか確認する。
+// 体験終了メールと同じ経路なので、これが届けば終了メールも届く。
+function EmailTestButton() {
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  const run = useCallback(async () => {
+    setSending(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/email-test', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        setResult({ ok: true, message: `送信しました（${data.to}）。数分内に届くか確認してください（迷惑メールも）。` })
+      } else if (data.reason === 'not_configured') {
+        const miss = [!data.configured?.apiKey && 'RESEND_API_KEY', !data.configured?.from && 'RESEND_FROM']
+          .filter(Boolean)
+          .join('・')
+        setResult({ ok: false, message: `RESEND未設定（${miss} が空）。アプリからメールは一切飛んでいません。Vercelの環境変数を設定してください。` })
+      } else {
+        const detail = data.detail ? `：${data.detail}` : ''
+        setResult({ ok: false, message: `送信失敗（${data.resendStatus ?? data.reason}）${detail}` })
+      }
+    } catch (e) {
+      setResult({ ok: false, message: e instanceof Error ? e.message : '送信に失敗しました' })
+    } finally {
+      setSending(false)
+    }
+  }, [])
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+        <Mail className="w-3.5 h-3.5" aria-hidden />
+        メール配信テスト
+      </h3>
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={sending}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+      >
+        {sending ? <Spinner className="w-3.5 h-3.5" /> : <Mail className="w-3.5 h-3.5" aria-hidden />}
+        {sending ? '送信中…' : '自分宛にテスト送信'}
+      </button>
+      {result && (
+        <p className={`mt-2 text-xs ${result.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          {result.message}
+        </p>
+      )}
+      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+        自分（管理者）宛に1通だけ送ります。届けば体験終了メールも届きます。
+      </p>
+    </div>
+  )
+}
+
 // お知らせ一斉送信フォーム。運用の集約に伴い「通知・配信」タブ（操作卓）から描画する。
 export function BroadcastForm() {
   const [title, setTitle] = useState('')
@@ -1076,6 +1133,8 @@ export function DailyCommandCenter() {
 
         {/* D. サブスク同期（オーナー操作・スマホから1タップ） */}
         <SubscriptionSyncButton />
+        {/* D'. メール配信テスト（Resend疎通確認・自分宛に1通） */}
+        <EmailTestButton />
         {/* お知らせ一斉送信は「通知・配信」タブの操作卓へ集約（重複表示を避けるためここでは出さない）。 */}
       </div>
     </section>
