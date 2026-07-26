@@ -58,11 +58,40 @@ export function isSubscriptionTrialExpired(): boolean {
   return Date.now() > end
 }
 
-export function hasSubscriptionConfig(): boolean {
+// 無料会員プレビュー：オーナーが「自分の画面だけ」を無料会員表示に切り替えるフラグ（localStorage）。
+// 自分の見え方を下げるだけなので他ユーザーには一切影響しない。
+const FREE_PREVIEW_KEY = 'medinode_free_preview_v1'
+export function isFreePreview(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(FREE_PREVIEW_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+export function setFreePreview(on: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (on) window.localStorage.setItem(FREE_PREVIEW_KEY, '1')
+    else window.localStorage.removeItem(FREE_PREVIEW_KEY)
+  } catch {
+    // 保存できなくても致命的ではない。
+  }
+}
+
+// プレビューを無視した「本当にプレミアム設定を持っているか」。プレビュー・トグルの表示判定に使う
+// （プレビュー中でもトグルを出し続けるため hasSubscriptionConfig とは分ける）。
+export function hasSubscriptionConfigRaw(): boolean {
   const { appId, searchKey } = getSubscriptionConfig()
   // キーが揃っていても、トライアル期限を過ぎていたらプレミアム無効とみなす。
   if (isSubscriptionTrialExpired()) return false
   return !!(appId && searchKey)
+}
+
+// アプリ全体のプレミアム表示判定。無料プレビュー中は false（自分だけ無料会員の画面になる）。
+export function hasSubscriptionConfig(): boolean {
+  if (isFreePreview()) return false
+  return hasSubscriptionConfigRaw()
 }
 
 let _cachedSubClient: { appId: string; searchKey: string; client: ReturnType<typeof algoliasearch> } | null = null

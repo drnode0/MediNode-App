@@ -13,7 +13,7 @@ import {
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText,
   ExternalLink, ChevronRight, Globe, NotebookPen, CircleUserRound, Sprout, Bell,
 } from 'lucide-react'
-import { hasSubscriptionConfig } from '@/lib/algolia'
+import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
@@ -726,6 +726,35 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                       <p className="text-xs text-purple-500 dark:text-purple-400">プレミアムコンテンツにアクセス中</p>
                     </div>
                   </div>
+                )
+              })()}
+
+              {/* 無料会員プレビュー（プレミアム設定を持つ人にだけ表示）。自分の画面だけ無料表示に切り替える。 */}
+              {hasSubscriptionConfigRaw() && (() => {
+                const preview = isFreePreview()
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFreePreview(!preview)
+                      window.location.reload()
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left mb-2 transition-colors ${
+                      preview
+                        ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40'
+                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 text-lg">🔍</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">
+                        {preview ? '無料プレビューを解除（プレミアム表示に戻す）' : '無料会員の画面をプレビュー'}
+                      </span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        {preview ? '今あなたは無料会員の画面を見ています' : '自分の画面だけ無料会員として表示（他の会員には影響しません）'}
+                      </span>
+                    </span>
+                  </button>
                 )
               })()}
 

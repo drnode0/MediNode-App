@@ -11,6 +11,7 @@ import { AuthNotice } from '@/components/auth/AuthNotice'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
 import { PwaRuntime } from '@/components/PwaRuntime'
+import { FreePreviewBanner } from '@/components/FreePreviewBanner'
 
 // ブランド書体: Noto Sans JP（ビルド時に自己ホスト＝CSP安全・オフラインでも表示）。
 // 日本語はunicode-range分割で必要なグリフだけ読み込まれる。
@@ -119,6 +120,7 @@ export default function RootLayout({
         />
         <PwaRuntime />
         <MaintenanceGate />
+        <FreePreviewBanner />
         <AuthProvider>
           <PremiumSync />
           <SettingsSync />

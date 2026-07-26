@@ -97,6 +97,7 @@ type LedgerRow = {
   premiumUsedAt: string | null
   isMonitor: boolean
   isOwner: boolean
+  ownerNote: string | null
   earlyAccess?: boolean
   hasStripe: boolean
   subCreatedAt: string | null
@@ -521,6 +522,30 @@ ${label}`,
         await load()
       } catch (err) {
         window.alert(err instanceof Error ? err.message : 'オーナー指定の変更に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
+  // オーナー口座の用途メモ編集（例: メイン日常／無料テスト）。プロンプトで入力し user_metadata に保存。
+  const editOwnerNote = useCallback(
+    async (row: LedgerRow) => {
+      const next = window.prompt('用途メモ（例: メイン日常／無料テスト／プレミアムテスト）。空で削除。', row.ownerNote ?? '')
+      if (next === null) return // キャンセル
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId, ownerNote: next }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || 'メモの保存に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'メモの保存に失敗しました')
       } finally {
         setBusy(null)
       }
@@ -1527,6 +1552,21 @@ ${label}`,
                                   <UserPlus className="w-3.5 h-3.5" aria-hidden />
                                 )}
                                 {r.isOwner ? 'オーナー' : 'オーナー指定'}
+                              </button>
+                            )}
+                            {r.isOwner && (
+                              <button
+                                type="button"
+                                onClick={() => void editOwnerNote(r)}
+                                disabled={busy === r.userId}
+                                title="このオーナー口座の用途メモを編集"
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
+                                  r.ownerNote
+                                    ? 'border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+                                    : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                }`}
+                              >
+                                📝 {r.ownerNote ? r.ownerNote : 'メモ'}
                               </button>
                             )}
                             {r.kind !== 'admin' && (
