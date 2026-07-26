@@ -671,41 +671,50 @@ ${label}`,
     [sortKey],
   )
 
+  // 集計対象の「実ユーザー」= オーナー(admin)とモニター指定を除いた行。
+  // 解約率・売上・稼働・アクティブ等の“数値”はこれで計算する（自分のデモ/内部アカウントを混ぜない）。
+  // 台帳テーブル自体は全アカウントを表示する（除外対象も見えて操作できる）。
+  const realRows = useMemo(
+    () => (rows ?? []).filter((r) => r.kind !== 'admin' && !r.isMonitor),
+    [rows],
+  )
+  const excludedCount = (rows?.length ?? 0) - realRows.length
+
   const counts = useMemo(() => {
     const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
-    for (const r of rows ?? []) c[r.kind]++
+    for (const r of realRows) c[r.kind]++
     return c
-  }, [rows])
+  }, [realRows])
 
   // マーケ・経営指標（すべて既存データの派生。ロジックは ledger-metrics に集約）。
   const funnel = useMemo(
     () =>
       computeFunnel({
         lpVisits: lpDaily.reduce((sum, p) => sum + p.count, 0),
-        registered: (rows ?? []).length,
-        trialStarted: countTrialStarted(rows ?? []),
+        registered: realRows.length,
+        trialStarted: countTrialStarted(realRows),
         paying: counts.premium,
       }),
-    [rows, lpDaily, counts.premium]
+    [realRows, lpDaily, counts.premium]
   )
   const retention = useMemo(
-    () => computeRetention((rows ?? []).map((r) => ({ kind: r.kind, hasStripe: r.hasStripe }))),
-    [rows]
+    () => computeRetention(realRows.map((r) => ({ kind: r.kind, hasStripe: r.hasStripe }))),
+    [realRows]
   )
   const sourceQuality = useMemo(
     () =>
       computeSourceQuality(
-        (rows ?? []).map((r) => ({ source: effectiveSource(r) ?? '未計測', kind: r.kind }))
+        realRows.map((r) => ({ source: effectiveSource(r) ?? '未計測', kind: r.kind }))
       ),
-    [rows]
+    [realRows]
   )
   const revenue = useMemo(
     () =>
       computeRevenue(
-        (rows ?? []).map((r) => ({ kind: r.kind, subCreatedAt: r.subCreatedAt })),
+        realRows.map((r) => ({ kind: r.kind, subCreatedAt: r.subCreatedAt })),
         PREMIUM_MONTHLY_JPY
       ),
-    [rows]
+    [realRows]
   )
 
   // 安全管理: ローカルの契約不整合とヒューリスティックな異常兆候。
@@ -741,17 +750,16 @@ ${label}`,
 
   // 直近7日の新規登録数（登録の勢いをチップで一目に）。
   const newLast7d = useMemo(() => {
-    if (!rows) return 0
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-    return rows.filter((r) => r.createdAt && new Date(r.createdAt).getTime() >= cutoff).length
-  }, [rows])
+    return realRows.filter((r) => r.createdAt && new Date(r.createdAt).getTime() >= cutoff).length
+  }, [realRows])
 
   // 利用状況。「最後に見た形跡」= 最終利用・最終ログイン・設定同期のうち一番新しい日時。
   // （最終利用の記録は機能追加後の利用からしか残らないため、単独では実態より少なく出る）
   const activity = useMemo(() => {
     const breakdown: ActiveBreakdown = { within7: 0, within30: 0, older: 0, never: 0 }
     const now = Date.now()
-    for (const r of rows ?? []) {
+    for (const r of realRows) {
       const seen = Math.max(
         ...[r.lastUsedAt, r.lastSignInAt, r.settingsUpdatedAt]
           .filter((v): v is string => !!v)
@@ -764,12 +772,12 @@ ${label}`,
       else breakdown.older++
     }
     return { breakdown, wau: breakdown.within7, mau: breakdown.within7 + breakdown.within30 }
-  }, [rows])
+  }, [realRows])
 
   // 直近見ていたアカウント: 「最後に見た形跡」(最終利用/ログイン/設定同期の最新)が新しい順に上位15。
   // スマホでも横スクロールせずに「誰がいつ見ていたか」を確認できる軽い一覧。
   const recentlyActive = useMemo(() => {
-    return (rows ?? [])
+    return realRows
       .map((r) => {
         const times = [r.lastUsedAt, r.lastSignInAt, r.settingsUpdatedAt]
           .filter((v): v is string => !!v)
@@ -780,7 +788,7 @@ ${label}`,
       .filter((x) => x.seen > 0)
       .sort((a, b) => b.seen - a.seen)
       .slice(0, 15)
-  }, [rows])
+  }, [realRows])
 
   // 登録者数の累積推移（全期間）。
   const cumulative = useMemo(() => buildCumulativeSeries((rows ?? []).map((r) => r.createdAt)), [rows])
@@ -1023,7 +1031,7 @@ ${label}`,
             {/* 👥 アカウントタブ: KPIカード列（規模と勢い）＋台帳 */}
             {tab === 'accounts' && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-              <KpiCard icon={Users} label="登録者数" value={rows.length} sub={newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'} help="auth.usersの全アカウント数。管理者・本人・モニターも含む総登録数です。" />
+              <KpiCard icon={Users} label="登録者数（実ユーザー）" value={realRows.length} sub={`${newLast7d > 0 ? `直近7日 +${newLast7d}人` : '直近7日 +0人'}${excludedCount > 0 ? `・内部${excludedCount}除外` : ''}`} help={`集計対象の実ユーザー数（オーナー・モニター指定を除外）。全登録は ${rows.length}人、うち内部 ${excludedCount}人（オーナー/モニター）を解約率・売上・稼働などの集計から除いています。`} />
               <KpiCard icon={Activity} label="週間アクティブ" value={activity.wau} sub="7日以内に利用形跡" highlight help="直近7日にアプリ利用（app_usage）の記録がある人数（WAU）。" />
               <KpiCard icon={Activity} label="月間アクティブ" value={activity.mau} sub="30日以内（参考）" help="直近30日に利用記録がある人数（MAU・参考値）。" />
               <KpiCard
@@ -1088,6 +1096,11 @@ ${label}`,
             {tab === 'analytics' && (
               <>
             {/* マーケ・経営サマリー: ファネル / 売上 / 継続 */}
+            {excludedCount > 0 && (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
+                解約率・売上・継続・アクティブなどの集計は、<b>オーナー・モニター指定の {excludedCount}アカウントを除外</b>した実ユーザーで計算しています（デモ/内部アカウントを混ぜない）。除外したいアカウントは台帳の「モニター指定」で切り替えます。
+              </p>
+            )}
             <div className="grid gap-3 mb-4 lg:grid-cols-2">
               <FunnelCard stages={funnel} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">

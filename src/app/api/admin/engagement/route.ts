@@ -72,6 +72,31 @@ export async function GET() {
     generatedAt: nowDate.toISOString(),
   }
 
+  // --- 0. 内部アカウント（オーナー=COMP_ADMIN_EMAILS ＋ モニター指定 is_monitor）の user_id 集合 ---
+  // 実ユーザーの数値を出すため、DAU/MAU/継続/週次/会員稼働/回答/購読の集計から除外する。
+  // 取れなければ除外なしで続行（best-effort）。users は会員稼働率でも再利用する。
+  const internalUserIds = new Set<string>()
+  const users: Array<{ id: string; email: string | null; user_metadata?: Record<string, unknown> }> = []
+  try {
+    for (let page = 1; page <= 10; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
+      if (error) throw new Error(error.message)
+      users.push(...(data.users as typeof users))
+      if (!data.users || data.users.length < 1000) break
+    }
+    const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+    for (const u of users) {
+      const isAdmin = !!u.email && adminEmails.includes(u.email.toLowerCase())
+      const isMonitor = u.user_metadata?.is_monitor === true
+      if (isAdmin || isMonitor) internalUserIds.add(u.id)
+    }
+  } catch {
+    // ユーザー一覧が取れなければ除外なしで続行。
+  }
+
   // --- 1. 日次アクティブ（app_usage_daily 直近30日）: DAU/MAU/継続/週次 ---
   let dauToday = 0
   try {
@@ -81,10 +106,12 @@ export async function GET() {
       .gte('used_on', last30Cutoff)
       .limit(20000)
     if (error) throw new Error(error.message)
-    const rows = (data ?? []).map((r) => ({
-      user_id: String(r.user_id),
-      used_on: String(r.used_on),
-    }))
+    const rows = (data ?? [])
+      .map((r) => ({
+        user_id: String(r.user_id),
+        used_on: String(r.used_on),
+      }))
+      .filter((r) => !internalUserIds.has(r.user_id))
     dauToday = countUsageOn(rows, todayKey)
     const mau = new Set(rows.map((r) => r.user_id)).size
     res.usage = {
@@ -99,15 +126,8 @@ export async function GET() {
     // テーブル未適用など。usage系は null のまま。
   }
 
-  // --- 2. 会員稼働率（users × subscriptions × app_usage.last_used_at） ---
+  // --- 2. 会員稼働率（users × subscriptions × app_usage.last_used_at・内部を除外） ---
   try {
-    const users: Array<{ id: string; email: string | null; user_metadata?: Record<string, unknown> }> = []
-    for (let page = 1; page <= 10; page++) {
-      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
-      if (error) throw new Error(error.message)
-      users.push(...(data.users as typeof users))
-      if (!data.users || data.users.length < 1000) break
-    }
     const { data: subs, error: subErr } = await admin
       .from('subscriptions')
       .select('user_id, plan, status, trial_ends_at, stripe_customer_id')
@@ -129,20 +149,19 @@ export async function GET() {
     for (const u of usage ?? []) {
       lastUsedByUser.set(String(u.user_id), (u.last_used_at as string | null) ?? null)
     }
-    const adminEmails = (process.env.COMP_ADMIN_EMAILS || '')
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
-    const memberRows = users.map((u) => {
-      const summary = subByUser.get(u.id)
-      const meta = u.user_metadata ?? {}
-      if (summary) summary.auto_trial_granted_at = (meta.auto_trial_granted_at as string | undefined) ?? null
-      const isAdmin = !!u.email && adminEmails.includes(u.email.toLowerCase())
-      return {
-        kind: deriveMemberKind(isAdmin, summary, nowDate),
-        lastUsedAt: lastUsedByUser.get(u.id) ?? null,
-      }
-    })
+    // 内部（オーナー/モニター）を除いた実ユーザーだけで会員稼働率を出す。
+    const memberRows = users
+      .filter((u) => !internalUserIds.has(u.id))
+      .map((u) => {
+        const summary = subByUser.get(u.id)
+        const meta = u.user_metadata ?? {}
+        if (summary) summary.auto_trial_granted_at = (meta.auto_trial_granted_at as string | undefined) ?? null
+        // 内部は既に除外済みなので isAdmin=false でよい。
+        return {
+          kind: deriveMemberKind(false, summary, nowDate),
+          lastUsedAt: lastUsedByUser.get(u.id) ?? null,
+        }
+      })
     res.members = memberActiveRate(memberRows, now, 7)
   } catch {
     // 会員稼働率は null のまま。
@@ -155,7 +174,7 @@ export async function GET() {
       .select('user_id, answered_on')
       .gte('answered_on', last7Keys[6])
     if (error) throw new Error(error.message)
-    const rows = data ?? []
+    const rows = (data ?? []).filter((r) => !internalUserIds.has(String(r.user_id)))
     const answeredTodayUsers = new Set(
       rows.filter((r) => String(r.answered_on) === todayKey).map((r) => String(r.user_id)),
     )
@@ -208,7 +227,7 @@ export async function GET() {
   try {
     const { data, error } = await admin.from('push_subscriptions').select('user_id, revoked_at')
     if (error) throw new Error(error.message)
-    const rows = data ?? []
+    const rows = (data ?? []).filter((r) => !internalUserIds.has(String(r.user_id)))
     const everSubscribed = new Set(rows.map((r) => String(r.user_id)))
     const activeSubscribers = new Set(
       rows.filter((r) => !r.revoked_at).map((r) => String(r.user_id)),
