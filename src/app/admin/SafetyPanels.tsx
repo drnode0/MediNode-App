@@ -151,6 +151,8 @@ const ACTION_LABEL: Record<string, string> = {
   delete_user: 'アカウント削除',
   set_monitor: 'モニター指定',
   unset_monitor: 'モニター解除',
+  set_owner: 'オーナー指定',
+  unset_owner: 'オーナー解除',
   export_csv: 'CSV出力',
 }
 

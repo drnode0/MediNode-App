@@ -96,6 +96,7 @@ type LedgerRow = {
   viaReferral: boolean
   premiumUsedAt: string | null
   isMonitor: boolean
+  isOwner: boolean
   earlyAccess?: boolean
   hasStripe: boolean
   subCreatedAt: string | null
@@ -156,7 +157,10 @@ function effectiveSource(r: {
   createdAt: string | null
   kind: MemberKind
   isMonitor?: boolean
+  isOwner?: boolean
 }): string | null {
+  // オーナー指定（自分の個人アカウント）＞モニター指定＞記録＞公開前推定。
+  if (r.isOwner) return 'self'
   // 手動のモニター指定が最優先（公開後モニター等、計測では拾えない内輪ユーザーを分離する）。
   if (r.isMonitor) return r.kind === 'admin' ? 'self' : 'monitor'
   if (r.source) return normalizeSource(r.source)
@@ -502,6 +506,28 @@ ${label}`,
     [load],
   )
 
+  // オーナー指定の ON/OFF（自分の個人アカウント）。集計から除外・流入元は「本人」。モニターとは排他。
+  const toggleOwner = useCallback(
+    async (row: LedgerRow) => {
+      setBusy(row.userId)
+      try {
+        const res = await fetch('/api/admin/ledger', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: row.userId, isOwner: !row.isOwner }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || 'オーナー指定の変更に失敗しました')
+        await load()
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : 'オーナー指定の変更に失敗しました')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load],
+  )
+
   // 先行体験（マルチ部署串刺し検索）の開放 ON/OFF。user_settings.early_access を更新する。
   const toggleEarlyAccess = useCallback(
     async (row: LedgerRow) => {
@@ -675,7 +701,7 @@ ${label}`,
   // 解約率・売上・稼働・アクティブ等の“数値”はこれで計算する（自分のデモ/内部アカウントを混ぜない）。
   // 台帳テーブル自体は全アカウントを表示する（除外対象も見えて操作できる）。
   const realRows = useMemo(
-    () => (rows ?? []).filter((r) => r.kind !== 'admin' && !r.isMonitor),
+    () => (rows ?? []).filter((r) => r.kind !== 'admin' && !r.isMonitor && !r.isOwner),
     [rows],
   )
   const excludedCount = (rows?.length ?? 0) - realRows.length
@@ -1098,7 +1124,7 @@ ${label}`,
             {/* マーケ・経営サマリー: ファネル / 売上 / 継続 */}
             {excludedCount > 0 && (
               <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
-                解約率・売上・継続・アクティブなどの集計は、<b>オーナー・モニター指定の {excludedCount}アカウントを除外</b>した実ユーザーで計算しています（デモ/内部アカウントを混ぜない）。除外したいアカウントは台帳の「モニター指定」で切り替えます。
+                解約率・売上・継続・アクティブなどの集計は、<b>オーナー・モニター指定の {excludedCount}アカウントを除外</b>した実ユーザーで計算しています（デモ/内部アカウントを混ぜない）。自分の個人アカウントは台帳の「<b>オーナー指定</b>」、外部テスターは「モニター指定」で切り替えます。
               </p>
             )}
             <div className="grid gap-3 mb-4 lg:grid-cols-2">
@@ -1481,6 +1507,26 @@ ${label}`,
                                   <UserPlus className="w-3.5 h-3.5" aria-hidden />
                                 )}
                                 {r.isMonitor ? 'モニター' : 'モニター指定'}
+                              </button>
+                            )}
+                            {r.kind !== 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => void toggleOwner(r)}
+                                disabled={busy === r.userId}
+                                title={r.isOwner ? 'オーナー指定を解除' : '自分の個人アカウントとして指定（集計から除外・流入元は「本人」）'}
+                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
+                                  r.isOwner
+                                    ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                }`}
+                              >
+                                {r.isOwner ? (
+                                  <Check className="w-3.5 h-3.5" aria-hidden />
+                                ) : (
+                                  <UserPlus className="w-3.5 h-3.5" aria-hidden />
+                                )}
+                                {r.isOwner ? 'オーナー' : 'オーナー指定'}
                               </button>
                             )}
                             {r.kind !== 'admin' && (

@@ -6,6 +6,8 @@ export type AdminAction =
   | 'delete_user'
   | 'set_monitor'
   | 'unset_monitor'
+  | 'set_owner'
+  | 'unset_owner'
   | 'export_csv'
   | 'grant_early_access'
   | 'revoke_early_access'

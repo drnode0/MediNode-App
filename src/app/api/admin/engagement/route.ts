@@ -91,7 +91,8 @@ export async function GET() {
     for (const u of users) {
       const isAdmin = !!u.email && adminEmails.includes(u.email.toLowerCase())
       const isMonitor = u.user_metadata?.is_monitor === true
-      if (isAdmin || isMonitor) internalUserIds.add(u.id)
+      const isOwner = u.user_metadata?.is_owner === true
+      if (isAdmin || isMonitor || isOwner) internalUserIds.add(u.id)
     }
   } catch {
     // ユーザー一覧が取れなければ除外なしで続行。

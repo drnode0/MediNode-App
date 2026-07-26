@@ -244,6 +244,8 @@ export async function GET() {
           premiumUsedAt: (u.user_metadata?.premium_last_used_at as string | undefined) ?? null,
           // 手動のモニター指定（オーナーが台帳から付ける）。流入元を「モニター」に上書きする。
           isMonitor: u.user_metadata?.is_monitor === true,
+          // オーナー指定（自分の個人アカウント）。集計から除外・流入元は「本人」。
+          isOwner: u.user_metadata?.is_owner === true,
           // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
           earlyAccess: earlyAccessByUser.get(u.id) ?? false,
           // 課金からの解約（churn）判定用。Stripe顧客に紐づくかだけを boolean で（IDは出さない）。
@@ -507,9 +509,10 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   try {
-    const { userId, isMonitor, earlyAccess } = (await req.json()) as {
+    const { userId, isMonitor, isOwner, earlyAccess } = (await req.json()) as {
       userId?: unknown
       isMonitor?: unknown
+      isOwner?: unknown
       earlyAccess?: unknown
     }
     if (!userId || typeof userId !== 'string') {
@@ -534,8 +537,33 @@ export async function PATCH(req: NextRequest) {
       })
       return NextResponse.json({ ok: true, userId, earlyAccess })
     }
+    // オーナー指定（自分の個人アカウント）の ON/OFF（user_metadata.is_owner）。
+    // オーナーとモニターは排他（オーナーにするとモニター指定は外す）。集計から除外＋流入元は「本人」。
+    if (typeof isOwner === 'boolean') {
+      const admin = createAdminClient()
+      const { data, error } = await admin.auth.admin.getUserById(userId)
+      if (error || !data?.user) {
+        return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+      }
+      const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          ...data.user.user_metadata,
+          is_owner: isOwner,
+          ...(isOwner ? { is_monitor: false } : {}),
+        },
+      })
+      if (updErr) throw new Error(updErr.message)
+      await logAdminAction(admin, {
+        actorEmail: auth.email,
+        action: isOwner ? 'set_owner' : 'unset_owner',
+        targetUserId: userId,
+        targetEmail: data.user.email ?? null,
+      })
+      return NextResponse.json({ ok: true, userId, isOwner })
+    }
+
     if (typeof isMonitor !== 'boolean') {
-      return NextResponse.json({ error: 'isMonitor（真偽値）を指定してください' }, { status: 400 })
+      return NextResponse.json({ error: 'isMonitor / isOwner（真偽値）を指定してください' }, { status: 400 })
     }
     const admin = createAdminClient()
     const { data, error } = await admin.auth.admin.getUserById(userId)
@@ -543,7 +571,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
     }
     const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
-      user_metadata: { ...data.user.user_metadata, is_monitor: isMonitor },
+      // モニターにするとオーナー指定は外す（排他）。
+      user_metadata: {
+        ...data.user.user_metadata,
+        is_monitor: isMonitor,
+        ...(isMonitor ? { is_owner: false } : {}),
+      },
     })
     if (updErr) throw new Error(updErr.message)
     await logAdminAction(admin, {
