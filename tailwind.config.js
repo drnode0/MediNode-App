@@ -5,7 +5,11 @@ module.exports = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
-  darkMode: 'media',
+  // 'media'（OS追従のみ）から 'class' へ。<html> の .dark 有無で切り替え、
+  // アプリ内のテーマ切替（システム/ライト/ダーク）を可能にする。
+  // 「システム」選択時は初期化スクリプト＋ThemeSync がOS設定に追従して .dark を付け外しするため、
+  // 既定（システム）の見た目は従来の 'media' と完全に一致する。
+  darkMode: 'class',
   theme: {
     extend: {
       // ブランド色「常盤（ときわ）」— 深い緑。アイコンの若葉を主役に据える。

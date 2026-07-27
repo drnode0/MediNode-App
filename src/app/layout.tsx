@@ -8,6 +8,7 @@ import { SettingsSync } from '@/components/auth/SettingsSync'
 import { UsagePing } from '@/components/auth/UsagePing'
 import { SourceCapture } from '@/components/auth/SourceCapture'
 import { AuthNotice } from '@/components/auth/AuthNotice'
+import { ThemeSync } from '@/components/ThemeSync'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
 import { PwaRuntime } from '@/components/PwaRuntime'
@@ -57,8 +58,17 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <head>
+        {/* テーマ初期化（ちらつき防止）: 何よりも先に <html> の .dark を確定させる。
+            保存値 'system'（既定）はOS設定に従い、従来の 'media' と同じ見た目になる。
+            React ハイドレーション前に同期実行する必要があるためインライン script。 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var p=localStorage.getItem('medinode-theme')||'system';var d=p==='dark'||(p!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();",
+          }}
+        />
         {/* 起動スプラッシュのアイコンを先読み。512px版(199KB)ではなく192px版(29KB)を使う —
             表示は96pxなので192で十分。コールドスタートでJSと帯域を奪い合わないため。 */}
         <link rel="preload" as="image" href="/icon-192.png" />
@@ -91,10 +101,8 @@ export default function RootLayout({
           #medinode-splash img{width:96px;height:96px;border-radius:22px;box-shadow:0 12px 32px rgba(16,60,45,.14)}
           #medinode-splash .medinode-spin{width:26px;height:26px;border-radius:50%;border:3px solid #c4e6d8;border-top-color:#196b4f;animation:medinode-rot .8s linear infinite}
           @keyframes medinode-rot{to{transform:rotate(360deg)}}
-          @media (prefers-color-scheme:dark){
-            #medinode-splash{background:#10151c}
-            #medinode-splash .medinode-spin{border-color:#1f3a30;border-top-color:#7bd0b0}
-          }
+          html.dark #medinode-splash{background:#10151c}
+          html.dark #medinode-splash .medinode-spin{border-color:#1f3a30;border-top-color:#7bd0b0}
           html.app-ready #medinode-splash{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,visibility .3s ease}
           @media (prefers-reduced-motion:reduce){
             #medinode-splash .medinode-spin{animation:none}
@@ -102,7 +110,7 @@ export default function RootLayout({
           }
         ` }} />
       </head>
-      <body className={`${notoSansJP.className} bg-gray-50 min-h-screen`}>
+      <body className={`${notoSansJP.className} bg-gray-50 dark:bg-gray-900 min-h-screen`}>
         {/* aria-hidden: 支援技術には読み上げさせない（純粋な視覚的ローディング） */}
         <div id="medinode-splash" aria-hidden="true">
           <img src="/icon-192.png" alt="" width={96} height={96} />
@@ -118,6 +126,7 @@ export default function RootLayout({
               "(function(){var c=function(){document.documentElement.classList.add('app-ready')};window.addEventListener('load',c);setTimeout(c,5000)})();",
           }}
         />
+        <ThemeSync />
         <PwaRuntime />
         <MaintenanceGate />
         <FreePreviewBanner />

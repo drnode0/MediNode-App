@@ -12,7 +12,9 @@ import {
   X, FlaskConical, Zap, RefreshCw, AlertTriangle, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText,
   ExternalLink, ChevronRight, Globe, NotebookPen, CircleUserRound, Sprout, Bell,
+  Sun, Moon, Monitor,
 } from 'lucide-react'
+import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
 import type { TeamConfig } from '@/lib/teams'
@@ -531,6 +533,12 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     hideQuizTab: !!s0?.hideQuizTab,
     hideCqButton: !!s0?.hideCqButton,
   })
+  // テーマ（外観）。端末ごとの設定（localStorage）でサーバー同期しない。
+  // SSR時は 'system' 固定にし、マウント後に実値へ同期する（ハイドレーション不一致を避ける）。
+  const [themePref, setThemePrefState] = useState<ThemePref>('system')
+  useEffect(() => {
+    setThemePrefState(getThemePref())
+  }, [])
 
   // iOSのキーボード対策: この設定パネルは fixed bottom-0 のボトムシートなので、
   // キーボードが立つと下端（保存ボタン）がキーボードの裏に隠れて押せなくなる。
@@ -807,6 +815,38 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
 
               {/* ── 表示 ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">表示</p>
+              {/* テーマ（外観）: システム追従／ライト／ダークの3択。この端末だけの設定（同期しない）。
+                  「システム」＝端末のライト/ダーク設定に合わせる（従来の挙動）。 */}
+              <div className="px-4 pt-1 pb-2">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">テーマ（外観）</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2.5">この端末の見え方。「システム」は端末の設定に合わせます。</p>
+                <div role="radiogroup" aria-label="テーマ" className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-gray-100 dark:bg-gray-800">
+                  {([
+                    { value: 'system' as const, label: 'システム', Icon: Monitor },
+                    { value: 'light' as const, label: 'ライト', Icon: Sun },
+                    { value: 'dark' as const, label: 'ダーク', Icon: Moon },
+                  ]).map(({ value, label, Icon }) => {
+                    const selected = themePref === value
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => { setThemePref(value); setThemePrefState(value) }}
+                        className={`flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                          selected
+                            ? 'bg-white dark:bg-gray-700 text-brand-700 dark:text-brand-300 shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <button onClick={() => setSection('display')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-violet-50 dark:bg-violet-900/40 text-violet-600 dark:text-violet-300"><SlidersHorizontal className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
