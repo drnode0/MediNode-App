@@ -12,6 +12,8 @@
 export const QUESTION_MIN = 5
 export const QUESTION_MAX = 1000
 export const PEN_NAME_MAX = 30
+// 背景・状況。疑問文より長く書けるようにする（場面・経過・試したことが入る）。
+export const BACKGROUND_MAX = 2000
 export const SOURCE_TITLE_MAX = 200
 export const SOURCE_URL_MAX = 500
 
@@ -33,9 +35,22 @@ export const CQ_OCCUPATIONS = [
   'その他',
 ] as const
 
+// 経験年数。回答の深さ・前提の置き方を変えるために使う（受付DBの選択肢と一致させる）。
+export const CQ_EXPERIENCE_YEARS = [
+  '学生・資格取得前',
+  '1年目',
+  '2〜3年目',
+  '4〜6年目',
+  '7〜10年目',
+  '11〜20年目',
+  '21年目以上',
+] as const
+
 export type CqSubmission = {
   question: string
+  background: string // '' = 未入力。あると回答の具体度が大きく変わる
   occupation: string // '' = 選択なし
+  experience: string // '' = 選択なし
   penName: string // '' = 匿名
   notify: boolean
   sourceTitle: string
@@ -44,7 +59,9 @@ export type CqSubmission = {
 
 export type CqSubmissionInput = {
   question?: unknown
+  background?: unknown
   occupation?: unknown
+  experience?: unknown
   penName?: unknown
   notify?: unknown
   sourceTitle?: unknown
@@ -66,9 +83,18 @@ export function validateCqSubmission(
     return { ok: false, error: `疑問文は${QUESTION_MAX}文字以内で入力してください` }
   }
 
+  // 背景は任意のまま（入力の負担を増やして投稿自体を止めない）。
+  // ただし入っていれば回答の具体度が大きく変わるので、UI側で書きやすく促す。
+  const background = str(input.background).slice(0, BACKGROUND_MAX)
+
   const occupation = str(input.occupation)
   if (occupation && !(CQ_OCCUPATIONS as readonly string[]).includes(occupation)) {
     return { ok: false, error: '職種はリストから選択してください' }
+  }
+
+  const experience = str(input.experience)
+  if (experience && !(CQ_EXPERIENCE_YEARS as readonly string[]).includes(experience)) {
+    return { ok: false, error: '経験年数はリストから選択してください' }
   }
 
   const penName = str(input.penName).slice(0, PEN_NAME_MAX)
@@ -81,7 +107,9 @@ export function validateCqSubmission(
     ok: true,
     value: {
       question,
+      background,
       occupation,
+      experience,
       penName,
       notify: input.notify === true,
       sourceTitle,
@@ -121,8 +149,16 @@ export function buildIntakeProperties(
 
   const rich = (content: string) => ({ rich_text: [{ text: { content } }] })
 
+  // 背景・状況。外部フォームでは必須だった欄で、回答可能性を左右する本命の文脈。
+  // 空のときは列ごと積まない（既存値を空文字で上書きしない）。
+  if (value.background && schema['背景・状況']?.type === 'rich_text') {
+    properties['背景・状況'] = rich(value.background)
+  }
   if (value.occupation && schema['投稿者職種']?.type === 'select') {
     properties['投稿者職種'] = { select: { name: value.occupation } }
+  }
+  if (value.experience && schema['経験年数']?.type === 'select') {
+    properties['経験年数'] = { select: { name: value.experience } }
   }
   if (value.penName && schema['ペンネーム']?.type === 'rich_text') {
     properties['ペンネーム'] = rich(value.penName)

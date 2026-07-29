@@ -6,6 +6,8 @@ import {
   QUESTION_MIN,
   QUESTION_MAX,
   PEN_NAME_MAX,
+  BACKGROUND_MAX,
+  CQ_EXPERIENCE_YEARS,
   type IntakePropSchema,
 } from '../cq-submit'
 
@@ -70,7 +72,9 @@ describe('validateCqSubmission', () => {
 describe('buildIntakeProperties', () => {
   const value = {
     question: 'SBTの合格基準は？',
+    background: '',
     occupation: '看護師',
+    experience: '',
     penName: 'みどり',
     notify: true,
     sourceTitle: '人工呼吸器の開始',
@@ -162,5 +166,74 @@ describe('defaultDestinations（届け先チップの初期値）', () => {
   it('設定の投稿ボタン（settings）: 専門医に訊く専用の入口', () => {
     expect(defaultDestinations({ personal: true, premium: true, intent: 'settings' })).toEqual({ mine: false, expert: true })
     expect(defaultDestinations({ personal: false, premium: true, intent: 'settings' })).toEqual({ mine: false, expert: true })
+  })
+})
+
+// ── 背景・経験年数（回答可能性のための文脈） ──────────────────
+// 疑問文だけでは「どんな場面で、何に迷っているのか」が分からず、
+// 専門医が答えられない／的外れな回答になる。外部フォームでは必須だった
+// 背景をアプリ内でも受け取る（ただし入力の快適さのため任意のまま）。
+describe('背景・経験年数', () => {
+  const valid = { question: '人工呼吸器のウィーニング、SBTの合格基準は？' }
+
+  it('背景を受け取って正規化する', () => {
+    const r = validateCqSubmission({ ...valid, background: '  80代・SBT2回失敗  ' })
+    expect(r.ok && r.value.background).toBe('80代・SBT2回失敗')
+  })
+
+  it('背景は未入力でも投稿できる（入力の快適さを壊さない）', () => {
+    const r = validateCqSubmission(valid)
+    expect(r.ok && r.value.background).toBe('')
+  })
+
+  it('背景は上限で切り詰める', () => {
+    const r = validateCqSubmission({ ...valid, background: 'あ'.repeat(BACKGROUND_MAX + 50) })
+    expect(r.ok && r.value.background.length).toBe(BACKGROUND_MAX)
+  })
+
+  it('経験年数はリスト外を拒否、リスト内と未選択は通す', () => {
+    expect(validateCqSubmission({ ...valid, experience: '100年目' }).ok).toBe(false)
+    expect(validateCqSubmission({ ...valid, experience: '2〜3年目' }).ok).toBe(true)
+    expect(validateCqSubmission({ ...valid, experience: '' }).ok).toBe(true)
+  })
+})
+
+describe('buildIntakeProperties（背景・経験年数）', () => {
+  const schema: IntakePropSchema = {
+    疑問: { type: 'title' },
+    '背景・状況': { type: 'rich_text' },
+    経験年数: { type: 'select' },
+  }
+  const base = {
+    question: 'SBTの合格基準は？',
+    occupation: '',
+    penName: '',
+    notify: false,
+    sourceTitle: '',
+    sourceUrl: '',
+    experience: '',
+  }
+
+  it('背景を受付DBの「背景・状況」に積む', () => {
+    const r = buildIntakeProperties(schema, { ...base, background: '80代・SBT2回失敗' }, null)
+    expect('properties' in r && r.properties['背景・状況']).toEqual({
+      rich_text: [{ text: { content: '80代・SBT2回失敗' } }],
+    })
+  })
+
+  it('背景が空なら列自体を積まない（空文字で上書きしない）', () => {
+    const r = buildIntakeProperties(schema, { ...base, background: '' }, null)
+    expect('properties' in r && '背景・状況' in r.properties).toBe(false)
+  })
+
+  it('経験年数を積む', () => {
+    const r = buildIntakeProperties(schema, { ...base, background: '', experience: '4〜6年目' }, null)
+    expect('properties' in r && r.properties['経験年数']).toEqual({ select: { name: '4〜6年目' } })
+  })
+
+  it('受付DBに列が無ければ黙って飛ばす（投稿は成立させる）', () => {
+    const bare: IntakePropSchema = { 疑問: { type: 'title' } }
+    const r = buildIntakeProperties(bare, { ...base, background: 'x', experience: '1年目' }, null)
+    expect('properties' in r && Object.keys(r.properties)).toEqual(['疑問'])
   })
 })

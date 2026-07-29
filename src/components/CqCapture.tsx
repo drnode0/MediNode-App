@@ -27,20 +27,25 @@ import { OpenSettingsContext } from './SearchErrors'
 import { useAuth } from './auth/AuthProvider'
 import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
-import { CQ_OCCUPATIONS, QUESTION_MIN, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
+import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
 export type CqSource = { title?: string; url?: string }
 
-// 職種・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
+// 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
+// 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
 const CQ_PROFILE_KEY = 'medinode_cq_profile_v1'
-type CqProfile = { occupation: string; penName: string }
+type CqProfile = { occupation: string; experience: string; penName: string }
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
-    return { occupation: String(raw.occupation || ''), penName: String(raw.penName || '') }
+    return {
+      occupation: String(raw.occupation || ''),
+      experience: String(raw.experience || ''),
+      penName: String(raw.penName || ''),
+    }
   } catch {
-    return { occupation: '', penName: '' }
+    return { occupation: '', experience: '', penName: '' }
   }
 }
 function saveCqProfile(p: CqProfile) {
@@ -272,7 +277,9 @@ function CqCaptureModal({
   const [dest, setDest] = useState(() =>
     defaultDestinations({ personal: personalAvail, premium: premiumAvail, intent }),
   )
-  const [profile, setProfile] = useState<CqProfile>({ occupation: '', penName: '' })
+  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '' })
+  // 背景・状況。専門医に訊くときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
+  const [background, setBackground] = useState('')
   const [notify, setNotify] = useState(true)
   const [expertReady, setExpertReady] = useState<ExpertReady>(premiumAvail ? 'checking' : 'unavailable')
   // 実績の社会的証明（「これまでに◯件がナレッジに」）。取れなければ黙って出さない。
@@ -396,7 +403,9 @@ function CqCaptureModal({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 question: trimmed,
+                background,
                 occupation: profile.occupation,
+                experience: profile.experience,
                 penName: profile.penName,
                 notify,
                 sourceTitle: source?.title || '',
@@ -576,6 +585,29 @@ function CqCaptureModal({
                     </>
                   ) : (
                     <>
+                      {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
+                          任意のままにして投稿の足を止めないが、既定で開いて置き、
+                          「何を書けばよいか」を例で示して書きやすくする。 */}
+                      <div className="space-y-1">
+                        <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          背景・状況<span className="font-normal text-gray-400 dark:text-gray-500">（任意）</span>
+                        </label>
+                        <textarea
+                          id="cq-background"
+                          value={background}
+                          onChange={(e) => setBackground(e.target.value)}
+                          maxLength={BACKGROUND_MAX}
+                          rows={3}
+                          placeholder="例：80代・肺炎後の人工呼吸管理。SBTを2回失敗。心不全の既往あり。次に何を評価すべきか迷っています。"
+                          className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                        />
+                        {/* 疑問だけ書いて背景が空のときに、一度だけ静かに促す（送信は妨げない）。 */}
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                          {title.trim().length >= QUESTION_MIN && !background.trim()
+                            ? 'どんな場面か・何を試したか・何に迷っているかが一言あると、回答がぐっと具体的になります。'
+                            : '患者背景・場面・これまでの対応など。具体的なほど回答の精度が上がります。'}
+                        </p>
+                      </div>
                       <div className="flex gap-2">
                         <select
                           value={profile.occupation}
@@ -590,15 +622,29 @@ function CqCaptureModal({
                             </option>
                           ))}
                         </select>
-                        <input
-                          type="text"
-                          value={profile.penName}
-                          onChange={(e) => setProfile((p) => ({ ...p, penName: e.target.value }))}
-                          maxLength={30}
-                          placeholder="ペンネーム（空欄なら匿名）"
+                        {/* 経験年数は回答の深さ・前提の置き方を変える。1タップで済むので負担にならない。 */}
+                        <select
+                          value={profile.experience}
+                          onChange={(e) => setProfile((p) => ({ ...p, experience: e.target.value }))}
                           className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
-                        />
+                          aria-label="経験年数（任意）"
+                        >
+                          <option value="">経験年数（任意）</option>
+                          {CQ_EXPERIENCE_YEARS.map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
                       </div>
+                      <input
+                        type="text"
+                        value={profile.penName}
+                        onChange={(e) => setProfile((p) => ({ ...p, penName: e.target.value }))}
+                        maxLength={30}
+                        placeholder="ペンネーム（空欄なら匿名）"
+                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      />
                       <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
                         <input
                           type="checkbox"
