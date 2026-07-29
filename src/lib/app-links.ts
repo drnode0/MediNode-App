@@ -18,3 +18,5 @@ export const NOTION_MAGAZINE_URL = 'https://note.com/gifted_arnica594/n/n6bee0bf
 export const NOTION_ACCOUNT_GUIDE_URL = 'https://note.com/gifted_arnica594/n/n65e8cf9d4d33'
 // プレミアム体験（トライアルコード配布）のnote記事。PremiumTrialRedeemでも使用。
 export const PREMIUM_NOTE_URL = 'https://note.com/gifted_arnica594/n/n4d3997dad16e'
+// 知の庭（眺める育成ゲーム）の大樹の間。プレミアムは /api/garden/link がkey付きURLを返す
+export const CHI_NO_NIWA_TAIJU_URL = 'https://chi-no-niwa.vercel.app/?taiju=1'

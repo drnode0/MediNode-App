@@ -30,6 +30,7 @@ import { useCqCaptureButton } from '@/components/CqCapture'
 import { ANNOUNCEMENTS } from '@/components/AppBanners'
 import { ResolvedCqHistory } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
+import GardenLink from './GardenLink'
 import PushSettings from '@/components/PushSettings'
 import dynamicImport from 'next/dynamic'
 import { FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
@@ -1436,6 +1437,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               </button>
               {/* ガイド同梱のFAQ検索。「Notionの長いガイドから探す」をアプリ内で完結させる */}
               <HelpFaq />
+              <GardenLink />
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><Star className="h-4 w-4 shrink-0" />プレミアムとは？</h3>
                 <div className="text-xs bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 text-gray-700 dark:text-gray-300 space-y-1.5 leading-relaxed">
