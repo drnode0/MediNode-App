@@ -1121,16 +1121,22 @@ function SubscriptionPromoPanel() {
 
 // 検索ゼロ件のとき、その疑問をそのままCQとして残す静かな導線。
 // 「検索したのに無かった」＝疑問が生まれた瞬間なので、ここが最短の入口になる。
+// プレミアム会員には「専門医に訊く」と案内する（検索に無ければ、人に訊ける）。
 function CqCaptureSuggestion({ query }: { query: string }) {
   const openCq = useCqCapture()
   if (!openCq || !query.trim()) return null
+  const premium = hasSubscriptionConfig()
   return (
     <button
       type="button"
-      onClick={() => openCq(query.trim())}
-      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+      onClick={() => openCq(query.trim(), undefined, 'zero')}
+      className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
+        premium
+          ? 'border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+          : 'border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50'
+      }`}
     >
-      この疑問をCQとして残す
+      {premium ? 'この疑問、専門医に訊いてみる' : 'この疑問をCQとして残す'}
     </button>
   )
 }
@@ -2873,11 +2879,15 @@ export default function Home() {
     />
   )
 
-  // はじめてガイド（機能ツアー）。CQステップは実際にボタンが出ている場合のみ。
+  // はじめてガイド（機能ツアー）。CQステップは実際にボタンが機能する場合のみ
+  // （個人Notion接続、またはプレミアム＝専門医に訊ける）。
   const tourModal = showTour && (
     <FeatureTour
       searchMode={searchMode === 'notion' ? 'notion' : 'algolia'}
-      showCqStep={!!(settings?.notionToken && settings?.notionMedicalDbId) && !settings?.hideCqButton}
+      showCqStep={
+        !!((settings?.notionToken && settings?.notionMedicalDbId) || hasSubscriptionConfig()) &&
+        !settings?.hideCqButton
+      }
       onClose={() => setShowTour(false)}
     />
   )

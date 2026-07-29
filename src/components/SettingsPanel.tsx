@@ -26,6 +26,7 @@ import { PremiumValueProps } from '@/components/PremiumValueProps'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { usePremiumPaymentMode, TestModeNotice } from '@/components/premium-shared'
 import { type SettingsPanelSection } from '@/components/SearchErrors'
+import { useCqCaptureButton } from '@/components/CqCapture'
 import { ANNOUNCEMENTS } from '@/components/AppBanners'
 import { ResolvedCqHistory } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
@@ -321,6 +322,10 @@ type SettingsPanelProps = {
 export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNotion, currentMode, initialSection = null }: SettingsPanelProps) {
   type Section = SettingsPanelSection
   const [section, setSection] = useState<Section>(initialSection)
+
+  // 臨床疑問のアプリ内投稿モーダル（CQキャプチャ）を開く。設定パネルの上に重なって開く。
+  // CQボタンを非表示にしている人には null → 従来の外部フォームリンクにフォールバック。
+  const openCqCapture = useCqCaptureButton()
 
   // シート表示中は背景スクロールをロック（LoginModalと同じ挙動に統一）。
   useBodyScrollLock()
@@ -871,22 +876,37 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   同じグループの先頭に置く（サポートの外部リンク群に埋もれて
                   見つからない、というモニター指摘への対応）。 */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-3 pb-1">臨床疑問</p>
-              {/* 会員はNotionフォームへ。未加入の方にはグレー表示で見せ、タップで
+              {/* 会員はアプリ内の投稿モーダルへ（CQボタン非表示中のみ従来の外部フォーム）。
+                  未加入の方にはグレー表示で見せ、タップで
                   プレミアム紹介（subscription）へ誘導する（存在に気づいてもらう）。 */}
               {hasSubscriptionConfig() ? (
-                <a
-                  href={CLINICAL_QUESTION_FORM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
-                >
-                  <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                </a>
+                openCqCapture ? (
+                  <button
+                    onClick={() => openCqCapture('', undefined, 'settings')}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+                  >
+                    <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                  </button>
+                ) : (
+                  <a
+                    href={CLINICAL_QUESTION_FORM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+                  >
+                    <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-purple-50 dark:bg-purple-900/40 text-purple-500 dark:text-purple-300"><HelpCircle className="w-5 h-5" /></span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">臨床疑問を投稿する <Star className="inline-block h-3.5 w-3.5 text-purple-500 align-text-top" /></p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">専門医が選定してプレミアムナレッジとして配信します（個別回答をお約束するものではなく、反映までお時間をいただくことがあります）</p>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                  </a>
+                )
               ) : (
                 <button onClick={() => setSection('subscription')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                   <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"><HelpCircle className="w-5 h-5" /></span>
