@@ -81,3 +81,8 @@ mark[data-reader-search].reader-search-active {
 .dark mark[data-reader-search].reader-search-active {
   outline-color: #fbbf24;
 }
+/* 既存の .dark mark { color: #f5f0dc } （詳細度0,0,1,1）が Tailwindの text-inherit
+   （0,0,1,0）に勝ってしまうため、検索markの文字色は明示的に継承へ戻す。 */
+.dark mark[data-reader-search] {
+  color: inherit;
+}

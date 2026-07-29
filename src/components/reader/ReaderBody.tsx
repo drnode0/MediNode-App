@@ -76,7 +76,25 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
 
   // 1つのinlineのテキストを（検索セグメントを挟みつつ）描画する。
   // mark の中でも確信度マーク分割（renderText）は生かす。
-  const renderInlineText = (n: ReaderInline, i: number) => {
+  // anchor内（リンクテキスト）は非検索時のDOM・意味論を完全に保つため、renderTextによる分割や
+  // span包みをかけない（生テキストのまま）。従来の <a>{n.text}</a> と完全一致させる。
+  const renderInlineText = (n: ReaderInline, i: number, isAnchor?: boolean) => {
+    if (isAnchor) {
+      if (!segs) return n.text
+      return segs[i].map((seg, j) =>
+        seg.mark ? (
+          <mark
+            key={`${k}-${i}-${j}`}
+            data-reader-search=""
+            className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px]"
+          >
+            {seg.text}
+          </mark>
+        ) : (
+          seg.text
+        ),
+      )
+    }
     const body = (text: string, key: string) => (plain ? text : renderText(text, key))
     if (!segs) return body(n.text, `${k}-${i}`)
     return segs[i].map((seg, j) =>
@@ -120,7 +138,7 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
               aria-label={`出典: ${n.text}`}
               className={`${cls} ${linkColor} underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
             >
-              {renderInlineText(n, i)}
+              {renderInlineText(n, i, true)}
             </a>
           )
         }
