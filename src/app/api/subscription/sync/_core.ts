@@ -252,6 +252,51 @@ export function isSyncSecretValid(secret: string | null): boolean {
 }
 
 /**
+ * サブスク用インデックスの設定。テスト（subscription-sync-settings.test.ts）が
+ * 「クエリ専用パラメータが混入していないこと」を守っている。
+ *
+ * 注意: facetingAfterDistinct は Algolia の「クエリ専用」パラメータで、ここに
+ * 含めると setSettings 全体が 400 Invalid object attributes で失敗する
+ * （2026-07-29 の本番障害の原因）。facetカウントのdistinct後集計は、ジャンル
+ * facetを数えるクエリ側（page.tsx / GenreBrowse.tsx）で付与する。
+ */
+export const SUBSCRIPTION_INDEX_SETTINGS = {
+  searchableAttributes: [
+    'title',
+    'aiSummary',
+    'aiKeywords',
+    'tags',
+    'genre',
+    'detailGenre',
+    'author',
+    'journal',
+    'sectionTitle',
+    'unordered(sectionText)',
+  ],
+  attributesForFaceting: [
+    'filterOnly(owner)',
+    'filterOnly(source)',
+    'filterOnly(knowledgeLevel)',
+    'filterOnly(recordingLevel)',
+    // 解決済み臨床疑問の通知・一覧（lib/resolved-cqs.ts）が origin:"現場の疑問" で絞り込む
+    'filterOnly(origin)',
+    // 節レコードを明示的に除外/限定したいクエリ用（現状の一覧系はdistinctで集約されるので未使用）
+    'filterOnly(recordType)',
+    'genre',
+  ],
+  // isParent を先頭に: テキスト一致が同点のとき（空クエリの一覧系など）必ず親レコードが
+  // グループ代表になる。本文だけがヒットした場合は節がテキスト優位で代表になる（意図通り）。
+  customRanking: ['desc(isParent)', 'desc(lastEdited)'],
+  attributeForDistinct: 'parentId',
+  distinct: true,
+  attributesToSnippet: ['sectionText:30'],
+  snippetEllipsisText: '…',
+  // 本文全文は応答に載せない（スニペットのみ）。unretrievableAttributes はスニペットまで
+  // 消えるため使わない。会員は本文APIで全文取得できるので新たな露出面にはならない。
+  attributesToRetrieve: ['*', '-sectionText'],
+}
+
+/**
  * サブスク用Notion DB → サブスク用Algoliaインデックスへ同期する本体。
  * 認証は呼び出し側で済ませてから呼ぶこと。
  */
@@ -296,52 +341,17 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
     syncedReference = await syncReferenceDb(notion, referenceDbId, records)
   }
 
+  // 設定はレコード投入より先に適用する（2026-07-29の本番障害の教訓）:
+  // 逆順だと、設定が無効（400）のとき「節レコードは保存済み・distinct未適用」の
+  // 半端な状態が本番に残り、検索一覧が重複だらけになる。先に設定を検証・適用して
+  // おけば、無効な設定はレコードを触る前に同期ごと失敗する。
+  await index.setSettings(SUBSCRIPTION_INDEX_SETTINGS)
+
   if (records.length > 0) {
     // 古い形式のレコードが残らないよう、同期前にインデックスをクリア
     await index.clearObjects()
     await index.saveObjects(records)
   }
-
-  await index.setSettings({
-    searchableAttributes: [
-      'title',
-      'aiSummary',
-      'aiKeywords',
-      'tags',
-      'genre',
-      'detailGenre',
-      'author',
-      'journal',
-      'sectionTitle',
-      'unordered(sectionText)',
-    ],
-    attributesForFaceting: [
-      'filterOnly(owner)',
-      'filterOnly(source)',
-      'filterOnly(knowledgeLevel)',
-      'filterOnly(recordingLevel)',
-      // 解決済み臨床疑問の通知・一覧（lib/resolved-cqs.ts）が origin:"現場の疑問" で絞り込む
-      'filterOnly(origin)',
-      // 節レコードを明示的に除外/限定したいクエリ用（現状の一覧系はdistinctで集約されるので未使用）
-      'filterOnly(recordType)',
-      'genre',
-    ],
-    // isParent を先頭に: テキスト一致が同点のとき（空クエリの一覧系など）必ず親レコードが
-    // グループ代表になる。本文だけがヒットした場合は節がテキスト優位で代表になる（意図通り）。
-    customRanking: ['desc(isParent)', 'desc(lastEdited)'],
-    attributeForDistinct: 'parentId',
-    distinct: true,
-    // facetカウントもdistinct後（ページ単位）で数える。これが無いとジャンル件数が
-    // 節レコード分だけ水増しされる（GenreBrowse等がカウントを表示している）。
-    facetingAfterDistinct: true,
-    attributesToSnippet: ['sectionText:30'],
-    snippetEllipsisText: '…',
-    // 本文全文は応答に載せない（スニペットのみ）。unretrievableAttributes はスニペットまで
-    // 消えるため使わない。会員は本文APIで全文取得できるので新たな露出面にはならない。
-    attributesToRetrieve: ['*', '-sectionText'],
-    // algoliasearch v4 の型定義に facetingAfterDistinct が Settings 型として
-    // 含まれていないための補完（Algolia API 自体には存在する正規のインデックス設定）。
-  } as Parameters<typeof index.setSettings>[0] & { facetingAfterDistinct?: boolean })
 
   return {
     success: true,

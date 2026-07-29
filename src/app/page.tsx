@@ -1887,7 +1887,10 @@ function NotionBrowseTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     const subTask: Promise<Record<string, number>> = subEnabled
       ? createSubscriptionSearchClient()
           .initIndex(getSubscriptionIndexName())
-          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+          // facetingAfterDistinct: 節レコード（本文検索用の子レコード）を数えず、
+          // ページ単位でジャンル件数を出す。クエリ専用パラメータなのでここで付与
+          // （setSettingsに入れると400になる）。
+          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100, facetingAfterDistinct: true })
           .then((res) => (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {})
           .catch(() => ({}))
       : Promise.resolve({})

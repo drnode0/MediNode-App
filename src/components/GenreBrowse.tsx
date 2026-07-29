@@ -321,7 +321,9 @@ function GenreList({ onGenreSelect, selectedGenre, owner, teamFacetsByTeam, team
       tasks.push(
         createSubscriptionSearchClient()
           .initIndex(getSubscriptionIndexName())
-          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100 })
+          // facetingAfterDistinct: 節レコードを数えずページ単位でジャンル件数を出す
+          // （クエリ専用パラメータ。setSettingsに入れると400になる）。
+          .search('', { facets: ['genre'], hitsPerPage: 0, maxValuesPerFacet: 100, facetingAfterDistinct: true })
           .then((res) => {
             const f = (res as unknown as { facets?: { genre?: Record<string, number> } }).facets?.genre || {}
             return { source: 'subscription' as const, facets: f }
