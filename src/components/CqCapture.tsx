@@ -507,6 +507,8 @@ function CqCaptureModal({
                 autoFocus
                 rows={3}
                 maxLength={1000}
+                // 例文は下の「背景・状況」の例と同じ症例で揃える（2つ並べて読むと
+                // 1件の投稿の見本になる）。片方だけ差し替えると乖離するので必ず対で直す。
                 placeholder="例：敗血症性ショックでバソプレシンはいつから併用する？"
                 className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
               />
@@ -587,7 +589,10 @@ function CqCaptureModal({
                     <>
                       {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
                           任意のままにして投稿の足を止めないが、既定で開いて置き、
-                          「何を書けばよいか」を例で示して書きやすくする。 */}
+                          「何を書けばよいか」を例で示して書きやすくする。
+                          例文は上の疑問文の例と同じ症例（敗血症性ショック）で揃える。
+                          患者背景・場面・試したこと（数値）・迷っている点の4つを1文ずつ含め、
+                          これを読めば書き方が分かるようにする。片方だけ直さない。 */}
                       <div className="space-y-1">
                         <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
                           背景・状況<span className="font-normal text-gray-400 dark:text-gray-500">（任意）</span>
@@ -598,7 +603,7 @@ function CqCaptureModal({
                           onChange={(e) => setBackground(e.target.value)}
                           maxLength={BACKGROUND_MAX}
                           rows={3}
-                          placeholder="例：80代・肺炎後の人工呼吸管理。SBTを2回失敗。心不全の既往あり。次に何を評価すべきか迷っています。"
+                          placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
                           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         />
                         {/* 疑問だけ書いて背景が空のときに、一度だけ静かに促す（送信は妨げない）。 */}
