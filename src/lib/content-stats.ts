@@ -9,7 +9,7 @@ const MAX_HEADINGS = 5
 // 日本語の平均読速の目安（600字/分）。医療文書はやや遅めに読む前提で控えめな値。
 const CHARS_PER_MINUTE = 600
 
-function blockText(block: NotionBlockLite): string {
+export function blockText(block: NotionBlockLite): string {
   const payload = block[block.type] as { rich_text?: Array<{ plain_text?: string }> } | undefined
   if (!payload || !Array.isArray(payload.rich_text)) return ''
   return payload.rich_text.map((t) => t.plain_text || '').join('')
