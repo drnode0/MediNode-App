@@ -13,6 +13,8 @@ import {
 import { CONFIDENCE_MARKS, isDimmed, type Confidence } from '@/lib/reader-confidence'
 import { KnowledgeTitle, sectionHeadingParts } from '@/lib/title-display'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
+import { ReaderSearchCtx } from './reader-search-context'
+import { findMatchRanges, inlineSegments } from '@/lib/reader-search'
 
 // CONFIDENCE_MARKS からマーク文字を導出する（表記ゆれ防止：分割用正規表現と判定マップを同一ソースから作る）。
 const MARK_OF: Record<string, Confidence> = Object.fromEntries(
@@ -66,6 +68,32 @@ const NoAutoMarkerCtx = createContext(false)
 
 function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?: boolean }) {
   const noAutoMarker = useContext(NoAutoMarkerCtx)
+  const searchQuery = useContext(ReaderSearchCtx)
+  // 検索中だけ、inlines連結テキスト上のヒットレンジを各inlineのセグメントに割り付ける。
+  const segs = searchQuery
+    ? inlineSegments(items, findMatchRanges(items.map((n) => n.text).join(''), searchQuery))
+    : null
+
+  // 1つのinlineのテキストを（検索セグメントを挟みつつ）描画する。
+  // mark の中でも確信度マーク分割（renderText）は生かす。
+  const renderInlineText = (n: ReaderInline, i: number) => {
+    const body = (text: string, key: string) => (plain ? text : renderText(text, key))
+    if (!segs) return body(n.text, `${k}-${i}`)
+    return segs[i].map((seg, j) =>
+      seg.mark ? (
+        <mark
+          key={`${k}-${i}-${j}`}
+          data-reader-search=""
+          className="bg-yellow-200 dark:bg-yellow-500/40 text-inherit rounded-[2px]"
+        >
+          {body(seg.text, `${k}-${i}-${j}`)}
+        </mark>
+      ) : (
+        <span key={`${k}-${i}-${j}`}>{body(seg.text, `${k}-${i}-${j}`)}</span>
+      ),
+    )
+  }
+
   return (
     <>
       {items.map((n, i) => {
@@ -92,13 +120,13 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
               aria-label={`出典: ${n.text}`}
               className={`${cls} ${linkColor} underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
             >
-              {n.text}
+              {renderInlineText(n, i)}
             </a>
           )
         }
         return (
           <span key={i} className={cls}>
-            {plain ? n.text : renderText(n.text, `${k}-${i}`)}
+            {renderInlineText(n, i)}
           </span>
         )
       })}

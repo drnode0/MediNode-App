@@ -72,3 +72,12 @@ mark {
     font-size: 16px !important;
   }
 }
+
+/* リーダー内検索: 現在位置のヒット強調（.dark 基準 — @media は使わない） */
+mark[data-reader-search].reader-search-active {
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+}
+.dark mark[data-reader-search].reader-search-active {
+  outline-color: #fbbf24;
+}
