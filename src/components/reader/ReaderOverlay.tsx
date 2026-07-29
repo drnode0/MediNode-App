@@ -61,7 +61,7 @@ export default function ReaderOverlay({
   useEffect(() => {
     setActive(new Set())
     readFiredRef.current = false
-    setSearchOpen(false); setSearchQuery(''); setSearchPos(0)
+    setSearchOpen(false); setSearchQuery(''); setSearchPos(0); setSearchTotal(0)
   }, [hit.objectID])
 
   useEffect(() => {
@@ -161,12 +161,15 @@ export default function ReaderOverlay({
     marks[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
-  // 外部（横断検索）から渡された初期クエリ・節番号を、本文が描画できた時点で一度だけ適用する。
-  const initialAppliedRef = useRef(false)
-  useEffect(() => { initialAppliedRef.current = false }, [hit.objectID])
+  // 外部（横断検索）から渡された初期クエリ・節番号を、本文が描画できた時点で適用する。
+  // 「一度だけ」の単位は initial オブジェクトの同一性 — マウント中の同一記事へ
+  // open(sameHit, newOpts) された場合（Task 8 の横断検索が踏み得る経路）も、
+  // SubscriptionReader 側が open() のたびに新しい参照を渡すため正しく再適用される。
+  const appliedInitialRef = useRef<ReaderOpenOptions | null>(null)
   useEffect(() => {
-    if (state !== 'idle' || !doc || !initial || initialAppliedRef.current) return
-    initialAppliedRef.current = true
+    if (state !== 'idle' || !doc || !initial) return
+    if (appliedInitialRef.current === initial) return
+    appliedInitialRef.current = initial
     if (initial.searchQuery) {
       setSearchOpen(true)
       setSearchQuery(initial.searchQuery)
