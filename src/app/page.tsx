@@ -93,6 +93,7 @@ import { ReaderMarksProvider } from '@/components/reader/ReaderMarksProvider'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 import { PREMIUM_VERIFY_FLAG } from '@/components/auth/PremiumSync'
+import { CurrentQueryCtx } from '@/components/CurrentQueryContext'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
@@ -165,8 +166,10 @@ function SubscriptionSearchProvider({ children, enableBridge }: { children: Reac
 
   return (
     <SubscriptionHitsContext.Provider value={value}>
-      {children}
-      {enableBridge && <SubscriptionIndexBridge />}
+      <CurrentQueryCtx.Provider value={query}>
+        {children}
+        {enableBridge && <SubscriptionIndexBridge />}
+      </CurrentQueryCtx.Provider>
     </SubscriptionHitsContext.Provider>
   )
 }

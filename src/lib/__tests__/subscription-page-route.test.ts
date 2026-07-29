@@ -62,6 +62,19 @@ describe('GET /api/subscription/page', () => {
     expect(res.headers.get('Cache-Control')).toContain('max-age=600')
   })
 
+  it('会員は 200 で doc を返し #secN サフィックスも剥がす（節objectIDが渡った場合の保険）', async () => {
+    premiumMock.mockResolvedValue({ premium: true })
+    retrieveMock.mockResolvedValue({
+      last_edited_time: '2026-07-20T00:00:00.000Z',
+      icon: { type: 'emoji', emoji: '💡' }, cover: null,
+      properties: { 名前: { type: 'title', title: [{ plain_text: 'T', annotations: {} }] } },
+    })
+    listMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null })
+    const res = await GET(req('subscription_PAGEID#sec3'))
+    expect(res.status).toBe(200)
+    expect(retrieveMock).toHaveBeenCalledWith({ page_id: 'PAGEID' })
+  })
+
   it('トークン未設定は 500', async () => {
     premiumMock.mockResolvedValue({ premium: true })
     delete process.env.SUBSCRIPTION_NOTION_TOKEN

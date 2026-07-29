@@ -1,6 +1,6 @@
 'use client'
 import { ChevronDown, ChevronUp, BookMarked, HelpCircle, Paperclip, ExternalLink, MessageCircleQuestion, Lightbulb, ClipboardList, NotebookText, Bookmark, Star, BookOpen, Sprout, type LucideIcon } from 'lucide-react'
-import { Highlight } from 'react-instantsearch'
+import { Highlight, Snippet } from 'react-instantsearch'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { titleParts, sectionHeadingParts } from '@/lib/title-display'
 import { readingMinutes } from '@/lib/content-stats'
@@ -10,7 +10,8 @@ import { useReader } from '@/components/reader/SubscriptionReader'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
-import { useState, type KeyboardEvent } from 'react'
+import { CurrentQueryCtx } from '@/components/CurrentQueryContext'
+import { useState, useContext, type KeyboardEvent } from 'react'
 
 export type Hit = {
   objectID: string
@@ -54,6 +55,12 @@ export type Hit = {
   notionUrl: string
   lastEdited: string
   createdAt?: string
+  // 横断本文検索（節レコード）。distinctの代表が節になったときだけ入る。
+  recordType?: string
+  parentId?: string
+  isParent?: number
+  sectionNo?: number
+  sectionTitle?: string
 }
 
 // 知識レベルの種別。一覧で「CQ／ナレッジ／まとめ」を一目で見分けられるよう、
@@ -91,9 +98,18 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   const { open: openReader } = useReader()
   const { isRead, isBookmarked } = useReaderMarks()
   const inAppReader = hit.owner === 'subscription' && hasSubscriptionConfig()
+  const currentQuery = useContext(CurrentQueryCtx)
+  // 節レコードが代表ヒットのとき、リーダーは必ず親ページIDで開く
+  // （objectIDの #secN サフィックスは本文APIに渡せない）。
+  const isSectionHit = hit.recordType === 'section' && !!hit.parentId
+  const readerId = isSectionHit ? hit.parentId! : hit.objectID
+  const readerHit = isSectionHit ? { ...hit, objectID: readerId } : hit
+  const sectionSnippet = isSectionHit
+    ? (hit as { _snippetResult?: { sectionText?: { value?: string } } })._snippetResult?.sectionText?.value
+    : undefined
   // 印（既読ドット・ブックマーク★）はアプリ内リーダー対象のカードのみに出す。
-  const cardIsRead = inAppReader && isRead(hit.objectID)
-  const cardIsBookmarked = inAppReader && isBookmarked(hit.objectID)
+  const cardIsRead = inAppReader && isRead(readerId)
+  const cardIsBookmarked = inAppReader && isBookmarked(readerId)
   const [expanded, setExpanded] = useState(false)
   const isMedical = hit.source === 'medical'
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
@@ -119,9 +135,9 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   // サブスク公開ナレッジのみ）。要約で満足してNotionへ飛ばない人も拾うための基準。
   const toggleExpanded = () => {
     if (!expanded) {
-      recordCqView(hit.objectID, hit.owner)
+      recordCqView(readerId, hit.owner)
       // 展開＝読む前兆。本文を先読みしておき「本文を読む」を待たせない。
-      if (inAppReader) prefetchReaderDoc(hit.objectID)
+      if (inAppReader) prefetchReaderDoc(readerId)
     }
     setExpanded((v) => !v)
   }
@@ -273,6 +289,28 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
           )
         )}
 
+        {sectionSnippet && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              recordCqView(readerId, hit.owner)
+              openReader(readerHit, {
+                searchQuery: currentQuery.trim() || undefined,
+                sectionNo: hit.sectionNo != null && hit.sectionNo > 0 ? hit.sectionNo : undefined,
+              })
+            }}
+            className="mt-2 w-full text-left rounded-lg bg-yellow-50 dark:bg-yellow-900/15 border border-yellow-200 dark:border-yellow-700/40 px-3 py-2 hover:border-yellow-300 dark:hover:border-yellow-600"
+          >
+            <p className="text-[11px] font-medium text-yellow-800 dark:text-yellow-300 mb-0.5">
+              本文にヒット{hit.sectionNo != null && hit.sectionNo > 0 ? ` — §${hit.sectionNo} ${hit.sectionTitle || ''}` : ''}
+            </p>
+            <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed [&_mark]:bg-yellow-200 dark:[&_mark]:bg-yellow-500/40 [&_mark]:rounded-[2px]">
+              <Snippet attribute="sectionText" hit={hit as any} />
+            </p>
+          </button>
+        )}
+
         <div className="flex items-center justify-between mt-1.5 gap-2">
           <p className="text-xs text-gray-400 truncate">
             {hit.author || ''}{hit.journal ? (hit.author ? ` · ${hit.journal}` : hit.journal) : ''}
@@ -350,8 +388,8 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  recordCqView(hit.objectID, hit.owner)
-                  openReader(hit)
+                  recordCqView(readerId, hit.owner)
+                  openReader(readerHit)
                 }}
                 className="flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200"
               >
@@ -384,9 +422,9 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
         inAppReader ? (
           <button
             type="button"
-            onClick={() => { recordCqView(hit.objectID, hit.owner); openReader(hit) }}
-            onPointerEnter={() => prefetchReaderDoc(hit.objectID)}
-            onFocus={() => prefetchReaderDoc(hit.objectID)}
+            onClick={() => { recordCqView(readerId, hit.owner); openReader(readerHit) }}
+            onPointerEnter={() => prefetchReaderDoc(readerId)}
+            onFocus={() => prefetchReaderDoc(readerId)}
             className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
           >
             本文を読む

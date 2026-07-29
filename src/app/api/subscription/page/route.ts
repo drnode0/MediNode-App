@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const raw = new URL(req.url).searchParams.get('id')
-  const pageId = raw?.replace(/^subscription_/, '').trim()
+  // 節レコードのobjectID（subscription_<pageId>#secN）が渡されても親ページとして解決する。
+  const pageId = raw?.replace(/^subscription_/, '').replace(/#.*$/, '').trim()
   if (!pageId) return NextResponse.json({ error: 'missing id' }, { status: 400 })
 
   const { premium } = await resolveRequestPremium()
