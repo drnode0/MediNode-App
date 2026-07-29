@@ -36,6 +36,17 @@ describe('splitIntoSections', () => {
     }
     expect(secs.map((s) => s.part)).toEqual(secs.map((_, i) => i))
   })
+  it('句点のない1文が上限超でも文字単位で強制分割される', () => {
+    const oneSentence = 'あ'.repeat(4000) // 12000バイト・句点なし
+    const secs = splitIntoSections([h2('1. 長文'), para(oneSentence)])
+    expect(secs.length).toBeGreaterThan(1)
+    for (const s of secs) {
+      expect(Buffer.byteLength(s.text, 'utf8')).toBeLessThanOrEqual(SECTION_MAX_BYTES)
+    }
+    // 文字の欠落がない（結合すると元の総文字数に一致。見出し行＋改行の分を含む）
+    const joined = secs.map((s) => s.text).join('')
+    expect(joined.replace(/[^あ]/g, '').length).toBe(4000)
+  })
   it('空テキストの節は返さない', () => {
     expect(splitIntoSections([h2('1. 空')])).toHaveLength(1) // 見出しテキストのみでも節にはなる
     expect(splitIntoSections([])).toHaveLength(0)
