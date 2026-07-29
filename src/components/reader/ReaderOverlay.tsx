@@ -9,6 +9,7 @@ import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
 import { ReaderBody } from './ReaderBody'
+import { ReaderFooter } from './ReaderFooter'
 import { ReaderSearchBar } from './ReaderSearchBar'
 import { ReaderSearchCtx } from './reader-search-context'
 import { ConfidenceChips } from './ConfidenceChips'
@@ -307,6 +308,7 @@ export default function ReaderOverlay({
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} />
               </ReaderSearchCtx.Provider>
+              <ReaderFooter objectID={hit.objectID} />
             </>
           )}
           </div>
