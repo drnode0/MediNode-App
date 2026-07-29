@@ -331,12 +331,17 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
     customRanking: ['desc(isParent)', 'desc(lastEdited)'],
     attributeForDistinct: 'parentId',
     distinct: true,
+    // facetカウントもdistinct後（ページ単位）で数える。これが無いとジャンル件数が
+    // 節レコード分だけ水増しされる（GenreBrowse等がカウントを表示している）。
+    facetingAfterDistinct: true,
     attributesToSnippet: ['sectionText:30'],
     snippetEllipsisText: '…',
     // 本文全文は応答に載せない（スニペットのみ）。unretrievableAttributes はスニペットまで
     // 消えるため使わない。会員は本文APIで全文取得できるので新たな露出面にはならない。
     attributesToRetrieve: ['*', '-sectionText'],
-  })
+    // algoliasearch v4 の型定義に facetingAfterDistinct が Settings 型として
+    // 含まれていないための補完（Algolia API 自体には存在する正規のインデックス設定）。
+  } as Parameters<typeof index.setSettings>[0] & { facetingAfterDistinct?: boolean })
 
   return {
     success: true,
