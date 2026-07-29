@@ -90,8 +90,10 @@
     親と節が distinct で同一グループにならず、同じページが検索結果に二重に出る。
   - `searchableAttributes` に `sectionText`/`sectionTitle` を追加（title より低優先）。
   - `attributesToSnippet: ['sectionText:30']`。**`sectionText` は
-    `unretrievableAttributes` に入れ、スニペット（ハイライト付き）のみ返す**
-    （Secured Key 経由のインデックス吸い出しで本文全文が取れないように）。
+    `attributesToRetrieve: ['*', '-sectionText']`（インデックス既定）で応答から除外し、
+    スニペット（`_snippetResult`・ハイライト付き）のみ返す**。
+    （注: `unretrievableAttributes` はスニペットまで消えるため使わない。会員は
+    本文APIで全文を取得できるため、クエリ時上書きが残ることは新たな露出面ではない。）
 - 既存の親レコード（ページ単位）は現状のまま維持。節レコードは追加分なので、
   節レコード生成に失敗しても従来検索は壊れない。
 - 規模感: 40ページ×8節前後＝約320レコード。Algolia の枠に問題なし。
