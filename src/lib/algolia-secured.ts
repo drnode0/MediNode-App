@@ -42,5 +42,10 @@ export function issuePremiumSearchKey(opts: {
   return client.generateSecuredApiKey(opts.parentSearchKey, {
     validUntil,
     restrictIndices: [opts.index],
+    // sectionText（節本文）はスニペット経由でのみ見せる設計（インデックス既定の
+    // attributesToRetrieve: ['*', '-sectionText']）。それをキー自体にも焼き込み、
+    // クエリ時に attributesToRetrieve: ['sectionText'] 等で上書きして全文ダンプ
+    // されるのを防ぐ（Secured Key に埋めたパラメータはクエリ時に強制され上書き不可）。
+    attributesToRetrieve: ['*', '-sectionText'],
   })
 }

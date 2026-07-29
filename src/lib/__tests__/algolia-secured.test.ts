@@ -53,4 +53,12 @@ describe('issuePremiumSearchKey', () => {
     const kGrid = issuePremiumSearchKey(BASE)
     expect(kFar).toBe(kGrid)
   })
+
+  it('sectionText 除外をキーに焼き込む（クエリ時の attributesToRetrieve 上書きで本文ダンプさせない）', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-11T00:00:00Z'))
+    const key = issuePremiumSearchKey(BASE)
+    const decoded = decodeURIComponent(Buffer.from(key, 'base64').toString('utf8'))
+    expect(decoded).toContain('attributesToRetrieve=["*","-sectionText"]')
+  })
 })
