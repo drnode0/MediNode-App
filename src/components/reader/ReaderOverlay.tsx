@@ -3,17 +3,19 @@
 // 本文レンダラ・目次・確信度チップ・lucide などリーダーでしか使わない重い依存はこのファイルに
 // 閉じ込め、アプリ初期バンドル（立ち上がり）を軽く保つ。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Star, MessageCircleQuestion } from 'lucide-react'
+import { X, Star, MessageCircleQuestion, Search } from 'lucide-react'
 import { useCqCaptureButton } from '@/components/CqCapture'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
 import { ReaderBody } from './ReaderBody'
+import { ReaderSearchBar } from './ReaderSearchBar'
+import { ReaderSearchCtx } from './reader-search-context'
 import { ConfidenceChips } from './ConfidenceChips'
 import { ReaderNavBar } from './ReaderNavBar'
 import { docConfidenceMarks, blockConfidence, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
 import type { ReaderDoc } from '@/lib/reader-doc'
-import type { ReaderHit } from './SubscriptionReader'
+import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
 // hit がある間だけ mount されるコンポーネント。その中で useBodyScrollLock() を呼ぶ
 // （このフックは引数を取らず、mount/unmount でロック・解除を行う共有実装 —
@@ -26,6 +28,7 @@ export default function ReaderOverlay({
   onClose,
   onZoom,
   onRetry,
+  initial,
 }: {
   hit: ReaderHit
   doc: ReaderDoc | null
@@ -34,6 +37,7 @@ export default function ReaderOverlay({
   onClose: () => void
   onZoom: (u: string | null) => void
   onRetry: () => void
+  initial?: ReaderOpenOptions
 }) {
   useBodyScrollLock()
 
@@ -48,18 +52,28 @@ export default function ReaderOverlay({
   const readFiredRef = useRef(false)
   const [active, setActive] = useState<Set<Confidence>>(new Set())
   const [popped, setPopped] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchPos, setSearchPos] = useState(0)
+  const [searchTotal, setSearchTotal] = useState(0)
 
   // 開いているページが変わるたび（同一インスタンス使い回し時）にフィルタ・既読フラグをリセットする。
   useEffect(() => {
     setActive(new Set())
     readFiredRef.current = false
+    setSearchOpen(false); setSearchQuery(''); setSearchPos(0)
   }, [hit.objectID])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { zoom ? onZoom(null) : onClose() } }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (zoom) { onZoom(null); return }
+      if (searchOpen) { setSearchOpen(false); setSearchQuery(''); return }
+      onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [zoom, onClose, onZoom])
+  }, [zoom, onClose, onZoom, searchOpen])
 
   // 開いた瞬間にフォーカスをシートへ移す。フォーカストラップ自体は背面 inert（下記）に委ねる。
   useEffect(() => {
@@ -126,6 +140,46 @@ export default function ReaderOverlay({
     return n
   }, [doc, active])
 
+  // DOM上のmark列が真実。クエリ・doc変化後の描画コミット後に数え、現在位置クラスを付け替える。
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+    const marks = Array.from(root.querySelectorAll<HTMLElement>('mark[data-reader-search]'))
+    setSearchTotal(marks.length)
+    const clamped = Math.min(searchPos, Math.max(0, marks.length - 1))
+    if (clamped !== searchPos) setSearchPos(clamped)
+    marks.forEach((m, i) => m.classList.toggle('reader-search-active', i === clamped))
+  }, [searchQuery, doc, searchPos])
+
+  const jumpToMark = useCallback((next: number) => {
+    const root = scrollRef.current
+    if (!root) return
+    const marks = root.querySelectorAll<HTMLElement>('mark[data-reader-search]')
+    if (marks.length === 0) return
+    const idx = ((next % marks.length) + marks.length) % marks.length
+    setSearchPos(idx)
+    marks[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
+
+  // 外部（横断検索）から渡された初期クエリ・節番号を、本文が描画できた時点で一度だけ適用する。
+  const initialAppliedRef = useRef(false)
+  useEffect(() => { initialAppliedRef.current = false }, [hit.objectID])
+  useEffect(() => {
+    if (state !== 'idle' || !doc || !initial || initialAppliedRef.current) return
+    initialAppliedRef.current = true
+    if (initial.searchQuery) {
+      setSearchOpen(true)
+      setSearchQuery(initial.searchQuery)
+    }
+    if (initial.sectionNo != null) {
+      requestAnimationFrame(() => {
+        scrollRef.current
+          ?.querySelector<HTMLElement>(`[data-section="${initial.sectionNo}"]`)
+          ?.scrollIntoView({ block: 'start' })
+      })
+    }
+  }, [state, doc, initial])
+
   const pressed = isBookmarked(hit.objectID)
 
   const onToggleBookmark = () => {
@@ -173,11 +227,31 @@ export default function ReaderOverlay({
             >
               <Star className="w-5 h-5" fill={pressed ? 'currentColor' : 'none'} />
             </button>
+            <button
+              type="button"
+              onClick={() => { setSearchOpen((o) => !o); if (searchOpen) setSearchQuery('') }}
+              aria-pressed={searchOpen}
+              aria-label="記事内を検索"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <Search className="w-5 h-5" />
+            </button>
           </div>
           <button type="button" onClick={onClose} aria-label="閉じる" className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
             <X className="w-5 h-5" />
           </button>
         </div>
+        {searchOpen && (
+          <ReaderSearchBar
+            onQuery={(q) => { setSearchQuery(q); setSearchPos(0) }}
+            total={searchTotal}
+            pos={searchPos}
+            onPrev={() => jumpToMark(searchPos - 1)}
+            onNext={() => jumpToMark(searchPos + 1)}
+            onClose={() => { setSearchOpen(false); setSearchQuery('') }}
+            initialValue={searchQuery}
+          />
+        )}
         <p aria-live="polite" className="sr-only">
           {active.size > 0
             ? `${[...active].map((c) => CONFIDENCE_LABEL[c]).join('・')}を強調中・${matchCount}件`
@@ -227,7 +301,9 @@ export default function ReaderOverlay({
             <>
               <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
-              <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} />
+              <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
+                <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} />
+              </ReaderSearchCtx.Provider>
             </>
           )}
           </div>

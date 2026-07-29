@@ -24,7 +24,8 @@ export type ReaderHit = {
   // ブックマークの見本表示・「最近見た」補完用。渡せる呼び出し元だけ渡す（無ければ省略）。
   summary?: string
 }
-type ReaderCtx = { open: (hit: ReaderHit) => void }
+export type ReaderOpenOptions = { searchQuery?: string; sectionNo?: number }
+type ReaderCtx = { open: (hit: ReaderHit, opts?: ReaderOpenOptions) => void }
 const Ctx = createContext<ReaderCtx | null>(null)
 
 export function useReader(): ReaderCtx {
@@ -42,6 +43,8 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
   const reqRef = useRef(0)
   // 開くきっかけとなったトリガー要素。閉じたときにベストエフォートでフォーカスを戻す。
   const triggerRef = useRef<HTMLElement | null>(null)
+  // 横断検索など外部から渡された初期検索クエリ・節番号。ReaderOverlay の initial prop へそのまま渡す。
+  const [openOpts, setOpenOpts] = useState<ReaderOpenOptions | undefined>(undefined)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -62,9 +65,10 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       .catch(() => { if (reqRef.current !== token) return; setState('error') })
   }, [])
 
-  const open = useCallback((h: ReaderHit) => {
+  const open = useCallback((h: ReaderHit, opts?: ReaderOpenOptions) => {
     // オーバレイを開くきっかけとなった要素を捕捉するのは初回オープン時のみ。
     triggerRef.current = (document.activeElement as HTMLElement | null) ?? null
+    setOpenOpts(opts)
     runFetch(h)
   }, [runFetch])
 
@@ -75,7 +79,7 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
   }, [runFetch, hit])
 
   const close = useCallback(() => {
-    setHit(null); setDoc(null); setZoom(null)
+    setHit(null); setDoc(null); setZoom(null); setOpenOpts(undefined)
     // ReaderOverlay の unmount（＝背面 inert 解除の cleanup）はこの同期フレームでは
     // まだ走っていない。inert 配下の要素への focus() は仕様上 no-op のため、
     // コミット後（次フレーム）まで復帰を遅らせる。
@@ -99,6 +103,7 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
               onClose={close}
               onZoom={setZoom}
               onRetry={retry}
+              initial={openOpts}
             />,
             document.body,
           )
