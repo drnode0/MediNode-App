@@ -36,7 +36,10 @@ function splitByBytes(text: string): string[] {
   return out
 }
 
-const SECTION_HEAD_RE = /^(\d+)\.\s*(.*)$/
+// タイトルなし（例: "3."のみ）は節境界にしない。リーダー側 parseSectionHeading
+// （src/lib/reader-doc.ts）と同じ `(.+)` にして、Algolia上の節分割とリーダーの
+// アンカー生成がズレないようにする（ズレると deep-link スクロールが無言で外れる）。
+const SECTION_HEAD_RE = /^(\d+)\.\s*(.+)$/
 
 // トップレベルブロック列を節に分割する。境界は「N. 」形式のheading_2のみ。
 // 最初の境界より前（⚡結論・署名・大前提）は sec0。節見出しテキストも本文に含める。
@@ -76,18 +79,31 @@ export function buildSectionRecords(
   chunks: SectionChunk[],
 ): Record<string, unknown>[] {
   const parentID = String(parent.objectID)
+  // 同じ番号のH2が複数ある異常ケースでobjectIDが衝突すると、Algolia保存時に
+  // 後勝ちで先の節が無言で消える。衝突を検知したら `-d<連番>` を付けて一意化する。
+  const seen = new Set<string>()
   return chunks
     .filter((c) => c.text.trim())
-    .map((c) => ({
-      ...parent,
-      objectID: `${parentID}#sec${c.sectionNo}${c.part > 0 ? `-${c.part}` : ''}`,
-      parentId: parentID,
-      isParent: 0,
-      recordType: 'section',
-      sectionNo: c.sectionNo,
-      sectionTitle: c.sectionTitle,
-      sectionText: c.text,
-    }))
+    .map((c) => {
+      const base = `${parentID}#sec${c.sectionNo}${c.part > 0 ? `-${c.part}` : ''}`
+      let objectID = base
+      let dup = 0
+      while (seen.has(objectID)) {
+        dup += 1
+        objectID = `${base}-d${dup}`
+      }
+      seen.add(objectID)
+      return {
+        ...parent,
+        objectID,
+        parentId: parentID,
+        isParent: 0,
+        recordType: 'section',
+        sectionNo: c.sectionNo,
+        sectionTitle: c.sectionTitle,
+        sectionText: c.text,
+      }
+    })
 }
 
 // Notionのrelationプロパティ→ページID配列（25件超のhas_moreは追わない: ナレッジの文献数は十数件想定）。

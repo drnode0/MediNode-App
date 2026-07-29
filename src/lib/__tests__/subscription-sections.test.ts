@@ -26,6 +26,12 @@ describe('splitIntoSections', () => {
     expect(secs).toHaveLength(1)
     expect(secs[0].text).toContain('凡例')
   })
+  it('タイトルなしの番号見出し（例: "3."のみ）は節境界にしない（リーダー側parseSectionHeadingと整合）', () => {
+    const secs = splitIntoSections([h2('1. 病態'), para('A'), h2('3.'), para('後続')])
+    expect(secs).toHaveLength(1)
+    expect(secs[0].sectionNo).toBe(1)
+    expect(secs[0].text).toContain('後続')
+  })
   it('バイト上限を超える節は文単位でpart分割する', () => {
     const long = 'あ'.repeat(2000) + '。' + 'い'.repeat(2000) + '。'
     const secs = splitIntoSections([h2('1. 長い'), para(long)])
@@ -76,6 +82,17 @@ describe('buildSectionRecords', () => {
   })
   it('空テキストの節はレコードにしない', () => {
     expect(buildSectionRecords(parent, [{ sectionNo: 1, sectionTitle: '', part: 0, text: '  ' }])).toHaveLength(0)
+  })
+  it('重複sectionNo（同じ番号のH2が2つ）はobjectIDが衝突せず両方保持される', () => {
+    const recs = buildSectionRecords(parent, [
+      { sectionNo: 3, sectionTitle: '病態A', part: 0, text: '本文A' },
+      { sectionNo: 3, sectionTitle: '病態B', part: 0, text: '本文B' },
+    ])
+    expect(recs).toHaveLength(2)
+    expect(recs.map((r) => r.objectID)).toEqual(['subscription_abc#sec3', 'subscription_abc#sec3-d1'])
+    expect(new Set(recs.map((r) => r.objectID)).size).toBe(2)
+    expect(recs[0].sectionText).toBe('本文A')
+    expect(recs[1].sectionText).toBe('本文B')
   })
 })
 
