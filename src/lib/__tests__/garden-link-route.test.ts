@@ -28,9 +28,11 @@ describe('/api/garden/link', () => {
     expect(body.url).toBe('https://chi-no-niwa.vercel.app/?taiju=1')
   })
   it('判定関数の障害時も素のURLで200', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     premiumMock.mockRejectedValue(new Error('down'))
     const res = await GET()
     expect(res.status).toBe(200)
     expect((await res.json()).url).toBe('https://chi-no-niwa.vercel.app/?taiju=1')
+    spy.mockRestore()
   })
 })

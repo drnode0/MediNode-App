@@ -56,8 +56,10 @@ describe('/api/garden/taiju', () => {
     expect('title' in body.blossoms[0]).toBe(false)
   })
   it('障害時は空teaserに劣化', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     searchMock.mockRejectedValue(new Error('down'))
     const body = await (await GET(req())).json()
     expect(body).toEqual({ counts: { cq: 0, knowledge: 0, matome: 0, reference: 0 }, blossoms: [] })
+    spy.mockRestore()
   })
 })

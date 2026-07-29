@@ -51,10 +51,12 @@ describe('/api/garden/feed', () => {
     expect((await GET(req('secret-token'))).status).toBe(404)
   })
   it('Algolia障害は空データ200に劣化（庭は前回のまま黙る）', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     searchMock.mockRejectedValue(new Error('down'))
     const res = await GET(req('secret-token'))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ events: [], counts: { cq: 0, knowledge: 0, reference: 0 } })
+    spy.mockRestore()
   })
   it('直近200件に切る（昇順の末尾200）', async () => {
     const many = Array.from({ length: 250 }, (_, i) => ({

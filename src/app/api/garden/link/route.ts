@@ -11,7 +11,8 @@ export async function GET() {
   let premium = false
   try {
     premium = (await resolveRequestPremium()).premium
-  } catch {
+  } catch (e) {
+    console.error('[garden/link]', e)
     premium = false
   }
   const key = process.env.TAIJU_KEY

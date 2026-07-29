@@ -34,7 +34,8 @@ export async function GET(req: Request) {
         return premium ? { ...base, title: h.title || '', url: h.notionUrl || '' } : base
       })
     return NextResponse.json({ counts, blossoms }, { headers })
-  } catch {
+  } catch (e) {
+    console.error('[garden/taiju]', e)
     return NextResponse.json(EMPTY, { headers })
   }
 }

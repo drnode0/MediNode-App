@@ -36,7 +36,8 @@ export async function GET(req: Request) {
       .slice(-200)
       .map(h => ({ id: h.objectID, kind: kindOf(h), title: h.title || '', date: h.createdAt!, url: h.notionUrl || '' }))
     return NextResponse.json({ events, counts }, { headers })
-  } catch {
+  } catch (e) {
+    console.error('[garden/feed]', e)
     // 庭側は失敗時「前回のまま黙る」——ここも空で静かに返す
     return NextResponse.json(EMPTY, { headers })
   }
