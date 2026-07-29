@@ -2,6 +2,7 @@ import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
+import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -80,13 +81,9 @@ function extractHasFiles(props: Record<string, Record<string, unknown>>): boolea
   return false
 }
 
-// ページ本文（トップレベルブロック）を全ページネーションで取得し、充実度統計を返す。
-// 失敗してもページ全体の同期は止めない（統計なしで続行）。対象は現状40ページ弱なので
-// ページごとの逐次取得でもcron実行時間・レート制限とも問題にならない。
-async function fetchContentStats(
-  notion: Client,
-  pageId: string,
-): Promise<{ contentChars: number; sectionCount: number; headings: string[] } | null> {
+// ページ本文（トップレベルブロック）を全ページネーションで取得する。
+// 失敗してもページ全体の同期は止めない（nullで続行）。統計と節分割の両方がこれを使う。
+async function fetchPageBlocks(notion: Client, pageId: string): Promise<NotionBlockLite[] | null> {
   try {
     const blocks: NotionBlockLite[] = []
     let cursor: string | undefined = undefined
@@ -99,7 +96,7 @@ async function fetchContentStats(
       blocks.push(...(res.results as unknown as NotionBlockLite[]))
       cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
     } while (cursor)
-    return computeContentStats(blocks)
+    return blocks
   } catch {
     return null
   }
@@ -136,9 +133,14 @@ async function syncMedicalDb(
         props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {},
       )
       if (!title) continue
-      const stats = await fetchContentStats(notion, page.id)
-      records.push({
+      const blocks = await fetchPageBlocks(notion, page.id)
+      const stats = blocks ? computeContentStats(blocks) : null
+      const record: Record<string, unknown> = {
         objectID: `subscription_${page.id}`,
+        // distinct(parentId) 用: 親も自分のIDを持つ（無いと親と節が別グループになり検索結果が二重に出る）
+        parentId: `subscription_${page.id}`,
+        isParent: 1,
+        recordType: 'page',
         source: 'medical',
         owner: 'subscription',
         title,
@@ -154,6 +156,8 @@ async function syncMedicalDb(
         posterName: extractText(props['ペンネーム'] || props['投稿者名'] || {}),
         aiSummary: extractText(props['要約'] || {}),
         aiKeywords: extractText(props['キーワード'] || {}),
+        // つづけて読む枠の根拠文献（Reference LibraryページID）。プロパティ名はNotion側の実名に一致させる。
+        referenceIds: extractRelationIds(props['参考文献'] || {}),
         hasAttachment: extractHasFiles(props),
         lastEdited: (p.last_edited_time as string) || '',
         createdAt: (p.created_time as string) || '',
@@ -161,7 +165,9 @@ async function syncMedicalDb(
         contentChars: stats?.contentChars ?? 0,
         sectionCount: stats?.sectionCount ?? 0,
         headings: stats?.headings ?? [],
-      })
+      }
+      records.push(record)
+      if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks)))
       count++
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
@@ -190,9 +196,14 @@ async function syncReferenceDb(
         props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {},
       )
       if (!title) continue
-      const stats = await fetchContentStats(notion, page.id)
-      records.push({
+      const blocks = await fetchPageBlocks(notion, page.id)
+      const stats = blocks ? computeContentStats(blocks) : null
+      const record: Record<string, unknown> = {
         objectID: `subscription_${page.id}`,
+        // distinct(parentId) 用: 親も自分のIDを持つ（無いと親と節が別グループになり検索結果が二重に出る）
+        parentId: `subscription_${page.id}`,
+        isParent: 1,
+        recordType: 'page',
         source: 'reference',
         owner: 'subscription',
         title,
@@ -210,7 +221,9 @@ async function syncReferenceDb(
         contentChars: stats?.contentChars ?? 0,
         sectionCount: stats?.sectionCount ?? 0,
         headings: stats?.headings ?? [],
-      })
+      }
+      records.push(record)
+      if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks)))
       count++
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
@@ -299,6 +312,8 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       'detailGenre',
       'author',
       'journal',
+      'sectionTitle',
+      'unordered(sectionText)',
     ],
     attributesForFaceting: [
       'filterOnly(owner)',
@@ -307,9 +322,20 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       'filterOnly(recordingLevel)',
       // 解決済み臨床疑問の通知・一覧（lib/resolved-cqs.ts）が origin:"現場の疑問" で絞り込む
       'filterOnly(origin)',
+      // 節レコードを明示的に除外/限定したいクエリ用（現状の一覧系はdistinctで集約されるので未使用）
+      'filterOnly(recordType)',
       'genre',
     ],
-    customRanking: ['desc(lastEdited)'],
+    // isParent を先頭に: テキスト一致が同点のとき（空クエリの一覧系など）必ず親レコードが
+    // グループ代表になる。本文だけがヒットした場合は節がテキスト優位で代表になる（意図通り）。
+    customRanking: ['desc(isParent)', 'desc(lastEdited)'],
+    attributeForDistinct: 'parentId',
+    distinct: true,
+    attributesToSnippet: ['sectionText:30'],
+    snippetEllipsisText: '…',
+    // 本文全文は応答に載せない（スニペットのみ）。unretrievableAttributes はスニペットまで
+    // 消えるため使わない。会員は本文APIで全文取得できるので新たな露出面にはならない。
+    attributesToRetrieve: ['*', '-sectionText'],
   })
 
   return {
