@@ -403,7 +403,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
                 rel="noopener noreferrer"
                 onClick={(e) => {
                   e.stopPropagation()
-                  recordRecentView(hit)
+                  recordRecentView(readerHit)
                   // 参照カウントは「詳細を開いた時」に一本化（展開で既に加算済み）。
                   // ここ（要約を読んだ後のNotionジャンプ）では二重に数えない。
                 }}
@@ -435,7 +435,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
             href={hit.notionUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => { recordRecentView(hit); recordCqView(hit.objectID, hit.owner) }}
+            onClick={() => { recordRecentView(readerHit); recordCqView(readerId, hit.owner) }}
             className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
           >
             Notionで開く
