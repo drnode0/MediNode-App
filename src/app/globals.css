@@ -108,3 +108,18 @@ mark[data-reader-search].reader-search-active {
 .reader-prose h3 {
   text-wrap: pretty;
 }
+
+/* ────────────────────────────────────────────────────────────
+   プレミアムのアカウントマークに流すグラデーション（AccountButton）。
+   ベタ塗りより奥行きが出て、設定のプレミアム帯と佇まいが揃う。
+   左上を明るく・右下を深く。振れ幅は狭くして、派手にしない。
+   ──────────────────────────────────────────────────────────── */
+:root {
+  --premium-mark-from: #7e22ce; /* purple-700 */
+  --premium-mark-to: #581c87;   /* purple-900 */
+}
+/* ダークは地が暗いので、明度を上げないと沈む（.dark 基準 — @media は使わない）。 */
+.dark {
+  --premium-mark-from: #d8b4fe; /* purple-300 */
+  --premium-mark-to: #a855f7;   /* purple-500 */
+}

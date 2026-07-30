@@ -19,6 +19,10 @@ import { createClient } from '@/lib/supabase/client'
 import { clearSettings, getSettings, mergeSettings, type AppSettings } from '@/lib/settings'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 
+// プレミアムのマークに流すグラデーションの参照ID（stroke="url(#…)" で使う）。
+// ヘッダーに1つしか置かないコンポーネントなので固定IDで衝突しない。
+const PREMIUM_MARK_GRADIENT_ID = 'medinode-premium-mark'
+
 // パスワードの設定・変更モーダル。
 // ログインは従来どおりメール（6桁コード／リンク）が基本で、パスワードは
 // 「毎回メールを開くのが手間」という人向けの近道。忘れてもメール方式で
@@ -321,18 +325,38 @@ export function AccountButton() {
 
   return (
     <>
+      {/* プレミアムのマークに使うグラデーション定義。ベタ塗りより奥行きが出て、
+          設定のプレミアム帯（同じく淡いグラデーション）と佇まいが揃う。
+          色は globals.css のCSS変数で持ち、ライト／ダークの差はそちらで切り替える
+          （.dark 基準。ここでは1つのdefsを使い回す）。 */}
+      {premium && (
+        <svg width="0" height="0" aria-hidden className="absolute pointer-events-none">
+          <defs>
+            {/* 左上を明るく、右下を深く。斜めにすると宝石のような陰影が出る。 */}
+            <linearGradient id={PREMIUM_MARK_GRADIENT_ID} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="var(--premium-mark-from)" />
+              <stop offset="100%" stopColor="var(--premium-mark-to)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      )}
       <button
         onClick={() => setShowMenu(true)}
-        className={`text-lg transition-colors ${
+        className={
           premium
-            ? // 深めの紫。24pxで潰れず、通知ドットのように騒がしくもならない濃度。
-              'text-purple-800 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
-            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-        }`}
+            ? // グラデーションを stroke に流すため、色クラスは当てない。
+              // ホバーは色ではなく濃度（opacity）で返す。
+              'text-lg transition-opacity hover:opacity-75'
+            : 'text-lg transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+        }
         // 色だけに意味を持たせない（ホバー・読み上げでも状態が分かるようにする）。
         title={premium ? 'アカウント（プレミアム）' : 'アカウント'}
       >
-        <CircleUserRound className="w-6 h-6" />
+        <CircleUserRound
+          className="w-6 h-6"
+          // 非プレミアムは currentColor のまま（従来の見た目を保つ）。
+          stroke={premium ? `url(#${PREMIUM_MARK_GRADIENT_ID})` : undefined}
+        />
       </button>
       {menu}
       {showPassword && mounted && <PasswordSetModal onClose={() => setShowPassword(false)} />}
