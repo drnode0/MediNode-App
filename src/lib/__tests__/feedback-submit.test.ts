@@ -5,6 +5,9 @@ import {
   formatAutoContext,
   redactPath,
   FEEDBACK_TEXT_MAX,
+  SATISFACTION,
+  SATISFACTION_SCALE,
+  satisfactionByStars,
   type FeedbackPropSchema,
 } from '../feedback-submit'
 
@@ -213,5 +216,36 @@ describe('buildFeedbackProperties', () => {
 
   it('タイトル列が無ければエラー', () => {
     expect('error' in buildFeedbackProperties({ 種類: { type: 'select' } }, base, '')).toBe(true)
+  })
+})
+
+// ── 満足度の見せ方 ──────────────────────────────────────────
+// Notion側の選択肢名は「⭐⭐⭐⭐ 満足」のように絵文字を含む（照合用の値なので変えない）。
+// 一方アプリの画面はlucideアイコンで揃えているため、絵文字は出さずに星の数と語で見せる。
+// 値（Notionへ送る文字列）と表示（画面に出す語・星の数）を分ける。
+describe('SATISFACTION_SCALE（値と表示を分ける）', () => {
+  it('5段階そろっている', () => {
+    expect(SATISFACTION_SCALE).toHaveLength(5)
+  })
+
+  it('値はNotionの選択肢名と完全一致する（照合が壊れない）', () => {
+    expect(SATISFACTION_SCALE.map((s) => s.value)).toEqual([...SATISFACTION])
+  })
+
+  it('表示ラベルに絵文字を含まない', () => {
+    for (const s of SATISFACTION_SCALE) {
+      expect(s.label).not.toMatch(/[⭐★☆\uD83C-\uDBFF]/)
+    }
+  })
+
+  it('星の数は5〜1で、満足度の高い順に並ぶ', () => {
+    expect(SATISFACTION_SCALE.map((s) => s.stars)).toEqual([5, 4, 3, 2, 1])
+  })
+
+  it('星の数から値を引ける（タップされた星から送る値を決める）', () => {
+    expect(satisfactionByStars(4)?.value).toBe('⭐⭐⭐⭐ 満足')
+    expect(satisfactionByStars(1)?.label).toBe('不満')
+    expect(satisfactionByStars(0)).toBeUndefined()
+    expect(satisfactionByStars(6)).toBeUndefined()
   })
 })

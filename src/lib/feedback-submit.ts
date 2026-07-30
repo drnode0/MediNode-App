@@ -30,13 +30,26 @@ const KIND_LABEL: Record<FeedbackKind, string> = {
 export const REPRODUCIBILITY = ['毎回起きる', 'ときどき起きる', '1回だけ'] as const
 
 // アンケート（くわしく答える）側の選択肢。受付DBの既存セレクトと一致させる。
-export const SATISFACTION = [
-  '⭐⭐⭐⭐⭐ 非常に満足',
-  '⭐⭐⭐⭐ 満足',
-  '⭐⭐⭐ ふつう',
-  '⭐⭐ やや不満',
-  '⭐ 不満',
+//
+// 満足度は「値」と「表示」を分ける。
+// value は Notion の選択肢名で、絵文字を含む（照合に使うので変えられない）。
+// 画面はアイコン（lucide）で揃えているため、表示には絵文字を出さず
+// 星の数（stars）とラベルだけを使う。
+export const SATISFACTION_SCALE = [
+  { stars: 5, label: '非常に満足', value: '⭐⭐⭐⭐⭐ 非常に満足' },
+  { stars: 4, label: '満足', value: '⭐⭐⭐⭐ 満足' },
+  { stars: 3, label: 'ふつう', value: '⭐⭐⭐ ふつう' },
+  { stars: 2, label: 'やや不満', value: '⭐⭐ やや不満' },
+  { stars: 1, label: '不満', value: '⭐ 不満' },
 ] as const
+
+// 検証・書き込みに使う値の一覧（表示定義から導いて、二重管理にしない）。
+export const SATISFACTION = SATISFACTION_SCALE.map((s) => s.value) as readonly string[]
+
+// タップされた星の数から、送る値と表示ラベルを引く。範囲外は undefined。
+export function satisfactionByStars(stars: number) {
+  return SATISFACTION_SCALE.find((s) => s.stars === stars)
+}
 export const RECOMMEND = ['ぜひ勧めたい', '勧めたい', 'どちらでもない', 'あまり勧めない', '勧めない'] as const
 export const FREQUENCY = ['ほぼ毎日', '週に数回', '月に数回', 'ほとんど使えていない'] as const
 export const QUOTE_PERMISSION = [

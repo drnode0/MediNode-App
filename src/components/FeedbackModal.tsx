@@ -4,17 +4,19 @@
 // これまで「設定 → 外部Notionフォーム（13問）」だった導線を、アプリの中で完結させる。
 //
 // 設計の要点:
-//   ・「バグです」の一行だけ届いても直せない。種類（🐛/💡/👍）を選ぶと、
+//   ・「バグです」の一行だけ届いても直せない。種類（バグ／要望／感想）を選ぶと、
 //     その種類で作者が動くのに必要な欄だけが出る。入力は各2つ程度に収める。
 //   ・画面・モード・会員状態・版・端末・直近のエラーは自動で添える。
 //     ただし何を送るかは「送る情報」を開いて確認できる（黙って集めない）。
+//   ・画面に絵文字は出さず lucide のアイコンで揃える（アプリのアイコン方針）。
+//     受付DB側の列名・選択肢名は絵文字を含むが、あちらは照合用の値なので変えない。
 //   ・survey=true で開くと、アンケート（満足度・NPS・利用頻度・職種）も最初から開く
 //     ＝設定の「くわしく答える」からの入口。実装は1つのモーダルで済ませる。
 //   ・受付準備前（env未設定）は従来の外部フォーム案内にフォールバックする。
 
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Bug, Lightbulb, ThumbsUp, CheckCircle2, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Bug, Lightbulb, ThumbsUp, CheckCircle2, ExternalLink, ChevronDown, ChevronUp, Star } from 'lucide-react'
 import { track } from '@vercel/analytics'
 import { getSettings } from '@/lib/settings'
 import { hasSubscriptionConfig, isSubscriptionTrialExpired } from '@/lib/algolia'
@@ -25,7 +27,8 @@ import { Spinner } from './Spinner'
 import { recentClientErrors } from '@/lib/client-errors'
 import {
   REPRODUCIBILITY,
-  SATISFACTION,
+  SATISFACTION_SCALE,
+  satisfactionByStars,
   RECOMMEND,
   FREQUENCY,
   QUOTE_PERMISSION,
@@ -94,6 +97,10 @@ export function FeedbackModal({ survey = false, onClose }: { survey?: boolean; o
   const [recommend, setRecommend] = useState('')
   const [frequency, setFrequency] = useState('')
   const [occupation, setOccupation] = useState('')
+
+  // 選択中の星の数。状態は Notion へ送る値そのままで持ち、表示側で星数に直す
+  // （送る値と見せ方を1か所で取り違えないため）。
+  const selectedStars = SATISFACTION_SCALE.find((s) => s.value === satisfaction)?.stars ?? 0
 
   const [showContext, setShowContext] = useState(false)
   const [sending, setSending] = useState(false)
@@ -328,23 +335,51 @@ export function FeedbackModal({ survey = false, onClose }: { survey?: boolean; o
                 アンケートにも答える（任意・4問）
               </button>
               {showSurvey && (
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={satisfaction} onChange={(e) => setSatisfaction(e.target.value)} className={selectCls} aria-label="総合満足度">
-                    <option value="">総合満足度</option>
-                    {SATISFACTION.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select value={recommend} onChange={(e) => setRecommend(e.target.value)} className={selectCls} aria-label="人に勧めたいか">
-                    <option value="">人に勧めたいか</option>
-                    {RECOMMEND.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className={selectCls} aria-label="利用頻度">
-                    <option value="">利用頻度</option>
-                    {FREQUENCY.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select value={occupation} onChange={(e) => setOccupation(e.target.value)} className={selectCls} aria-label="ご職種">
-                    <option value="">ご職種</option>
-                    {FEEDBACK_OCCUPATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                <div className="space-y-2">
+                  {/* 満足度は星をタップ。Notionへ送る値は絵文字入りだが、画面には出さず
+                      lucideのStarで見せる（アプリのアイコン方針に合わせる）。 */}
+                  <div>
+                    <p className={labelCls}>総合満足度<span className="font-normal text-gray-400 dark:text-gray-500">（任意）</span></p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-0.5" role="group" aria-label="総合満足度">
+                        {[1, 2, 3, 4, 5].map((n) => {
+                          const filled = selectedStars >= n
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              aria-label={`${n}（${satisfactionByStars(n)?.label ?? ''}）`}
+                              aria-pressed={selectedStars === n}
+                              // 同じ星をもう一度押したら選択を外す（選び直しに戻れる）。
+                              onClick={() => setSatisfaction(selectedStars === n ? '' : (satisfactionByStars(n)?.value ?? ''))}
+                              className="p-1 -m-0.5 text-amber-400 hover:text-amber-500 transition-colors"
+                            >
+                              <Star className="w-5 h-5" strokeWidth={2} fill={filled ? 'currentColor' : 'none'} />
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {selectedStars > 0 && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {satisfactionByStars(selectedStars)?.label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={recommend} onChange={(e) => setRecommend(e.target.value)} className={selectCls} aria-label="人に勧めたいか">
+                      <option value="">人に勧めたいか</option>
+                      {RECOMMEND.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className={selectCls} aria-label="利用頻度">
+                      <option value="">利用頻度</option>
+                      {FREQUENCY.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={occupation} onChange={(e) => setOccupation(e.target.value)} className={`${selectCls} col-span-2`} aria-label="ご職種">
+                      <option value="">ご職種</option>
+                      {FEEDBACK_OCCUPATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
               )}
 
