@@ -30,6 +30,7 @@ import { useCqCaptureButton } from '@/components/CqCapture'
 import { ANNOUNCEMENTS } from '@/components/AppBanners'
 import { CommunityCqs } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
+import { FeedbackModal } from '@/components/FeedbackModal'
 import GardenLink from './GardenLink'
 import PushSettings from '@/components/PushSettings'
 import dynamicImport from 'next/dynamic'
@@ -327,6 +328,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   // 臨床疑問のアプリ内投稿モーダル（CQキャプチャ）を開く。設定パネルの上に重なって開く。
   // CQボタンを非表示にしている人には null → 従来の外部フォームリンクにフォールバック。
   const openCqCapture = useCqCaptureButton()
+
+  // フィードバックのアプリ内送信。survey=true でアンケート欄を開いた状態で開く。
+  const [feedback, setFeedback] = useState<{ open: boolean; survey: boolean }>({ open: false, survey: false })
 
   // シート表示中は背景スクロールをロック（LoginModalと同じ挙動に統一）。
   useBodyScrollLock()
@@ -949,19 +953,31 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
-              <a
-                href={FEEDBACK_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* フィードバックはアプリ内で完結する（外部フォームへ飛ばさない）。
+                  入口は2つだが開くのは同じモーダルで、後者はアンケート欄を開いた状態で開く。
+                  バグに気づいた瞬間の1行が最も取り逃しやすいので、速い方を上に置く。 */}
+              <button
+                onClick={() => setFeedback({ open: true, survey: false })}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
               >
                 <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-rose-50 dark:bg-rose-900/40 text-rose-500 dark:text-rose-300"><Send className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">バグ報告・ご要望・使用感（2〜3分）</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">バグ・ご要望・感想（10秒）</p>
                 </div>
-                <ExternalLink className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </a>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
+              <button
+                onClick={() => setFeedback({ open: true, survey: true })}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
+              >
+                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><ClipboardList className="w-5 h-5" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">くわしく答える</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">満足度・使用頻度などのアンケート（2〜3分）</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+              </button>
               <a
                 href="https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc"
                 target="_blank"
@@ -1723,6 +1739,16 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
       {/* 画面つきガイド（セットアップと同じもの。パネルより後に描画して手前に出す） */}
       {showTokenGuide && <NotionTokenGuide onClose={() => setShowTokenGuide(false)} />}
       {showAlgoliaGuide && <AlgoliaKeyGuide onClose={() => setShowAlgoliaGuide(false)} />}
+      {/* フィードバック送信。設定パネルの上に重なって開く。 */}
+      {feedback.open && (
+        // key で作り直す。survey は初期値としてしか読まれないため、開いたまま入口が
+        // 変わった場合にアンケート欄の開閉が追従しない（key があれば必ず初期化される）。
+        <FeedbackModal
+          key={feedback.survey ? 'survey' : 'quick'}
+          survey={feedback.survey}
+          onClose={() => setFeedback({ open: false, survey: false })}
+        />
+      )}
     </>
   )
 }

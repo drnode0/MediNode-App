@@ -6,7 +6,8 @@
 //   - PowerModeUpgradeBanner: シンプルモード利用者へのパワーモード誘導
 
 import { useState, useEffect, useContext } from 'react'
-import { FEEDBACK_FORM_URL, MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
+import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
+import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, type LucideIcon } from 'lucide-react'
 
@@ -193,6 +194,8 @@ export function bumpSearchCount() {
 
 export function FeedbackNudgeBanner() {
   const [show, setShow] = useState(false)
+  // アプリ内送信モーダル。バナーを閉じた後も開いたままにするため、show とは別に持つ。
+  const [showFeedback, setShowFeedback] = useState(false)
   useEffect(() => {
     try {
       if (localStorage.getItem(FB_NUDGE_DONE_KEY)) return
@@ -207,10 +210,13 @@ export function FeedbackNudgeBanner() {
       if (searches >= 5 || daysSinceFirst >= 3) setShow(true)
     } catch {}
   }, [])
-  if (!show) return null
   const done = () => {
     try { localStorage.setItem(FB_NUDGE_DONE_KEY, new Date().toISOString()) } catch {}
     setShow(false)
+  }
+  // バナーを閉じた後もモーダルは開いたままにする（送信途中で消えないように）。
+  if (!show) {
+    return showFeedback ? <FeedbackModal onClose={() => setShowFeedback(false)} /> : null
   }
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
@@ -221,20 +227,21 @@ export function FeedbackNudgeBanner() {
           <p className="text-xs text-gray-500 dark:text-gray-400">2〜3分の匿名フォームです。いただいた声は次の改善に直結します。</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <a
-            href={FEEDBACK_FORM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={done}
+          {/* アプリ内で完結させる（外部フォームへ飛ばして戻ってこない導線をやめる）。
+              バナーを閉じる扱いは送信の有無に関わらず押した時点で完了とする
+              （何度も同じ声かけをしない）。 */}
+          <button
+            onClick={() => { setShowFeedback(true); done() }}
             className="text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors"
           >
             感想を送る
-          </a>
+          </button>
           <button onClick={done} className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             閉じる
           </button>
         </div>
       </div>
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </div>
   )
 }

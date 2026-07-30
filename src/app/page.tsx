@@ -80,6 +80,7 @@ const SettingsPanel = dynamicImport(
   },
 )
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
+import { installClientErrorCapture } from '@/lib/client-errors'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -2637,6 +2638,10 @@ export default function Home() {
     setOnboardingDone(done)
   }, [])
 
+  // 直近のクライアントエラーを手元に控える（バグ報告に添えるためだけの用途）。
+  // メモリ上の数件のみで永続化しない。送信しない限りどこにも出ない。
+  useEffect(() => installClientErrorCapture(), [])
+
   // 'entry' はオンボーディング後の入口分岐（アカウント有無の選択）。初回・リセット・やり直しは
   // ここから始める。Notionだけ修正など特定ステップ直行のケースは個別に start/notion 等を指定する。
   const [setupInitialStep, setSetupInitialStep] = useState<'entry' | 'start' | 'mode' | 'notion' | 'options'>('entry')
@@ -2845,6 +2850,9 @@ export default function Home() {
                 // 機能利用の実態把握用（どのタブが使われているか）。
                 track('tab_switch', { tab: t.id })
               }}
+              // 選択中のタブを支援技術にも伝える。フィードバックの「画面」判定もこれを読む
+              // （色クラスだけだと判定の足場にできない）。
+              aria-current={activeTab === t.id ? 'page' : undefined}
               className={`shrink-0 flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
                 activeTab === t.id
                   ? TAB_TONES[t.id]
