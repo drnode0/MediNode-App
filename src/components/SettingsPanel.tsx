@@ -954,8 +954,11 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>
               {/* フィードバックはアプリ内で完結する（外部フォームへ飛ばさない）。
-                  入口は2つだが開くのは同じモーダルで、後者はアンケート欄を開いた状態で開く。
-                  バグに気づいた瞬間の1行が最も取り逃しやすいので、速い方を上に置く。 */}
+                  入口は1つだけにする。「送る」と「くわしく答える」を並べると、
+                  行為と程度が並列に見えて「どちらを選べばいいのか」が分からない。
+                  アンケートはモーダル内の「アンケートにも答える（任意・4問）」で足り、
+                  積極的にお願いしたいときは使い心地バナー側から開く（そちらは
+                  定期的に1回だけ出る＝お願いに適した場所）。 */}
               <button
                 onClick={() => setFeedback({ open: true, survey: false })}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
@@ -964,17 +967,6 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">フィードバックを送る</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">バグ・ご要望・感想（10秒）</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </button>
-              <button
-                onClick={() => setFeedback({ open: true, survey: true })}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-left"
-              >
-                <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300"><ClipboardList className="w-5 h-5" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">くわしく答える</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">満足度・使用頻度などのアンケート（2〜3分）</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
               </button>

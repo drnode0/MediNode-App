@@ -216,7 +216,7 @@ export function FeedbackNudgeBanner() {
   }
   // バナーを閉じた後もモーダルは開いたままにする（送信途中で消えないように）。
   if (!show) {
-    return showFeedback ? <FeedbackModal onClose={() => setShowFeedback(false)} /> : null
+    return showFeedback ? <FeedbackModal survey onClose={() => setShowFeedback(false)} /> : null
   }
   return (
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
@@ -224,7 +224,7 @@ export function FeedbackNudgeBanner() {
         <Send className="w-5 h-5 text-brand-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">MediNodeの使い心地はどうですか？</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">2〜3分の匿名フォームです。いただいた声は次の改善に直結します。</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">この場で2〜3分。匿名のままで、いただいた声は次の改善に直結します。</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           {/* アプリ内で完結させる（外部フォームへ飛ばして戻ってこない導線をやめる）。
@@ -241,7 +241,7 @@ export function FeedbackNudgeBanner() {
           </button>
         </div>
       </div>
-      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
+      {showFeedback && <FeedbackModal survey onClose={() => setShowFeedback(false)} />}
     </div>
   )
 }
