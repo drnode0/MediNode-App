@@ -5,6 +5,11 @@ import { CircleUserRound } from 'lucide-react'
 // 未ログイン: 「ログイン」を表示 → タップでLoginModal。
 // ログイン中: アイコン → タップでメールアドレス＋ログアウトの小メニュー。
 // Supabase未設定時は何も表示しない（従来通りの見た目を保つ）。
+//
+// プレミアム中はこのアイコンだけが紫になる（紫＝プレミアムの色という規約に従う）。
+// 要素も文字も増やさず、既にあるものの色が変わるだけなので、常時表示でもうるさくならない。
+// バッジや「PREMIUM」の文字を足すと自己言及的で毎日見るうちに安っぽくなるため、そちらは採らない。
+// 体験中も同じ紫にする（体験中は実際にプレミアムなので）。期限切れで静かにグレーへ戻る。
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
@@ -12,6 +17,7 @@ import { useAuth } from './AuthProvider'
 import { LoginModal } from './LoginModal'
 import { createClient } from '@/lib/supabase/client'
 import { clearSettings, getSettings, mergeSettings, type AppSettings } from '@/lib/settings'
+import { hasSubscriptionConfig } from '@/lib/algolia'
 
 // パスワードの設定・変更モーダル。
 // ログインは従来どおりメール（6桁コード／リンク）が基本で、パスワードは
@@ -186,6 +192,13 @@ export function AccountButton() {
     setMounted(true)
   }, [])
 
+  // プレミアム判定は localStorage を見るため、マウント後に確定させる（SSRとの不一致を作らない）。
+  // user の変化（ログイン・切替）でも引き直す。
+  const [premium, setPremium] = useState(false)
+  useEffect(() => {
+    setPremium(hasSubscriptionConfig())
+  }, [user])
+
   if (!configured) return null
 
   if (loading) {
@@ -310,8 +323,14 @@ export function AccountButton() {
     <>
       <button
         onClick={() => setShowMenu(true)}
-        className="text-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-        title="アカウント"
+        className={`text-lg transition-colors ${
+          premium
+            ? // 深めの紫。24pxで潰れず、通知ドットのように騒がしくもならない濃度。
+              'text-purple-800 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300'
+            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+        }`}
+        // 色だけに意味を持たせない（ホバー・読み上げでも状態が分かるようにする）。
+        title={premium ? 'アカウント（プレミアム）' : 'アカウント'}
       >
         <CircleUserRound className="w-6 h-6" />
       </button>

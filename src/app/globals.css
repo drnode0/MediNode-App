@@ -86,3 +86,25 @@ mark[data-reader-search].reader-search-active {
 .dark mark[data-reader-search] {
   color: inherit;
 }
+
+/* ────────────────────────────────────────────────────────────
+   リーダー本文の組版（プレミアムの読書体験）。
+   バッジやラベルを足す代わりに、読む時間そのものの質を上げる。
+   説明されないが毎回効く種類の改善で、うるさくならない。
+   ダークの分岐は不要（色を持たない指定のみ）。
+   ──────────────────────────────────────────────────────────── */
+.reader-prose {
+  /* 日本語の約物・かなの字幅を詰める。「、」「。」「（）」まわりの
+     間延びが消えて、組みが一段締まる。欧文数字・英字には影響しない。 */
+  font-feature-settings: 'palt' 1;
+  /* 医療本文は数値が多い。桁を揃えると縦に読み比べられる。 */
+  font-variant-numeric: tabular-nums;
+}
+
+/* 見出しは行末で1語だけ落ちると締まらない。均等に折り返す。
+   text-wrap: pretty 未対応ブラウザでは既定の折り返しに戻るだけ。 */
+.reader-prose h1,
+.reader-prose h2,
+.reader-prose h3 {
+  text-wrap: pretty;
+}

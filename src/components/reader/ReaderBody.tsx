@@ -319,7 +319,7 @@ function Block({
       const body = <Inlines items={block.inlines} k={`p-${index}`} />
       return (
         <p
-          className={`text-base leading-[1.9] my-2.5 break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+          className={`text-base leading-[1.9] my-3.5 break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           {recap ? <NoAutoMarkerCtx.Provider value={true}>{body}</NoAutoMarkerCtx.Provider> : body}
         </p>
@@ -449,7 +449,12 @@ export function ReaderBody({
   active?: Set<Confidence>
 }) {
   return (
-    <div>
+    // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
+    // ・palt: 日本語の約物・かなを詰める（句読点まわりの間延びが消える）
+    // ・pretty: 行末で1語だけ落ちる不揃いを避ける
+    // ・tabular-nums は数値の並ぶ医療本文で桁が揃い、読み比べやすくなる
+    // いずれも要素も文字も増やさない。説明されないが毎回効く。
+    <div className="reader-prose">
       {doc.lastEdited && (
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
           更新 {new Date(doc.lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
