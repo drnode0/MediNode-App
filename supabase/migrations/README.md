@@ -36,7 +36,7 @@
 | 0016 | cq_views | `cq_views`, `increment_cq_view()` | ✅ |
 | 0017 | cq_votes | `cq_votes` | ✅ |
 | 0018 | admin_audit_log | `admin_audit_log` | ✅ ※2 |
-| 0019 | cq_submissions | `cq_submissions` | ⬜ 未適用 |
+| 0019 | cq_submissions | `cq_submissions` | ✅ |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
