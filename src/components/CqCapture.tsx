@@ -14,7 +14,7 @@
 //   ゼロ件画面などからは useCqCapture() が返す open(prefill, source, intent) を呼ぶ
 //   （個人Notion・プレミアムのどちらも無いときは null）
 
-import { useState, useEffect, useCallback, createContext, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2, HelpCircle, BookOpen, Star, Sprout } from 'lucide-react'
 import { Spinner } from './Spinner'
@@ -39,8 +39,11 @@ type CqProfile = { occupation: string; experience: string; penName: string }
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
+    // 職種の選択肢を受付DBの「職種」列に揃えたため、旧リストにしか無かった値
+    // （学生・管理栄養士）は空に落として選び直してもらう。
+    const occupation = String(raw.occupation || '')
     return {
-      occupation: String(raw.occupation || ''),
+      occupation: (CQ_OCCUPATIONS as readonly string[]).includes(occupation) ? occupation : '',
       experience: String(raw.experience || ''),
       penName: String(raw.penName || ''),
     }
@@ -293,6 +296,16 @@ function CqCaptureModal({
   const [phase, setPhase] = useState<'input' | 'done'>('input')
   const [showLogin, setShowLogin] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // 必須欄が未入力のとき、エラー表示だけでなく該当欄へフォーカスを返す。
+  const occupationRef = useRef<HTMLSelectElement | null>(null)
+  const experienceRef = useRef<HTMLSelectElement | null>(null)
+  const backgroundRef = useRef<HTMLTextAreaElement | null>(null)
+  // 背景が空のまま送信を押したときに出す確認バー（ソフト必須）。
+  const [bgPrompt, setBgPrompt] = useState(false)
+  // 「このまま送る」を一度選んだら、このモーダルを開いている間は再確認しない。
+  // 再レンダリングを起こす必要が無く、handleSend が同じ呼び出しの中で同期的に
+  // 読むだけなので useState ではなく useRef で持つ（モーダルの再マウントで自然に戻る）。
+  const bgConfirmedRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -350,11 +363,32 @@ function CqCaptureModal({
   const willSendMine = dest.mine && personalAvail && !mineDone
   const willSendExpert = dest.expert && expertReady === 'ready' && !needsLogin && !expertDone
 
-  const handleSend = async () => {
+  // skipBgPrompt: 確認バーの「このまま送る」から呼ばれたときだけ true。
+  // state 更新を待たずにそのまま送るため、引数で渡す。
+  const handleSend = async (opts?: { skipBgPrompt?: boolean }) => {
     const trimmed = title.trim()
     if (!trimmed) return // 送信ボタン自体が空入力ではdisabled（保険の早期return）
     if (willSendExpert && trimmed.length < QUESTION_MIN) {
       setExpertError(`疑問文は${QUESTION_MIN}文字以上で入力してください`)
+      return
+    }
+    // 職種・経験年数は必須。送信ボタンはdisabledにせず、押した時に理由を出す
+    // （disabledだと「なぜ押せないか」が伝わらない）。
+    if (willSendExpert && !profile.occupation) {
+      setExpertError('職種を選択してください')
+      occupationRef.current?.focus()
+      return
+    }
+    if (willSendExpert && !profile.experience) {
+      setExpertError('経験年数を選択してください')
+      experienceRef.current?.focus()
+      return
+    }
+    // 背景が空のときは送らずに一度だけ確認する。書くか、そのまま送るかは本人が選ぶ。
+    // 一度「このまま送る」を選んだあと（bgConfirmedRef）は、送信が失敗して同じ
+    // モーダルから再送しても、もう確認しない。
+    if (willSendExpert && !background.trim() && !opts?.skipBgPrompt && !bgConfirmedRef.current) {
+      setBgPrompt(true)
       return
     }
     if (!willSendMine && !willSendExpert) return
@@ -540,7 +574,12 @@ function CqCaptureModal({
                 {premiumAvail ? (
                   <button
                     type="button"
-                    onClick={() => setDest((d) => ({ ...d, expert: !d.expert }))}
+                    onClick={() => {
+                      setDest((d) => ({ ...d, expert: !d.expert }))
+                      // 確認バーは「今この送信操作」に対する問い。届け先を選び直したら
+                      // 前回の確認は無効なので、パネルの再マウントを待たずここで下ろす。
+                      setBgPrompt(false)
+                    }}
                     aria-pressed={dest.expert}
                     className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                       dest.expert
@@ -588,59 +627,112 @@ function CqCaptureModal({
                   ) : (
                     <>
                       {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
-                          任意のままにして投稿の足を止めないが、既定で開いて置き、
+                          ソフト必須（空でも送れるが、送信時に一度だけ確認を挟む）。
                           「何を書けばよいか」を例で示して書きやすくする。
                           例文は上の疑問文の例と同じ症例（敗血症性ショック）で揃える。
                           患者背景・場面・試したこと（数値）・迷っている点の4つを1文ずつ含め、
                           これを読めば書き方が分かるようにする。片方だけ直さない。 */}
                       <div className="space-y-1">
                         <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                          背景・状況<span className="font-normal text-gray-400 dark:text-gray-500">（任意）</span>
+                          背景・状況
                         </label>
                         <textarea
                           id="cq-background"
+                          ref={backgroundRef}
                           value={background}
-                          onChange={(e) => setBackground(e.target.value)}
+                          onChange={(e) => {
+                            setBackground(e.target.value)
+                            setBgPrompt(false)
+                          }}
                           maxLength={BACKGROUND_MAX}
                           rows={3}
                           placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
                           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         />
-                        {/* 疑問だけ書いて背景が空のときに、一度だけ静かに促す（送信は妨げない）。 */}
+                        {/* ここは常時のヒント文。実際のソフト必須（送信を一度止めて確認する）は
+                            handleSend 側のゲートが担い、その結果が下の確認バー（bgPrompt）に出る。 */}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-                          {title.trim().length >= QUESTION_MIN && !background.trim()
-                            ? 'どんな場面か・何を試したか・何に迷っているかが一言あると、回答がぐっと具体的になります。'
-                            : '患者背景・場面・これまでの対応など。具体的なほど回答の精度が上がります。'}
+                          空でも送れますが、あると回答の精度が変わります。
+                          患者背景・場面・これまでの対応など。
                         </p>
+                        {bgPrompt && (
+                          <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                              背景が空のままです。どんな場面で・何を試して・何に迷っているかが一言あると、答えられる疑問になります。
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBgPrompt(false)
+                                  backgroundRef.current?.focus()
+                                }}
+                                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg py-1.5 text-xs font-semibold transition-colors"
+                              >
+                                背景を書く
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  bgConfirmedRef.current = true
+                                  setBgPrompt(false)
+                                  handleSend({ skipBgPrompt: true })
+                                }}
+                                className="flex-1 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg py-1.5 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                              >
+                                このまま送る
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
+                      {/* 職種・経験年数は必須。どちらも1タップで、端末に記憶されるため
+                          壁になるのは初回だけ。経験年数は回答の深さ・前提の置き方を変える。 */}
                       <div className="flex gap-2">
-                        <select
-                          value={profile.occupation}
-                          onChange={(e) => setProfile((p) => ({ ...p, occupation: e.target.value }))}
-                          className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          aria-label="職種（任意）"
-                        >
-                          <option value="">職種（任意）</option>
-                          {CQ_OCCUPATIONS.map((o) => (
-                            <option key={o} value={o}>
-                              {o}
-                            </option>
-                          ))}
-                        </select>
-                        {/* 経験年数は回答の深さ・前提の置き方を変える。1タップで済むので負担にならない。 */}
-                        <select
-                          value={profile.experience}
-                          onChange={(e) => setProfile((p) => ({ ...p, experience: e.target.value }))}
-                          className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          aria-label="経験年数（任意）"
-                        >
-                          <option value="">経験年数（任意）</option>
-                          {CQ_EXPERIENCE_YEARS.map((y) => (
-                            <option key={y} value={y}>
-                              {y}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <label htmlFor="cq-occupation" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            職種<span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
+                          </label>
+                          <select
+                            id="cq-occupation"
+                            ref={occupationRef}
+                            value={profile.occupation}
+                            onChange={(e) => {
+                              setProfile((p) => ({ ...p, occupation: e.target.value }))
+                              setExpertError('')
+                            }}
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          >
+                            <option value="">選択してください</option>
+                            {CQ_OCCUPATIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <label htmlFor="cq-experience" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            経験年数<span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
+                          </label>
+                          <select
+                            id="cq-experience"
+                            ref={experienceRef}
+                            value={profile.experience}
+                            onChange={(e) => {
+                              setProfile((p) => ({ ...p, experience: e.target.value }))
+                              setExpertError('')
+                            }}
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          >
+                            <option value="">選択してください</option>
+                            {CQ_EXPERIENCE_YEARS.map((y) => (
+                              <option key={y} value={y}>
+                                {y}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <input
                         type="text"
@@ -716,7 +808,7 @@ function CqCaptureModal({
               )}
 
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={saving || !title.trim() || (!willSendMine && !willSendExpert)}
                 className="mt-3 w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
               >
@@ -788,6 +880,10 @@ function CqCaptureModal({
                     setMineError('')
                     setExpertError('')
                     setTitle('')
+                    // これは新しい疑問なので、前の疑問の背景と確認状態も一緒に仕切り直す
+                    setBackground('')
+                    setBgPrompt(false)
+                    bgConfirmedRef.current = false
                   }}
                   className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
                 >

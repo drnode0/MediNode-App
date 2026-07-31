@@ -80,10 +80,13 @@ export function toBoardCqs(pages: NotionIntakePage[]): BoardCq[] {
     const wantsPenName = selectName(propOf(page, '掲載名の希望')) === PEN_NAME_ALLOWED
     const posterName = wantsPenName ? plainText(propOf(page, 'ペンネーム'), 'rich_text') : ''
 
+    // 職種は外部フォームが書く「職種」を優先し、旧アプリ内投稿の「投稿者職種」で補う。
+    const posterRole = selectName(propOf(page, '職種')) || selectName(propOf(page, '投稿者職種'))
+
     items.push({
       id: page.id,
       title,
-      posterRole: selectName(propOf(page, '投稿者職種')),
+      posterRole,
       posterName,
       createdAt: String(page.created_time || ''),
     })
