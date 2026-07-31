@@ -1376,7 +1376,7 @@ ${label}`,
                   return (
                     <PersonRow
                       key={r.userId}
-                      email={r.email}
+                      email={maskEmails ? maskEmail(r.email) : r.email}
                       userId={r.userId}
                       kindBadge={
                         <span
