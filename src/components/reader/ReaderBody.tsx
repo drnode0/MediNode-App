@@ -273,11 +273,11 @@ function Block({
         const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <span className="text-[0.875em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
+            <div data-section={anchor} className="flex items-start gap-2.5 mt-10 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-[0.95em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
-              <h3 className="text-[1.17em] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
+              <h3 className="text-[1.3em] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
             </div>
           )
         }
@@ -286,19 +286,19 @@ function Block({
         const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
         if (SecIcon) {
           return (
-            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.17em] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.3em] font-bold text-gray-900 dark:text-gray-100 mt-9 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
               <SecIcon className={`h-[1.05em] w-[1.05em] shrink-0 ${secColor}`} aria-hidden />
               <span className="min-w-0">{secText}</span>
             </h3>
           )
         }
         return (
-          <h3 data-section={anchor} className="text-[1.17em] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+          <h3 data-section={anchor} className="text-[1.3em] font-bold text-gray-900 dark:text-gray-100 mt-9 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
       }
-      const size = block.level === 1 ? 'text-[1.25em] font-bold' : 'text-[1.06em] font-bold'
+      const size = block.level === 1 ? 'text-[1.35em] font-bold' : 'text-[1.12em] font-bold'
       // H1/H3 の見出しも同様に、既知テンプレ絵文字ならアイコン化（未知は忠実描画のまま）。
       const h13 = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
       if (h13.Icon) {
@@ -476,7 +476,7 @@ export function ReaderBody({
             <img src={doc.cover} alt="" className="w-full rounded-lg" />
           </button>
         )}
-        <h2 className="text-[1.3em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
+        <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
           {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
           <KnowledgeTitle title={doc.title} />
         </h2>
