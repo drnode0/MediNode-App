@@ -12,14 +12,20 @@ import {
 } from '../cq-submit'
 
 describe('validateCqSubmission', () => {
-  const valid = { question: '人工呼吸器のウィーニング、SBTの合格基準は？' }
+  // 必須は 疑問文・職種・経験年数 の3つ（背景はサーバー側では任意）。
+  const valid = {
+    question: '人工呼吸器のウィーニング、SBTの合格基準は？',
+    occupation: '看護師',
+    experience: '2〜3年目',
+  }
 
-  it('最低限（疑問文のみ）で通る', () => {
+  it('必須（疑問文・職種・経験年数）が揃えば通る', () => {
     const r = validateCqSubmission(valid)
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.value.question).toBe(valid.question)
-      expect(r.value.occupation).toBe('')
+      expect(r.value.occupation).toBe('看護師')
+      expect(r.value.experience).toBe('2〜3年目')
       expect(r.value.penName).toBe('')
       expect(r.value.notify).toBe(false)
     }
@@ -32,19 +38,26 @@ describe('validateCqSubmission', () => {
   })
 
   it('短すぎる疑問文は拒否（境界値）', () => {
-    expect(validateCqSubmission({ question: 'あ'.repeat(QUESTION_MIN - 1) }).ok).toBe(false)
-    expect(validateCqSubmission({ question: 'あ'.repeat(QUESTION_MIN) }).ok).toBe(true)
+    expect(validateCqSubmission({ ...valid, question: 'あ'.repeat(QUESTION_MIN - 1) }).ok).toBe(false)
+    expect(validateCqSubmission({ ...valid, question: 'あ'.repeat(QUESTION_MIN) }).ok).toBe(true)
   })
 
   it('長すぎる疑問文は拒否（境界値）', () => {
-    expect(validateCqSubmission({ question: 'あ'.repeat(QUESTION_MAX) }).ok).toBe(true)
-    expect(validateCqSubmission({ question: 'あ'.repeat(QUESTION_MAX + 1) }).ok).toBe(false)
+    expect(validateCqSubmission({ ...valid, question: 'あ'.repeat(QUESTION_MAX) }).ok).toBe(true)
+    expect(validateCqSubmission({ ...valid, question: 'あ'.repeat(QUESTION_MAX + 1) }).ok).toBe(false)
   })
 
-  it('職種はリスト外を拒否、リスト内と未選択は通す', () => {
+  it('職種は必須。未選択もリスト外も拒否する', () => {
+    expect(validateCqSubmission({ ...valid, occupation: '' }).ok).toBe(false)
     expect(validateCqSubmission({ ...valid, occupation: '宇宙飛行士' }).ok).toBe(false)
     expect(validateCqSubmission({ ...valid, occupation: '看護師' }).ok).toBe(true)
-    expect(validateCqSubmission({ ...valid, occupation: '' }).ok).toBe(true)
+    expect(validateCqSubmission({ ...valid, occupation: '学生（医学生・看護学生など）' }).ok).toBe(true)
+  })
+
+  it('経験年数は必須。未選択もリスト外も拒否する', () => {
+    expect(validateCqSubmission({ ...valid, experience: '' }).ok).toBe(false)
+    expect(validateCqSubmission({ ...valid, experience: '100年目' }).ok).toBe(false)
+    expect(validateCqSubmission({ ...valid, experience: '2〜3年目' }).ok).toBe(true)
   })
 
   it('ペンネームは上限で切り詰める', () => {
@@ -194,7 +207,11 @@ describe('defaultDestinations（届け先チップの初期値）', () => {
 // 専門医が答えられない／的外れな回答になる。外部フォームでは必須だった
 // 背景をアプリ内でも受け取る（ただし入力の快適さのため任意のまま）。
 describe('背景・経験年数', () => {
-  const valid = { question: '人工呼吸器のウィーニング、SBTの合格基準は？' }
+  const valid = {
+    question: '人工呼吸器のウィーニング、SBTの合格基準は？',
+    occupation: '看護師',
+    experience: '2〜3年目',
+  }
 
   it('背景を受け取って正規化する', () => {
     const r = validateCqSubmission({ ...valid, background: '  80代・SBT2回失敗  ' })
@@ -209,12 +226,6 @@ describe('背景・経験年数', () => {
   it('背景は上限で切り詰める', () => {
     const r = validateCqSubmission({ ...valid, background: 'あ'.repeat(BACKGROUND_MAX + 50) })
     expect(r.ok && r.value.background.length).toBe(BACKGROUND_MAX)
-  })
-
-  it('経験年数はリスト外を拒否、リスト内と未選択は通す', () => {
-    expect(validateCqSubmission({ ...valid, experience: '100年目' }).ok).toBe(false)
-    expect(validateCqSubmission({ ...valid, experience: '2〜3年目' }).ok).toBe(true)
-    expect(validateCqSubmission({ ...valid, experience: '' }).ok).toBe(true)
   })
 })
 

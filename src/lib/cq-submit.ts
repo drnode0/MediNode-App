@@ -87,17 +87,21 @@ export function validateCqSubmission(
     return { ok: false, error: `疑問文は${QUESTION_MAX}文字以内で入力してください` }
   }
 
-  // 背景は任意のまま（入力の負担を増やして投稿自体を止めない）。
-  // ただし入っていれば回答の具体度が大きく変わるので、UI側で書きやすく促す。
+  // 背景はサーバー側では任意のまま。空のときに一度だけ確認を挟む
+  // 「ソフト必須」はUI（CqCapture）の責務で、ここでは弾かない。
   const background = str(input.background).slice(0, BACKGROUND_MAX)
 
+  // 職種と経験年数は必須。どちらも1タップで、端末に記憶されるため
+  // 壁になるのは初回だけ。逆にこの2つが無いと回答の前提が置けない。
   const occupation = str(input.occupation)
-  if (occupation && !(CQ_OCCUPATIONS as readonly string[]).includes(occupation)) {
+  if (!occupation) return { ok: false, error: '職種を選択してください' }
+  if (!(CQ_OCCUPATIONS as readonly string[]).includes(occupation)) {
     return { ok: false, error: '職種はリストから選択してください' }
   }
 
   const experience = str(input.experience)
-  if (experience && !(CQ_EXPERIENCE_YEARS as readonly string[]).includes(experience)) {
+  if (!experience) return { ok: false, error: '経験年数を選択してください' }
+  if (!(CQ_EXPERIENCE_YEARS as readonly string[]).includes(experience)) {
     return { ok: false, error: '経験年数はリストから選択してください' }
   }
 
