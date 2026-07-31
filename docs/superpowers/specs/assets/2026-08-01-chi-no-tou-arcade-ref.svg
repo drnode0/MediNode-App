@@ -1,0 +1,228 @@
+<svg viewBox="0 0 480 640" xmlns="http://www.w3.org/2000/svg" font-family="'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef7f2"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e1830"/>
+      <stop offset="1" stop-color="#111c36"/>
+    </linearGradient>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect y="3" width="4" height="1" fill="#000000" opacity="0.18"/>
+    </pattern>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.8">
+      <stop offset="0.62" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.30"/>
+    </radialGradient>
+    <filter id="card" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="7" flood-color="#0d3a2b" flood-opacity="0.14"/>
+    </filter>
+    <!-- 若葉スプライト（斜めのドット葉・12x12） -->
+    <g id="pleaf">
+      <rect x="6" y="0" width="6" height="3" fill="#7bffc4"/>
+      <rect x="3" y="3" width="9" height="3" fill="#3ecf8e"/>
+      <rect x="0" y="6" width="9" height="3" fill="#3ecf8e"/>
+      <rect x="0" y="9" width="4" height="3" fill="#1d9c66"/>
+    </g>
+    <!-- スコア数字 18.4（cell=6・fillは使用側で指定） -->
+    <g id="score">
+      <rect x="6" y="0" width="6" height="6"/><rect x="0" y="6" width="6" height="6"/><rect x="6" y="6" width="6" height="6"/>
+      <rect x="6" y="12" width="6" height="6"/><rect x="6" y="18" width="6" height="6"/>
+      <rect x="0" y="24" width="6" height="6"/><rect x="6" y="24" width="6" height="6"/><rect x="12" y="24" width="6" height="6"/>
+      <g transform="translate(26,0)">
+        <rect x="0" y="0" width="6" height="6"/><rect x="6" y="0" width="6" height="6"/><rect x="12" y="0" width="6" height="6"/>
+        <rect x="0" y="6" width="6" height="6"/><rect x="12" y="6" width="6" height="6"/>
+        <rect x="0" y="12" width="6" height="6"/><rect x="6" y="12" width="6" height="6"/><rect x="12" y="12" width="6" height="6"/>
+        <rect x="0" y="18" width="6" height="6"/><rect x="12" y="18" width="6" height="6"/>
+        <rect x="0" y="24" width="6" height="6"/><rect x="6" y="24" width="6" height="6"/><rect x="12" y="24" width="6" height="6"/>
+      </g>
+      <rect x="50" y="24" width="6" height="6"/>
+      <g transform="translate(62,0)">
+        <rect x="0" y="0" width="6" height="6"/><rect x="12" y="0" width="6" height="6"/>
+        <rect x="0" y="6" width="6" height="6"/><rect x="12" y="6" width="6" height="6"/>
+        <rect x="0" y="12" width="6" height="6"/><rect x="6" y="12" width="6" height="6"/><rect x="12" y="12" width="6" height="6"/>
+        <rect x="12" y="18" width="6" height="6"/><rect x="12" y="24" width="6" height="6"/>
+      </g>
+    </g>
+  </defs>
+
+  <rect width="480" height="640" fill="url(#bg)"/>
+
+  <!-- 筐体（MediNodeのホームカードの中の、ダークな画面） -->
+  <rect x="24" y="24" width="432" height="592" rx="24" fill="#0b1322" stroke="#1c2a49" stroke-width="1.5" filter="url(#card)"/>
+  <rect x="36" y="36" width="408" height="568" rx="16" fill="url(#screen)"/>
+
+  <!-- 星と月 -->
+  <g fill="#31405f">
+    <rect x="88" y="150" width="3" height="3"/>
+    <rect x="300" y="120" width="2" height="2"/>
+    <rect x="150" y="105" width="2" height="2"/>
+    <rect x="395" y="180" width="3" height="3"/>
+    <rect x="70" y="250" width="2" height="2"/>
+    <rect x="410" y="300" width="2" height="2"/>
+    <rect x="120" y="330" width="2" height="2"/>
+  </g>
+  <g fill="#7d94c4">
+    <rect x="238" y="112" width="3" height="3"/>
+    <rect x="352" y="142" width="2" height="2"/>
+    <rect x="96" y="205" width="2" height="2"/>
+  </g>
+  <g fill="#c9d6ee" opacity="0.85">
+    <rect x="372" y="76" width="8" height="4"/>
+    <rect x="368" y="80" width="8" height="4"/>
+    <rect x="372" y="84" width="8" height="4"/>
+  </g>
+  <!-- 雲（ドット） -->
+  <g fill="#1c2a49">
+    <rect x="76" y="176" width="40" height="8"/>
+    <rect x="84" y="168" width="24" height="8"/>
+    <rect x="360" y="236" width="36" height="8"/>
+    <rect x="368" y="228" width="20" height="8"/>
+  </g>
+
+  <!-- ヘッダ: タイトルとスコア（ドット数字・緑の落ち影） -->
+  <text x="60" y="76" font-size="13" font-weight="700" fill="#3ecf8e" letter-spacing="0.2em">知の塔</text>
+  <use href="#score" transform="translate(62,90)" fill="#173a2c"/>
+  <use href="#score" transform="translate(60,88)" fill="#eaf2ff"/>
+  <text x="148" y="118" font-size="12" fill="#8ea3c8">cm</text>
+  <text x="60" y="140" font-size="11" fill="#8ea3c8">学び 214歩 ・ 今週 +9</text>
+
+  <!-- ネコ（ドット絵・30cmの線の上） -->
+  <g transform="translate(330,196)">
+    <text x="30" y="-8" font-size="10.5" fill="#8ea3c8" text-anchor="middle">ネコ 30cm</text>
+    <g fill="#94a8cf">
+      <rect x="5" y="0" width="5" height="5"/><rect x="5" y="5" width="10" height="5"/>
+      <rect x="45" y="0" width="5" height="5"/><rect x="40" y="5" width="10" height="5"/>
+      <rect x="10" y="10" width="40" height="15"/>
+      <rect x="15" y="25" width="30" height="5"/>
+      <rect x="10" y="30" width="40" height="20"/>
+      <rect x="10" y="50" width="15" height="5"/><rect x="35" y="50" width="15" height="5"/>
+      <rect x="50" y="45" width="5" height="10"/><rect x="55" y="40" width="5" height="10"/><rect x="55" y="30" width="5" height="10"/>
+    </g>
+    <g fill="#0e1830">
+      <rect x="20" y="15" width="5" height="5"/><rect x="35" y="15" width="5" height="5"/>
+    </g>
+  </g>
+  <!-- 30cmの線（ドット破線） -->
+  <g fill="#2c3d61">
+    <rect x="60" y="251" width="6" height="2"/><rect x="74" y="251" width="6" height="2"/><rect x="88" y="251" width="6" height="2"/>
+    <rect x="102" y="251" width="6" height="2"/><rect x="116" y="251" width="6" height="2"/><rect x="130" y="251" width="6" height="2"/>
+    <rect x="144" y="251" width="6" height="2"/><rect x="158" y="251" width="6" height="2"/><rect x="172" y="251" width="6" height="2"/>
+    <rect x="186" y="251" width="6" height="2"/><rect x="200" y="251" width="6" height="2"/><rect x="214" y="251" width="6" height="2"/>
+    <rect x="228" y="251" width="6" height="2"/><rect x="242" y="251" width="6" height="2"/><rect x="256" y="251" width="6" height="2"/>
+    <rect x="270" y="251" width="6" height="2"/><rect x="284" y="251" width="6" height="2"/><rect x="298" y="251" width="6" height="2"/>
+    <rect x="312" y="251" width="6" height="2"/><rect x="326" y="251" width="6" height="2"/><rect x="340" y="251" width="6" height="2"/>
+    <rect x="354" y="251" width="6" height="2"/><rect x="368" y="251" width="6" height="2"/><rect x="382" y="251" width="6" height="2"/>
+    <rect x="396" y="251" width="6" height="2"/><rect x="410" y="251" width="6" height="2"/>
+  </g>
+  <g transform="translate(330,262)">
+    <rect x="0" y="0" width="60" height="20" rx="3" fill="#14301f" stroke="#3ecf8e" stroke-width="1"/>
+    <text x="30" y="14" font-size="10" font-weight="700" fill="#3ecf8e" text-anchor="middle">あと12歩</text>
+  </g>
+
+  <!-- 落下中のブロック（そのナレッジのジャンル色＋名前） -->
+  <g>
+    <text x="150" y="158" font-size="9.5" fill="#8ea3c8">アナフィラキシー初期対応</text>
+    <rect x="150" y="166" width="120" height="14" fill="#ffc24b"/>
+    <rect x="150" y="166" width="120" height="4" fill="#ffe097"/>
+    <rect x="150" y="177" width="120" height="3" fill="#c78e1e"/>
+    <rect x="136" y="150" width="3" height="8" fill="#31405f"/>
+    <rect x="282" y="144" width="3" height="12" fill="#31405f"/>
+    <g transform="translate(278,158)">
+      <rect width="32" height="18" rx="3" fill="#3ecf8e"/>
+      <text x="16" y="13" font-size="10.5" font-weight="700" fill="#0b1322" text-anchor="middle">+1</text>
+    </g>
+  </g>
+
+  <!-- ===== 塔 ===== -->
+  <g>
+    <g transform="translate(158,268)"><rect width="120" height="14" fill="#16223a" stroke="#56688f" stroke-width="2"/></g>
+    <g transform="translate(146,282)">
+      <rect width="120" height="14" fill="#ffc24b"/><rect width="120" height="4" fill="#ffe097"/><rect y="11" width="120" height="3" fill="#c78e1e"/>
+    </g>
+    <g transform="translate(154,296)">
+      <rect width="120" height="14" fill="#3ecf8e"/><rect width="120" height="4" fill="#7bffc4"/><rect y="11" width="120" height="3" fill="#1d9c66"/>
+      <use href="#pleaf" transform="translate(124,1)"/>
+    </g>
+    <g transform="translate(150,310)"><rect width="120" height="14" fill="#8a8265"/><rect width="120" height="4" fill="#a89f7e"/><rect y="11" width="120" height="3" fill="#6b6448"/></g>
+    <g transform="translate(142,324)">
+      <rect width="120" height="14" fill="#b394f5"/><rect width="120" height="4" fill="#d7c5ff"/><rect y="11" width="120" height="3" fill="#8a63d6"/>
+    </g>
+    <g transform="translate(158,338)"><rect width="120" height="14" fill="#16223a" stroke="#56688f" stroke-width="2"/></g>
+    <g transform="translate(150,352)">
+      <rect width="120" height="14" fill="#4cc3ff"/><rect width="120" height="4" fill="#a5e2ff"/><rect y="11" width="120" height="3" fill="#2795cf"/>
+      <use href="#pleaf" transform="translate(124,1)"/>
+    </g>
+    <g transform="translate(146,366)">
+      <rect width="120" height="14" fill="#ffc24b"/><rect width="120" height="4" fill="#ffe097"/><rect y="11" width="120" height="3" fill="#c78e1e"/>
+    </g>
+  </g>
+
+  <!-- スズメ（ドット・改良版） -->
+  <g transform="translate(66,348)">
+    <g fill="#9db1d8">
+      <rect x="8" y="0" width="8" height="4"/>
+      <rect x="4" y="4" width="16" height="4"/>
+      <rect x="0" y="8" width="20" height="4"/>
+      <rect x="4" y="12" width="12" height="4"/>
+    </g>
+    <rect x="20" y="4" width="5" height="4" fill="#ffc24b"/>
+    <rect x="12" y="4" width="3" height="3" fill="#0e1830"/>
+    <g fill="#9db1d8">
+      <rect x="6" y="16" width="2" height="3"/><rect x="12" y="16" width="2" height="3"/>
+    </g>
+    <text x="12" y="32" font-size="9" fill="#5b6f9a" text-anchor="middle">15cm ✓</text>
+  </g>
+
+  <!-- ===== VOL.スラブ（地層のジャンル縞つき） ===== -->
+  <g>
+    <g transform="translate(138,380)">
+      <rect width="144" height="26" fill="#223154"/>
+      <rect width="144" height="5" fill="#31456f"/>
+      <text x="10" y="17" font-size="11" font-weight="700" fill="#9fb4e0" letter-spacing="0.15em">VOL.3</text>
+      <use href="#pleaf" transform="translate(122,5)"/>
+      <rect x="0" y="21" width="52" height="5" fill="#3ecf8e" opacity="0.75"/>
+      <rect x="52" y="21" width="34" height="5" fill="#ffc24b" opacity="0.75"/>
+      <rect x="86" y="21" width="30" height="5" fill="#b394f5" opacity="0.75"/>
+      <rect x="116" y="21" width="28" height="5" fill="#4cc3ff" opacity="0.75"/>
+    </g>
+    <g transform="translate(136,406)">
+      <rect width="148" height="26" fill="#223154"/>
+      <rect width="148" height="5" fill="#31456f"/>
+      <text x="10" y="17" font-size="11" font-weight="700" fill="#9fb4e0" letter-spacing="0.15em">VOL.2</text>
+      <use href="#pleaf" transform="translate(104,5)"/>
+      <use href="#pleaf" transform="translate(124,5)"/>
+      <rect x="0" y="21" width="90" height="5" fill="#3ecf8e" opacity="0.75"/>
+      <rect x="90" y="21" width="26" height="5" fill="#4cc3ff" opacity="0.75"/>
+      <rect x="116" y="21" width="32" height="5" fill="#ffc24b" opacity="0.75"/>
+    </g>
+    <g transform="translate(140,432)">
+      <rect width="140" height="26" fill="#223154"/>
+      <rect width="140" height="5" fill="#31456f"/>
+      <text x="10" y="17" font-size="11" font-weight="700" fill="#9fb4e0" letter-spacing="0.15em">VOL.1</text>
+      <use href="#pleaf" transform="translate(118,5)"/>
+      <rect x="0" y="21" width="112" height="5" fill="#3ecf8e" opacity="0.75"/>
+      <rect x="112" y="21" width="28" height="5" fill="#b394f5" opacity="0.75"/>
+    </g>
+  </g>
+
+  <!-- 地面 -->
+  <rect x="60" y="458" width="360" height="4" fill="#2c3d61"/>
+  <rect x="60" y="462" width="360" height="10" fill="#141f3a"/>
+
+  <!-- 注記 -->
+  <text x="296" y="447" font-size="10" fill="#5b6f9a">30歩ごとに VOL. に固まる</text>
+
+  <!-- スキャンラインとブラウン管の暗がり -->
+  <rect x="36" y="36" width="408" height="568" rx="16" fill="url(#scan)"/>
+  <rect x="36" y="36" width="408" height="568" rx="16" fill="url(#vig)"/>
+
+  <!-- フッターログ -->
+  <g>
+    <rect x="52" y="496" width="376" height="2" fill="#1c2a49"/>
+    <text x="60" y="526" font-size="11" fill="#c9d6ee"><tspan fill="#3ecf8e" font-weight="700">▶ </tspan>きのう <tspan fill="#7bffc4" font-weight="700">敗血症の初期輸液</tspan> に葉が挟まった</text>
+    <text x="60" y="550" font-size="11" fill="#8ea3c8"><tspan fill="#ffc24b" font-weight="700">▶ </tspan>くすんだブロックが 3個 → <tspan fill="#3ecf8e">今日の回診へ</tspan></text>
+    <text x="60" y="584" font-size="10" fill="#5b6f9a">ブロック＝学びの1歩 ・ 明るさ＝いま即答できるか</text>
+  </g>
+</svg>
