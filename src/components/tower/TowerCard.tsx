@@ -1,6 +1,6 @@
 'use client'
 // ホームの1行カード。開いて5秒で現在地（当直の合間ルール）。追加API呼び出しゼロ。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { loadTowerState, TOWER_EVENT } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
@@ -10,6 +10,7 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
   const [count, setCount] = useState(0)
   const [week, setWeek] = useState(0)
   const [popKey, setPopKey] = useState(0)
+  const hideTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const refresh = () => {
@@ -21,9 +22,15 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
     const onStep = () => {
       refresh()
       setPopKey((k) => k + 1)
+      // +1 は一瞬の確認であって常設バッジではない（うるさくしない原則）
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+      hideTimer.current = window.setTimeout(() => setPopKey(0), 1500)
     }
     window.addEventListener(TOWER_EVENT, onStep)
-    return () => window.removeEventListener(TOWER_EVENT, onStep)
+    return () => {
+      window.removeEventListener(TOWER_EVENT, onStep)
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+    }
   }, [])
 
   if (!isTowerEnabled() || count === 0) return null // v1はオーナーのみ。歩0の端末でも出さない（初回は取込で積もってから）
