@@ -302,6 +302,10 @@ function CqCaptureModal({
   const backgroundRef = useRef<HTMLTextAreaElement | null>(null)
   // 背景が空のまま送信を押したときに出す確認バー（ソフト必須）。
   const [bgPrompt, setBgPrompt] = useState(false)
+  // 「このまま送る」を一度選んだら、このモーダルを開いている間は再確認しない。
+  // 再レンダリングを起こす必要が無く、handleSend が同じ呼び出しの中で同期的に
+  // 読むだけなので useState ではなく useRef で持つ（モーダルの再マウントで自然に戻る）。
+  const bgConfirmedRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -381,7 +385,9 @@ function CqCaptureModal({
       return
     }
     // 背景が空のときは送らずに一度だけ確認する。書くか、そのまま送るかは本人が選ぶ。
-    if (willSendExpert && !background.trim() && !opts?.skipBgPrompt) {
+    // 一度「このまま送る」を選んだあと（bgConfirmedRef）は、送信が失敗して同じ
+    // モーダルから再送しても、もう確認しない。
+    if (willSendExpert && !background.trim() && !opts?.skipBgPrompt && !bgConfirmedRef.current) {
       setBgPrompt(true)
       return
     }
@@ -650,7 +656,7 @@ function CqCaptureModal({
                           患者背景・場面・これまでの対応など。
                         </p>
                         {bgPrompt && (
-                          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
+                          <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
                             <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
                               背景が空のままです。どんな場面で・何を試して・何に迷っているかが一言あると、答えられる疑問になります。
                             </p>
@@ -668,6 +674,7 @@ function CqCaptureModal({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  bgConfirmedRef.current = true
                                   setBgPrompt(false)
                                   handleSend({ skipBgPrompt: true })
                                 }}
