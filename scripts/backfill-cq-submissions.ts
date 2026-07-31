@@ -34,6 +34,7 @@ async function main() {
   let scanned = 0
   let inserted = 0
   let skipped = 0
+  let failed = 0
   do {
     const res = await notion.databases.query({
       database_id: dbId,
@@ -59,7 +60,7 @@ async function main() {
         skipped++
         continue
       }
-      const role = props['職種']?.select?.name ?? text(props['投稿者職種']) ?? null
+      const role = props['職種']?.select?.name ?? text(props['投稿者職種'])
       const years = props['経験年数']?.select?.name ?? null
       const departments =
         (props['診療科・立場']?.multi_select ?? []).map((o) => o.name ?? '').filter(Boolean).join(', ') || null
@@ -78,6 +79,7 @@ async function main() {
       )
       if (error) {
         console.error(`  失敗 ${page.id}: ${error.message}`)
+        failed++
       } else {
         inserted++
       }
@@ -85,7 +87,7 @@ async function main() {
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
 
-  console.log(`走査 ${scanned} 件 / 取り込み対象 ${inserted} 件 / 同意なし等スキップ ${skipped} 件`)
+  console.log(`走査 ${scanned} 件 / 取り込み対象 ${inserted} 件 / 同意なし等スキップ ${skipped} 件 / 失敗 ${failed} 件`)
 }
 
 main().catch((e) => {
