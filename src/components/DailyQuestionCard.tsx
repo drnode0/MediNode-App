@@ -7,7 +7,9 @@ import { useContext, useEffect, useState, type ReactNode } from 'react'
 import { BookOpen, Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { KnowledgeTitle } from '@/lib/title-display'
-import { recordQuizResult } from '@/lib/quiz-srs'
+import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
+import { recordTowerEvent, recallKind } from '@/lib/tower-steps'
+import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
@@ -102,6 +104,10 @@ export function DailyQuestionCard() {
   }
 
   const answer = (ok: boolean) => {
+    if (ok && isTowerEnabled()) {
+      const kind = recallKind(getQuizStat(q.objectID), new Date().toISOString())
+      if (kind) recordTowerEvent({ id: q.objectID, kind, genre: Array.isArray(q.genre) ? q.genre[0] : q.genre || '', title: q.title })
+    }
     recordQuizResult(q.objectID, ok)
     // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。
     void fetch('/api/daily-question/answered', { method: 'POST' }).catch(() => {})

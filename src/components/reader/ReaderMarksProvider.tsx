@@ -16,6 +16,8 @@ import {
   type BookmarkEntry,
 } from '@/lib/reader-marks'
 import { useAuth } from '@/components/auth/AuthProvider'
+import { recordTowerEvent } from '@/lib/tower-steps'
+import { isTowerEnabled } from '@/lib/tower-flags'
 
 type ReaderMarksCtx = {
   isRead: (id: string) => boolean
@@ -56,6 +58,7 @@ export function ReaderMarksProvider({ children }: { children: React.ReactNode })
 
   const markRead = useCallback((id: string) => {
     recordRead(id)
+    if (isTowerEnabled()) recordTowerEvent({ id, kind: 'read' }) // 知の塔: 初めて読んだ知識は1歩（重複は台帳側で弾く）
     setReads((prev) => {
       if (prev[0] === id) return prev
       return pushRead(prev, id)

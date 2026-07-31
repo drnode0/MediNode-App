@@ -25,6 +25,7 @@ export const PERSONAL_DEVICE_KEYS = [
   'medinode_push_primer_seen_v1', // 通知プライマーの既読水位
   'medinode_reader_read_v1', // リーダー既読（見た）水位
   'medinode_reader_bookmarks_v1', // リーダーのブックマーク
+  'medinode_tower_v1', // 知の塔（学びの歩の台帳）
 ] as const
 
 // この端末で最後にログインしていたユーザーの id を覚えておくキー（機微でない）。
