@@ -54,7 +54,7 @@ export function PersonRow(props: PersonRowProps) {
           <span className="text-xs tabular-nums">{props.lastSeenLabel}</span>
         </span>
         <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate min-w-0 flex-1">
-          {props.email ?? '（メールなし）'}
+          {props.email ?? '（メール不明）'}
         </span>
         {props.kindBadge}
         {props.hasStripe && (

@@ -28,6 +28,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  StickyNote,
   Timer,
   Trash2,
   Trophy,
@@ -226,18 +227,6 @@ function relTime(iso: string | null): string {
   const day = Math.floor(hr / 24)
   if (day < 30) return `${day}日前`
   return `${Math.floor(day / 30)}ヶ月前`
-}
-
-// 日付セル。ホバー（スマホは長押し）で時刻まで見える。
-function DateCell({ iso }: { iso: string | null }) {
-  return (
-    <td
-      className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-      title={fmtDateTime(iso) || undefined}
-    >
-      {fmtDate(iso)}
-    </td>
-  )
 }
 
 // KPIカード（登録者数・アクティブ数など画面上部の数字）。
@@ -663,7 +652,6 @@ ${label}`,
 
   // 台帳の並び替え（プリセット3種）＋区分フィルタ。
   const sorted = useMemo(() => {
-    if (!filtered) return []
     const base = kindFilter === 'all' ? filtered : filtered.filter((r) => r.kind === kindFilter)
     return [...base].sort((a, b) => comparePeople(sortMode, a, b))
   }, [filtered, sortMode, kindFilter])
@@ -682,6 +670,15 @@ ${label}`,
     for (const r of realRows) c[r.kind]++
     return c
   }, [realRows])
+
+  // 一覧の区分フィルタチップ専用の人数。チップが絞り込む母集団は rows 全件（filtered）なので、
+  // realRows ベースの counts（KPI・分析タブ用。admin/モニター/オーナー除外）を流用すると
+  // 「管理者0人なのに押すと行が出る」等の矛盾が出る。ここは必ず rows 全件で数える。
+  const chipCounts = useMemo(() => {
+    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
+    for (const r of rows ?? []) c[r.kind]++
+    return c
+  }, [rows])
 
   // マーケ・経営指標（すべて既存データの派生。ロジックは ledger-metrics に集約）。
   const funnel = useMemo(
@@ -1340,7 +1337,7 @@ ${label}`,
                 すべて {rows?.length ?? 0}
               </button>
               {(Object.keys(MEMBER_KIND_LABEL) as MemberKind[]).map((k) => {
-                const n = counts[k] ?? 0
+                const n = chipCounts[k] ?? 0
                 return (
                   <button
                     key={k}
@@ -1362,6 +1359,11 @@ ${label}`,
 
             {/* 台帳一覧: 1人1行、詳細は展開（人が主役） */}
             <div id="ledger" className="scroll-mt-4">
+              {sorted.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                  該当するアカウントがありません
+                </p>
+              ) : (
               <ul className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y-0">
                 {sorted.map((r) => {
                   const Icon = KIND_STYLE[r.kind].icon
@@ -1397,6 +1399,12 @@ ${label}`,
                         <div className="space-y-3 text-sm">
                           {/* --- 基本情報（旧テーブルの列を definition list に移す） --- */}
                           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+                            <div className="col-span-2 sm:col-span-3">
+                              <dt className="text-gray-400 dark:text-gray-500">メール</dt>
+                              <dd className="text-gray-700 dark:text-gray-300 break-all">
+                                {maskEmails ? maskEmail(r.email) : (r.email ?? '—')}
+                              </dd>
+                            </div>
                             <div>
                               <dt className="text-gray-400 dark:text-gray-500">登録日</dt>
                               <dd
@@ -1609,7 +1617,8 @@ ${label}`,
                                     : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                               >
-                                📝 {r.ownerNote ? r.ownerNote : 'メモ'}
+                                <StickyNote className="w-3.5 h-3.5" aria-hidden />
+                                {r.ownerNote ? r.ownerNote : 'メモ'}
                               </button>
                             )}
                             {r.kind !== 'admin' && (
@@ -1654,10 +1663,6 @@ ${label}`,
                   )
                 })}
               </ul>
-              {sorted.length === 0 && (
-                <p className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                  該当するアカウントがありません
-                </p>
               )}
             </div>
 
