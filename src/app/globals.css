@@ -94,6 +94,10 @@ mark[data-reader-search].reader-search-active {
    ダークの分岐は不要（色を持たない指定のみ）。
    ──────────────────────────────────────────────────────────── */
 .reader-prose {
+  /* リーダー本文はシステム書体（iPhone→ヒラギノ）。note・東洋経済と同じ質感で、
+     Notoよりふところが開いて紙面が軽くなる（実測比較の上でオーナー決定 2026-08-01）。
+     Androidはシステムが元々Noto系なのでほぼ変化なし。UI・アプリ他画面はNotoのまま。 */
+  font-family: system-ui, -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
   /* 医療本文は数値が多い。桁を揃えると縦に読み比べられる。 */
   font-variant-numeric: tabular-nums;
   /* 通読する地の文はわずかに字間を開ける。詰めるのは見出しだけ（下記palt）。
@@ -109,7 +113,8 @@ mark[data-reader-search].reader-search-active {
    macOS Safari は対象外 — -apple-system-body が13px相当で逆に縮む。 */
 .ios-dt .reader-prose {
   font: -apple-system-body;
-  font-family: inherit;
+  /* ショートハンドが設定するシステム書体（SF＋ヒラギノ）をそのまま使う —
+     本文の書体方針（上記 .reader-prose）と一致するため上書き不要。 */
   font-variant-numeric: tabular-nums;
   font-feature-settings: normal;
 }
