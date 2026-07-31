@@ -30,7 +30,7 @@ export type PersonRowProps = {
   detail: ReactNode
 }
 
-// アクティブ度のアイコンと色（🔥→Flame 等・絵文字はUI装飾に使わない方針）。
+// アクティブ度のアイコンと色（絵文字はUI装飾に使わない方針のため lucide で表す）。
 const BAND_UI = {
   week: { Icon: Flame, cls: 'text-orange-500 dark:text-orange-400', label: '7日以内に利用' },
   month: { Icon: Moon, cls: 'text-sky-500 dark:text-sky-400', label: '30日以内に利用' },
