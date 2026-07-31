@@ -28,6 +28,8 @@ import { voteCountLabel, type BoardCqWithVote } from '@/lib/cq-board'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
+import { HelpfulButton } from '@/components/HelpfulButton'
+import { fetchHelpfulState, toggleHelpful, helpfulCountLabel, type HelpfulState } from '@/lib/cq-helpful'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { KnowledgeTitle, titleParts } from '@/lib/title-display'
@@ -252,6 +254,9 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
   const [items, setItems] = useState<ResolvedCq[] | null>(null)
   // CQごとの参照回数（のべ閲覧回数）。下限を超えた分だけバッジで見せる。
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
+  // 「役に立った」の合計と自分の分。押した瞬間に見た目を変え、サーバーの合計で確定させる。
+  const [helpful, setHelpful] = useState<HelpfulState>({ counts: {}, mine: [] })
+  const [busyHelpful, setBusyHelpful] = useState<string | null>(null)
   const isPremium = hasSubscriptionConfig()
 
   useEffect(() => {
@@ -262,10 +267,37 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
       const ids = r.map((c) => c.objectID).filter(Boolean)
       if (ids.length > 0) {
         fetchCqViewCounts(ids).then((c) => { if (!cancelled) setViewCounts(c) })
+        fetchHelpfulState(ids).then((s) => { if (!cancelled) setHelpful(s) })
       }
     })
     return () => { cancelled = true }
   }, [])
+
+  const toggleCardHelpful = useCallback(async (id: string) => {
+    if (busyHelpful) return
+    const next = !helpful.mine.includes(id)
+    setBusyHelpful(id)
+    setHelpful((prev) => ({
+      counts: { ...prev.counts, [id]: Math.max(0, (prev.counts[id] || 0) + (next ? 1 : -1)) },
+      mine: next ? [...prev.mine, id] : prev.mine.filter((m) => m !== id),
+    }))
+    const r = await toggleHelpful(id, next)
+    if (r) {
+      setHelpful((prev) => ({
+        counts: { ...prev.counts, [id]: r.count },
+        mine: r.helpful
+          ? (prev.mine.includes(id) ? prev.mine : [...prev.mine, id])
+          : prev.mine.filter((m) => m !== id),
+      }))
+    } else {
+      // 失敗したら見た目を戻す（押せたのに入っていない、を残さない）
+      setHelpful((prev) => ({
+        counts: { ...prev.counts, [id]: Math.max(0, (prev.counts[id] || 0) + (next ? -1 : 1)) },
+        mine: next ? prev.mine.filter((m) => m !== id) : [...prev.mine, id],
+      }))
+    }
+    setBusyHelpful(null)
+  }, [busyHelpful, helpful.mine])
 
   return (
     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -319,6 +351,28 @@ export function ResolvedCqHistory({ onOpenPremium }: { onOpenPremium?: () => voi
               <Search className="w-3 h-3 shrink-0" strokeWidth={2.2} />
               これまで {viewCounts[c.objectID].toLocaleString()}回 調べられています
             </p>
+          )}
+          {/* 「役に立った」。押せるのはプレミアム（本文を読める人）だけ。
+              非プレミアムには数字だけ見せる（counts は公開の集計値）。 */}
+          {isPremium ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
+              <HelpfulButton
+                pressed={helpful.mine.includes(c.objectID)}
+                disabled={busyHelpful === c.objectID}
+                onClick={() => toggleCardHelpful(c.objectID)}
+              />
+              {helpfulCountLabel(helpful.counts[c.objectID] || 0) && (
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                  {helpfulCountLabel(helpful.counts[c.objectID] || 0)}
+                </span>
+              )}
+            </div>
+          ) : (
+            helpfulCountLabel(helpful.counts[c.objectID] || 0) && (
+              <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                {helpfulCountLabel(helpful.counts[c.objectID] || 0)}
+              </p>
+            )
           )}
           {c.notionUrl && (
             // notionUrl は hasSubscriptionConfig() が真のときだけ fetchResolvedCqs が返す
