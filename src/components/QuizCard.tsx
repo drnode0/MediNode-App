@@ -2,7 +2,9 @@
 import { RotateCcw, Check, ExternalLink, BookOpen } from 'lucide-react'
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
-import { recordQuizResult } from '@/lib/quiz-srs'
+import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
+import { recordTowerEvent, recallKind } from '@/lib/tower-steps'
+import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { KnowledgeTitle } from '@/lib/title-display'
@@ -17,6 +19,11 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
 
   const answer = (ok: boolean) => {
+    if (ok && isTowerEnabled()) {
+      // 知の塔: recordQuizResultより先に判定する（記録後だと「いま初めてok」が読めない）
+      const kind = recallKind(getQuizStat(hit.objectID), new Date().toISOString())
+      if (kind) recordTowerEvent({ id: hit.objectID, kind, genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
+    }
     recordQuizResult(hit.objectID, ok)
     setAnswered(ok ? 'ok' : 'ng')
   }

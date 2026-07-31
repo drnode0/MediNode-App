@@ -35,6 +35,11 @@ function saveStats(stats: Record<string, QuizStat>) {
   }
 }
 
+// 知の塔が「初めての即答か・磨き直しか」を判定するための読み取り口。
+export function getQuizStat(objectID: string): QuizStat | undefined {
+  return loadStats()[objectID]
+}
+
 // 「覚えた」(ok=true)／「まだ」(ok=false) を記録する。
 export function recordQuizResult(objectID: string, ok: boolean) {
   const stats = loadStats()
