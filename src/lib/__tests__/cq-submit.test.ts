@@ -60,6 +60,47 @@ describe('validateCqSubmission', () => {
     expect(validateCqSubmission({ ...valid, experience: '2〜3年目' }).ok).toBe(true)
   })
 
+  // 診療科・立場（医師のみ）。「医師」の一語では初期研修医と集中治療科の指導医が
+  // 区別できず、回答の前提が置けない。医師以外が送ってきた値は黙って捨てる。
+  it('診療科・立場は医師のとき必須', () => {
+    const doctor = { ...valid, occupation: '医師' }
+    expect(validateCqSubmission({ ...doctor, departments: [] }).ok).toBe(false)
+    expect(validateCqSubmission(doctor).ok).toBe(false)
+    const ok = validateCqSubmission({ ...doctor, departments: ['集中治療科'] })
+    expect(ok.ok && ok.value.departments).toEqual(['集中治療科'])
+  })
+
+  it('診療科・立場はリスト外を拒否する', () => {
+    const r = validateCqSubmission({
+      ...valid,
+      occupation: '医師',
+      departments: ['集中治療科', '宇宙科'],
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('診療科・立場はリストから選択してください')
+  })
+
+  it('診療科・立場の重複は取り除く', () => {
+    const r = validateCqSubmission({
+      ...valid,
+      occupation: '医師',
+      departments: ['救急科', '救急科', '麻酔科'],
+    })
+    expect(r.ok && r.value.departments).toEqual(['救急科', '麻酔科'])
+  })
+
+  it('医師以外の診療科・立場は黙って捨てる（エラーにしない）', () => {
+    const r = validateCqSubmission({ ...valid, occupation: '看護師', departments: ['救急科'] })
+    expect(r.ok).toBe(true)
+    expect(r.ok && r.value.departments).toEqual([])
+  })
+
+  it('診療科・立場が配列でなければ空として扱う', () => {
+    const r = validateCqSubmission({ ...valid, occupation: '看護師', departments: '救急科' })
+    expect(r.ok).toBe(true)
+    expect(r.ok && r.value.departments).toEqual([])
+  })
+
   it('ペンネームは上限で切り詰める', () => {
     const r = validateCqSubmission({ ...valid, penName: 'ん'.repeat(PEN_NAME_MAX + 10) })
     expect(r.ok).toBe(true)
@@ -88,6 +129,7 @@ describe('buildIntakeProperties', () => {
     background: '',
     occupation: '看護師',
     experience: '',
+    departments: [],
     penName: 'みどり',
     notify: true,
     sourceTitle: '人工呼吸器の開始',
@@ -170,6 +212,37 @@ describe('buildIntakeProperties', () => {
     expect(r.properties['投稿者職種']).toEqual({ select: { name: '看護師' } })
   })
 
+  it('診療科・立場（multi_select）に積む', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, '診療科・立場': { type: 'multi_select' } }
+    const r = buildIntakeProperties(
+      schema,
+      { ...value, occupation: '医師', departments: ['集中治療科', '指導医・専門医'] },
+      null,
+    )
+    if ('error' in r) throw new Error('unexpected')
+    expect(r.properties['診療科・立場']).toEqual({
+      multi_select: [{ name: '集中治療科' }, { name: '指導医・専門医' }],
+    })
+  })
+
+  it('診療科・立場が空なら列自体を積まない（空で上書きしない）', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, '診療科・立場': { type: 'multi_select' } }
+    const r = buildIntakeProperties(schema, { ...value, departments: [] }, null)
+    if ('error' in r) throw new Error('unexpected')
+    expect('診療科・立場' in r.properties).toBe(false)
+  })
+
+  it('受付DBに診療科・立場の列が無ければ黙って飛ばす（投稿は成立させる）', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' } }
+    const r = buildIntakeProperties(
+      schema,
+      { ...value, occupation: '医師', departments: ['救急科'] },
+      null,
+    )
+    if ('error' in r) throw new Error('unexpected')
+    expect(Object.keys(r.properties)).toEqual(['疑問'])
+  })
+
   it('型が合わないプロパティには書かない（select列にrich_textを積まない等）', () => {
     const schema: IntakePropSchema = {
       疑問: { type: 'title' },
@@ -244,6 +317,7 @@ describe('buildIntakeProperties（背景・経験年数）', () => {
     sourceTitle: '',
     sourceUrl: '',
     experience: '',
+    departments: [],
   }
 
   it('背景を受付DBの「背景・状況」に積む', () => {

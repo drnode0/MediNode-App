@@ -27,7 +27,7 @@ import { OpenSettingsContext } from './SearchErrors'
 import { useAuth } from './auth/AuthProvider'
 import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
-import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
+import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
 export type CqSource = { title?: string; url?: string }
@@ -35,20 +35,28 @@ export type CqSource = { title?: string; url?: string }
 // 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
 // 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
 const CQ_PROFILE_KEY = 'medinode_cq_profile_v1'
-type CqProfile = { occupation: string; experience: string; penName: string }
+type CqProfile = { occupation: string; experience: string; penName: string; departments: string[] }
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
     // 職種の選択肢を受付DBの「職種」列に揃えたため、旧リストにしか無かった値
     // （学生・管理栄養士）は空に落として選び直してもらう。
-    const occupation = String(raw.occupation || '')
+    const raw0 = String(raw.occupation || '')
+    const occupation = (CQ_OCCUPATIONS as readonly string[]).includes(raw0) ? raw0 : ''
+    // 診療科・立場は医師のときだけ持つ。職種が落ちた／医師でないなら一緒に捨てる。
+    const departments = Array.isArray(raw.departments)
+      ? (raw.departments as unknown[])
+          .map((d) => String(d || ''))
+          .filter((d) => (CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(d))
+      : []
     return {
-      occupation: (CQ_OCCUPATIONS as readonly string[]).includes(occupation) ? occupation : '',
+      occupation,
       experience: String(raw.experience || ''),
       penName: String(raw.penName || ''),
+      departments: occupation === CQ_DEPARTMENT_OCCUPATION ? departments : [],
     }
   } catch {
-    return { occupation: '', experience: '', penName: '' }
+    return { occupation: '', experience: '', penName: '', departments: [] }
   }
 }
 function saveCqProfile(p: CqProfile) {
@@ -280,7 +288,7 @@ function CqCaptureModal({
   const [dest, setDest] = useState(() =>
     defaultDestinations({ personal: personalAvail, premium: premiumAvail, intent }),
   )
-  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '' })
+  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', departments: [] })
   // 背景・状況。専門医に訊くときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
   const [background, setBackground] = useState('')
   const [notify, setNotify] = useState(true)
@@ -299,6 +307,8 @@ function CqCaptureModal({
   // 必須欄が未入力のとき、エラー表示だけでなく該当欄へフォーカスを返す。
   const occupationRef = useRef<HTMLSelectElement | null>(null)
   const experienceRef = useRef<HTMLSelectElement | null>(null)
+  // 診療科・立場は select ではなくチップ群。未選択のときは先頭のチップへフォーカスを返す。
+  const departmentsRef = useRef<HTMLButtonElement | null>(null)
   const backgroundRef = useRef<HTMLTextAreaElement | null>(null)
   // 背景が空のまま送信を押したときに出す確認バー（ソフト必須）。
   const [bgPrompt, setBgPrompt] = useState(false)
@@ -384,6 +394,15 @@ function CqCaptureModal({
       experienceRef.current?.focus()
       return
     }
+    if (
+      willSendExpert &&
+      profile.occupation === CQ_DEPARTMENT_OCCUPATION &&
+      profile.departments.length === 0
+    ) {
+      setExpertError('診療科・立場を選択してください')
+      departmentsRef.current?.focus()
+      return
+    }
     // 背景が空のときは送らずに一度だけ確認する。書くか、そのまま送るかは本人が選ぶ。
     // 一度「このまま送る」を選んだあと（bgConfirmedRef）は、送信が失敗して同じ
     // モーダルから再送しても、もう確認しない。
@@ -440,6 +459,7 @@ function CqCaptureModal({
                 background,
                 occupation: profile.occupation,
                 experience: profile.experience,
+                departments: profile.departments,
                 penName: profile.penName,
                 notify,
                 sourceTitle: source?.title || '',
@@ -698,7 +718,14 @@ function CqCaptureModal({
                             ref={occupationRef}
                             value={profile.occupation}
                             onChange={(e) => {
-                              setProfile((p) => ({ ...p, occupation: e.target.value }))
+                              const occupation = e.target.value
+                              // 医師以外に変えたら診療科・立場は捨てる。UIが隠れるだけだと
+                              // 看護師の投稿に救急科が付いたまま届く。
+                              setProfile((p) => ({
+                                ...p,
+                                occupation,
+                                departments: occupation === CQ_DEPARTMENT_OCCUPATION ? p.departments : [],
+                              }))
                               setExpertError('')
                             }}
                             className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
@@ -734,6 +761,47 @@ function CqCaptureModal({
                           </select>
                         </div>
                       </div>
+                      {/* 診療科・立場。医師のときだけ。「医師」の一語では初期研修医と
+                          集中治療科の指導医が区別できず、回答の前提が置けない。
+                          複数選択なので select ではなくトグルチップにする（届け先チップと同じ操作感）。 */}
+                      {profile.occupation === CQ_DEPARTMENT_OCCUPATION && (
+                        <div className="space-y-1">
+                          <p id="cq-departments-label" className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            診療科・立場
+                            <span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
+                            <span className="ml-1 font-normal text-gray-400 dark:text-gray-500">（複数選択可）</span>
+                          </p>
+                          <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="cq-departments-label">
+                            {CQ_DOCTOR_DEPARTMENTS.map((d, i) => {
+                              const on = profile.departments.includes(d)
+                              return (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  ref={i === 0 ? departmentsRef : undefined}
+                                  aria-pressed={on}
+                                  onClick={() => {
+                                    setProfile((p) => ({
+                                      ...p,
+                                      departments: p.departments.includes(d)
+                                        ? p.departments.filter((x) => x !== d)
+                                        : [...p.departments, d],
+                                    }))
+                                    setExpertError('')
+                                  }}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                                    on
+                                      ? 'bg-purple-600 border-purple-600 text-white'
+                                      : 'border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:border-purple-400'
+                                  }`}
+                                >
+                                  {d}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <input
                         type="text"
                         value={profile.penName}
@@ -797,12 +865,12 @@ function CqCaptureModal({
                 </p>
               )}
               {mineError && (
-                <div className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
                   {personalAvail && premiumAvail ? `メモへの保存: ${mineError}` : mineError}
                 </div>
               )}
               {expertError && (
-                <div className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
                   {personalAvail && premiumAvail ? `専門医への投稿: ${expertError}` : expertError}
                 </div>
               )}
