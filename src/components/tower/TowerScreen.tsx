@@ -4,12 +4,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import {
-  loadTowerState, saveTowerState, markSeen, ingestRecords, type TowerState,
+  loadTowerState, saveTowerState, markSeen, type TowerState,
 } from '@/lib/tower-steps'
-import { formatHeight, heightMm, nextMilestone, passedMilestones, stepsThisWeek, LADDER } from '@/lib/tower-ladder'
+import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
+import { formatHeight, heightMm, nextMilestone, passedMilestones, stepsThisWeek } from '@/lib/tower-ladder'
 import { deriveVolumes, dullIds, lastLeafStep, aYearAgoStep, type Volume } from '@/lib/tower-volumes'
 import { TowerStack } from './TowerStack'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
+import { getSettings } from '@/lib/settings'
 
 // quiz-srs は一件読み（getQuizStat）しかexportしていないため、くすみ集合の一括計算だけは
 // キーを直接読む。localStorageキー名の直書きはこの1箇所に限定する（tower-steps.ts の TOWER_KEY 以外）。
@@ -35,28 +37,32 @@ export function TowerScreen({ onClose, onGoQuiz }: { onClose: () => void; onGoQu
   // 初回だけ: 既存の検索APIで1回だけ組み上げる（ゼロスタート禁止）。
   // 判定は backfilledAt。「wroteの有無」で判定してはいけない——Task 8 の passive ingest が
   // 先にwroteを数件積むと、全量バックフィルが永久に走らなくなる。
+  // v1設計: mode:'search'+空keywordは何もfetchせず、mode:'recent'（keyword不要・個人medical最新50件
+  // +reference20件）で組み上げる。残りは日常のpassive ingestで漸増させる（buildBackfillRequestのコメント参照）。
   useEffect(() => {
     if (backfilled.current) return
     backfilled.current = true
     if (state.backfilledAt) return
+    const req = buildBackfillRequest(getSettings())
+    // settings未設定（token/DB未接続）ならfetchせず、backfilledAtも刻まない（次回接続後に再試行できるように）
+    if (!req) return
     ;(async () => {
       try {
         const res = await fetch('/api/notion/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: '', mode: 'search', pageSize: 1000 }),
+          body: JSON.stringify(req.body),
         })
         if (!res.ok) return
         const data = await res.json()
         if (!Array.isArray(data.records)) return
-        setState((prev) => {
-          // 組み上げ分は「差分」ではないので、水位も一緒に上げる
-          // （次回openで数百個の落下リプレイが走るのを防ぐ）。
-          // 新規0件でも backfilledAt は刻む（開くたびの再フェッチを防ぐ。失敗時は刻まず次回再試行）
-          const seen = markSeen({ ...ingestRecords(prev, data.records), backfilledAt: new Date().toISOString() })
-          saveTowerState(seen)
-          return seen
-        })
+        // updater関数内での副作用（保存・時刻生成）を避けるため、setStateの外で計算する。
+        // mount〜fetch解決の間に走ったrecordTowerEvent等の書込を握り潰さないよう、
+        // Reactのprev（mount時スナップショット）ではなく最新のlocalStorageをmerge baseにする。
+        const fresh = loadTowerState()
+        const next = applyBackfill(fresh, data.records, new Date().toISOString())
+        saveTowerState(next)
+        setState(next)
       } catch {
         // 組み上げ失敗でも画面は出す（イベントで徐々に積もる）
       }

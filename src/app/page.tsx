@@ -2956,7 +2956,7 @@ export default function Home() {
           {activeTab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
-        {towerOpen && (
+        {towerOpen && isTowerEnabled() && (
           <TowerScreen
             onClose={() => setTowerOpen(false)}
             onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}
@@ -3068,7 +3068,7 @@ export default function Home() {
           {/* マニュアルはMVPではNotion直読みで動かす（Algoliaモードでも同じコンポーネント） */}
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
-        {towerOpen && (
+        {towerOpen && isTowerEnabled() && (
           <TowerScreen
             onClose={() => setTowerOpen(false)}
             onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}

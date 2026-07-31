@@ -11,7 +11,7 @@ export type GenreStripe = { genreKey: string; count: number }
 export type Volume = { n: number; steps: Step[]; stripes: GenreStripe[]; leaves: number; from: string; to: string }
 
 export function deriveVolumes(steps: Step[]): { volumes: Volume[]; loose: Step[] } {
-  const sorted = [...steps].sort((a, b) => (a.at < b.at ? -1 : 1))
+  const sorted = [...steps].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
   const volumes: Volume[] = []
   for (let i = 0; i + VOLUME_SIZE <= sorted.length; i += VOLUME_SIZE) {
     const chunk = sorted.slice(i, i + VOLUME_SIZE)
