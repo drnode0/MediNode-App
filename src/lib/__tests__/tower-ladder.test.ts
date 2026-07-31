@@ -17,6 +17,8 @@ describe('梯子', () => {
     expect(formatHeight(214)).toBe('21.4cm')
     expect(formatHeight(8)).toBe('8mm')
     expect(formatHeight(1720)).toBe('1.72m')
+    expect(formatHeight(5000)).toBe('5m')
+    expect(formatHeight(1700)).toBe('1.7m')
   })
   it('次の目盛りと越えた目盛り', () => {
     const next = nextMilestone(214)

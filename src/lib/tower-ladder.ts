@@ -29,7 +29,7 @@ export function heightMm(stepCount: number): number {
 export function formatHeight(mm: number): string {
   if (mm < 10) return `${mm}mm`
   if (mm < 1000) return `${(mm / 10).toFixed(1).replace(/\.0$/, '')}cm`
-  return `${(mm / 1000).toFixed(2).replace(/0$/, '').replace(/\.$/, '')}m`
+  return `${(mm / 1000).toFixed(2).replace(/\.?0+$/, '')}m`
 }
 
 export function nextMilestone(stepCount: number): Milestone | null {
