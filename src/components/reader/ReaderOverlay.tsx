@@ -10,6 +10,7 @@ import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
 import { ReaderBody } from './ReaderBody'
 import { ReaderFooter } from './ReaderFooter'
+import { ReaderHelpful } from './ReaderHelpful'
 import { ReaderSearchBar } from './ReaderSearchBar'
 import { ReaderSearchCtx } from './reader-search-context'
 import { ConfidenceChips } from './ConfidenceChips'
@@ -418,6 +419,7 @@ export default function ReaderOverlay({
                   onReadSection={readSectionInFull}
                 />
               </ReaderSearchCtx.Provider>
+              <ReaderHelpful objectID={hit.objectID} />
               <ReaderFooter objectID={hit.objectID} />
             </>
           )}

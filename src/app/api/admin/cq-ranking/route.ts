@@ -2,7 +2,7 @@
 //
 //   GET /api/admin/cq-ranking?limit=30
 //     … cq_views（のべ参照回数）の上位を取り、サブスクIndexからタイトルを解決して返す。
-//       { items: [{ objectID, title, count, notionUrl }], ready: boolean }
+//       { items: [{ objectID, title, count, helpfulCount }], ready: boolean }
 //
 // 「みんながどのナレッジを気にしているか」を作者自身が把握するための一覧。
 // 記録は全プレミアムナレッジ対象（recordCqView が owner==='subscription' を加算）なので、
@@ -41,6 +41,24 @@ export async function GET(req: Request) {
     const rows = (data || []) as Array<{ object_id: string; view_count: number }>
     if (rows.length === 0) return NextResponse.json({ items: [], ready: true })
 
+    // 「役に立った」数（cq_reactions）をランキング対象分だけ合算して添える。
+    // テーブル未適用（マイグレーション0020待ち）でもランキング自体は返す。
+    const helpfulCounts = new Map<string, number>()
+    try {
+      const { data: reactions, error: rErr } = await admin
+        .from('cq_reactions')
+        .select('object_id')
+        .in('object_id', rows.map((r) => r.object_id))
+      if (!rErr) {
+        for (const row of reactions || []) {
+          const id = row.object_id as string
+          helpfulCounts.set(id, (helpfulCounts.get(id) || 0) + 1)
+        }
+      }
+    } catch {
+      // 添え物。失敗しても本体（参照回数ランキング）は返す。
+    }
+
     // タイトル解決（サブスクIndex）。env未設定・失敗時はタイトルなしで回数だけ返す。
     const titles = new Map<string, string>()
     const appId = process.env.SUBSCRIPTION_ALGOLIA_APP_ID
@@ -66,6 +84,7 @@ export async function GET(req: Request) {
       objectID: r.object_id,
       title: titles.get(r.object_id) || '',
       count: Number(r.view_count) || 0,
+      helpfulCount: helpfulCounts.get(r.object_id) || 0,
     }))
     return NextResponse.json({ items, ready: true })
   } catch {
