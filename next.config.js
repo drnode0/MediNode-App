@@ -14,17 +14,6 @@
 // 開発モードのみ React が eval() を使うため許可する（本番ビルドでは付与しない）。
 const isDev = process.env.NODE_ENV === 'development'
 
-// [一時的な診断] ビルド時にSentryのDSNが見えているかをビルドログに出す。
-// NEXT_PUBLIC_ はビルド時に埋め込まれるため、ここでUNSETならバンドルにも入らない。
-console.log(
-  '[build-check] NEXT_PUBLIC_SENTRY_DSN:',
-  process.env.NEXT_PUBLIC_SENTRY_DSN ? 'SET' : 'UNSET',
-  '/ SENTRY_DSN:',
-  process.env.SENTRY_DSN ? 'SET' : 'UNSET',
-  '/ VERCEL_ENV:',
-  process.env.VERCEL_ENV || '(none)'
-)
-
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://va.vercel-scripts.com`,
