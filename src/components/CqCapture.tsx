@@ -14,7 +14,7 @@
 //   ゼロ件画面などからは useCqCapture() が返す open(prefill, source, intent) を呼ぶ
 //   （個人Notion・プレミアムのどちらも無いときは null）
 
-import { useState, useEffect, useCallback, createContext, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircleQuestion, X, ExternalLink, Settings, CheckCircle2, HelpCircle, BookOpen, Star, Sprout } from 'lucide-react'
 import { Spinner } from './Spinner'
@@ -39,8 +39,11 @@ type CqProfile = { occupation: string; experience: string; penName: string }
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
+    // 職種の選択肢を受付DBの「職種」列に揃えたため、旧リストにしか無かった値
+    // （学生・管理栄養士）は空に落として選び直してもらう。
+    const occupation = String(raw.occupation || '')
     return {
-      occupation: String(raw.occupation || ''),
+      occupation: (CQ_OCCUPATIONS as readonly string[]).includes(occupation) ? occupation : '',
       experience: String(raw.experience || ''),
       penName: String(raw.penName || ''),
     }
@@ -293,6 +296,9 @@ function CqCaptureModal({
   const [phase, setPhase] = useState<'input' | 'done'>('input')
   const [showLogin, setShowLogin] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // 必須欄が未入力のとき、エラー表示だけでなく該当欄へフォーカスを返す。
+  const occupationRef = useRef<HTMLSelectElement | null>(null)
+  const experienceRef = useRef<HTMLSelectElement | null>(null)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -355,6 +361,18 @@ function CqCaptureModal({
     if (!trimmed) return // 送信ボタン自体が空入力ではdisabled（保険の早期return）
     if (willSendExpert && trimmed.length < QUESTION_MIN) {
       setExpertError(`疑問文は${QUESTION_MIN}文字以上で入力してください`)
+      return
+    }
+    // 職種・経験年数は必須。送信ボタンはdisabledにせず、押した時に理由を出す
+    // （disabledだと「なぜ押せないか」が伝わらない）。
+    if (willSendExpert && !profile.occupation) {
+      setExpertError('職種を選択してください')
+      occupationRef.current?.focus()
+      return
+    }
+    if (willSendExpert && !profile.experience) {
+      setExpertError('経験年数を選択してください')
+      experienceRef.current?.focus()
       return
     }
     if (!willSendMine && !willSendExpert) return
@@ -613,34 +631,53 @@ function CqCaptureModal({
                             : '患者背景・場面・これまでの対応など。具体的なほど回答の精度が上がります。'}
                         </p>
                       </div>
+                      {/* 職種・経験年数は必須。どちらも1タップで、端末に記憶されるため
+                          壁になるのは初回だけ。経験年数は回答の深さ・前提の置き方を変える。 */}
                       <div className="flex gap-2">
-                        <select
-                          value={profile.occupation}
-                          onChange={(e) => setProfile((p) => ({ ...p, occupation: e.target.value }))}
-                          className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          aria-label="職種（任意）"
-                        >
-                          <option value="">職種（任意）</option>
-                          {CQ_OCCUPATIONS.map((o) => (
-                            <option key={o} value={o}>
-                              {o}
-                            </option>
-                          ))}
-                        </select>
-                        {/* 経験年数は回答の深さ・前提の置き方を変える。1タップで済むので負担にならない。 */}
-                        <select
-                          value={profile.experience}
-                          onChange={(e) => setProfile((p) => ({ ...p, experience: e.target.value }))}
-                          className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          aria-label="経験年数（任意）"
-                        >
-                          <option value="">経験年数（任意）</option>
-                          {CQ_EXPERIENCE_YEARS.map((y) => (
-                            <option key={y} value={y}>
-                              {y}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <label htmlFor="cq-occupation" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            職種<span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
+                          </label>
+                          <select
+                            id="cq-occupation"
+                            ref={occupationRef}
+                            value={profile.occupation}
+                            onChange={(e) => {
+                              setProfile((p) => ({ ...p, occupation: e.target.value }))
+                              setExpertError('')
+                            }}
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          >
+                            <option value="">選択してください</option>
+                            {CQ_OCCUPATIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <label htmlFor="cq-experience" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            経験年数<span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
+                          </label>
+                          <select
+                            id="cq-experience"
+                            ref={experienceRef}
+                            value={profile.experience}
+                            onChange={(e) => {
+                              setProfile((p) => ({ ...p, experience: e.target.value }))
+                              setExpertError('')
+                            }}
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          >
+                            <option value="">選択してください</option>
+                            {CQ_EXPERIENCE_YEARS.map((y) => (
+                              <option key={y} value={y}>
+                                {y}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <input
                         type="text"
