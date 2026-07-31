@@ -1621,12 +1621,13 @@ ${label}`,
                                 {r.ownerNote ? r.ownerNote : 'メモ'}
                               </button>
                             )}
-                            {r.kind !== 'admin' && (
-                              <button
+                            {/* 管理者行にも出す: 先行体験フラグは知の塔の暗転ゲートも兼ねるため、
+                                オーナー自身が自分に付与できる必要がある（2026-08-01） */}
+                            <button
                                 type="button"
                                 onClick={() => void toggleEarlyAccess(r)}
                                 disabled={busy === r.userId}
-                                title={r.earlyAccess ? '先行体験を取り消す' : 'この人にマルチ部署串刺し検索を先行開放する'}
+                                title={r.earlyAccess ? '先行体験を取り消す' : 'この人に先行体験（マルチ部署検索・知の塔）を開放する'}
                                 className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
                                   r.earlyAccess
                                     ? 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
@@ -1640,7 +1641,6 @@ ${label}`,
                                 )}
                                 {r.earlyAccess ? '先行体験' : '先行体験を開放'}
                               </button>
-                            )}
                             {canDelete && (
                               <button
                                 type="button"
