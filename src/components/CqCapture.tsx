@@ -568,7 +568,12 @@ function CqCaptureModal({
                 {premiumAvail ? (
                   <button
                     type="button"
-                    onClick={() => setDest((d) => ({ ...d, expert: !d.expert }))}
+                    onClick={() => {
+                      setDest((d) => ({ ...d, expert: !d.expert }))
+                      // 確認バーは「今この送信操作」に対する問い。届け先を選び直したら
+                      // 前回の確認は無効なので、パネルの再マウントを待たずここで下ろす。
+                      setBgPrompt(false)
+                    }}
                     aria-pressed={dest.expert}
                     className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                       dest.expert
@@ -638,7 +643,8 @@ function CqCaptureModal({
                           placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
                           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         />
-                        {/* 疑問だけ書いて背景が空のときに、一度だけ静かに促す（送信は妨げない）。 */}
+                        {/* ここは常時のヒント文。実際のソフト必須（送信を一度止めて確認する）は
+                            handleSend 側のゲートが担い、その結果が下の確認バー（bgPrompt）に出る。 */}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                           空でも送れますが、あると回答の精度が変わります。
                           患者背景・場面・これまでの対応など。
