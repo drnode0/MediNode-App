@@ -102,6 +102,18 @@ mark[data-reader-search].reader-search-active {
   font-feature-settings: normal;
 }
 
+/* iOSのみ: リーダー本文をOSの文字サイズ（Dynamic Type）に追従させる。
+   .ios-dt は ReaderOverlay が iPhone/iPad 判定時に <html> へ付与する。
+   font ショートハンドは font-variant / feature-settings もリセットするため、
+   ここで再指定する（字間はショートハンド対象外、行の高さは各要素の leading が勝つ）。
+   macOS Safari は対象外 — -apple-system-body が13px相当で逆に縮む。 */
+.ios-dt .reader-prose {
+  font: -apple-system-body;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: normal;
+}
+
 /* 見出しは行末で1語だけ落ちると締まらない。均等に折り返す。
    text-wrap: pretty 未対応ブラウザでは既定の折り返しに戻るだけ。
    palt（約物・かな詰め）は見出し限定 — 短い行では締まって見えるが、

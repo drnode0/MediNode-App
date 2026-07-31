@@ -59,7 +59,8 @@ const INLINE_COLOR: Record<string, string> = {
 }
 // 太字だけの強調にも薄いマーカーを敷き、重要箇所が「面」で目に入るようにする
 // （執筆側が色を付けている場合はそちらを優先）。
-const BOLD_MARKER = `bg-amber-100/70 dark:bg-amber-300/15 ${MARKER_BASE}`
+// 濃度は控えめに — 数値密なナレッジでは1画面に何箇所も出るため、濃いと「面の圧」になる。
+const BOLD_MARKER = `bg-amber-100/40 dark:bg-amber-300/10 ${MARKER_BASE}`
 
 // 既に背景色のある領域（結論・署名・査読スタンプなどのボックスやrecap）では、
 // 自動マーカーを重ねると塗りだらけになる。そこでは太字は太字のままにする。
@@ -190,7 +191,7 @@ function CalloutBlock({
         className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4"
       >
         <div className="flex gap-2">
-          {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
+          {block.icon && <span className="shrink-0 text-[1em] leading-[1.5]">{block.icon}</span>}
           <div className="min-w-0">
             <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
           </div>
@@ -214,7 +215,7 @@ function CalloutBlock({
           </div>
           <div className="min-w-0">
             {hasHeadingText && (
-              <p className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              <p className="text-[1em] font-semibold text-gray-900 dark:text-gray-100 mb-1">
                 <Inlines items={first.inlines} k={`sig-h-${index}`} />
               </p>
             )}
@@ -230,7 +231,9 @@ function CalloutBlock({
       <div className="border-t border-b border-teal-500/30 py-2.5 my-3">
         <div className="flex gap-2 items-start">
           <CircleCheck className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="min-w-0 text-sm text-gray-600 dark:text-gray-300">
+          {/* サイズ指定なし＝本文サイズを継承（段落から text-base を外したため、
+              ここに text-sm を残すと査読スタンプの本文だけ縮む）。 */}
+          <div className="min-w-0 text-gray-600 dark:text-gray-300">
             <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
           </div>
         </div>
@@ -243,7 +246,7 @@ function CalloutBlock({
   return (
     <div className={`border-l-4 rounded-r-lg px-4 py-3.5 my-4 ${tone}`}>
       <div className="flex gap-2">
-        {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
+        {block.icon && <span className="shrink-0 text-[1em] leading-[1.5]">{block.icon}</span>}
         <div className="min-w-0">
           <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
         </div>
@@ -271,10 +274,10 @@ function Block({
         if (p) {
           return (
             <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <span className="text-sm font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-[0.875em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-6 h-6 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
-              <h3 className="text-[17px] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
+              <h3 className="text-[1.17em] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
             </div>
           )
         }
@@ -283,19 +286,19 @@ function Block({
         const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
         if (SecIcon) {
           return (
-            <h3 data-section={anchor} className="flex items-center gap-2 text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.17em] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
               <SecIcon className={`h-[1.05em] w-[1.05em] shrink-0 ${secColor}`} aria-hidden />
               <span className="min-w-0">{secText}</span>
             </h3>
           )
         }
         return (
-          <h3 data-section={anchor} className="text-[17px] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+          <h3 data-section={anchor} className="text-[1.17em] font-bold text-gray-900 dark:text-gray-100 mt-7 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
       }
-      const size = block.level === 1 ? 'text-xl font-bold' : 'text-base font-semibold'
+      const size = block.level === 1 ? 'text-[1.25em] font-bold' : 'text-[1.06em] font-bold'
       // H1/H3 の見出しも同様に、既知テンプレ絵文字ならアイコン化（未知は忠実描画のまま）。
       const h13 = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
       if (h13.Icon) {
@@ -319,7 +322,7 @@ function Block({
       const body = <Inlines items={block.inlines} k={`p-${index}`} />
       return (
         <p
-          className={`text-base leading-[1.9] my-4 whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+          className={`leading-[1.9] my-7 whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           {recap ? <NoAutoMarkerCtx.Provider value={true}>{body}</NoAutoMarkerCtx.Provider> : body}
         </p>
@@ -336,7 +339,7 @@ function Block({
         <button type="button" onClick={() => onImageClick(block.url)} className="block w-full my-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={block.url} alt={block.caption ?? ''} className="w-full rounded-lg border border-gray-200 dark:border-gray-700" />
-          {block.caption && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">{block.caption}</span>}
+          {block.caption && <span className="block text-[0.75em] text-gray-500 dark:text-gray-400 mt-1">{block.caption}</span>}
         </button>
       )
     case 'divider':
@@ -347,7 +350,7 @@ function Block({
       // 枠線も gray-700 では背景 gray-800 とほぼ同色で構造が追えないため一段強める。
       return (
         <div className="overflow-x-auto my-3">
-          <table className="text-sm border-collapse text-gray-800 dark:text-gray-100">
+          <table className="text-[0.875em] border-collapse text-gray-800 dark:text-gray-100">
             <tbody>
               {block.rows.map((row, r) => (
                 <tr key={r} className="dark:even:bg-white/[0.03]">
@@ -367,7 +370,7 @@ function Block({
       )
     case 'unsupported':
       return (
-        <p className="text-xs text-gray-400 dark:text-gray-500 my-1">
+        <p className="text-[0.75em] text-gray-400 dark:text-gray-500 my-1">
           {block.text}
         </p>
       )
@@ -416,7 +419,7 @@ function RenderedBlocks({
           return (
             <Tag
               key={i}
-              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2.5 space-y-2.5 text-base`}
+              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-4 space-y-2.5`}
             >
               {g.items.map((it, j) => {
                 const pseudo: ReaderBlock = { kind: 'list_item', ordered: g.ordered, inlines: it }
@@ -443,10 +446,13 @@ export function ReaderBody({
   doc,
   onImageClick,
   active = new Set(),
+  scaleEm,
 }: {
   doc: ReaderDoc
   onImageClick: (url: string) => void
   active?: Set<Confidence>
+  // Aaボタンの文字サイズ（SCALE_EM の値）。em なので iOS Dynamic Type と乗算で合成される。
+  scaleEm?: string
 }) {
   return (
     // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
@@ -454,23 +460,28 @@ export function ReaderBody({
     // ・pretty: 行末で1語だけ落ちる不揃いを避ける
     // ・tabular-nums は数値の並ぶ医療本文で桁が揃い、読み比べやすくなる
     // いずれも要素も文字も増やさない。説明されないが毎回効く。
+    //
+    // サイズの流れ: .reader-prose（基準サイズ・iOSはDynamic Type）→ 内側ラッパー（Aa倍率）
+    // → 本文/見出し/表は em 系サイズで連動拡大。更新日はメタ情報なので固定のまま。
     <div className="reader-prose">
-      {doc.lastEdited && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-          更新 {new Date(doc.lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-        </p>
-      )}
-      {doc.cover && (
-        <button type="button" onClick={() => onImageClick(doc.cover!)} className="block w-full mb-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={doc.cover} alt="" className="w-full rounded-lg" />
-        </button>
-      )}
-      <h2 className="text-xl font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
-        {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
-        <KnowledgeTitle title={doc.title} />
-      </h2>
-      <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
+      <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
+        {doc.lastEdited && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+            更新 {new Date(doc.lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+          </p>
+        )}
+        {doc.cover && (
+          <button type="button" onClick={() => onImageClick(doc.cover!)} className="block w-full mb-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={doc.cover} alt="" className="w-full rounded-lg" />
+          </button>
+        )}
+        <h2 className="text-[1.3em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
+          {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
+          <KnowledgeTitle title={doc.title} />
+        </h2>
+        <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
+      </div>
     </div>
   )
 }

@@ -15,6 +15,15 @@ import { ReaderSearchCtx } from './reader-search-context'
 import { ConfidenceChips } from './ConfidenceChips'
 import { ReaderNavBar } from './ReaderNavBar'
 import { docConfidenceMarks, blockConfidence, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
+import {
+  getReaderFontScale,
+  setReaderFontScale,
+  nextScale,
+  isIosLike,
+  SCALE_EM,
+  SCALE_LABEL,
+  type ReaderFontScale,
+} from '@/lib/reader-font-scale'
 import type { ReaderDoc } from '@/lib/reader-doc'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
@@ -57,6 +66,14 @@ export default function ReaderOverlay({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchPos, setSearchPos] = useState(0)
   const [searchTotal, setSearchTotal] = useState(0)
+  // 文字サイズ（Aaボタン）。初期値はマウント後に localStorage から同期する。
+  // useState 初期化子で直接読むと、SSRされる文脈（devフィクスチャ等）で
+  // 「stateは復元済みなのにDOMはサーバー描画のまま」というhydrationズレを踏む
+  // （Reactはhydration時に属性差分を修復しない）。effect同期ならどのマウント経路でも確実。
+  const [fontScale, setFontScale] = useState<ReaderFontScale>('std')
+  useEffect(() => {
+    setFontScale(getReaderFontScale())
+  }, [])
 
   // 開いているページが変わるたび（同一インスタンス使い回し時）にフィルタ・既読フラグをリセットする。
   useEffect(() => {
@@ -79,6 +96,20 @@ export default function ReaderOverlay({
   // 開いた瞬間にフォーカスをシートへ移す。フォーカストラップ自体は背面 inert（下記）に委ねる。
   useEffect(() => {
     sheetRef.current?.focus()
+  }, [])
+
+  // iOS/iPadOSなら本文をOSの文字サイズ（Dynamic Type）に追従させる（globals.css の .ios-dt）。
+  // 付けっぱなしで害はない（セレクタが .reader-prose 配下限定のため）。
+  useEffect(() => {
+    if (isIosLike()) document.documentElement.classList.add('ios-dt')
+  }, [])
+
+  const cycleFontScale = useCallback(() => {
+    setFontScale((s) => {
+      const n = nextScale(s)
+      setReaderFontScale(n)
+      return n
+    })
   }, [])
 
   // 背面（アプリ本体）を SR・キーボードから隠す。portal 自身が body 直下に足す要素
@@ -240,6 +271,22 @@ export default function ReaderOverlay({
             >
               <Search className="w-5 h-5" />
             </button>
+            {/* 文字サイズ（Yahoo!ニュース「あ」方式の巡回）。状態はAaの字面の大きさ＋色で示す。 */}
+            <button
+              type="button"
+              onClick={cycleFontScale}
+              aria-label={`文字サイズを変更（現在: ${SCALE_LABEL[fontScale]}）`}
+              title={`文字サイズ: ${SCALE_LABEL[fontScale]}`}
+              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] ${
+                fontScale === 'std'
+                  ? 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                  : 'text-teal-600 dark:text-teal-300'
+              }`}
+            >
+              <span aria-hidden="true" className={`font-bold leading-none ${fontScale === 'std' ? 'text-sm' : fontScale === 'lg' ? 'text-base' : 'text-lg'}`}>
+                Aa
+              </span>
+            </button>
           </div>
           <button type="button" onClick={onClose} aria-label="閉じる" className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
             <X className="w-5 h-5" />
@@ -306,7 +353,7 @@ export default function ReaderOverlay({
               <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
-                <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} />
+                <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} scaleEm={SCALE_EM[fontScale]} />
               </ReaderSearchCtx.Provider>
               <ReaderFooter objectID={hit.objectID} />
             </>
