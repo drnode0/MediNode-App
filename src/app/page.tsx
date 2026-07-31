@@ -38,6 +38,10 @@ import { SearchSuggest } from '@/components/SearchSuggest'
 import { recordRecentView } from '@/lib/recent-views'
 import { recentGroupIndex } from '@/lib/recent-grouping'
 import { DailyQuestionCard } from '@/components/DailyQuestionCard'
+import { ingestRecords, loadTowerState, saveTowerState } from '@/lib/tower-steps'
+import { isTowerEnabled } from '@/lib/tower-flags'
+import { TowerCard } from '@/components/tower/TowerCard'
+import { TowerScreen } from '@/components/tower/TowerScreen'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreOwnerFilterTabs, orderedTeams, genreAccentTone, DEPT_DOT_BG, type TeamMeta } from '@/components/GenreBrowse'
 import {
   mergeGenreKeys,
@@ -1275,6 +1279,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       <Configure hitsPerPage={20} filters={personalFilter || undefined} />
       <PersonalQueryRelay />
       <PersonalHitsCollector onHits={setPersonalHits} />
+      <TowerCard onOpen={() => window.dispatchEvent(new CustomEvent('medinode:tower-open'))} />
       <DailyQuestionCard />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <SearchBox onSubmit={(q) => { addHistory(q); setHasSearched(true) }} history={history} />
@@ -1409,6 +1414,23 @@ function useNotionSearch(mode: Tab) {
       if (!res.ok) throw new Error(data.error || '検索に失敗しました')
       const fresh = data.records as Hit[]
       setNotionCache(cacheKey, fresh)
+      // 知の塔: 流れてきた自分のレコードを「書いた」の歩として取り込む（追加API呼び出しなし）
+      // Hit.genre は string|string[] だが Step.genre は string 単体のため、
+      // 既存の getHitGenres() で正規化した代表ジャンルに変換してから渡す。
+      try {
+        if (isTowerEnabled()) {
+          const prev = loadTowerState()
+          const ingestHits = fresh.map((h) => ({
+            objectID: h.objectID,
+            title: h.title,
+            genre: getHitGenres(h)[0],
+            createdAt: h.createdAt,
+            owner: h.owner,
+          }))
+          const next = ingestRecords(prev, ingestHits)
+          if (next !== prev) saveTowerState(next)
+        }
+      } catch { /* 塔の取込失敗で検索を壊さない */ }
       setRecords(fresh)
     } catch (err) {
       // キャッシュ表示中の裏更新が失敗しても、既に出ている結果は消さない（エラーも出さない）。
@@ -1571,6 +1593,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
 
   return (
     <>
+      <TowerCard onOpen={() => window.dispatchEvent(new CustomEvent('medinode:tower-open'))} />
       <DailyQuestionCard />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="relative mb-2">
@@ -2494,6 +2517,14 @@ function NotionReferenceTab({ hasTeam, hasSubscription }: { hasTeam: boolean; ha
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('search')
+  // 知の塔: フル画面オーバーレイの開閉。カード（TowerCard）が離れたタブ配下の
+  // 4階層下にあるため、props中継の代わりに CustomEvent で開閉を伝える。
+  const [towerOpen, setTowerOpen] = useState(false)
+  useEffect(() => {
+    const open = () => setTowerOpen(true)
+    window.addEventListener('medinode:tower-open', open)
+    return () => window.removeEventListener('medinode:tower-open', open)
+  }, [])
   // 筆者追加分（プレミアム配信の新規ナレッジ・精読ノート）の未読状態。
   // あれば新着タブにドット（A）、条件を満たせばダイジェスト一行（B）を出す。
   const [authorAdds, setAuthorAdds] = useState<AuthorAdditions | null>(null)
@@ -2925,6 +2956,12 @@ export default function Home() {
           {activeTab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
+        {towerOpen && (
+          <TowerScreen
+            onClose={() => setTowerOpen(false)}
+            onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}
+          />
+        )}
         {settingsModal}
         {tourModal}
       </div>
@@ -3031,6 +3068,12 @@ export default function Home() {
           {/* マニュアルはMVPではNotion直読みで動かす（Algoliaモードでも同じコンポーネント） */}
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
+        {towerOpen && (
+          <TowerScreen
+            onClose={() => setTowerOpen(false)}
+            onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}
+          />
+        )}
       </div>
       {settingsModal}
       {tourModal}
