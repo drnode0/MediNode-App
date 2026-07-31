@@ -6,6 +6,9 @@ import * as Sentry from '@sentry/nextjs'
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    // サーバー側と揃える（本番とプレビューを混ぜない）。クライアントからは
+    // VERCEL_ENV が見えないため、Vercelが自動で公開する NEXT_PUBLIC_ 版を使う。
+    environment: process.env.NEXT_PUBLIC_VERCEL_ENV || 'development',
     tracesSampleRate: 0, // クライアントはエラー捕捉のみ（計測はVercel Analyticsに任せる）
     // localStorage の設定値（トークン類）を誤って添付しない。
     sendDefaultPii: false,
