@@ -6,11 +6,11 @@
 // 記録は全プレミアムナレッジ対象なので、CQに限らず全ナレッジが並ぶ。
 
 import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, ThumbsUp } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
 
-type RankItem = { objectID: string; title: string; count: number }
+type RankItem = { objectID: string; title: string; count: number; helpfulCount?: number }
 
 export function KnowledgeRankingCard() {
   const [items, setItems] = useState<RankItem[] | null>(null)
@@ -34,7 +34,7 @@ export function KnowledgeRankingCard() {
       <SectionHeading
         title="よく参照されているナレッジ（のべ回数）"
         caption="読者が本文を開いた回数の多い順。みんなが今どのナレッジを気にしているかの目安に。"
-        help="cq_views ののべ参照回数（詳細を開いた／本文を開いた回数。誰が見たかは保存していません）。マイグレーション0016の適用後から貯まり、CQに限らず全プレミアムナレッジが対象です。"
+        help="cq_views ののべ参照回数（詳細を開いた／本文を開いた回数。誰が見たかは保存していません）。マイグレーション0016の適用後から貯まり、CQに限らず全プレミアムナレッジが対象です。役に立った（cq_reactions・マイグレーション0020適用後）も並びます。"
       />
 
       {items === null && (
@@ -64,6 +64,11 @@ export function KnowledgeRankingCard() {
               <span className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-gray-400 tabular-nums">
                 <Search className="w-3 h-3 shrink-0" strokeWidth={2.2} />{it.count.toLocaleString()}回
               </span>
+              {(it.helpfulCount || 0) > 0 && (
+                <span className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 tabular-nums">
+                  <ThumbsUp className="w-3 h-3 shrink-0" strokeWidth={2.2} />{it.helpfulCount!.toLocaleString()}
+                </span>
+              )}
             </li>
           ))}
         </ol>
