@@ -4,13 +4,14 @@ import { timingSafeEqual } from 'crypto'
 /**
  * [一時的] サーバー側のSentry疎通確認用。わざと例外を投げて Sentry に届くか見る。
  *
- * 認証: cron 系と同じく `Authorization: Bearer ${CRON_SECRET}`。未設定・不一致は 404 を返し、
- * このエンドポイントの存在自体を伏せる（401だと「何かある」と分かってしまう）。
+ * 認証: 確認専用の使い捨てトークン `Authorization: Bearer ${DEBUG_SENTRY_TOKEN}`。
+ * 未設定・不一致は 404 を返し、このエンドポイントの存在自体を伏せる
+ * （401だと「何かある」と分かってしまう）。
  *
- * 疎通確認が済んだら削除する。
+ * 疎通確認が済んだら、このファイルと DEBUG_SENTRY_TOKEN を両方削除する。
  */
 function isAuthorized(req: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET
+  const expected = process.env.DEBUG_SENTRY_TOKEN
   if (!expected) return false
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return false
