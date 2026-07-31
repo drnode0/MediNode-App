@@ -766,12 +766,12 @@ function CqCaptureModal({
                           複数選択なので select ではなくトグルチップにする（届け先チップと同じ操作感）。 */}
                       {profile.occupation === CQ_DEPARTMENT_OCCUPATION && (
                         <div className="space-y-1">
-                          <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          <p id="cq-departments-label" className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                             診療科・立場
                             <span className="ml-1 font-normal text-red-500 dark:text-red-400">必須</span>
                             <span className="ml-1 font-normal text-gray-400 dark:text-gray-500">（複数選択可）</span>
                           </p>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="cq-departments-label">
                             {CQ_DOCTOR_DEPARTMENTS.map((d, i) => {
                               const on = profile.departments.includes(d)
                               return (
@@ -783,7 +783,7 @@ function CqCaptureModal({
                                   onClick={() => {
                                     setProfile((p) => ({
                                       ...p,
-                                      departments: on
+                                      departments: p.departments.includes(d)
                                         ? p.departments.filter((x) => x !== d)
                                         : [...p.departments, d],
                                     }))
@@ -865,12 +865,12 @@ function CqCaptureModal({
                 </p>
               )}
               {mineError && (
-                <div className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
                   {personalAvail && premiumAvail ? `メモへの保存: ${mineError}` : mineError}
                 </div>
               )}
               {expertError && (
-                <div className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
                   {personalAvail && premiumAvail ? `専門医への投稿: ${expertError}` : expertError}
                 </div>
               )}
