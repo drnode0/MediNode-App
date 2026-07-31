@@ -137,6 +137,26 @@ describe('buildIntakeProperties', () => {
     expect(r.properties['投稿経路']).toEqual({ select: { name: 'アプリ内' } })
   })
 
+  it('職種は「職種」列に書く（外部フォームと同じ列に寄せる）', () => {
+    const schema: IntakePropSchema = {
+      疑問: { type: 'title' },
+      職種: { type: 'select' },
+      投稿者職種: { type: 'select' },
+    }
+    const r = buildIntakeProperties(schema, value, null)
+    if ('error' in r) throw new Error('unexpected')
+    expect(r.properties['職種']).toEqual({ select: { name: '看護師' } })
+    // 両方あっても旧列には二重に書かない
+    expect(r.properties['投稿者職種']).toBeUndefined()
+  })
+
+  it('「職種」列が無い受付DBでは旧列「投稿者職種」に書く', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, 投稿者職種: { type: 'select' } }
+    const r = buildIntakeProperties(schema, value, null)
+    if ('error' in r) throw new Error('unexpected')
+    expect(r.properties['投稿者職種']).toEqual({ select: { name: '看護師' } })
+  })
+
   it('型が合わないプロパティには書かない（select列にrich_textを積まない等）', () => {
     const schema: IntakePropSchema = {
       疑問: { type: 'title' },

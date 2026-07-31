@@ -17,21 +17,25 @@ export const BACKGROUND_MAX = 2000
 export const SOURCE_TITLE_MAX = 200
 export const SOURCE_URL_MAX = 500
 
-// 職種の固定リスト。resolved-cqs の「投稿者職種」表示（例: 匿名さん（看護師））と
-// 整合する語を使う。自由記述にしない（表示の粒度と品位を保つ）。
+// 職種の固定リスト。受付DBの「職種」列（外部Notionフォームが書き込む列）の選択肢と
+// 一致させる。自由記述にしない（表示の粒度と品位を保つ）。
+// 旧リストの「学生」は「学生（医学生・看護学生など）」に、「管理栄養士」は
+// 「管理栄養士・栄養士」に対応する。
 export const CQ_OCCUPATIONS = [
   '医師',
   '看護師',
+  '保健師・助産師',
   '薬剤師',
+  '管理栄養士・栄養士',
   '臨床工学技士',
+  '診療放射線技師',
+  '臨床検査技師',
   '理学療法士',
   '作業療法士',
   '言語聴覚士',
-  '臨床検査技師',
-  '診療放射線技師',
-  '管理栄養士',
   '救急救命士',
-  '学生',
+  '学生（医学生・看護学生など）',
+  'その他医療従事者',
   'その他',
 ] as const
 
@@ -127,7 +131,8 @@ export type IntakePropSchema = Record<string, { type?: string }>
 // 失敗させない（タイトル＝疑問文さえ残れば、作者のトリアージは回る）。
 //
 // 期待するプロパティ名（任意・受付DBにあれば書き込まれる）:
-//   投稿者職種（select）／ペンネーム（rich_text）／通知先ユーザーID（rich_text）／
+//   背景・状況（rich_text）／職種（select・無ければ旧列 投稿者職種）／経験年数（select）／
+//   ペンネーム（rich_text）／通知先ユーザーID（rich_text）／
 //   出典（rich_text）／投稿経路（select: "アプリ内"）
 export function buildIntakeProperties(
   schema: IntakePropSchema,
@@ -154,8 +159,15 @@ export function buildIntakeProperties(
   if (value.background && schema['背景・状況']?.type === 'rich_text') {
     properties['背景・状況'] = rich(value.background)
   }
-  if (value.occupation && schema['投稿者職種']?.type === 'select') {
-    properties['投稿者職種'] = { select: { name: value.occupation } }
+  // 職種は受付DBの「職種」に書く（外部Notionフォームと同じ列）。
+  // 「職種」が無く旧列「投稿者職種」だけの受付DBではそちらへ書く
+  // （列が無くても投稿を失敗させない、という既存方針の延長）。
+  if (value.occupation) {
+    if (schema['職種']?.type === 'select') {
+      properties['職種'] = { select: { name: value.occupation } }
+    } else if (schema['投稿者職種']?.type === 'select') {
+      properties['投稿者職種'] = { select: { name: value.occupation } }
+    }
   }
   if (value.experience && schema['経験年数']?.type === 'select') {
     properties['経験年数'] = { select: { name: value.experience } }
