@@ -24,6 +24,7 @@ import {
   SCALE_LABEL,
   type ReaderFontScale,
 } from '@/lib/reader-font-scale'
+import { getReaderViewMode, setReaderViewMode, type ReaderViewMode } from '@/lib/reader-digest'
 import type { ReaderDoc } from '@/lib/reader-doc'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
@@ -74,6 +75,40 @@ export default function ReaderOverlay({
   useEffect(() => {
     setFontScale(getReaderFontScale())
   }, [])
+
+  // 表示モード（全文｜要点）。文字サイズと同じ理由で effect 同期。
+  const [viewMode, setViewMode] = useState<ReaderViewMode>('full')
+  useEffect(() => {
+    setViewMode(getReaderViewMode())
+  }, [])
+
+  const changeViewMode = useCallback((m: ReaderViewMode) => {
+    setViewMode(m)
+    setReaderViewMode(m)
+  }, [])
+
+  // 要点モードの「この節を全文で読む」：全文へ切り替え、描画コミット後に該当節へ飛ぶ。
+  // 好みの保存は明示的なトグル操作（changeViewMode）だけ — 一時的な切替では上書きしない
+  // （次の記事は再び要点から入れる）。
+  // スクロールは effect で行う（rAF だと React のコミット前に走って空振りすることがある）。
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null)
+  const readSectionInFull = useCallback((anchor: string) => {
+    setViewMode('full')
+    setPendingAnchor(anchor)
+  }, [])
+  useEffect(() => {
+    if (viewMode !== 'full' || pendingAnchor == null) return
+    scrollRef.current
+      ?.querySelector<HTMLElement>(`[data-section="${pendingAnchor}"]`)
+      ?.scrollIntoView({ block: 'start' })
+    setPendingAnchor(null)
+  }, [viewMode, pendingAnchor])
+
+  // 記事内検索は本文全体が対象。要点モードのまま検索すると隠れた本文のヒットが
+  // 拾えないため、検索を開いたら表示だけ全文へ切り替える（保存は上書きしない）。
+  useEffect(() => {
+    if (searchOpen) setViewMode('full')
+  }, [searchOpen])
 
   // 開いているページが変わるたび（同一インスタンス使い回し時）にフィルタ・既読フラグをリセットする。
   useEffect(() => {
@@ -350,10 +385,38 @@ export default function ReaderOverlay({
           )}
           {state === 'idle' && doc && (
             <>
-              <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />
+              {/* 全文｜要点の切替。要点は結論＋節見出し＋recapだけ＝まず骨格を掴む入口。 */}
+              <div className="mb-2">
+                <div className="inline-flex rounded-full bg-gray-100 dark:bg-gray-700 p-0.5" role="group" aria-label="表示モード">
+                  {(['full', 'digest'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => changeViewMode(m)}
+                      aria-pressed={viewMode === m}
+                      className={`px-4 py-2 rounded-full text-sm transition-colors duration-150 motion-reduce:transition-none ${
+                        viewMode === m
+                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium shadow-sm'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {m === 'full' ? '全文' : '要点'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 確信度チップは全文専用（要点にはマーク付き本文がほぼ無く、絞り込む対象がない） */}
+              {viewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
-                <ReaderBody doc={doc} onImageClick={(u) => onZoom(u)} active={active} scaleEm={SCALE_EM[fontScale]} />
+                <ReaderBody
+                  doc={doc}
+                  onImageClick={(u) => onZoom(u)}
+                  active={active}
+                  scaleEm={SCALE_EM[fontScale]}
+                  mode={viewMode}
+                  onReadSection={readSectionInFull}
+                />
               </ReaderSearchCtx.Provider>
               <ReaderFooter objectID={hit.objectID} />
             </>

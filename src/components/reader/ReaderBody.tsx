@@ -1,6 +1,7 @@
 'use client'
 import { createContext, useContext } from 'react'
-import { CircleCheck } from 'lucide-react'
+import { CircleCheck, ExternalLink, BookOpenText } from 'lucide-react'
+import { digestItems, type ReaderViewMode } from '@/lib/reader-digest'
 import {
   calloutRole,
   parseSectionHeading,
@@ -126,10 +127,13 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
           plain ? '' : color || autoMarker,
         ].join(' ')
         if (n.href) {
-          // 直前のノードが確信度マーク単体なら、リンクの下線色をマークの意味色へ寄せる。
+          // 直前のノードが確信度マーク単体なら、リンクの文字色をマークの意味色へ寄せる。
           // ただし確信度の一次表現は ConfidenceMark（sr-only 語）に置く。
           const prevMark = MARK_OF[items[i - 1]?.text?.trim() ?? '']
           const linkColor = prevMark ? MARK_COLOR[prevMark] : 'text-brand-600 dark:text-brand-300'
+          // 出典リンクは「チップ」に畳む。下線つきの長文リンクは本文の中で1〜2行を
+          // 占領して読みの流れを分断するため、幅に上限を設けた小さなピルにする
+          // （全文はaria-labelとtitleに残る。タップ挙動は従来どおり別タブで出典を開く）。
           return (
             <a
               key={i}
@@ -137,9 +141,11 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`出典: ${n.text}`}
-              className={`${cls} ${linkColor} underline underline-offset-2 break-words [overflow-wrap:anywhere]`}
+              title={n.text.trim()}
+              className={`inline-flex items-center gap-1 align-baseline max-w-[13em] mx-0.5 px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 text-[0.8em] leading-normal whitespace-nowrap no-underline ${linkColor}`}
             >
-              {renderInlineText(n, i, true)}
+              <ExternalLink className="w-[1em] h-[1em] shrink-0" aria-hidden="true" />
+              <span className="truncate">{renderInlineText(n, i, true)}</span>
             </a>
           )
         }
@@ -442,17 +448,60 @@ function RenderedBlocks({
   )
 }
 
+// 要点モードの本文。結論・節見出し・recapだけを出し、節ごとに全文への入口を置く。
+// Block を使い回すことで全文モードと見た目（アンカー・スタイル）を完全に揃える。
+function DigestBlocks({
+  blocks,
+  onImageClick,
+  active,
+  onReadSection,
+}: {
+  blocks: ReaderDoc['blocks']
+  onImageClick: (u: string) => void
+  active: Set<Confidence>
+  onReadSection?: (anchor: string) => void
+}) {
+  const items = digestItems(blocks)
+  return (
+    <>
+      {items.map((it, i) => {
+        if (it.kind === 'section-link') {
+          return (
+            <p key={`sl-${i}`} className="my-3">
+              <button
+                type="button"
+                onClick={() => onReadSection?.(it.anchor)}
+                className="inline-flex items-center gap-1.5 min-h-[44px] text-[0.9em] text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200"
+              >
+                <BookOpenText className="w-[1.1em] h-[1.1em] shrink-0" aria-hidden="true" />
+                この節を全文で読む
+              </button>
+            </p>
+          )
+        }
+        return <Block key={it.index} block={it.block} index={it.index} onImageClick={onImageClick} active={active} />
+      })}
+    </>
+  )
+}
+
 export function ReaderBody({
   doc,
   onImageClick,
   active = new Set(),
   scaleEm,
+  mode = 'full',
+  onReadSection,
 }: {
   doc: ReaderDoc
   onImageClick: (url: string) => void
   active?: Set<Confidence>
   // Aaボタンの文字サイズ（SCALE_EM の値）。em なので iOS Dynamic Type と乗算で合成される。
   scaleEm?: string
+  // 全文｜要点（ReaderOverlay の切替から渡る）。既定は従来どおり全文。
+  mode?: ReaderViewMode
+  // 要点モードの「この節を全文で読む」。全文へ切り替えて該当節へスクロールする。
+  onReadSection?: (anchor: string) => void
 }) {
   return (
     // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
@@ -480,7 +529,11 @@ export function ReaderBody({
           {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
           <KnowledgeTitle title={doc.title} />
         </h2>
-        <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
+        {mode === 'digest' ? (
+          <DigestBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} onReadSection={onReadSection} />
+        ) : (
+          <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
+        )}
       </div>
     </div>
   )
