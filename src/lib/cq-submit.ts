@@ -170,6 +170,7 @@ export type IntakePropSchema = Record<string, { type?: string }>
 //
 // 期待するプロパティ名（任意・受付DBにあれば書き込まれる）:
 //   背景・状況（rich_text）／職種（select・無ければ旧列 投稿者職種）／経験年数（select）／
+//   診療科・立場（multi_select・医師のみ）／
 //   ペンネーム（rich_text）／通知先ユーザーID（rich_text）／
 //   出典（rich_text）／投稿経路（select: "アプリ内"）
 export function buildIntakeProperties(
@@ -209,6 +210,13 @@ export function buildIntakeProperties(
   }
   if (value.experience && schema['経験年数']?.type === 'select') {
     properties['経験年数'] = { select: { name: value.experience } }
+  }
+  // 診療科・立場（医師のみ・複数選択可）。空のときは列ごと積まない
+  // （既存値を空で上書きしない、という既存方針に揃える）。
+  if (value.departments.length > 0 && schema['診療科・立場']?.type === 'multi_select') {
+    properties['診療科・立場'] = {
+      multi_select: value.departments.map((name) => ({ name })),
+    }
   }
   if (value.penName && schema['ペンネーム']?.type === 'rich_text') {
     properties['ペンネーム'] = rich(value.penName)

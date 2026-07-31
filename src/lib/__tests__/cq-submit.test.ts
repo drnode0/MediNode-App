@@ -212,6 +212,37 @@ describe('buildIntakeProperties', () => {
     expect(r.properties['投稿者職種']).toEqual({ select: { name: '看護師' } })
   })
 
+  it('診療科・立場（multi_select）に積む', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, '診療科・立場': { type: 'multi_select' } }
+    const r = buildIntakeProperties(
+      schema,
+      { ...value, occupation: '医師', departments: ['集中治療科', '指導医・専門医'] },
+      null,
+    )
+    if ('error' in r) throw new Error('unexpected')
+    expect(r.properties['診療科・立場']).toEqual({
+      multi_select: [{ name: '集中治療科' }, { name: '指導医・専門医' }],
+    })
+  })
+
+  it('診療科・立場が空なら列自体を積まない（空で上書きしない）', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, '診療科・立場': { type: 'multi_select' } }
+    const r = buildIntakeProperties(schema, { ...value, departments: [] }, null)
+    if ('error' in r) throw new Error('unexpected')
+    expect('診療科・立場' in r.properties).toBe(false)
+  })
+
+  it('受付DBに診療科・立場の列が無ければ黙って飛ばす（投稿は成立させる）', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' } }
+    const r = buildIntakeProperties(
+      schema,
+      { ...value, occupation: '医師', departments: ['救急科'] },
+      null,
+    )
+    if ('error' in r) throw new Error('unexpected')
+    expect(Object.keys(r.properties)).toEqual(['疑問'])
+  })
+
   it('型が合わないプロパティには書かない（select列にrich_textを積まない等）', () => {
     const schema: IntakePropSchema = {
       疑問: { type: 'title' },
