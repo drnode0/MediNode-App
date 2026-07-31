@@ -71,11 +71,14 @@ export type Hit = {
 // グレーチップ＋既定の帯（Ref=琥珀/その他=常盤）になる。
 // label は表示名。CQは正規値「❓ CQ」に一本化したが、旧値「❓ クリニカルクエスチョン」
 // が残るデータ（プレミアムDB・未移行分）でも "CQ" と表示されるよう両キーを持つ。
+// band に dark: を並べて書くのは必須（省くとダークで色帯がグレーに潰れる）。器の
+// dark:border-gray-700 は4辺すべての border-color で、Tailwind は dark: 付きを後ろに
+// かつ :is(.dark *) 付き＝1段高い詳細度で出すため、素の border-l-* を必ず上書きする。
 export const LEVEL_META: Record<string, { label: string; band: string; badge: string; Icon: LucideIcon }> = {
-  '❓ CQ': { label: 'CQ', band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
-  '❓ クリニカルクエスチョン': { label: 'CQ', band: 'border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
-  '💡 ナレッジ': { label: 'ナレッジ', band: 'border-l-brand-400', badge: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: Lightbulb },
-  '📋 まとめ': { label: 'まとめ', band: 'border-l-sky-400', badge: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300', Icon: ClipboardList },
+  '❓ CQ': { label: 'CQ', band: 'border-l-rose-400 dark:border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
+  '❓ クリニカルクエスチョン': { label: 'CQ', band: 'border-l-rose-400 dark:border-l-rose-400', badge: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300', Icon: MessageCircleQuestion },
+  '💡 ナレッジ': { label: 'ナレッジ', band: 'border-l-brand-400 dark:border-l-brand-400', badge: 'bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300', Icon: Lightbulb },
+  '📋 まとめ': { label: 'まとめ', band: 'border-l-sky-400 dark:border-l-sky-400', badge: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300', Icon: ClipboardList },
 }
 
 const OWNER_BADGE: Record<string, { label: string; style: string }> = {
@@ -121,7 +124,11 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   // 左帯は「種別」を最優先で表す（CQ/ナレッジ/まとめ）。種別が無い場合は、
   // 参考文献なら収録レベル（精読=濃い琥珀 / カード=淡い琥珀）、それ以外は情報源色。
   const borderColor = levelMeta?.band
-    || (isMedical ? 'border-l-brand-400' : recLevel ? (recIsDeep ? 'border-l-amber-500' : 'border-l-amber-200') : 'border-l-amber-400')
+    || (isMedical
+      ? 'border-l-brand-400 dark:border-l-brand-400'
+      : recLevel
+        ? (recIsDeep ? 'border-l-amber-500 dark:border-l-amber-500' : 'border-l-amber-200 dark:border-l-amber-200')
+        : 'border-l-amber-400 dark:border-l-amber-400')
   const displaySummary = hit.aiSummary || hit.summary || null
   const hasExpandable = !!displaySummary
   // タイトル先頭の種別アイコン（最近見た等と同じ挙動）。種別＝knowledgeLevel／収録レベル／

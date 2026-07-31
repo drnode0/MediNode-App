@@ -2226,7 +2226,7 @@ function ManualCard({ hit }: { hit: Hit }) {
     ? new Date(hit.publishedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
     : ''
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-slate-400 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 border-l-slate-400 dark:border-l-slate-400 overflow-hidden">
       <div className={`p-4 ${hasExpandable ? 'cursor-pointer' : ''}`} onClick={() => hasExpandable && setExpanded((v) => !v)}>
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-snug flex-1">{hit.title}</h3>

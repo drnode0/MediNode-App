@@ -25,7 +25,8 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   // 帯・バッジ・アイコンは ResultCard と同じ種別ルール（CQ/ナレッジ/まとめ）を共有する。
   const levelMeta = hit.knowledgeLevel ? LEVEL_META[hit.knowledgeLevel] : undefined
   const levelStyle = levelMeta?.badge || 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'
-  const borderColor = levelMeta?.band || (isMedical ? 'border-l-brand-400' : 'border-l-amber-400')
+  const borderColor = levelMeta?.band
+    || (isMedical ? 'border-l-brand-400 dark:border-l-brand-400' : 'border-l-amber-400 dark:border-l-amber-400')
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 ${borderColor} overflow-hidden`}>
