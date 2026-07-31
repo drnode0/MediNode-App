@@ -3,6 +3,8 @@ import { Client } from '@notionhq/client'
 import { resolveRequestPremium } from '@/lib/premium-access'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 import { validateCqSubmission, buildIntakeProperties, type IntakePropSchema } from '@/lib/cq-submit'
+import { createAdminClient } from '@/lib/supabase/server'
+import { logCqSubmission } from '@/lib/cq-submission-log'
 
 // プレミアムへの臨床疑問投稿（アプリ内フォーム → 作者の受付DB）。
 //
@@ -92,10 +94,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: built.error }, { status: 500 })
     }
 
-    await notion.pages.create({
+    const created = await notion.pages.create({
       parent: { database_id: env.dbId },
       properties: built.properties as Parameters<typeof notion.pages.create>[0]['properties'],
     })
+
+    // 管理用記録（best-effort）。createAdminClient は env 不足で throw しうるので中で握る。
+    try {
+      await logCqSubmission(createAdminClient(), {
+        userId,
+        notionPageId: (created as { id?: string }).id ?? null,
+        value: validated.value,
+      })
+    } catch {
+      // 記録できなくても投稿は成立している。
+    }
 
     return NextResponse.json({ ok: true })
   } catch {
