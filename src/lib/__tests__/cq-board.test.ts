@@ -38,6 +38,29 @@ describe('toBoardCqs', () => {
     })
   })
 
+  it('職種は「職種」列を優先し、無ければ旧列「投稿者職種」で補う', () => {
+    // 両方ある: 新しい「職種」が勝つ
+    const both = toBoardCqs([
+      page({ properties: { 職種: { type: 'select', select: { name: '薬剤師' } } } }),
+    ])
+    expect(both[0].posterRole).toBe('薬剤師')
+
+    // 旧列だけ（過去のアプリ内投稿）: 旧列を読む
+    const legacyOnly = toBoardCqs([page()])
+    expect(legacyOnly[0].posterRole).toBe('看護師')
+
+    // 新列だけ（外部フォーム由来）: これまでバッジが出ていなかったケース
+    const newOnly = toBoardCqs([
+      page({
+        properties: {
+          職種: { type: 'select', select: { name: '理学療法士' } },
+          投稿者職種: { type: 'select', select: null },
+        },
+      }),
+    ])
+    expect(newOnly[0].posterRole).toBe('理学療法士')
+  })
+
   it('ボード公開OFFは出さない（控えの投稿を漏らさない）', () => {
     const off = page({ properties: { ボード公開: { type: 'checkbox', checkbox: false } } })
     expect(toBoardCqs([off])).toHaveLength(0)
