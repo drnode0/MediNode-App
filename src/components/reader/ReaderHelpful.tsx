@@ -2,7 +2,7 @@
 // リーダー末尾の「役に立った」＋参照回数。読了位置に静かに置く（読書中の画面を汚さない・
 // 検索結果カードには出さない、という設計判断はspec参照）。
 // 数は下限方式: 役に立った=HELPFUL_BADGE_MIN、参照回数=VIEW_BADGE_MIN 以上のときだけ表示。
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { HelpfulButton } from '@/components/HelpfulButton'
 import { fetchHelpfulState, toggleHelpful, helpfulCountLabel } from '@/lib/cq-helpful'
@@ -13,9 +13,11 @@ export function ReaderHelpful({ objectID }: { objectID: string }) {
   const [mine, setMine] = useState(false)
   const [views, setViews] = useState(0)
   const [busy, setBusy] = useState(false)
+  const idRef = useRef(objectID)
 
   useEffect(() => {
     let alive = true
+    idRef.current = objectID
     setCount(0); setMine(false); setViews(0)
     fetchHelpfulState([objectID]).then((s) => {
       if (!alive) return
@@ -34,6 +36,12 @@ export function ReaderHelpful({ objectID }: { objectID: string }) {
     setMine(next)
     setCount((c) => Math.max(0, c + (next ? 1 : -1)))
     const r = await toggleHelpful(objectID, next)
+    // 応答待ちの間に別のナレッジへ移っていたら、何も反映しない
+    // （新しいナレッジの表示を古い応答で上書きしない）。busy だけ解除する。
+    if (idRef.current !== objectID) {
+      setBusy(false)
+      return
+    }
     if (r) {
       setMine(r.helpful)
       setCount(r.count)
