@@ -49,7 +49,31 @@ export async function GET(req: NextRequest) {
     const key = 'mn-rl-debug-ping'
     await redis.set(key, 'ok', { ex: 30 })
     const got = await redis.get(key)
-    return NextResponse.json({ ...shape, roundTrip: got === 'ok', verdict: 'Redis往復に成功' })
+
+    // レート制限が実際に共有ストアを使ったかは、限定子の接頭辞 'mn-rl' のキーが
+    // Redis に存在するかで判る（コンソールの集計表示の遅延に左右されない）。
+    // キー名にはIPが含まれるため、件数と種別だけを返し、値も本体も返さない。
+    const found: string[] = []
+    let cursor = '0'
+    do {
+      const [next, keys] = await redis.scan(cursor, { match: 'mn-rl*', count: 200 })
+      found.push(...keys)
+      cursor = String(next)
+    } while (cursor !== '0' && found.length < 500)
+
+    const kinds = new Set(
+      found
+        .filter((k) => k !== 'mn-rl-debug-ping')
+        .map((k) => k.split(':').slice(0, 2).join(':')) // 例: mn-rl:referral
+    )
+
+    return NextResponse.json({
+      ...shape,
+      roundTrip: got === 'ok',
+      rateLimitKeyCount: found.filter((k) => k !== 'mn-rl-debug-ping').length,
+      rateLimitKinds: [...kinds],
+      verdict: 'Redis往復に成功',
+    })
   } catch (e) {
     return NextResponse.json({
       ...shape,
