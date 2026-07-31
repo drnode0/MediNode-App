@@ -60,6 +60,47 @@ describe('validateCqSubmission', () => {
     expect(validateCqSubmission({ ...valid, experience: '2〜3年目' }).ok).toBe(true)
   })
 
+  // 診療科・立場（医師のみ）。「医師」の一語では初期研修医と集中治療科の指導医が
+  // 区別できず、回答の前提が置けない。医師以外が送ってきた値は黙って捨てる。
+  it('診療科・立場は医師のとき必須', () => {
+    const doctor = { ...valid, occupation: '医師' }
+    expect(validateCqSubmission({ ...doctor, departments: [] }).ok).toBe(false)
+    expect(validateCqSubmission(doctor).ok).toBe(false)
+    const ok = validateCqSubmission({ ...doctor, departments: ['集中治療科'] })
+    expect(ok.ok && ok.value.departments).toEqual(['集中治療科'])
+  })
+
+  it('診療科・立場はリスト外を拒否する', () => {
+    const r = validateCqSubmission({
+      ...valid,
+      occupation: '医師',
+      departments: ['集中治療科', '宇宙科'],
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('診療科・立場はリストから選択してください')
+  })
+
+  it('診療科・立場の重複は取り除く', () => {
+    const r = validateCqSubmission({
+      ...valid,
+      occupation: '医師',
+      departments: ['救急科', '救急科', '麻酔科'],
+    })
+    expect(r.ok && r.value.departments).toEqual(['救急科', '麻酔科'])
+  })
+
+  it('医師以外の診療科・立場は黙って捨てる（エラーにしない）', () => {
+    const r = validateCqSubmission({ ...valid, occupation: '看護師', departments: ['救急科'] })
+    expect(r.ok).toBe(true)
+    expect(r.ok && r.value.departments).toEqual([])
+  })
+
+  it('診療科・立場が配列でなければ空として扱う', () => {
+    const r = validateCqSubmission({ ...valid, occupation: '看護師', departments: '救急科' })
+    expect(r.ok).toBe(true)
+    expect(r.ok && r.value.departments).toEqual([])
+  })
+
   it('ペンネームは上限で切り詰める', () => {
     const r = validateCqSubmission({ ...valid, penName: 'ん'.repeat(PEN_NAME_MAX + 10) })
     expect(r.ok).toBe(true)
@@ -88,6 +129,7 @@ describe('buildIntakeProperties', () => {
     background: '',
     occupation: '看護師',
     experience: '',
+    departments: [],
     penName: 'みどり',
     notify: true,
     sourceTitle: '人工呼吸器の開始',
@@ -244,6 +286,7 @@ describe('buildIntakeProperties（背景・経験年数）', () => {
     sourceTitle: '',
     sourceUrl: '',
     experience: '',
+    departments: [],
   }
 
   it('背景を受付DBの「背景・状況」に積む', () => {

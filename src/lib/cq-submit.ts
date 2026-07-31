@@ -50,11 +50,28 @@ export const CQ_EXPERIENCE_YEARS = [
   '21年目以上',
 ] as const
 
+// 医師の診療科・立場。受付DBの「診療科・立場」列（multi_select）の選択肢と一致させる。
+// 立場（初期研修医〜指導医）と診療科が1つの列に同居しているのは受付DB側の既存構造で、
+// 外部Notionフォームと集計を揃えるためそのまま使う。
+export const CQ_DOCTOR_DEPARTMENTS = [
+  '初期研修医',
+  '専攻医（専門研修中）',
+  '指導医・専門医',
+  '救急科',
+  '集中治療科',
+  '麻酔科',
+  'その他の診療科',
+] as const
+
+// 診療科・立場を訊く職種。今はここだけ（他職種の内訳は実データを見てから判断する）。
+export const CQ_DEPARTMENT_OCCUPATION = '医師'
+
 export type CqSubmission = {
   question: string
   background: string // '' = 未入力。あると回答の具体度が大きく変わる
   occupation: string // '' = 選択なし
   experience: string // '' = 選択なし
+  departments: string[] // 職種が「医師」のときだけ入る。それ以外は必ず []
   penName: string // '' = 匿名
   notify: boolean
   sourceTitle: string
@@ -66,6 +83,7 @@ export type CqSubmissionInput = {
   background?: unknown
   occupation?: unknown
   experience?: unknown
+  departments?: unknown
   penName?: unknown
   notify?: unknown
   sourceTitle?: unknown
@@ -105,6 +123,21 @@ export function validateCqSubmission(
     return { ok: false, error: '経験年数はリストから選択してください' }
   }
 
+  // 診療科・立場は医師のときだけ必須。「医師」の一語では初期研修医と集中治療科の
+  // 指導医が区別できず、回答の前提が置けない。
+  // 医師以外が送ってきた値は黙って捨てる（看護師の投稿に救急科が付いた行を作らない）。
+  let departments: string[] = []
+  if (occupation === CQ_DEPARTMENT_OCCUPATION) {
+    const raw = Array.isArray(input.departments) ? input.departments.map(str).filter(Boolean) : []
+    if (raw.some((d) => !(CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(d))) {
+      return { ok: false, error: '診療科・立場はリストから選択してください' }
+    }
+    departments = [...new Set(raw)]
+    if (departments.length === 0) {
+      return { ok: false, error: '診療科・立場を選択してください' }
+    }
+  }
+
   const penName = str(input.penName).slice(0, PEN_NAME_MAX)
 
   const sourceTitle = str(input.sourceTitle).slice(0, SOURCE_TITLE_MAX)
@@ -118,6 +151,7 @@ export function validateCqSubmission(
       background,
       occupation,
       experience,
+      departments,
       penName,
       notify: input.notify === true,
       sourceTitle,
