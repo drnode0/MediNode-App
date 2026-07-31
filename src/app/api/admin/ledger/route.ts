@@ -157,6 +157,41 @@ export async function GET() {
       // テーブル未作成なら空のまま。
     }
 
+    // CQ投稿の管理用記録（0019 未適用ならテーブルが無いので空のまま続行）。
+    // 新しい順で返す（詳細表示がそのまま使う）。
+    const cqByUser = new Map<string, Array<{ question: string; role: string | null; createdAt: string }>>()
+    try {
+      const { data: cqs } = await admin
+        .from('cq_submissions')
+        .select('user_id, question, role, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5000)
+      for (const c of cqs ?? []) {
+        const uid = c.user_id as string
+        const list = cqByUser.get(uid) ?? []
+        list.push({
+          question: String(c.question),
+          role: (c.role as string | null) ?? null,
+          createdAt: String(c.created_at),
+        })
+        cqByUser.set(uid, list)
+      }
+    } catch {
+      // テーブル未作成なら空のまま。
+    }
+
+    // 「みんなの臨床疑問」への投票数（0017）。
+    const voteCountByUser = new Map<string, number>()
+    try {
+      const { data: votes } = await admin.from('cq_votes').select('user_id').limit(20000)
+      for (const v of votes ?? []) {
+        const uid = v.user_id as string
+        voteCountByUser.set(uid, (voteCountByUser.get(uid) ?? 0) + 1)
+      }
+    } catch {
+      // テーブル未作成なら空のまま。
+    }
+
     // イベントマーカー（登録推移グラフ用）。Notionの「📈 MediNode イベント記録_DB」から取得する。
     // best-effort: 未設定・未共有・タイムアウトなら空のまま（グラフにマーカーが出ないだけ）。
     // 「名前」(title)と「日付」(date)だけを読む。行を足せば次の台帳表示から反映される。
@@ -250,6 +285,10 @@ export async function GET() {
           ownerNote: (u.user_metadata?.owner_note as string | undefined) ?? null,
           // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
           earlyAccess: earlyAccessByUser.get(u.id) ?? false,
+          // アプリ内CQ投稿（cq_submissions・/admin専用の管理記録）と投票数。
+          cqCount: (cqByUser.get(u.id) ?? []).length,
+          cqList: cqByUser.get(u.id) ?? [],
+          voteCount: voteCountByUser.get(u.id) ?? 0,
           // 課金からの解約（churn）判定用。Stripe顧客に紐づくかだけを boolean で（IDは出さない）。
           hasStripe: !!summary?.stripe_customer_id,
           // MRRの月次推移用。subscriptions に契約開始時刻の列が無いため現状は常に null

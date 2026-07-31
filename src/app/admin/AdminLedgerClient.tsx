@@ -13,9 +13,6 @@ import {
   Activity,
   BarChart3,
   Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
   Copy,
   CreditCard,
   Crown,
@@ -31,6 +28,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  StickyNote,
   Timer,
   Trash2,
   Trophy,
@@ -41,6 +39,8 @@ import {
 import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
 import { LAUNCH_CAMPAIGN_END } from '@/lib/campaign'
+import { PersonRow } from './PersonRow'
+import { lastSeenMs, activityBand, fmtRelative, comparePeople, type PeopleSortMode } from '@/lib/ledger-people'
 import {
   ActiveBreakdownBar,
   CountBars,
@@ -99,6 +99,9 @@ type LedgerRow = {
   isOwner: boolean
   ownerNote: string | null
   earlyAccess?: boolean
+  cqCount: number
+  cqList: Array<{ question: string; role: string | null; createdAt: string }>
+  voteCount: number
   hasStripe: boolean
   subCreatedAt: string | null
 }
@@ -226,18 +229,6 @@ function relTime(iso: string | null): string {
   return `${Math.floor(day / 30)}ヶ月前`
 }
 
-// 日付セル。ホバー（スマホは長押し）で時刻まで見える。
-function DateCell({ iso }: { iso: string | null }) {
-  return (
-    <td
-      className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-      title={fmtDateTime(iso) || undefined}
-    >
-      {fmtDate(iso)}
-    </td>
-  )
-}
-
 // KPIカード（登録者数・アクティブ数など画面上部の数字）。
 function KpiCard({
   icon: Icon,
@@ -291,47 +282,6 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'delivery', label: '通知・配信', icon: Megaphone },
 ]
 
-// アカウント台帳の日付ソート対象列。
-type SortKey = 'createdAt' | 'lastSignInAt' | 'lastUsedAt'
-const SORT_LABEL: Record<SortKey, string> = {
-  createdAt: '登録日',
-  lastSignInAt: '最終ログイン',
-  lastUsedAt: '最終利用',
-}
-
-// クリックで並び替えできる日付列の見出し。有効列は矢印（▲昇順/▼降順）、それ以外は薄い↕。
-function SortableTh({
-  col,
-  activeKey,
-  dir,
-  onSort,
-}: {
-  col: SortKey
-  activeKey: SortKey
-  dir: 'asc' | 'desc'
-  onSort: (k: SortKey) => void
-}) {
-  const active = activeKey === col
-  return (
-    <th className="px-4 py-3 font-medium whitespace-nowrap">
-      <button
-        type="button"
-        onClick={() => onSort(col)}
-        className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
-        title={`${SORT_LABEL[col]}で並び替え`}
-      >
-        {SORT_LABEL[col]}
-        <span
-          className={`text-[10px] ${active ? 'text-brand-600 dark:text-brand-400' : 'text-gray-300 dark:text-gray-600'}`}
-          aria-hidden
-        >
-          {active ? (dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : <ChevronsUpDown className="w-3 h-3" />}
-        </span>
-      </button>
-    </th>
-  )
-}
-
 export function AdminLedgerClient() {
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dailyActive, setDailyActive] = useState<DailyPoint[]>([])
@@ -357,9 +307,10 @@ export function AdminLedgerClient() {
   const [copied, setCopied] = useState<string | null>(null)
   // タブ切替（長い1ページを分割してスクロールを減らす）。既定は「今日」。
   const [tab, setTab] = useState<AdminTab>('today')
-  // アカウント台帳のソート（日付列）。既定は登録日の新しい順。
-  const [sortKey, setSortKey] = useState<SortKey>('createdAt')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  // アカウント台帳の並び替え・区分絞り込み・展開状態（「人が主役」の一覧）。
+  const [sortMode, setSortMode] = useState<PeopleSortMode>('newest')
+  const [kindFilter, setKindFilter] = useState<MemberKind | 'all'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -592,7 +543,7 @@ ${label}`,
     if (!window.confirm('個人情報（メールアドレス等）を含むCSVを出力します。取り扱いに注意してください。続けますか？')) {
       return
     }
-    const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', 'CQ投稿', '投票', 'カード', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
@@ -600,6 +551,9 @@ ${label}`,
         csvCell(effectiveSource(r) ?? '未計測'),
         csvCell(r.referralCount > 0 ? String(r.referralCount) : '0'),
         csvCell(r.viaReferral ? '紹介経由' : '—'),
+        csvCell(String(r.cqCount)),
+        csvCell(String(r.voteCount)),
+        csvCell(r.hasStripe ? 'カードあり' : '—'),
         csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
         csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
         csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
@@ -696,31 +650,11 @@ ${label}`,
     )
   }, [rows, query, onlyUntouchedTrials, onlyReferred, isUntouchedPremium])
 
-  // 台帳の並び替え（日付列の昇順/降順）。null（未記録）は方向に関わらず常に末尾へ寄せる。
+  // 台帳の並び替え（プリセット3種）＋区分フィルタ。
   const sorted = useMemo(() => {
-    const ms = (v: string | null) => (v ? new Date(v).getTime() : null)
-    return [...filtered].sort((a, b) => {
-      const av = ms(a[sortKey])
-      const bv = ms(b[sortKey])
-      if (av === null && bv === null) return 0
-      if (av === null) return 1
-      if (bv === null) return -1
-      return sortDir === 'asc' ? av - bv : bv - av
-    })
-  }, [filtered, sortKey, sortDir])
-
-  // 見出しクリックでソート。同じ列なら昇降トグル、別の列なら降順から。
-  const toggleSort = useCallback(
-    (key: SortKey) => {
-      if (sortKey === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-      } else {
-        setSortKey(key)
-        setSortDir('desc')
-      }
-    },
-    [sortKey],
-  )
+    const base = kindFilter === 'all' ? filtered : filtered.filter((r) => r.kind === kindFilter)
+    return [...base].sort((a, b) => comparePeople(sortMode, a, b))
+  }, [filtered, sortMode, kindFilter])
 
   // 集計対象の「実ユーザー」= オーナー(admin)とモニター指定を除いた行。
   // 解約率・売上・稼働・アクティブ等の“数値”はこれで計算する（自分のデモ/内部アカウントを混ぜない）。
@@ -736,6 +670,15 @@ ${label}`,
     for (const r of realRows) c[r.kind]++
     return c
   }, [realRows])
+
+  // 一覧の区分フィルタチップ専用の人数。チップが絞り込む母集団は rows 全件（filtered）なので、
+  // realRows ベースの counts（KPI・分析タブ用。admin/モニター/オーナー除外）を流用すると
+  // 「管理者0人なのに押すと行が出る」等の矛盾が出る。ここは必ず rows 全件で数える。
+  const chipCounts = useMemo(() => {
+    const c: Record<MemberKind, number> = { admin: 0, comp: 0, premium: 0, stripe_trial: 0, trial: 0, auto_trial: 0, expired: 0, free: 0 }
+    for (const r of rows ?? []) c[r.kind]++
+    return c
+  }, [rows])
 
   // マーケ・経営指標（すべて既存データの派生。ロジックは ledger-metrics に集約）。
   const funnel = useMemo(
@@ -811,15 +754,10 @@ ${label}`,
     const breakdown: ActiveBreakdown = { within7: 0, within30: 0, older: 0, never: 0 }
     const now = Date.now()
     for (const r of realRows) {
-      const seen = Math.max(
-        ...[r.lastUsedAt, r.lastSignInAt, r.settingsUpdatedAt]
-          .filter((v): v is string => !!v)
-          .map((v) => new Date(v).getTime()),
-        0,
-      )
-      if (seen === 0) breakdown.never++
-      else if (now - seen <= 7 * 24 * 60 * 60 * 1000) breakdown.within7++
-      else if (now - seen <= 30 * 24 * 60 * 60 * 1000) breakdown.within30++
+      const band = activityBand(lastSeenMs(r), now)
+      if (band === 'never') breakdown.never++
+      else if (band === 'week') breakdown.within7++
+      else if (band === 'month') breakdown.within30++
       else breakdown.older++
     }
     return { breakdown, wau: breakdown.within7, mau: breakdown.within7 + breakdown.within30 }
@@ -957,6 +895,10 @@ ${label}`,
       { label: '既存DB連携', count: existing, className: 'bg-brand-600 dark:bg-brand-400' },
     ]
   }, [rows])
+
+  // 一覧の行バッジ（アクティブ度・最終利用ラベル）を計算する基準時刻。sorted.map内で毎行 Date.now() を
+  // 呼ばないよう、レンダーごとに1回だけ取得する（厳密なメモ化は不要）。
+  const now = Date.now()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8 max-lg:overflow-x-clip">
@@ -1278,28 +1220,6 @@ ${label}`,
               </p>
             </section>
 
-            {/* 区分ごとの人数サマリー。0人の区分も薄く表示して「0人」と「非表示」を区別できるようにする */}
-            <SectionHeading title="区分ごとの人数" caption="登録者を区分（課金/トライアル/無料/失効など）別に集計したバッジ。0人の区分も薄く表示。" help="member-ledger の区分定義に基づく内訳です。永続無料(comp)・管理者(admin)なども含みます。" />
-            <div className="flex flex-wrap gap-2 mb-4">
-              {(Object.keys(KIND_STYLE) as MemberKind[]).map((k) => {
-                const Icon = KIND_STYLE[k].icon
-                const zero = counts[k] === 0
-                return (
-                  <span
-                    key={k}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${
-                      zero
-                        ? 'bg-gray-50 text-gray-400 dark:bg-gray-800/60 dark:text-gray-500 border border-dashed border-gray-200 dark:border-gray-700'
-                        : KIND_STYLE[k].badge
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" aria-hidden />
-                    {MEMBER_KIND_LABEL[k]} {counts[k]}人
-                  </span>
-                )
-              })}
-            </div>
-
             {/* 紹介してくれた人（アドボケイト）ランキング。お礼・優遇の対象を一目で。 */}
             {topReferrers.length > 0 && (
               <section className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10 p-4 mb-4">
@@ -1380,110 +1300,241 @@ ${label}`,
               </button>
             </div>
 
-            {/* 台帳テーブル */}
-            <div id="ledger" className="scroll-mt-4 overflow-auto max-h-[70vh] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-              <table className="w-full text-sm">
-                {/* スクロールしても列名が分かるよう、見出し行を上部に固定（sticky）。行が透けないよう各thに背景を敷く。 */}
-                <thead className="sticky top-0 z-20">
-                  <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 shadow-sm [&>th]:bg-gray-50 dark:[&>th]:bg-gray-800">
-                    <th className="px-4 py-3 font-medium">メール</th>
-                    <th className="px-4 py-3 font-medium">区分</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">流入元</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">紹介</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">期限</th>
-                    <SortableTh col="createdAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                    <SortableTh col="lastSignInAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                    <SortableTh col="lastUsedAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">プレミアム利用</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">設定同期</th>
-                    <th className="px-4 py-3 font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((r) => {
-                    const Icon = KIND_STYLE[r.kind].icon
-                    const canRevoke = r.kind === 'comp' || r.kind === 'trial' || r.kind === 'auto_trial'
-                    // トライアル中でも「永続無料へ格上げ」できるようにする（期限終了を待たない）。
-                    const canGrant =
-                      r.kind === 'free' || r.kind === 'expired' || r.kind === 'trial' || r.kind === 'auto_trial'
-                    // 削除可: 管理者・課金/カード登録は対象外（Stripeはサーバー側でも拒否）。
-                    const canDelete =
-                      r.kind !== 'admin' && r.kind !== 'premium' && r.kind !== 'stripe_trial'
-                    return (
-                      <tr
-                        key={r.userId}
-                        className="border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 odd:bg-gray-50/50 dark:odd:bg-gray-900/20 hover:bg-emerald-50/50 dark:hover:bg-gray-700/30"
-                      >
-                        <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
-                          <div className="flex items-center gap-1.5">
-                            <span className="max-w-[240px] truncate" title={maskEmails ? undefined : (r.email ?? undefined)}>
-                              {maskEmails ? maskEmail(r.email) : (r.email ?? '（メール不明）')}
-                            </span>
+            {/* 並び替えプリセット */}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              {(
+                [
+                  ['newest', '新着順'],
+                  ['active', 'アクティブ順'],
+                  ['contribution', '貢献順'],
+                ] as Array<[PeopleSortMode, string]>
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSortMode(mode)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                    sortMode === mode
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-brand-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* 区分フィルタチップ（旧「区分ごとの人数」セクションを吸収） */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              <button
+                type="button"
+                onClick={() => setKindFilter('all')}
+                className={`px-2.5 py-1 rounded-full text-[11px] border ${
+                  kindFilter === 'all'
+                    ? 'bg-gray-800 text-white border-gray-800 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600'
+                }`}
+              >
+                すべて {rows?.length ?? 0}
+              </button>
+              {(Object.keys(MEMBER_KIND_LABEL) as MemberKind[]).map((k) => {
+                const n = chipCounts[k] ?? 0
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKindFilter(kindFilter === k ? 'all' : k)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${
+                      kindFilter === k
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : n === 0
+                          ? 'bg-white dark:bg-gray-800 text-gray-300 dark:text-gray-600 border-gray-100 dark:border-gray-700'
+                          : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-brand-400'
+                    }`}
+                  >
+                    {MEMBER_KIND_LABEL[k]} {n}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* 台帳一覧: 1人1行、詳細は展開（人が主役） */}
+            <div id="ledger" className="scroll-mt-4">
+              {sorted.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                  該当するアカウントがありません
+                </p>
+              ) : (
+              <ul className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y-0">
+                {sorted.map((r) => {
+                  const Icon = KIND_STYLE[r.kind].icon
+                  const canRevoke = r.kind === 'comp' || r.kind === 'trial' || r.kind === 'auto_trial'
+                  // トライアル中でも「永続無料へ格上げ」できるようにする（期限終了を待たない）。
+                  const canGrant =
+                    r.kind === 'free' || r.kind === 'expired' || r.kind === 'trial' || r.kind === 'auto_trial'
+                  // 削除可: 管理者・課金/カード登録は対象外（Stripeはサーバー側でも拒否）。
+                  const canDelete =
+                    r.kind !== 'admin' && r.kind !== 'premium' && r.kind !== 'stripe_trial'
+                  const seen = lastSeenMs(r)
+                  return (
+                    <PersonRow
+                      key={r.userId}
+                      email={maskEmails ? maskEmail(r.email) : r.email}
+                      userId={r.userId}
+                      kindBadge={
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs whitespace-nowrap ${KIND_STYLE[r.kind].badge}`}
+                        >
+                          <Icon className="w-3.5 h-3.5" aria-hidden />
+                          {MEMBER_KIND_LABEL[r.kind]}
+                        </span>
+                      }
+                      hasStripe={r.hasStripe}
+                      band={activityBand(seen, now)}
+                      lastSeenLabel={fmtRelative(seen, now)}
+                      cqCount={r.cqCount}
+                      voteCount={r.voteCount}
+                      expanded={expandedId === r.userId}
+                      onToggle={() => setExpandedId(expandedId === r.userId ? null : r.userId)}
+                      detail={
+                        <div className="space-y-3 text-sm">
+                          {/* --- 基本情報（旧テーブルの列を definition list に移す） --- */}
+                          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+                            <div className="col-span-2 sm:col-span-3">
+                              <dt className="text-gray-400 dark:text-gray-500">メール</dt>
+                              <dd className="text-gray-700 dark:text-gray-300 break-all">
+                                {maskEmails ? maskEmail(r.email) : (r.email ?? '—')}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">登録日</dt>
+                              <dd
+                                className="text-gray-700 dark:text-gray-300"
+                                title={fmtDateTime(r.createdAt) || undefined}
+                              >
+                                {fmtDate(r.createdAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">最終ログイン</dt>
+                              <dd
+                                className="text-gray-700 dark:text-gray-300"
+                                title={fmtDateTime(r.lastSignInAt) || undefined}
+                              >
+                                {fmtDate(r.lastSignInAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">最終利用</dt>
+                              <dd
+                                className="text-gray-700 dark:text-gray-300"
+                                title={fmtDateTime(r.lastUsedAt) || undefined}
+                              >
+                                {fmtDate(r.lastUsedAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">設定同期</dt>
+                              <dd
+                                className="text-gray-700 dark:text-gray-300"
+                                title={fmtDateTime(r.settingsUpdatedAt) || undefined}
+                              >
+                                {fmtDate(r.settingsUpdatedAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">期限</dt>
+                              <dd
+                                className="text-gray-700 dark:text-gray-300"
+                                title={r.kind === 'comp' ? undefined : fmtDateTime(r.trialEndsAt) || undefined}
+                              >
+                                {r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">プレミアム利用</dt>
+                              <dd>
+                                {isUntouchedPremium(r) ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                                    未
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="text-gray-700 dark:text-gray-300"
+                                    title={fmtDateTime(r.premiumUsedAt) || undefined}
+                                  >
+                                    {fmtDate(r.premiumUsedAt)}
+                                  </span>
+                                )}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">流入元</dt>
+                              <dd>
+                                <SourceBadge source={effectiveSource(r)} />
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-gray-400 dark:text-gray-500">紹介</dt>
+                              <dd>
+                                <div className="flex flex-col gap-1 items-start">
+                                  {r.referralCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" title={`この人は ${r.referralCount}人 を招待しました`}>
+                                      <Gift className="w-3 h-3" aria-hidden />
+                                      {r.referralCount}人招待
+                                    </span>
+                                  )}
+                                  {r.viaReferral && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200" title="紹介コード経由で登録">
+                                      <UserPlus className="w-3 h-3" aria-hidden />
+                                      紹介で開始
+                                    </span>
+                                  )}
+                                  {r.referralCount === 0 && !r.viaReferral && (
+                                    <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                                  )}
+                                </div>
+                              </dd>
+                            </div>
+                          </dl>
+                          {/* --- 投稿CQ一覧（新規） --- */}
+                          {r.cqList.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                                投稿してくれた臨床疑問（{r.cqCount}件）
+                              </p>
+                              <ul className="space-y-1">
+                                {r.cqList.map((cq, i) => (
+                                  <li key={i} className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    <span className="text-gray-400 dark:text-gray-500 mr-1.5 tabular-nums">
+                                      {cq.createdAt.slice(0, 10)}
+                                    </span>
+                                    {cq.question}
+                                    {cq.role && (
+                                      <span className="ml-1.5 text-[10px] text-gray-400">（{cq.role}）</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+                                2026-07-31以前の投稿は通知同意分のみ表示（それ以外は記録が存在しません）
+                              </p>
+                            </div>
+                          )}
+                          {/* --- 操作（旧テーブル「操作」列のボタン群をそのまま移す） --- */}
+                          <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-200 dark:border-gray-700">
                             <button
                               type="button"
                               onClick={() => void copyId(r)}
                               title={`ユーザーIDをコピー: ${r.userId}`}
-                              aria-label="ユーザーIDをコピー"
-                              className="shrink-0 p-1 rounded text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"
                             >
                               {copied === r.userId ? (
                                 <Check className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" aria-hidden />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" aria-hidden />
                               )}
+                              IDをコピー
                             </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs whitespace-nowrap ${KIND_STYLE[r.kind].badge}`}
-                          >
-                            <Icon className="w-3.5 h-3.5" aria-hidden />
-                            {MEMBER_KIND_LABEL[r.kind]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <SourceBadge source={effectiveSource(r)} />
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex flex-col gap-1 items-start">
-                            {r.referralCount > 0 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" title={`この人は ${r.referralCount}人 を招待しました`}>
-                                <Gift className="w-3 h-3" aria-hidden />
-                                {r.referralCount}人招待
-                              </span>
-                            )}
-                            {r.viaReferral && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200" title="紹介コード経由で登録">
-                                <UserPlus className="w-3 h-3" aria-hidden />
-                                紹介で開始
-                              </span>
-                            )}
-                            {r.referralCount === 0 && !r.viaReferral && (
-                              <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
-                            )}
-                          </div>
-                        </td>
-                        <td
-                          className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-                          title={r.kind === 'comp' ? undefined : fmtDateTime(r.trialEndsAt) || undefined}
-                        >
-                          {r.kind === 'comp' ? '無期限' : fmtDate(r.trialEndsAt)}
-                        </td>
-                        <DateCell iso={r.createdAt} />
-                        <DateCell iso={r.lastSignInAt} />
-                        <DateCell iso={r.lastUsedAt} />
-                        {/* プレミアム利用: 見られる区分なのに未利用なら「未」を強調表示 */}
-                        {isUntouchedPremium(r) ? (
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">未</span>
-                          </td>
-                        ) : (
-                          <DateCell iso={r.premiumUsedAt} />
-                        )}
-                        <DateCell iso={r.settingsUpdatedAt} />
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1 items-start">
                             {canGrant && (
                               <button
                                 type="button"
@@ -1566,7 +1617,8 @@ ${label}`,
                                     : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                               >
-                                📝 {r.ownerNote ? r.ownerNote : 'メモ'}
+                                <StickyNote className="w-3.5 h-3.5" aria-hidden />
+                                {r.ownerNote ? r.ownerNote : 'メモ'}
                               </button>
                             )}
                             {r.kind !== 'admin' && (
@@ -1605,19 +1657,13 @@ ${label}`,
                               <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {sorted.length === 0 && (
-                    <tr>
-                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                        該当するアカウントがありません
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                      }
+                    />
+                  )
+                })}
+              </ul>
+              )}
             </div>
 
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">

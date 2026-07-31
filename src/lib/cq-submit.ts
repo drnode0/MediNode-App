@@ -221,7 +221,9 @@ export function buildIntakeProperties(
   if (value.penName && schema['ペンネーム']?.type === 'rich_text') {
     properties['ペンネーム'] = rich(value.penName)
   }
-  // 通知先は本人の同意（notify）があるときだけ残す。同意なしにIDを保存しない。
+  // Notion受付DB側の通知先IDは、本人の同意（notify）があるときだけ残す（解決通知の宛先）。
+  // 投稿者の管理用記録は同意と無関係に Supabase cq_submissions が持つ（2026-07-31方針変更・
+  // /admin 専用で公開面には出さない。cq-submission-log.ts 参照）。
   if (value.notify && userId && schema['通知先ユーザーID']?.type === 'rich_text') {
     properties['通知先ユーザーID'] = rich(userId)
   }
