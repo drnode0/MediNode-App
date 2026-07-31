@@ -299,6 +299,9 @@ function CqCaptureModal({
   // 必須欄が未入力のとき、エラー表示だけでなく該当欄へフォーカスを返す。
   const occupationRef = useRef<HTMLSelectElement | null>(null)
   const experienceRef = useRef<HTMLSelectElement | null>(null)
+  const backgroundRef = useRef<HTMLTextAreaElement | null>(null)
+  // 背景が空のまま送信を押したときに出す確認バー（ソフト必須）。
+  const [bgPrompt, setBgPrompt] = useState(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -356,7 +359,9 @@ function CqCaptureModal({
   const willSendMine = dest.mine && personalAvail && !mineDone
   const willSendExpert = dest.expert && expertReady === 'ready' && !needsLogin && !expertDone
 
-  const handleSend = async () => {
+  // skipBgPrompt: 確認バーの「このまま送る」から呼ばれたときだけ true。
+  // state 更新を待たずにそのまま送るため、引数で渡す。
+  const handleSend = async (opts?: { skipBgPrompt?: boolean }) => {
     const trimmed = title.trim()
     if (!trimmed) return // 送信ボタン自体が空入力ではdisabled（保険の早期return）
     if (willSendExpert && trimmed.length < QUESTION_MIN) {
@@ -373,6 +378,11 @@ function CqCaptureModal({
     if (willSendExpert && !profile.experience) {
       setExpertError('経験年数を選択してください')
       experienceRef.current?.focus()
+      return
+    }
+    // 背景が空のときは送らずに一度だけ確認する。書くか、そのまま送るかは本人が選ぶ。
+    if (willSendExpert && !background.trim() && !opts?.skipBgPrompt) {
+      setBgPrompt(true)
       return
     }
     if (!willSendMine && !willSendExpert) return
@@ -606,19 +616,23 @@ function CqCaptureModal({
                   ) : (
                     <>
                       {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
-                          任意のままにして投稿の足を止めないが、既定で開いて置き、
+                          ソフト必須（空でも送れるが、送信時に一度だけ確認を挟む）。
                           「何を書けばよいか」を例で示して書きやすくする。
                           例文は上の疑問文の例と同じ症例（敗血症性ショック）で揃える。
                           患者背景・場面・試したこと（数値）・迷っている点の4つを1文ずつ含め、
                           これを読めば書き方が分かるようにする。片方だけ直さない。 */}
                       <div className="space-y-1">
                         <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                          背景・状況<span className="font-normal text-gray-400 dark:text-gray-500">（任意）</span>
+                          背景・状況
                         </label>
                         <textarea
                           id="cq-background"
+                          ref={backgroundRef}
                           value={background}
-                          onChange={(e) => setBackground(e.target.value)}
+                          onChange={(e) => {
+                            setBackground(e.target.value)
+                            setBgPrompt(false)
+                          }}
                           maxLength={BACKGROUND_MAX}
                           rows={3}
                           placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
@@ -626,10 +640,38 @@ function CqCaptureModal({
                         />
                         {/* 疑問だけ書いて背景が空のときに、一度だけ静かに促す（送信は妨げない）。 */}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-                          {title.trim().length >= QUESTION_MIN && !background.trim()
-                            ? 'どんな場面か・何を試したか・何に迷っているかが一言あると、回答がぐっと具体的になります。'
-                            : '患者背景・場面・これまでの対応など。具体的なほど回答の精度が上がります。'}
+                          空でも送れますが、あると回答の精度が変わります。
+                          患者背景・場面・これまでの対応など。
                         </p>
+                        {bgPrompt && (
+                          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                              背景が空のままです。どんな場面で・何を試して・何に迷っているかが一言あると、答えられる疑問になります。
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBgPrompt(false)
+                                  backgroundRef.current?.focus()
+                                }}
+                                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg py-1.5 text-xs font-semibold transition-colors"
+                              >
+                                背景を書く
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBgPrompt(false)
+                                  handleSend({ skipBgPrompt: true })
+                                }}
+                                className="flex-1 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg py-1.5 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                              >
+                                このまま送る
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       {/* 職種・経験年数は必須。どちらも1タップで、端末に記憶されるため
                           壁になるのは初回だけ。経験年数は回答の深さ・前提の置き方を変える。 */}
@@ -753,7 +795,7 @@ function CqCaptureModal({
               )}
 
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={saving || !title.trim() || (!willSendMine && !willSendExpert)}
                 className="mt-3 w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl py-3 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
               >
