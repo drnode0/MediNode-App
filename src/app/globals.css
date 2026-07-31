@@ -94,19 +94,24 @@ mark[data-reader-search].reader-search-active {
    ダークの分岐は不要（色を持たない指定のみ）。
    ──────────────────────────────────────────────────────────── */
 .reader-prose {
-  /* 日本語の約物・かなの字幅を詰める。「、」「。」「（）」まわりの
-     間延びが消えて、組みが一段締まる。欧文数字・英字には影響しない。 */
-  font-feature-settings: 'palt' 1;
   /* 医療本文は数値が多い。桁を揃えると縦に読み比べられる。 */
   font-variant-numeric: tabular-nums;
+  /* 通読する地の文はわずかに字間を開ける。詰めるのは見出しだけ（下記palt）。
+     body 全体の palt（継承）もここで解除する — 詰めっぱなしだと通読が窮屈になる。 */
+  letter-spacing: 0.02em;
+  font-feature-settings: normal;
 }
 
 /* 見出しは行末で1語だけ落ちると締まらない。均等に折り返す。
-   text-wrap: pretty 未対応ブラウザでは既定の折り返しに戻るだけ。 */
+   text-wrap: pretty 未対応ブラウザでは既定の折り返しに戻るだけ。
+   palt（約物・かな詰め）は見出し限定 — 短い行では締まって見えるが、
+   地の文に効かせると通読時の窮屈さにつながる。 */
 .reader-prose h1,
 .reader-prose h2,
 .reader-prose h3 {
   text-wrap: pretty;
+  font-feature-settings: 'palt' 1;
+  letter-spacing: 0;
 }
 
 /* ────────────────────────────────────────────────────────────

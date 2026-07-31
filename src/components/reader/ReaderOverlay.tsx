@@ -263,7 +263,7 @@ export default function ReaderOverlay({
         </p>
         {/* overflow-x-hidden＋overscroll-contain: スマホで縦スクロール中に横へずれる
             （幅超過コンテンツで水平パンが起きる）のを封じる。表は自前の overflow-x-auto で横スクロール可。 */}
-        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-4 pt-4 pb-20">
+        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-5 pt-4 pb-20">
           <div className="mx-auto w-full max-w-2xl">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">

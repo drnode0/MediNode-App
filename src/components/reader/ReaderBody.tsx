@@ -187,7 +187,7 @@ function CalloutBlock({
     return (
       <div
         data-tldr=""
-        className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3.5 py-3 my-4"
+        className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4"
       >
         <div className="flex gap-2">
           {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
@@ -205,7 +205,7 @@ function CalloutBlock({
     const hasHeadingText = first && first.kind === 'paragraph' && first.inlines.some((n) => n.bold)
     return (
       <div
-        className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3.5 py-3 my-4"
+        className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3.5 my-4"
       >
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 overflow-hidden">
@@ -241,7 +241,7 @@ function CalloutBlock({
   // evidence / disclaimer / plain: 既存 CALLOUT_TONE 準拠（disclaimer は常に gray）。
   const tone = role === 'disclaimer' ? CALLOUT_TONE.gray_background : (block.color && CALLOUT_TONE[block.color]) || CALLOUT_TONE.gray_background
   return (
-    <div className={`border-l-4 rounded-r-lg px-3.5 py-3 my-4 ${tone}`}>
+    <div className={`border-l-4 rounded-r-lg px-4 py-3.5 my-4 ${tone}`}>
       <div className="flex gap-2">
         {block.icon && <span className="shrink-0 text-base leading-6">{block.icon}</span>}
         <div className="min-w-0">
@@ -319,7 +319,7 @@ function Block({
       const body = <Inlines items={block.inlines} k={`p-${index}`} />
       return (
         <p
-          className={`text-base leading-[1.9] my-3.5 break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+          className={`text-base leading-[1.9] my-4 whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           {recap ? <NoAutoMarkerCtx.Provider value={true}>{body}</NoAutoMarkerCtx.Provider> : body}
         </p>
@@ -416,7 +416,7 @@ function RenderedBlocks({
           return (
             <Tag
               key={i}
-              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2.5 space-y-1.5 text-base`}
+              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-2.5 space-y-2.5 text-base`}
             >
               {g.items.map((it, j) => {
                 const pseudo: ReaderBlock = { kind: 'list_item', ordered: g.ordered, inlines: it }
@@ -424,7 +424,7 @@ function RenderedBlocks({
                 return (
                   <li
                     key={j}
-                    className={`leading-[1.85] break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+                    className={`leading-[1.9] whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
                   >
                     <Inlines items={it} k={`li-${i}-${j}`} />
                   </li>
@@ -450,7 +450,7 @@ export function ReaderBody({
 }) {
   return (
     // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
-    // ・palt: 日本語の約物・かなを詰める（句読点まわりの間延びが消える）
+    // ・palt は見出し限定（地の文は自然な字幅＋微字間 — globals.css の .reader-prose 参照）
     // ・pretty: 行末で1語だけ落ちる不揃いを避ける
     // ・tabular-nums は数値の並ぶ医療本文で桁が揃い、読み比べやすくなる
     // いずれも要素も文字も増やさない。説明されないが毎回効く。
