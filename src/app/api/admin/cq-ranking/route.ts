@@ -2,7 +2,7 @@
 //
 //   GET /api/admin/cq-ranking?limit=30
 //     … cq_views（のべ参照回数）の上位を取り、サブスクIndexからタイトルを解決して返す。
-//       { items: [{ objectID, title, count, notionUrl }], ready: boolean }
+//       { items: [{ objectID, title, count, helpfulCount }], ready: boolean }
 //
 // 「みんながどのナレッジを気にしているか」を作者自身が把握するための一覧。
 // 記録は全プレミアムナレッジ対象（recordCqView が owner==='subscription' を加算）なので、
