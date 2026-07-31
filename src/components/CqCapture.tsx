@@ -880,6 +880,10 @@ function CqCaptureModal({
                     setMineError('')
                     setExpertError('')
                     setTitle('')
+                    // これは新しい疑問なので、前の疑問の背景と確認状態も一緒に仕切り直す
+                    setBackground('')
+                    setBgPrompt(false)
+                    bgConfirmedRef.current = false
                   }}
                   className="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
                 >
