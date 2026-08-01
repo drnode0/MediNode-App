@@ -30,5 +30,5 @@ export function buildBackfillRequest(settings: AppSettings | null | undefined): 
 // 「組み上げ分は差分ではない」ので、次回openで数百個の落下リプレイが走るのを防ぐためmarkSeen相当まで行う。
 export function applyBackfill(state: TowerState, records: unknown[], nowIso: string): TowerState {
   const ingested = ingestRecords(state, records as Parameters<typeof ingestRecords>[1])
-  return markSeen({ ...ingested, backfilledAt: nowIso })
+  return markSeen({ ...ingested, backfilledAt: nowIso }, ingested.steps.length)
 }
