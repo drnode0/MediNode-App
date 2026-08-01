@@ -8,7 +8,8 @@ export type VinePath = { d: string; samples: VineSample[]; totalLen: number }
 
 const SEG_PX = 120        // 節の名目長（アセットの節PNGとおおよそ対応）
 const SAMPLES_PER_SEG = 24
-const BEND = 0.4          // 制御点をセグメント内に寄せる比率（単調性の要）
+const BEND = 0.4          // 制御点をセグメント内に寄せる比率。0.5未満を厳守——
+                          // Bernstein係数 BEND / (1-2*BEND) / BEND がすべて正であることが単調性の根拠
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0
@@ -27,8 +28,10 @@ function cubic(p0: number, c1: number, c2: number, p1: number, t: number): numbe
 }
 
 export function generateVinePath(seed: number, heightPx: number, baseX: number, amp: number): VinePath {
+  // 高さ0以下は1pxの芽として扱う（SSR・コンテナ計測前に0が来ても「yの厳密単調」の契約を守る）
+  const height = Math.max(1, heightPx)
   const rand = mulberry32(seed)
-  const segCount = Math.max(1, Math.ceil(heightPx / SEG_PX))
+  const segCount = Math.max(1, Math.ceil(height / SEG_PX))
   let x = baseX
   let y = 0
   let dir = rand() < 0.5 ? 1 : -1
@@ -36,7 +39,7 @@ export function generateVinePath(seed: number, heightPx: number, baseX: number, 
   let d = `M ${x.toFixed(1)} ${y.toFixed(1)}`
   let len = 0
   for (let i = 0; i < segCount; i++) {
-    const nextY = Math.min(heightPx, y + SEG_PX)
+    const nextY = Math.min(height, y + SEG_PX)
     const span = nextY - y
     // 左右交互に振る。振れ幅は0.35〜1.0×ampで揺らぎ、常にbaseX±ampに収める。
     const targetX = Math.max(baseX - amp, Math.min(baseX + amp, baseX + dir * (0.35 + 0.65 * rand()) * amp))

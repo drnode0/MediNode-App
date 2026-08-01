@@ -32,6 +32,15 @@ describe('generateVinePath（決定的・y単調・DOM不使用）', () => {
       expect(s.x).toBeLessThanOrEqual(100 + 60)
     }
   })
+  it('heightPx=0や負でも単調性の契約を守る（1pxの芽にクランプ）', () => {
+    for (const h of [0, -5]) {
+      const p = generateVinePath(3, h, 100, 60)
+      for (let i = 1; i < p.samples.length; i++) {
+        expect(p.samples[i].y).toBeGreaterThan(p.samples[i - 1].y)
+      }
+      expect(p.samples[p.samples.length - 1].y).toBeCloseTo(1, 5)
+    }
+  })
 })
 
 describe('pointAtHeight / lengthAtHeight', () => {
