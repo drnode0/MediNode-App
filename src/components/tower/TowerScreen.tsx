@@ -79,8 +79,8 @@ export function TowerScreen({ onClose, onGoQuiz }: { onClose: () => void; onGoQu
       setCrossed(`${m.label}（${m.sizeLabel}）を越えました`)
     }
     // 見た水位を上げる（差分積みは初回描画の dropCount で消費済み）
-    const seen = markSeen(loadTowerState())
-    saveTowerState(seen)
+    const fresh = loadTowerState()
+    saveTowerState(markSeen(fresh, fresh.steps.length))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

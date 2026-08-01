@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   addStep, recallKind, ingestRecords, loadTowerState, saveTowerState,
-  recordTowerEvent, markSeen, TOWER_KEY, DULL_DAYS,
+  recordTowerEvent, markSeen, planReplay, TOWER_KEY, DULL_DAYS,
   type Step, type TowerState,
 } from '../tower-steps'
 import type { QuizStat } from '../quiz-srs'
@@ -98,9 +98,9 @@ describe('storage往復とmarkSeen', () => {
     localStorage.setItem(TOWER_KEY, '{broken')
     expect(loadTowerState().steps).toHaveLength(0)
   })
-  it('markSeenは現在の歩数を水位として記録する', () => {
+  it('markSeenは指定した水位まで記録する', () => {
     const s = addStep(empty, step())
-    const seen = markSeen(s)
+    const seen = markSeen(s, s.steps.length)
     expect(seen.lastSeenSteps).toBe(1)
   })
   it('recordTowerEventはCustomEventを発火し、重複時は発火しない', () => {
@@ -112,5 +112,35 @@ describe('storage往復とmarkSeen', () => {
     window.removeEventListener('medinode:tower-step', on)
     expect(fired).toBe(1)
     expect(loadTowerState().steps).toHaveLength(1)
+  })
+})
+
+const mkStep = (i: number): Step => ({ id: `s${i}`, kind: 'read', at: '2026-08-01T00:00:00.000Z', genre: '', title: '' })
+const mkState = (count: number, seen: number): TowerState => ({
+  steps: Array.from({ length: count }, (_, i) => mkStep(i)),
+  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '',
+})
+
+describe('markSeen(state, uptoCount)', () => {
+  it('見せたところまでだけseenにする（全件ではなく）', () => {
+    const s = markSeen(mkState(10, 3), 7)
+    expect(s.lastSeenSteps).toBe(7)
+    expect(s.lastSeenAt).not.toBe('')
+  })
+  it('steps数を超える値は丸める・後退はしない', () => {
+    expect(markSeen(mkState(5, 2), 99).lastSeenSteps).toBe(5)
+    expect(markSeen(mkState(5, 4), 1).lastSeenSteps).toBe(4)
+  })
+})
+
+describe('planReplay', () => {
+  it('成長があれば再生（from=前回seen, to=現在葉数）', () => {
+    expect(planReplay(mkState(10, 6))).toEqual({ from: 6, to: 10, play: true })
+  })
+  it('成長ゼロなら再生しない', () => {
+    expect(planReplay(mkState(6, 6))).toEqual({ from: 6, to: 6, play: false })
+  })
+  it('seenが葉数を上回る壊れデータでも安全（from=to・再生なし）', () => {
+    expect(planReplay(mkState(4, 9))).toEqual({ from: 4, to: 4, play: false })
   })
 })

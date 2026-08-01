@@ -100,8 +100,19 @@ export function saveTowerState(state: TowerState): void {
   }
 }
 
-export function markSeen(state: TowerState): TowerState {
-  return { ...state, lastSeenSteps: state.steps.length, lastSeenAt: new Date().toISOString() }
+// 「見た」の水位。リプレイ完走時に「見せたところまで」をコミットする（v1.2）。
+// マウント時に全件seenにすると、リプレイ中断でその日の成長が永遠に見られなくなる。
+export function markSeen(state: TowerState, uptoCount: number): TowerState {
+  const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, state.steps.length))
+  return { ...state, lastSeenSteps: upto, lastSeenAt: new Date().toISOString() }
+}
+
+// リプレイのゲート。葉数の比較だけで決める——「同じ成長は二度と再生しない」が数で保証されるため、
+// 日付比較（UTC境界のバグ温床）は不要。リプレイ中に積まれた新イベントは from..to の外なので次回へ回る。
+export function planReplay(state: TowerState): { from: number; to: number; play: boolean } {
+  const to = state.steps.length
+  const from = Math.min(state.lastSeenSteps, to)
+  return { from, to, play: to > from }
 }
 
 // 各フックからの一行呼び出し口。変化があった時だけ保存し、カードの +1 pop 用のイベントを発火する。
