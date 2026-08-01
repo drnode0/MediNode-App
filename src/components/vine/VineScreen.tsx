@@ -124,6 +124,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           <VineScene
             leavesNow={leavesNow} from={from} to={to}
             visuals={visuals} spotlightIds={spotlight} steps={state.steps}
+            crossed={crossed && { label: crossed.label, sizeLabel: crossed.sizeLabel, mm: crossed.mm }}
             crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
             onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
           />

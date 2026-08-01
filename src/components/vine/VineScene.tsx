@@ -16,7 +16,7 @@ const GROUND_Y = 560
 const SCENE_H = 520
 const VINE_SEED = 42
 const BASE_X = 130
-const AMP = 55
+const AMP = 38
 const MAX_LEAVES_DRAWN = 60
 const SHU = '#B33A2B'
 const INK = '#2c2a22'
@@ -31,9 +31,10 @@ function leafFill(v: LeafVisual): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`
 }
 
-export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap }: {
+export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, crossed, crossedNow, onLeafTap }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
+  crossed: { label: string; sizeLabel: string; mm: number } | null
   crossedNow: boolean; onLeafTap: (index: number) => void
 }) {
   const scene = useMemo(() => sceneForLeaves(to, SCENE_H), [to])
@@ -53,6 +54,11 @@ export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, c
   const objX = 285
   const remainMm = scene.next.mm - nowMm
   const firstDrawn = Math.max(1, to - MAX_LEAVES_DRAWN + 1)
+  const crossedCx = 225
+  const crossedH = crossed ? crossed.mm * scene.pxPerMm : 0
+  const crossedW = crossed ? Math.min(90, Math.max(20, crossedH * 0.42)) : 0
+  const pxPerLeaf = vineHeightPx / Math.max(1, to)
+  const stride = Math.max(1, Math.ceil(14 / pxPerLeaf)) // 葉と葉の縦間隔が約14px以上になるよう間引く
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" aria-label="豆の木の背比べ">
@@ -80,21 +86,34 @@ export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, c
         <text x={objX} y={GROUND_Y - objH + 18} textAnchor="middle" fontSize={9} fill={USUZUMI}>
           {scene.next.sizeLabel}・{scene.next.measure}
         </text>
-        {crossedNow && (
-          <g>
-            <line
-              x1={objX - objW / 2 - 8} y1={GROUND_Y - objH} x2={objX - objW / 2 + 10} y2={GROUND_Y - objH}
-              stroke={SHU} strokeWidth={3.5}
-            />
-            <text
-              x={objX - objW / 2 - 14} y={GROUND_Y - objH + 4} fontSize={9} fill={SHU}
-              style={{ writingMode: 'vertical-rl' as const }}
-            >
-              {kanjiDate(new Date())}
-            </text>
-          </g>
-        )}
       </g>
+
+      {/* 越えた実物（仮アート）: 次の実物より手前・薄く並ぶ柱。刻みは「越えた相手の縁」に打つ */}
+      {crossed && (
+        <g>
+          <rect
+            x={crossedCx - crossedW / 2} y={GROUND_Y - crossedH} width={crossedW} height={crossedH} rx={8}
+            fill="#e9dfc6" stroke={INK} strokeWidth={2} opacity={0.55}
+          />
+          <text x={crossedCx} y={GROUND_Y - crossedH - 10} textAnchor="middle" fontSize={10} fill={USUZUMI}>
+            {crossed.label}
+          </text>
+          {crossedNow && (
+            <g>
+              <line
+                x1={crossedCx - crossedW / 2 - 8} y1={GROUND_Y - crossedH} x2={crossedCx - crossedW / 2 + 10} y2={GROUND_Y - crossedH}
+                stroke={SHU} strokeWidth={3.5}
+              />
+              <text
+                x={crossedCx - crossedW / 2 - 14} y={GROUND_Y - crossedH + 4} fontSize={9} fill={SHU}
+                style={{ writingMode: 'vertical-rl' as const }}
+              >
+                {kanjiDate(new Date())}
+              </text>
+            </g>
+          )}
+        </g>
+      )}
 
       {/* 蔓（マスクで「描かれていく」） */}
       <g mask="url(#vineGrow)" transform={`translate(0 ${GROUND_Y}) scale(1 -1)`}>
@@ -111,6 +130,7 @@ export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, c
         const n = firstDrawn + i
         const v = visuals[n - 1]
         if (!v) return null
+        if (n % stride !== 0 && n !== to) return null
         const pt = pointAtHeight(path, heightMmFromLeaves(n) * scene.pxPerMm)
         const side = n % 2 === 0 ? 1 : -1
         const spot = spotlightIds.includes(step.id)
