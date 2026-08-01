@@ -78,7 +78,8 @@ export function passedMilestones(leafCount: number): Milestone[] {
 }
 
 // シーン（帯）モデル: 1目盛り区間=1シーン。縮尺は「次の実物が画面高の70%」から決める。
-// ラダーが対数等間隔（隣接比≤2.5）なので、シーン切替時の縮尺ジャンプも2.5倍以内に収まる。
+// ラダーは対数線上でほぼ等間隔（隣接比は概ね2.5倍以内。仮置き上段の那智→称名2.63等の例外あり）なので、
+// シーン切替時の縮尺ジャンプも同程度に収まる。
 const NEXT_OBJECT_VIEWPORT_RATIO = 0.7
 
 export function sceneForLeaves(leafCount: number, viewportHeightPx: number): {
