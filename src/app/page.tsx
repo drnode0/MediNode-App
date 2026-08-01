@@ -41,7 +41,7 @@ import { DailyQuestionCard } from '@/components/DailyQuestionCard'
 import { ingestRecords, loadTowerState, saveTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { TowerCard } from '@/components/tower/TowerCard'
-import { TowerScreen } from '@/components/tower/TowerScreen'
+import { VineScreen } from '@/components/vine/VineScreen'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreOwnerFilterTabs, orderedTeams, genreAccentTone, DEPT_DOT_BG, type TeamMeta } from '@/components/GenreBrowse'
 import {
   mergeGenreKeys,
@@ -2957,7 +2957,7 @@ export default function Home() {
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
         {towerOpen && isTowerEnabled() && (
-          <TowerScreen
+          <VineScreen
             onClose={() => setTowerOpen(false)}
             onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}
           />
@@ -3069,7 +3069,7 @@ export default function Home() {
           {activeTab === 'manual' && <NotionManualTab />}
         </div>
         {towerOpen && isTowerEnabled() && (
-          <TowerScreen
+          <VineScreen
             onClose={() => setTowerOpen(false)}
             onGoQuiz={() => { setTowerOpen(false); setTab('quiz') }}
           />

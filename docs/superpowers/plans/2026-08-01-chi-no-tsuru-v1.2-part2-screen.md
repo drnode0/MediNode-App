@@ -34,7 +34,7 @@
 - Test: `src/lib/__tests__/kanji-date.test.ts`
 
 **Interfaces:**
-- Produces: `type ReplayPhase = { name: 'tame'|'nobi'|'ma'|'kizami'|'chakuchi'|'yoin'; durMs: number; fromLeaves: number; toLeaves: number }` / `buildPhases(fromLeaves: number, toLeaves: number, lastCrossedLeaves: number | null, reduced: boolean): ReplayPhase[]` / `totalDurMs(phases): number` / `replayAt(phases, tMs): { name: ReplayPhase['name']; localT: number; leavesNow: number; done: boolean }` / `kanjiNumber(n: number): string`（1〜99） / `kanjiDate(iso: string): string`（「八月朔日」「八月十五日」）
+- Produces: `type ReplayPhase = { name: 'tame'|'nobi'|'ma'|'kizami'|'chakuchi'|'yoin'; durMs: number; fromLeaves: number; toLeaves: number }` / `buildPhases(fromLeaves: number, toLeaves: number, lastCrossedLeaves: number | null, reduced: boolean): ReplayPhase[]` / `totalDurMs(phases): number` / `replayAt(phases, tMs): { name: ReplayPhase['name']; localT: number; leavesNow: number; done: boolean }` / `kanjiNumber(n: number): string`（1〜99） / `kanjiDate(d: Date): string`（「八月朔日」「八月十五日」・使用者の暦日＝端末ローカル）
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -438,7 +438,7 @@ export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, c
               x={objX - objW / 2 - 14} y={GROUND_Y - objH + 4} fontSize={9} fill={SHU}
               style={{ writingMode: 'tb' as const }}
             >
-              {kanjiDate(new Date().toISOString())}
+              {kanjiDate(new Date())}
             </text>
           </g>
         )}
