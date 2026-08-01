@@ -1,0 +1,169 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfefd"/>
+      <stop offset="1" stop-color="#f2f8f4"/>
+    </linearGradient>
+    <linearGradient id="stalk2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#04785e"/>
+      <stop offset="1" stop-color="#03604a"/>
+    </linearGradient>
+    <linearGradient id="leaf2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2fbe8c"/>
+      <stop offset="1" stop-color="#0a8f68"/>
+    </linearGradient>
+    <filter id="tinysoft" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0b3a2c" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+
+  <rect width="390" height="844" fill="url(#bg)"/>
+
+  <!-- ================= ヘッダ ================= -->
+  <text x="24" y="60" font-size="10" letter-spacing="4" font-weight="800" fill="#059669">知の蔓（仮）</text>
+  <text x="24" y="92" font-size="21" font-weight="800" fill="#173b2d">テントウムシを越えた</text>
+  <text x="24" y="117" font-size="13" fill="#5f6d66">いま <tspan font-weight="800" fill="#173b2d">6.3cm</tspan> ・ 今週 葉が12枚</text>
+  <g>
+    <circle cx="356" cy="56" r="14.5" fill="#ffffff" filter="url(#tinysoft)"/>
+    <path d="M350.5 50.5 L361.5 61.5 M361.5 50.5 L350.5 61.5" stroke="#57534e" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- いつかの一行 -->
+  <line x1="24" y1="146" x2="366" y2="146" stroke="#e6efe9" stroke-width="1"/>
+  <text x="195" y="167" text-anchor="middle" font-size="9" fill="#b8c6bd" letter-spacing="2">富士山 3776m ・ 東京タワー 333m ・ キリン 5m</text>
+
+  <!-- ================= 方眼の気配（1cm=30px・後ろの層） ================= -->
+  <g stroke="#e3ede7" stroke-width="1">
+    <line x1="378" y1="420" x2="378" y2="780"/>
+    <line x1="378" y1="750" x2="372" y2="750"/><line x1="378" y1="720" x2="372" y2="720"/>
+    <line x1="378" y1="690" x2="372" y2="690"/><line x1="378" y1="660" x2="372" y2="660"/>
+    <line x1="378" y1="630" x2="368" y2="630"/>
+    <line x1="378" y1="600" x2="372" y2="600"/><line x1="378" y1="570" x2="372" y2="570"/>
+    <line x1="378" y1="540" x2="372" y2="540"/><line x1="378" y1="510" x2="372" y2="510"/>
+    <line x1="378" y1="480" x2="368" y2="480"/>
+    <line x1="378" y1="450" x2="372" y2="450"/>
+  </g>
+  <text x="358" y="633" font-size="8.5" fill="#b3c2b8" text-anchor="end">5cm</text>
+  <text x="358" y="483" font-size="8.5" fill="#b3c2b8" text-anchor="end">10cm</text>
+
+  <!-- その次の気配: スズメ 15cm（淡い影・梯子は続く） -->
+  <line x1="24" y1="340" x2="378" y2="340" stroke="#eaf2ed" stroke-width="1" stroke-dasharray="2 6"/>
+  <g transform="translate(84,296)" opacity="0.35">
+    <path d="M30 34 Q26 20 36 12 Q44 5 54 9 Q58 2 66 4 Q74 6 74 14 Q80 16 79 22 L66 24 Q70 34 58 40 Q44 45 34 40 L18 44 Q24 38 30 34 Z" fill="#9db3a6"/>
+    <circle cx="66" cy="12" r="1.4" fill="#5f6d66"/>
+    <path d="M74 15 L82 17 L74 20 Z" fill="#c9a24b"/>
+    <path d="M40 40 L38 46 M48 41 L48 47" stroke="#9db3a6" stroke-width="1.6"/>
+  </g>
+  <text x="172" y="332" font-size="10" fill="#b3c2b8">スズメ 15cm</text>
+
+  <!-- ================= 背比べの相手: 湯のみ（実寸 高さ10cm×径6.4cm・取っ手なし） ================= -->
+  <text x="298" y="462" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3f4a44">湯のみ <tspan fill="#a9b8ae" font-weight="500">10cm</tspan></text>
+  <g stroke="#5f6d66" stroke-width="1.6" fill="#ffffff" stroke-linejoin="round">
+    <path d="M206 492 Q206 480 218 480 L378 480 Q390 480 390 492 L382 744 Q380 780 298 780 Q216 780 214 744 Z" transform="translate(-96,0) scale(1,1)" opacity="0"/>
+    <!-- 本体（少しだけ裾すぼまり） -->
+    <path d="M206 490 L390 490 L378 752 Q375 780 298 780 Q221 780 218 752 Z" opacity="0"/>
+    <path d="M208 488 L388 488 L377 750 Q373 780 298 780 Q223 780 219 750 Z"/>
+    <ellipse cx="298" cy="488" rx="90" ry="11" fill="#fdfefd"/>
+  </g>
+  <!-- 帯の絵付け -->
+  <path d="M217 540 Q298 552 379 540" stroke="#8fb8a8" stroke-width="2.2" fill="none" opacity="0.7"/>
+  <path d="M219 552 Q298 563 377 552" stroke="#8fb8a8" stroke-width="1.1" fill="none" opacity="0.45"/>
+  <!-- 高台（こうだい） -->
+  <path d="M272 780 L270 790 L326 790 L324 780" stroke="#5f6d66" stroke-width="1.4" fill="#ffffff"/>
+
+  <!-- ================= 蔓（6.3cm=189px・湯のみのすぐ隣） ================= -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M172 790 C162 762 182 746 174 722" stroke="url(#stalk2)" stroke-width="7.5"/>
+    <path d="M174 722 C168 702 181 688 176 668" stroke="url(#stalk2)" stroke-width="5.6"/>
+    <path d="M176 668 C172 653 176 638 177 626 C177.5 618 176 612 175 605" stroke="url(#stalk2)" stroke-width="4.2"/>
+    <path d="M170 788 C161 761 180 746 172 722 C167 702 179 688 174 668 C170 653 174 638 175 626" stroke="#5fd6a8" stroke-width="1.1" opacity="0.8"/>
+    <path d="M175 605 q-1 -8 5.5 -10 q7.5 -2.5 8.5 3 q1 5.5 -5 5.5 q-5 0 -5 -3.5" stroke="#0a8f68" stroke-width="1.7"/>
+  </g>
+  <g>
+    <path d="M174 620 C169 613 160 611 154 615 C158 622 169 624 174 620 Z" fill="#fdfefd" stroke="#0ea371" stroke-width="1.5"/>
+    <g fill="url(#leaf2)" filter="url(#tinysoft)">
+      <path d="M178 642 C183 635 194 632 200 637 C195 645 184 647 178 642 Z"/>
+      <path d="M172 684 C167 677 156 674 150 679 C155 687 166 689 172 684 Z"/>
+      <path d="M178 706 C183 699 194 696 200 701 C195 709 184 711 178 706 Z"/>
+      <path d="M170 748 C165 741 154 738 148 743 C153 751 164 753 170 748 Z"/>
+      <path d="M176 768 C181 761 192 758 198 763 C193 771 182 773 176 768 Z"/>
+    </g>
+    <g stroke="#eafff5" stroke-width="0.8" fill="none" opacity="0.95">
+      <path d="M180 641 C185 638 192 636 197 638"/>
+      <path d="M170 683 C165 680 158 678 153 680"/>
+      <path d="M180 705 C185 702 192 700 197 702"/>
+      <path d="M168 747 C163 744 156 742 151 744"/>
+      <path d="M178 767 C183 764 190 762 195 764"/>
+    </g>
+    <g fill="#cfd8d2">
+      <path d="M172 662 C167 655 156 652 150 657 C155 665 166 667 172 662 Z"/>
+      <path d="M177 728 C182 721 193 718 199 723 C194 731 183 733 177 728 Z"/>
+    </g>
+  </g>
+  <g fill="none" stroke="#03604a">
+    <circle cx="176" cy="668" r="5" stroke-width="1.7"/>
+    <circle cx="176" cy="668" r="2.3" stroke-width="0.9" opacity="0.6"/>
+    <circle cx="173" cy="732" r="5" stroke-width="1.7"/>
+    <circle cx="173" cy="732" r="2.3" stroke-width="0.9" opacity="0.6"/>
+  </g>
+
+  <!-- ================= 背比べの水平線（いま 6.3cm・湯のみに刻みが入る） ================= -->
+  <line x1="34" y1="601" x2="368" y2="601" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="5 5" opacity="0.9"/>
+  <line x1="212" y1="601" x2="228" y2="601" stroke="#d97706" stroke-width="3"/>
+  <g transform="translate(30,589)" filter="url(#tinysoft)">
+    <rect width="64" height="24" rx="12" fill="#059669"/>
+    <text x="32" y="16.5" text-anchor="middle" font-size="12" font-weight="800" fill="#ffffff">6.3cm</text>
+  </g>
+
+  <!-- あと3.7cm（縁までの寸法・湯のみの胴の上で） -->
+  <g stroke="#d97706" stroke-width="1.2" fill="none">
+    <line x1="330" y1="493" x2="330" y2="598"/>
+    <path d="M327 498 L330 493 L333 498 M327 593 L330 598 L333 593"/>
+  </g>
+  <g transform="translate(258,528)" filter="url(#tinysoft)">
+    <rect width="78" height="24" rx="12" fill="#ffffff"/>
+    <text x="39" y="16.5" text-anchor="middle" font-size="12" font-weight="800" fill="#b45309">あと3.7cm</text>
+  </g>
+
+  <!-- ================= 地面と越えてきた実物（実寸・薄い線画） ================= -->
+  <line x1="24" y1="790" x2="378" y2="790" stroke="#c9d6cd" stroke-width="1.6"/>
+  <path d="M172 790 q-7 3 -13 2 M172 790 q6 4 12 3" stroke="#9fb4a6" stroke-width="1" fill="none" stroke-linecap="round"/>
+
+  <!-- 単3電池 5cm×1.4cm -->
+  <g stroke="#c5d2c9" stroke-width="1.4" fill="#fdfefd">
+    <rect x="36" y="646" width="42" height="144" rx="6"/>
+    <rect x="49" y="638" width="16" height="8" rx="2"/>
+    <line x1="36" y1="688" x2="78" y2="688"/>
+  </g>
+  <text x="57" y="712" text-anchor="middle" font-size="8.5" fill="#b6c4bb">単3電池</text>
+  <text x="57" y="724" text-anchor="middle" font-size="8" fill="#c9d5cc">5cm ✓</text>
+
+  <!-- ペットボトルのキャップ 径3cm×高さ1.5cm（寝かせず正置） -->
+  <g stroke="#c5d2c9" stroke-width="1.4" fill="#fdfefd">
+    <rect x="96" y="745" width="90" height="45" rx="8"/>
+    <path d="M104 746 L104 789 M118 745 L118 790 M132 745 L132 790 M146 745 L146 790 M160 745 L160 790 M174 745 L174 789" stroke-width="0.8" opacity="0.55"/>
+  </g>
+  <text x="122" y="738" text-anchor="middle" font-size="8.5" fill="#b6c4bb">キャップ 3cm ✓</text>
+
+  <!-- テントウムシ 8mm=24px（キャップの上にちょこん） -->
+  <g transform="translate(152,721)">
+    <ellipse cx="12" cy="21" rx="10" ry="2" fill="#0b3a2c" opacity="0.07"/>
+    <path d="M2 12 A10 10 0 0 1 22 12 Q22 20 12 21 Q2 20 2 12 Z" fill="#e25555"/>
+    <path d="M12 3 L12 21" stroke="#8f2020" stroke-width="1"/>
+    <circle cx="7.5" cy="10" r="1.5" fill="#2b1d18"/><circle cx="16.5" cy="10.5" r="1.5" fill="#2b1d18"/><circle cx="10" cy="16" r="1.3" fill="#2b1d18"/>
+    <path d="M17 4.5 A10 10 0 0 1 21.5 10 L12 9 Z" fill="#2b1d18"/>
+    <circle cx="8" cy="6.5" r="1.6" fill="#ffffff" opacity="0.6"/>
+  </g>
+
+  <!-- ================= 脚注（葉の凡例） ================= -->
+  <g font-size="9" fill="#a9b8ae">
+    <path d="M30 818 C34 812 42 810 47 813 C43 820 34 821 30 818 Z" fill="#0a8f68"/>
+    <text x="54" y="821">ナレッジ</text>
+    <path d="M110 818 C114 812 122 810 127 813 C123 820 114 821 110 818 Z" fill="#cfd8d2"/>
+    <text x="134" y="821">要再確認</text>
+    <path d="M192 818 C196 812 204 810 209 813 C205 820 196 821 192 818 Z" fill="#fdfefd" stroke="#0ea371" stroke-width="1.2"/>
+    <text x="216" y="821">読んだだけ</text>
+    <circle cx="285" cy="817" r="4.5" fill="none" stroke="#03604a" stroke-width="1.5"/>
+    <text x="295" y="821">節（葉30枚）</text>
+  </g>
+</svg>

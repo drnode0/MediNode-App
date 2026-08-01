@@ -1,0 +1,241 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, sans-serif">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfdcf7"/>
+      <stop offset="0.34" stop-color="#d8ecf3"/>
+      <stop offset="0.62" stop-color="#e9f6ec"/>
+      <stop offset="1" stop-color="#fdf2d9"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.82" cy="0.10" r="0.55">
+      <stop offset="0" stop-color="#fff6d8" stop-opacity="0.95"/>
+      <stop offset="0.4" stop-color="#fff6d8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#fff6d8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fuji" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fa8c9"/>
+      <stop offset="1" stop-color="#c3d3e8"/>
+    </linearGradient>
+    <linearGradient id="stalk" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#036c4f"/>
+      <stop offset="0.45" stop-color="#0ea371"/>
+      <stop offset="1" stop-color="#02543d"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4ade9b"/>
+      <stop offset="0.55" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="leafDull" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9d3cc"/>
+      <stop offset="1" stop-color="#aab8af"/>
+    </linearGradient>
+    <linearGradient id="hill1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8ecd6"/>
+      <stop offset="1" stop-color="#a4dfbd"/>
+    </linearGradient>
+    <linearGradient id="hill2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fd9b6"/>
+      <stop offset="1" stop-color="#7bc79c"/>
+    </linearGradient>
+    <linearGradient id="cup" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.7" stop-color="#f3efe9"/>
+      <stop offset="1" stop-color="#ddd6cc"/>
+    </linearGradient>
+    <linearGradient id="battery" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f6f4f1"/>
+      <stop offset="0.5" stop-color="#d8d4cd"/>
+      <stop offset="1" stop-color="#b7b1a6"/>
+    </linearGradient>
+    <linearGradient id="chipAmber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f3d2e" flood-opacity="0.18"/>
+    </filter>
+    <filter id="soft2" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#0f3d2e" flood-opacity="0.22"/>
+    </filter>
+    <filter id="blurCloud"><feGaussianBlur stdDeviation="1.6"/></filter>
+    <filter id="blurFar"><feGaussianBlur stdDeviation="0.8"/></filter>
+
+    <!-- 葉（右向き）: 本体・主脈・側脈・ハイライト -->
+    <g id="leafR">
+      <path d="M0 0 C7 -12 27 -16 38 -5 C33 7 12 10 0 0 Z" fill="url(#leaf)" filter="url(#soft2)"/>
+      <path d="M2 -0.5 C12 -5 26 -8 35 -4.5" stroke="#a7f3d0" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <path d="M12 -3.4 C14 -6 15 -7.6 15.5 -9.4 M21 -4.6 C23 -7 24.5 -8.6 25 -10.6" stroke="#86efac" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.9"/>
+      <ellipse cx="10" cy="-6.5" rx="4.6" ry="2" fill="#ffffff" opacity="0.35" transform="rotate(-16 10 -6.5)"/>
+    </g>
+    <g id="leafL">
+      <path d="M0 0 C-7 -12 -27 -16 -38 -5 C-33 7 -12 10 0 0 Z" fill="url(#leaf)" filter="url(#soft2)"/>
+      <path d="M-2 -0.5 C-12 -5 -26 -8 -35 -4.5" stroke="#a7f3d0" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <path d="M-12 -3.4 C-14 -6 -15 -7.6 -15.5 -9.4 M-21 -4.6 C-23 -7 -24.5 -8.6 -25 -10.6" stroke="#86efac" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.9"/>
+      <ellipse cx="-10" cy="-6.5" rx="4.6" ry="2" fill="#ffffff" opacity="0.35" transform="rotate(16 -10 -6.5)"/>
+    </g>
+    <!-- 色褪せ葉（要再確認）: 少しうなだれる -->
+    <g id="leafDullL">
+      <path d="M0 0 C-6 -10 -24 -13 -34 -3 C-29 9 -10 10 0 0 Z" fill="url(#leafDull)"/>
+      <path d="M-2 0 C-11 -3.5 -23 -5.5 -31 -3" stroke="#e3e8e4" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    </g>
+    <g id="leafDullR">
+      <path d="M0 0 C6 -10 24 -13 34 -3 C29 9 10 10 0 0 Z" fill="url(#leafDull)"/>
+      <path d="M2 0 C11 -3.5 23 -5.5 31 -3" stroke="#e3e8e4" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <!-- ================= 空と遠景 ================= -->
+  <rect width="390" height="844" fill="url(#sky)"/>
+  <rect width="390" height="500" fill="url(#sun)"/>
+
+  <!-- いつかの夢: 富士山と東京タワー（大気遠近で淡く） -->
+  <g filter="url(#blurFar)" opacity="0.5">
+    <path d="M18 236 L128 118 Q138 110 148 118 L173 144 L196 128 L305 236 Z" fill="url(#fuji)"/>
+    <path d="M112 135 L128 118 Q138 110 148 118 L166 137 L157 132 L149 141 L140 130 L130 140 L121 130 Z" fill="#ffffff"/>
+    <g stroke="#9db1cf" fill="none">
+      <path d="M340 236 L354 132 L368 236" stroke-width="2.4"/>
+      <path d="M344 206 L364 206 M347 182 L361 182 M350 158 L358 158" stroke-width="1.5"/>
+      <path d="M354 132 L354 122" stroke-width="1.6"/>
+    </g>
+  </g>
+  <text x="162" y="256" text-anchor="middle" font-size="9.5" fill="#8ea4c4" letter-spacing="1">いつか — 富士山 3776m</text>
+
+  <!-- 雲（ふわり・にじみ） -->
+  <g fill="#ffffff" filter="url(#blurCloud)">
+    <g opacity="0.9">
+      <ellipse cx="84" cy="316" rx="47" ry="15"/><ellipse cx="116" cy="306" rx="30" ry="12"/><ellipse cx="56" cy="309" rx="22" ry="9"/>
+    </g>
+    <g opacity="0.75">
+      <ellipse cx="330" cy="382" rx="38" ry="12"/><ellipse cx="304" cy="374" rx="22" ry="9"/>
+    </g>
+    <g opacity="0.6">
+      <ellipse cx="196" cy="282" rx="26" ry="8"/>
+    </g>
+  </g>
+
+  <!-- ================= 次の実物: 湯のみ（雲の棚） ================= -->
+  <g>
+    <g fill="#ffffff" filter="url(#blurCloud)" opacity="0.95">
+      <ellipse cx="284" cy="452" rx="52" ry="12"/><ellipse cx="252" cy="446" rx="26" ry="9"/><ellipse cx="316" cy="446" rx="24" ry="8"/>
+    </g>
+    <g transform="translate(258,398)" filter="url(#soft)">
+      <path d="M2 10 Q2 2 10 2 L42 2 Q50 2 50 10 L46.5 40 Q44.5 48 26 48 Q7.5 48 5.5 40 Z" fill="url(#cup)"/>
+      <path d="M50 13 Q64 15 62 26 Q60 36 46 34" fill="none" stroke="#d8d0c4" stroke-width="3.4"/>
+      <path d="M8 13 Q26 21 44 13" stroke="#7bb8a5" stroke-width="2" fill="none" opacity="0.7"/>
+      <path d="M9 19 Q26 26 43 19" stroke="#7bb8a5" stroke-width="1.2" fill="none" opacity="0.45"/>
+      <ellipse cx="15" cy="9" rx="7" ry="2.6" fill="#ffffff" opacity="0.8"/>
+      <path d="M20 -4 q3 -5 0 -9 M28 -3 q3 -6 -1 -11" stroke="#cbd5d1" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.8"/>
+    </g>
+    <g transform="translate(240,364)" filter="url(#soft2)">
+      <rect width="92" height="22" rx="11" fill="#ffffff"/>
+      <text x="46" y="15" text-anchor="middle" font-size="11.5" font-weight="700" fill="#57534e">湯のみ <tspan fill="#a8a29e" font-weight="500">10cm</tspan></text>
+    </g>
+  </g>
+
+  <!-- 点線とあと37歩 -->
+  <line x1="284" y1="462" x2="284" y2="470" stroke="#f59e0b" stroke-width="2" opacity="0"/>
+  <path d="M212 505 C232 498 258 478 276 462" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="1.5 6" stroke-linecap="round" opacity="0.85"/>
+  <g transform="translate(216,466)" filter="url(#soft)">
+    <rect width="88" height="28" rx="14" fill="url(#chipAmber)"/>
+    <text x="44" y="19" text-anchor="middle" font-size="13.5" font-weight="800" fill="#ffffff">あと37歩</text>
+  </g>
+
+  <!-- ================= 蔓 ================= -->
+  <!-- 茎（根本ほど太い3セグメント＋左縁のリムライト） -->
+  <g stroke-linecap="round" fill="none">
+    <path d="M206 792 C182 744 226 712 208 668" stroke="url(#stalk)" stroke-width="13"/>
+    <path d="M208 668 C193 630 221 606 208 572" stroke="url(#stalk)" stroke-width="10"/>
+    <path d="M208 572 C199 549 206 528 210 508" stroke="url(#stalk)" stroke-width="7"/>
+    <path d="M203 790 C181 744 223 712 205 668 C191 630 218 606 205 572 C197 549 204 528 208 508" stroke="#7de3b3" stroke-width="1.6" opacity="0.7"/>
+  </g>
+  <!-- 先端: 巻きひげと開きかけの新芽（=まだ輪郭の「読んだ」） -->
+  <path d="M210 508 q-2 -12 8 -17 q11 -5 14 4 q2 8 -7 9 q-7 1 -8 -5" fill="none" stroke="#0ea371" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M206 512 C200 500 184 496 174 504 C180 515 196 519 206 512 Z" fill="#ffffff" fill-opacity="0.55" stroke="#34d399" stroke-width="2"/>
+  <path d="M204 511 C197 505 186 503 178 506" stroke="#6ee7b7" stroke-width="1.1" fill="none"/>
+
+  <!-- 葉（つや=即答できる / 色褪せ=要再確認） -->
+  <use xlink:href="#leafR" transform="translate(213,540) rotate(-18)"/>
+  <use xlink:href="#leafDullL" transform="translate(200,568) rotate(12)"/>
+  <use xlink:href="#leafR" transform="translate(212,600) rotate(-6)"/>
+  <use xlink:href="#leafL" transform="translate(201,632) rotate(10)"/>
+  <use xlink:href="#leafR" transform="translate(211,664) rotate(-14)"/>
+  <use xlink:href="#leafDullR" transform="translate(211,700) rotate(8)"/>
+  <use xlink:href="#leafL" transform="translate(197,712) rotate(4)"/>
+  <use xlink:href="#leafR" transform="translate(206,748) rotate(-10)"/>
+  <use xlink:href="#leafL" transform="translate(198,772) rotate(14)"/>
+
+  <!-- 節（30歩の結び目: ふくらみ＋ジャンルの縞の環） -->
+  <g transform="translate(206,650)">
+    <ellipse cx="0" cy="0" rx="12.5" ry="7.5" fill="#03583f" filter="url(#soft2)"/>
+    <path d="M-11 -2.6 A12 7 0 0 1 -3.5 -7 L-2.5 -3 A8 4.6 0 0 0 -7.4 -1.6 Z" fill="#34d399"/>
+    <path d="M-1.5 -7.2 L4.5 -6.6 L3.8 -2.6 L-1.8 -3.2 Z" fill="#fda4af"/>
+    <path d="M6 -6 A12 7 0 0 1 11 -1.6 L7.4 -0.6 A8 4.6 0 0 0 4.6 -3 Z" fill="#fbbf24"/>
+    <ellipse cx="-3" cy="-3.4" rx="3.4" ry="1.4" fill="#ffffff" opacity="0.25"/>
+  </g>
+  <g transform="translate(206,730)">
+    <ellipse cx="0" cy="0" rx="12.5" ry="7.5" fill="#03583f" filter="url(#soft2)"/>
+    <path d="M-11 -2.6 A12 7 0 0 1 -2 -7.2 L-1.4 -3.2 A8 4.6 0 0 0 -7.4 -1.6 Z" fill="#34d399"/>
+    <path d="M0 -7.2 A12 7 0 0 1 8 -5 L6 -2 A8 4.6 0 0 0 0.6 -3.4 Z" fill="#7dd3fc"/>
+    <ellipse cx="-3" cy="-3.4" rx="3.4" ry="1.4" fill="#ffffff" opacity="0.25"/>
+  </g>
+  <g transform="translate(224,646)">
+    <rect width="46" height="17" rx="8.5" fill="#ffffff" opacity="0.85"/>
+    <text x="23" y="12" text-anchor="middle" font-size="9.5" font-weight="700" fill="#047857">二節目</text>
+  </g>
+
+  <!-- 光の粒 -->
+  <g fill="#ffffff">
+    <circle cx="160" cy="560" r="2.2" opacity="0.7"/>
+    <circle cx="252" cy="620" r="1.6" opacity="0.55"/>
+    <circle cx="148" cy="676" r="1.8" opacity="0.5"/>
+    <circle cx="262" cy="700" r="2.4" opacity="0.6"/>
+    <circle cx="238" cy="536" r="1.4" opacity="0.5"/>
+  </g>
+
+  <!-- ================= 地面と越えてきた住人たち ================= -->
+  <path d="M0 796 Q96 774 196 788 T390 782 L390 844 L0 844 Z" fill="url(#hill1)"/>
+  <path d="M0 818 Q120 800 232 812 T390 806 L390 844 L0 844 Z" fill="url(#hill2)"/>
+  <!-- 草 -->
+  <g stroke="#6dbd92" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85">
+    <path d="M52 792 q-2 -8 -6 -10 M52 792 q1 -8 5 -11 M52 792 q-0.5 -6 1 -12"/>
+    <path d="M330 790 q-2 -7 -5 -9 M330 790 q1 -7 4 -10"/>
+    <path d="M148 800 q-2 -7 -5 -9 M148 800 q2 -7 5 -9"/>
+  </g>
+
+  <!-- 単3電池 5cm -->
+  <g transform="translate(84,742)">
+    <ellipse cx="13" cy="56" rx="17" ry="4" fill="#2f6b4f" opacity="0.16"/>
+    <rect x="0" y="8" width="26" height="48" rx="5" fill="url(#battery)" filter="url(#soft2)"/>
+    <rect x="0" y="8" width="26" height="13" rx="5" fill="#c9a24b"/>
+    <rect x="0" y="17" width="26" height="4" fill="#8f6f2e" opacity="0.5"/>
+    <rect x="9" y="2.5" width="8" height="6" rx="1.6" fill="#b7b1a6"/>
+    <text x="13" y="40" text-anchor="middle" font-size="7.5" font-weight="700" fill="#8a8378" letter-spacing="0.5">単3</text>
+  </g>
+  <!-- ペットボトルのキャップ 3cm -->
+  <g transform="translate(296,764)">
+    <ellipse cx="17" cy="32" rx="20" ry="4" fill="#2f6b4f" opacity="0.16"/>
+    <path d="M2 6 Q2 2 6 2 L28 2 Q32 2 32 6 L32 26 Q32 30 28 30 L6 30 Q2 30 2 26 Z" fill="#5fa7f0" filter="url(#soft2)"/>
+    <path d="M4 2.6 L4 29.4 M9 2 L9 30 M14 2 L14 30 M19 2 L19 30 M24 2 L24 30 M29 2.6 L29 29.4" stroke="#8ec4f7" stroke-width="1.6"/>
+    <ellipse cx="10" cy="7" rx="5" ry="2" fill="#ffffff" opacity="0.5"/>
+  </g>
+  <!-- テントウムシ 8mm -->
+  <g transform="translate(160,788)">
+    <ellipse cx="7" cy="10.5" rx="8" ry="2" fill="#2f6b4f" opacity="0.2"/>
+    <circle cx="7" cy="6" r="6" fill="#e23c3c"/>
+    <path d="M7 0 L7 12" stroke="#7d1414" stroke-width="1"/>
+    <circle cx="3.6" cy="4" r="1.3" fill="#241a17"/><circle cx="10.4" cy="4.4" r="1.3" fill="#241a17"/><circle cx="6" cy="9" r="1.2" fill="#241a17"/>
+    <path d="M11.6 2.4 A6 6 0 0 1 12.9 7 L7 6 Z" fill="#241a17"/>
+    <circle cx="4.6" cy="2.6" r="1.4" fill="#ffffff" opacity="0.65"/>
+  </g>
+
+  <!-- ================= ヘッダ ================= -->
+  <g>
+    <text x="24" y="66" font-size="10.5" letter-spacing="3.5" font-weight="800" fill="#059669">知の蔓（仮）</text>
+    <text x="24" y="96" font-size="23" font-weight="800" fill="#173b2d">テントウムシを越えた</text>
+    <text x="24" y="121" font-size="13.5" fill="#4b5f55">つぎは <tspan font-weight="800" fill="#b45309">湯のみ</tspan> ・ 63歩 ・ 今週 +12</text>
+    <g filter="url(#soft2)">
+      <circle cx="356" cy="62" r="15" fill="#ffffff" opacity="0.92"/>
+      <path d="M350 56 L362 68 M362 56 L350 68" stroke="#57534e" stroke-width="2.2" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,154 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, sans-serif">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbfaf7"/>
+      <stop offset="1" stop-color="#f5f2ec"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.45  0 0 0 0 0.42  0 0 0 0 0.36  0 0 0 0.05 0"/>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#256a50"/>
+      <stop offset="1" stop-color="#173f30"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 紙 -->
+  <rect width="390" height="844" fill="url(#paper)"/>
+  <rect width="390" height="844" filter="url(#grain)" opacity="0.5" fill="#faf9f6"/>
+
+  <!-- ================= ヘッダ ================= -->
+  <text x="24" y="62" font-size="10" letter-spacing="4" font-weight="800" fill="#0b7355">知の蔓（仮）</text>
+  <text x="24" y="94" font-size="21.5" font-weight="600" fill="#26221c" font-family="Hiragino Mincho ProN, serif">テントウムシを越えた</text>
+  <text x="24" y="117" font-size="12" fill="#a49d90" letter-spacing="1">63歩 ・ 今週 +12</text>
+  <g>
+    <circle cx="356" cy="58" r="14" fill="none" stroke="#d9d3c8" stroke-width="1.2"/>
+    <path d="M350.5 52.5 L361.5 63.5 M361.5 52.5 L350.5 63.5" stroke="#6b655b" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+
+  <!-- いつかの夢（活版の遠い一行） -->
+  <line x1="24" y1="148" x2="366" y2="148" stroke="#e9e4da" stroke-width="1"/>
+  <text x="195" y="170" text-anchor="middle" font-size="9" fill="#c9c2b4" letter-spacing="2.5">富士山 3776m ・ 東京タワー 333m ・ キリン 5m</text>
+
+  <!-- ================= 目盛りの段（図鑑の図版: 湯のみ） ================= -->
+  <line x1="24" y1="308" x2="366" y2="308" stroke="#ddd6c9" stroke-width="1.2"/>
+  <line x1="24" y1="308" x2="24" y2="302" stroke="#ddd6c9" stroke-width="1.2"/>
+  <line x1="366" y1="308" x2="366" y2="302" stroke="#ddd6c9" stroke-width="1.2"/>
+
+  <!-- 湯のみ: 精密な線画 + 寸法線 -->
+  <g stroke="#4b463d" stroke-width="1.3" fill="none" stroke-linecap="round">
+    <ellipse cx="296" cy="248" rx="27" ry="6.5"/>
+    <path d="M269 248 L272.5 296 Q273.5 305 296 305 Q318.5 305 319.5 296 L323 248"/>
+    <path d="M323 254 Q339 256.5 337 269 Q335.2 280 321 278"/>
+    <path d="M279 300.5 Q296 304 313 300.5 L312 305.5 Q296 308.5 280 305.5 Z" stroke-width="1"/>
+    <path d="M275 262 Q296 269 317 262" stroke-width="0.8" opacity="0.6"/>
+  </g>
+  <!-- 寸法線 10cm -->
+  <g stroke="#b3ac9d" stroke-width="0.9" fill="none">
+    <line x1="345" y1="242" x2="345" y2="308"/>
+    <path d="M342 247 L345 242 L348 247 M342 303 L345 308 L348 303"/>
+    <line x1="323" y1="242" x2="345" y2="242" stroke-dasharray="2 3"/>
+  </g>
+  <text x="352" y="278" font-size="9.5" fill="#8f887a" letter-spacing="0.5">10cm</text>
+  <text x="296" y="232" text-anchor="middle" font-size="13" fill="#3f3a32" font-family="Hiragino Mincho ProN, serif">湯のみ</text>
+
+  <!-- ================= タイポの主役 ================= -->
+  <text x="24" y="370" font-size="12.5" fill="#8f887a" letter-spacing="1.5">つぎは 湯のみ まで</text>
+  <text x="20" y="432" font-size="54" font-weight="600" fill="#26221c" font-family="Hiragino Mincho ProN, serif">あと<tspan fill="#b34a1e">37</tspan>歩</text>
+
+  <!-- 蔓の先端から目盛り段への墨点線 -->
+  <g fill="#b3ac9d">
+    <circle cx="206" cy="322" r="1.1"/><circle cx="206" cy="336" r="1.1"/><circle cx="206" cy="350" r="1.1"/>
+    <circle cx="206" cy="446" r="1.1"/><circle cx="206" cy="460" r="1.1"/><circle cx="206" cy="474" r="1.1"/>
+  </g>
+
+  <!-- ================= 蔓（書の一本線） ================= -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M200 790 C182 748 218 720 204 680" stroke="url(#ink)" stroke-width="5"/>
+    <path d="M204 680 C193 648 216 626 205 596" stroke="url(#ink)" stroke-width="3.6"/>
+    <path d="M205 596 C198 574 204 552 206 532 C207 520 205 510 204 496" stroke="url(#ink)" stroke-width="2.5"/>
+    <path d="M204 496 q-1 -10 7 -13 q9 -3 10 4 q1 7 -6 7 q-6 0 -6.5 -4.5" stroke="#2a5d47" stroke-width="1.7"/>
+  </g>
+
+  <!-- 葉: アーモンド形の墨葉。塗り=即答できる / 薄墨=要再確認 / 輪郭=読んだだけ -->
+  <g>
+    <!-- 輪郭（最新・読んだだけ） -->
+    <path d="M204 514 C198 505 184 501 175 507 C181 517 196 520 204 514 Z" fill="#fbfaf7" stroke="#2a7a5c" stroke-width="1.4"/>
+    <!-- つや葉 -->
+    <g fill="#15805e">
+      <path d="M208 546 C214 536 230 532 240 539 C233 549 217 552 208 546 Z"/>
+      <path d="M203 610 C197 600 181 596 171 603 C178 613 194 616 203 610 Z"/>
+      <path d="M207 646 C213 636 229 632 239 639 C232 649 216 652 207 646 Z"/>
+      <path d="M201 712 C195 702 179 698 169 705 C176 715 192 718 201 712 Z"/>
+      <path d="M205 744 C211 734 227 730 237 737 C230 747 214 750 205 744 Z"/>
+    </g>
+    <!-- 主脈（紙色の抜き） -->
+    <g stroke="#fbfaf7" stroke-width="0.9" fill="none" opacity="0.9">
+      <path d="M210 545 C218 540 228 538 236 540"/>
+      <path d="M201 609 C193 604 183 602 175 604"/>
+      <path d="M209 645 C217 640 227 638 235 640"/>
+      <path d="M199 711 C191 706 181 704 173 706"/>
+      <path d="M207 743 C215 738 225 736 233 738"/>
+    </g>
+    <!-- 薄墨（要再確認） -->
+    <g fill="#cdd2ca">
+      <path d="M200 578 C194 569 180 565 171 571 C177 581 192 584 200 578 Z"/>
+      <path d="M206 682 C212 672 227 669 236 675 C230 685 215 688 206 682 Z"/>
+    </g>
+  </g>
+
+  <!-- 節: 金環（30歩の結び目） -->
+  <g fill="none" stroke="#a16207">
+    <circle cx="205" cy="596" r="6.5" stroke-width="1.6"/>
+    <circle cx="205" cy="596" r="3.4" stroke-width="0.9" opacity="0.7"/>
+    <circle cx="201" cy="684" r="6.5" stroke-width="1.6"/>
+    <circle cx="201" cy="684" r="3.4" stroke-width="0.9" opacity="0.7"/>
+  </g>
+
+  <!-- 地面: 一本の基線と根の払い -->
+  <line x1="24" y1="790" x2="366" y2="790" stroke="#8f887a" stroke-width="1.4"/>
+  <path d="M200 790 q-9 3 -17 2 M200 790 q8 4 16 3" stroke="#8f887a" stroke-width="1" fill="none" stroke-linecap="round"/>
+
+  <!-- ================= 越えてきたもの（図鑑欄） ================= -->
+  <g font-size="8.5" fill="#8f887a">
+    <!-- 単3電池 -->
+    <g transform="translate(52,802)">
+      <g stroke="#9a9384" stroke-width="1.1" fill="none">
+        <rect x="0" y="3" width="11" height="24" rx="2.4"/>
+        <rect x="3.6" y="0" width="3.8" height="3" rx="0.8"/>
+      </g>
+      <text x="17" y="12">単3電池</text>
+      <text x="17" y="23" fill="#bcb5a6">5cm</text>
+      <text x="17" y="23" dx="26" fill="#b34a1e" font-weight="700">✓</text>
+    </g>
+    <!-- キャップ -->
+    <g transform="translate(160,802)">
+      <g stroke="#9a9384" stroke-width="1.1" fill="none">
+        <rect x="0" y="8" width="16" height="14" rx="2.4"/>
+        <path d="M2.4 8.4 L2.4 21.6 M5.8 8 L5.8 22 M9.2 8 L9.2 22 M12.6 8 L12.6 22" stroke-width="0.7" opacity="0.7"/>
+      </g>
+      <text x="22" y="12">キャップ</text>
+      <text x="22" y="23" fill="#bcb5a6">3cm</text>
+      <text x="22" y="23" dx="26" fill="#b34a1e" font-weight="700">✓</text>
+    </g>
+    <!-- テントウムシ -->
+    <g transform="translate(272,802)">
+      <g stroke="#9a9384" stroke-width="1.1" fill="none">
+        <circle cx="7" cy="14" r="6.5"/>
+        <path d="M7 7.5 L7 20.5 M10.8 8.6 A6.5 6.5 0 0 1 13.5 14"/>
+        <circle cx="4.4" cy="11.6" r="0.8" fill="#9a9384"/><circle cx="9.6" cy="16.4" r="0.8" fill="#9a9384"/>
+      </g>
+      <text x="19" y="12">テントウムシ</text>
+      <text x="19" y="23" fill="#bcb5a6">8mm</text>
+      <text x="19" y="23" dx="34" fill="#b34a1e" font-weight="700">✓</text>
+    </g>
+  </g>
+
+  <!-- 落款 -->
+  <g transform="translate(338,742) rotate(4)">
+    <rect width="24" height="24" rx="2" fill="none" stroke="#b34a1e" stroke-width="1.6" opacity="0.85"/>
+    <text x="12" y="18" text-anchor="middle" font-size="15" fill="#b34a1e" font-family="Hiragino Mincho ProN, serif" opacity="0.9">知</text>
+  </g>
+</svg>
