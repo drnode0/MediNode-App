@@ -131,7 +131,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
           {showSan && play && (crossed || newLeaves > 0) && (
             <div className={`absolute right-3 top-4 text-[21px] leading-[1.9] ${styles.san} ${styles.fadeIn}`}>
-              {crossed ? `${crossed.label}を、越えました` : newLeaves > 0 ? `葉が、${kanjiNumber(Math.min(newLeaves, 99))}枚ふえました` : ''}
+              {crossed ? `${crossed.label}を、越えました` : `葉が、${kanjiNumber(Math.min(newLeaves, 99))}枚ふえました`}
             </div>
           )}
         </div>

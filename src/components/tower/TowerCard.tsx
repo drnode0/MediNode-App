@@ -37,6 +37,7 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
   if (!isTowerEnabled() || count === 0) return null // v1はオーナーのみ。葉0の端末でも出さない（初回は取込で積もってから）
 
   const next = nextMilestone(count)
+  const remainMm = next.mm - heightMmFromLeaves(count)
   return (
     <button
       type="button"
@@ -47,9 +48,11 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
       <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
         <span className="font-bold text-gray-900 dark:text-gray-50">{formatHeight(heightMmFromLeaves(count))}</span>
         <span className="ml-2 text-gray-500 dark:text-gray-400">今週 +{week}</span>
-        <span className="ml-2 text-brand dark:text-brand-300">
-          {next.label}まで あと{formatHeight(next.mm - heightMmFromLeaves(count))}
-        </span>
+        {remainMm > 0 && (
+          <span className="ml-2 text-brand dark:text-brand-300">
+            {next.label}まで あと{formatHeight(remainMm)}
+          </span>
+        )}
       </span>
       {popKey > 0 && (
         <span key={popKey} className="animate-pop rounded-full bg-brand px-2 py-0.5 text-xs font-bold text-white motion-reduce:animate-none">

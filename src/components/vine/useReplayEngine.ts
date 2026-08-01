@@ -13,8 +13,11 @@ export function useReplayEngine(opts: {
 }): { leavesNow: number; phaseName: ReplayPhaseName | null; running: boolean; skip: () => void } {
   const { play, from, to, lastCrossedLeaves, reduced } = opts
   const [view, setView] = useState(() =>
-    play ? { leavesNow: from, phaseName: 'tame' as ReplayPhaseName | null, running: true }
-         : { leavesNow: to, phaseName: null, running: false })
+    play
+      ? (reduced
+          ? { leavesNow: to, phaseName: 'yoin' as ReplayPhaseName | null, running: true }
+          : { leavesNow: from, phaseName: 'tame' as ReplayPhaseName | null, running: true })
+      : { leavesNow: to, phaseName: null, running: false })
   const raf = useRef(0)
   const tMs = useRef(0)          // 再生位置（一時停止をまたいで累積）
   const lastNow = useRef(0)
