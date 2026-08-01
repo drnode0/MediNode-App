@@ -46,7 +46,8 @@ export type AppSettings = {
   // （有効性の判定には使わない。判定はサーバーの status/trial_ends_at が担う）。
   subscriptionCancelAt?: string
 
-  // プロパティ名マッピング（任意）
+  // プロパティ名マッピング（任意）。
+  // 既存のNotion DBを「列名を書き換えずに」つなぐための読み替え。空=既定名を使う。
   propSummary: string       // デフォルト: 要約
   propKeywords: string      // デフォルト: キーワード
   propKnowledgeLevel: string // デフォルト: 知識レベル
@@ -56,6 +57,36 @@ export type AppSettings = {
   // 検索・まとめ用途で使う人向けに、学習系のUIを消せるようにする。
   hideQuizTab?: boolean   // クイズタブを非表示
   hideCqButton?: boolean  // CQ登録の浮きボタンを非表示（個人Notionを使わない人向け）
+}
+
+// 同期API・接続テストAPIへ送る列名の読み替え表を組み立てる。
+// 入力のない項目は「キーごと落とす」。'' を送るとAPIが空文字の列名を探しに行き、
+// 既定名（要約/キーワード/知識レベル/ジャンル）での解決が働かなくなる。
+export type PropMap = {
+  summary?: string
+  keywords?: string
+  knowledgeLevel?: string
+  genre?: string
+}
+
+export function buildPropMap(
+  settings: Partial<Pick<AppSettings, 'propSummary' | 'propKeywords' | 'propKnowledgeLevel' | 'propGenre'>> | null | undefined,
+): PropMap {
+  const pick = (v: string | undefined) => {
+    const trimmed = (v || '').trim()
+    return trimmed || undefined
+  }
+  const map: PropMap = {
+    summary: pick(settings?.propSummary),
+    keywords: pick(settings?.propKeywords),
+    knowledgeLevel: pick(settings?.propKnowledgeLevel),
+    genre: pick(settings?.propGenre),
+  }
+  // undefined のキーは JSON.stringify で消えるが、比較・テストのために実体からも落とす。
+  ;(Object.keys(map) as Array<keyof PropMap>).forEach((k) => {
+    if (map[k] === undefined) delete map[k]
+  })
+  return map
 }
 
 const STORAGE_KEY = 'medical_search_settings'

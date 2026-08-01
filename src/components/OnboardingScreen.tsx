@@ -1,8 +1,8 @@
 'use client'
 
 // 初回オンボーディング（2層方式）。
-//   コア3枚: 価値訴求 → できること → 始め方（最短でセットアップへ）
-//   詳細3枚: 知識源・Notion連携・DB構成（コア最終ページから任意で入る第2層）
+//   コア4枚: 価値訴求 → できること → 3つの知識源 → 始め方（最短でセットアップへ）
+//   詳細2枚: Notion連携・DB構成（コア最終ページから任意で入る第2層）
 // デザイン: 絵文字を使わず、ブランドアイコン＋lucide線画で統一。
 // モーション: ページ遷移フェード／アイコンのフロート／カードの時間差登場。
 
@@ -58,7 +58,7 @@ const PAGES: Page[] = [
     title: 'スマホで完結\n検索から復習まで',
     accent: '検索から復習まで',
     features: [
-      { Icon: Search, title: 'キーワード検索', desc: '病名・薬名・キーワードで即絞り込み', tone: 'brand' },
+      { Icon: Search, title: 'キーワード検索', desc: '病名・薬名で即検索。自分・部署・専門医の知識をまとめて引ける', tone: 'brand' },
       { Icon: FolderOpen, title: 'ジャンル別ブラウズ', desc: '好きなカテゴリで知識を分類・ブラウズ', tone: 'amber' },
       { Icon: Lightbulb, title: 'クイズモード', desc: 'フラッシュカードで隙間時間に反復学習', tone: 'violet' },
       { Icon: BookMarked, title: '参考文献管理', desc: '文献・ソースをまとめて管理・参照', tone: 'sky' },
@@ -70,6 +70,7 @@ const PAGES: Page[] = [
     badge: { Icon: Library, label: '3つの知識源' },
     title: '使いたい知識を\n選んで始められます',
     accent: '選んで',
+    description: '3つとも使う必要はありません。Notionをつながずに、専門医の知識だけで始めることもできます。',
     features: [
       { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます', tone: 'amber' },
       { Icon: UserRound, title: '自分の知識（個人のNotion）', desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます', tone: 'brand' },
@@ -113,8 +114,11 @@ const PAGES: Page[] = [
 ]
 
 const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p]))
-const CORE_PAGES = [pageById.welcome, pageById.features, pageById.setup]
-const DETAIL_PAGES = [pageById.sources, pageById.notion, pageById.dbs]
+// コアに「3つの知識源」を含める。ここが第2層にあった頃は、Notionを使える人ほど
+// 「まず自分のNotionをつなぐもの」と読んで、つなぐ前に離脱していた。
+// 設定なしで始められることは、セットアップ画面の手前で見えている必要がある。
+const CORE_PAGES = [pageById.welcome, pageById.features, pageById.sources, pageById.setup]
+const DETAIL_PAGES = [pageById.notion, pageById.dbs]
 
 // DB構成図（常盤トーンのSVG）
 function DbDiagram() {
