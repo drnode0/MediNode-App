@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, CheckCircle2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import { Spinner } from './Spinner'
-import { getSettings, saveLastSynced, getLastSynced, formatLastSynced } from '@/lib/settings'
+import { getSettings, saveLastSynced, getLastSynced, formatLastSynced, buildPropMap } from '@/lib/settings'
 
 export function SyncPanel() {
   const [syncing, setSyncing] = useState(false)
@@ -44,13 +44,8 @@ export function SyncPanel() {
           teamNotionToken: settings.teamNotionToken || undefined,
           teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
           teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
-          // プロパティ名マッピング（設定済みの場合のみ送信）
-          propMap: {
-            summary: settings.propSummary || undefined,
-            keywords: settings.propKeywords || undefined,
-            knowledgeLevel: settings.propKnowledgeLevel || undefined,
-            genre: settings.propGenre || undefined,
-          },
+          // 列名の読み替え（設定済みの項目のみ送信・未設定はAPI側が既定名で解決する）
+          propMap: buildPropMap(settings),
         }),
       })
       const data = await res.json()

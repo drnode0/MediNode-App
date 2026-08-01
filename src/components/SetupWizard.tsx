@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import type React from 'react'
 import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info, ExternalLink } from 'lucide-react'
 import { Spinner } from './Spinner'
-import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
+import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, buildPropMap, type AppSettings } from '@/lib/settings'
 import { NOTION_MAGAZINE_URL, NOTION_ACCOUNT_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 import { parseErrorMessage } from '@/lib/connection-errors'
@@ -504,9 +504,11 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
               </div>
             </div>
           </details>
-          <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300">
-            上記のプロパティ名と<strong>完全一致</strong>している必要があります。「要約」を「サマリー」に変えると認識されません。
+          <div className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-2 mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+            <p>読みにいく列名は既定で上記のとおりです。「要約」を「サマリー」にすると、既定のままでは認識されません。</p>
+            <p><strong>ただし、既存DBの列名を変える必要はありません。</strong>設定 →「Notion接続設定」→「列名がちがうとき」に、そのDBでの列名（例: サマリー）を入れれば、そのまま読みます。</p>
           </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">なお、同期そのものが必須にしているのは<strong>タイトル列だけ</strong>です。他の列が無くてもページは取り込まれます（その情報が検索・ジャンル分けに乗らないだけです）。</p>
           <p className="text-xs text-green-700 dark:text-green-400 mt-1"><CheckCircle2 className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />必須プロパティが揃っていれば、それ以外のプロパティの追加・並び替えは自由です</p>
         </section>
       </div>
@@ -944,11 +946,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           notionToken: form.notionToken,
           notionMedicalDbId: form.notionMedicalDbId,
           notionReferenceDbId: form.notionReferenceDbId || undefined,
-          propMap: {
-            summary: form.propSummary || undefined,
-            keywords: form.propKeywords || undefined,
-            genre: form.propGenre || undefined,
-          },
+          propMap: buildPropMap(form),
         }),
       })
       const data = await res.json()
@@ -992,7 +990,42 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               <li key={m}>{m}</li>
             ))}
           </ul>
-          <p>このまま進むこともできますが、検索・ジャンル・クイズを正しく動かすには、Notion側でプロパティ名を上記に合わせてください（名前は完全一致）。</p>
+          <p>
+            <strong>このまま進めます。</strong>タイトルのあるページは取り込まれます（見つからない列の中身が、検索とジャンル分けに乗らないだけです）。
+          </p>
+          <p>
+            すでに<strong>別の名前の列</strong>で書いている場合は、Notion側を書き換えずに、その名前をここで教えてください。
+          </p>
+          {/* 既存DBの列名をここで読み替える。何百枚のページを一括編集させないための逃げ道。
+              入力後に「もう一度テスト」でその名前の存在を確認する。 */}
+          <div className="space-y-2 pt-1">
+            {([
+              ['propSummary', '要約', '例: サマリー'],
+              ['propKeywords', 'キーワード', '例: タグ'],
+              ['propGenre', 'ジャンル', '例: カテゴリ'],
+            ] as const).map(([key, label, ph]) => (
+              <div key={key}>
+                <label className="block text-[11px] font-medium text-amber-800 dark:text-amber-200 mb-0.5">
+                  「{label}」にあたる列名
+                </label>
+                <input
+                  type="text"
+                  value={form[key]}
+                  onChange={(e) => update(key, e.target.value)}
+                  placeholder={ph}
+                  className="w-full border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleNotionTest}
+              disabled={notionTesting}
+              className="w-full border border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200 rounded-lg py-2 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
+            >
+              {notionTesting ? '確認中...' : 'この列名でもう一度テスト'}
+            </button>
+          </div>
         </div>
       )}
       {!notionTest && (
@@ -1046,12 +1079,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           algoliaAdminKey: form.algoliaAdminKey,
           algoliaIndex: form.algoliaIndex,
           testOnly: true, // テストフラグ（1件だけ取得）
-          propMap: {
-            summary: form.propSummary || undefined,
-            keywords: form.propKeywords || undefined,
-            knowledgeLevel: form.propKnowledgeLevel || undefined,
-            genre: form.propGenre || undefined,
-          },
+          propMap: buildPropMap(form),
         }),
       })
       if (res.ok) {
@@ -1084,12 +1112,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           algoliaAppId: form.algoliaAppId,
           algoliaAdminKey: form.algoliaAdminKey,
           algoliaIndex: form.algoliaIndex,
-          propMap: {
-            summary: form.propSummary || undefined,
-            keywords: form.propKeywords || undefined,
-            knowledgeLevel: form.propKnowledgeLevel || undefined,
-            genre: form.propGenre || undefined,
-          },
+          propMap: buildPropMap(form),
         }),
       })
       setSyncProgress('Algoliaにデータを保存中...')

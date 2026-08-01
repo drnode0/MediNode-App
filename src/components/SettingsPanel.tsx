@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
-import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, type AppSettings } from '@/lib/settings'
+import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
 import { parseErrorMessage } from '@/lib/connection-errors'
@@ -365,6 +365,11 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     algoliaSearchKey: s0?.algoliaSearchKey || '',
     algoliaAdminKey: s0?.algoliaAdminKey || '',
     algoliaIndex: s0?.algoliaIndex || '',
+    // 列名の読み替え（既存DBを書き換えずに使うため。空=既定名）
+    propSummary: s0?.propSummary || '',
+    propKeywords: s0?.propKeywords || '',
+    propKnowledgeLevel: s0?.propKnowledgeLevel || '',
+    propGenre: s0?.propGenre || '',
   })
   const [teamForm, setTeamForm] = useState({
     teamLabel: s0?.teamLabel || '',
@@ -437,6 +442,10 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
         algoliaSearchKey: s.algoliaSearchKey || '',
         algoliaAdminKey: s.algoliaAdminKey || '',
         algoliaIndex: s.algoliaIndex || '',
+        propSummary: s.propSummary || '',
+        propKeywords: s.propKeywords || '',
+        propKnowledgeLevel: s.propKnowledgeLevel || '',
+        propGenre: s.propGenre || '',
       })
     }
     if (section === 'team') {
@@ -477,6 +486,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
           notionToken: notionForm.notionToken,
           notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
           notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : undefined,
+          // 列名を読み替えている人は、その名前で存在確認する（既定名で「無い」と言われないように）
+          propMap: buildPropMap(notionForm),
         }),
       })
       const data = await res.json()
@@ -489,7 +500,17 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
         ...((data.reference?.missing || []) as string[]).map((p) => `Reference DB: 「${p}」が見つかりません`),
       ]
       setNotionTest(missing.length > 0
-        ? { status: 'warn', detail: ['接続はOK。ただし必須プロパティに不足があります', ...missing, 'Notion側でプロパティ名を上記に合わせてください（名前は完全一致）'] }
+        ? {
+            status: 'warn',
+            detail: [
+              '接続はOK。見つからなかった列があります',
+              ...missing,
+              // 実態: 同期が必須にしているのはタイトルだけ。ここで「揃えないと使えない」と
+              // 読ませると、既存ユーザーに不要な一括編集を強いることになる。
+              'このままでも同期はできます（タイトルのあるページは取り込まれます）。見つからない列の中身が、検索とジャンル分けに乗らないだけです。',
+              'すでに別の名前で書いている場合は、下の「列名がちがうとき」にその名前を入れてください。Notion側を書き換える必要はありません。',
+            ],
+          }
         : { status: 'ok', detail: [] })
     } catch {
       setNotionTest({ status: 'error', detail: ['ネットワークエラーが発生しました。通信環境を確認して、もう一度お試しください。'] })
@@ -1082,6 +1103,41 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   <input type="text" value={notionForm.notionManualDbId} onChange={(e) => setNotionForm(f => ({ ...f, notionManualDbId: e.target.value }))} placeholder="https://www.notion.so/... またはID32桁" className={inputCls} />
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
                 </div>
+                {/* 列名の読み替え。すでにNotionに書きためている人が、既存DBの列名を
+                    書き換えずにつなげるようにする。既定名で運用している人には関係が無いので
+                    <details> で畳んでおく（初回セットアップの情報量を増やさない）。 */}
+                <details className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <summary className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/40">
+                    列名がちがうとき（既存のNotionをそのまま使う）
+                  </summary>
+                  <div className="p-3 space-y-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                      MediNodeは既定で「要約」「キーワード」「知識レベル」「ジャンル」という列を読みます。
+                      すでに別の名前で書きためている場合は、<strong>そのDBでの列名</strong>をここに入れてください。Notion側の列名を変える必要はありません。
+                      空欄のままなら既定の名前を読みます。<strong>どの欄も必須ではありません</strong>（タイトルさえあればページは取り込まれます）。
+                    </p>
+                    <div>
+                      <label className={labelCls}>要約にあたる列</label>
+                      <input type="text" value={notionForm.propSummary} onChange={(e) => setNotionForm(f => ({ ...f, propSummary: e.target.value }))} placeholder="既定: 要約" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>キーワードにあたる列</label>
+                      <input type="text" value={notionForm.propKeywords} onChange={(e) => setNotionForm(f => ({ ...f, propKeywords: e.target.value }))} placeholder="既定: キーワード" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>ジャンルにあたる列</label>
+                      <input type="text" value={notionForm.propGenre} onChange={(e) => setNotionForm(f => ({ ...f, propGenre: e.target.value }))} placeholder="既定: ジャンル" className={inputCls} />
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">マルチセレクト・セレクト・ステータスのどれでも読みます</p>
+                    </div>
+                    <div>
+                      <label className={labelCls}>知識レベルにあたる列</label>
+                      <input type="text" value={notionForm.propKnowledgeLevel} onChange={(e) => setNotionForm(f => ({ ...f, propKnowledgeLevel: e.target.value }))} placeholder="既定: 知識レベル" className={inputCls} />
+                    </div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                      変更したら「保存する」のあと、<strong>再同期</strong>すると読み替えが反映されます。
+                    </p>
+                  </div>
+                </details>
                 {/* シンプルモードでは「Algoliaの欄が無い」こと自体が疑問になるため、理由と切替導線を明記する */}
                 {currentMode !== 'algolia' && (
                   <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -1115,6 +1171,10 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
                   notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
                   notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
+                  propSummary: notionForm.propSummary.trim(),
+                  propKeywords: notionForm.propKeywords.trim(),
+                  propKnowledgeLevel: notionForm.propKnowledgeLevel.trim(),
+                  propGenre: notionForm.propGenre.trim(),
                 })}
                 className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
