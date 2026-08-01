@@ -58,12 +58,12 @@ export function VineScene({ leavesNow, from, to, visuals, spotlightIds, steps, c
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" aria-label="豆の木の背比べ">
       <defs>
         <mask id="vineGrow">
+          {/* マスク内容は参照側<g>のローカル座標で解釈される——transformを重ねると二重適用で反転する（レビュー実証済み） */}
           <path
             d={path.d} pathLength={path.totalLen} fill="none" stroke="#fff"
             strokeWidth={46} strokeLinecap="round"
             strokeDasharray={`${path.totalLen} ${path.totalLen}`}
             strokeDashoffset={path.totalLen - revealLen}
-            transform={`translate(0 ${GROUND_Y}) scale(1 -1)`}
           />
         </mask>
       </defs>
