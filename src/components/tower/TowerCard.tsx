@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { loadTowerState, TOWER_EVENT } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
-import { formatHeight, heightMm, nextMilestone, stepsThisWeek } from '@/lib/tower-ladder'
+import { stepsThisWeek } from '@/lib/tower-ladder'
+import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 
 export function TowerCard({ onOpen }: { onOpen: () => void }) {
   const [count, setCount] = useState(0)
@@ -33,7 +34,7 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
     }
   }, [])
 
-  if (!isTowerEnabled() || count === 0) return null // v1はオーナーのみ。歩0の端末でも出さない（初回は取込で積もってから）
+  if (!isTowerEnabled() || count === 0) return null // v1はオーナーのみ。葉0の端末でも出さない（初回は取込で積もってから）
 
   const next = nextMilestone(count)
   return (
@@ -44,13 +45,11 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
     >
       <TrendingUp className="h-5 w-5 shrink-0 text-brand dark:text-brand-300" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
-        <span className="font-bold text-gray-900 dark:text-gray-50">{formatHeight(heightMm(count))}</span>
+        <span className="font-bold text-gray-900 dark:text-gray-50">{formatHeight(heightMmFromLeaves(count))}</span>
         <span className="ml-2 text-gray-500 dark:text-gray-400">今週 +{week}</span>
-        {next && (
-          <span className="ml-2 text-brand dark:text-brand-300">
-            あと{next.steps - count}歩で{next.label}
-          </span>
-        )}
+        <span className="ml-2 text-brand dark:text-brand-300">
+          {next.label}まで あと{formatHeight(next.mm - heightMmFromLeaves(count))}
+        </span>
       </span>
       {popKey > 0 && (
         <span key={popKey} className="animate-pop rounded-full bg-brand px-2 py-0.5 text-xs font-bold text-white motion-reduce:animate-none">
