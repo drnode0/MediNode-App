@@ -12,12 +12,12 @@ describe('kanjiNumber', () => {
   })
 })
 
-describe('kanjiDate（刻みの日付。朔日だけ特別表記）', () => {
+describe('kanjiDate（刻みの日付＝使用者の暦日。朔日だけ特別表記）', () => {
   it('1日は朔日', () => {
-    expect(kanjiDate('2026-08-01T09:00:00+09:00')).toBe('八月朔日')
+    expect(kanjiDate(new Date(2026, 7, 1))).toBe('八月朔日')
   })
   it('通常日は漢数字', () => {
-    expect(kanjiDate('2026-08-15T09:00:00+09:00')).toBe('八月十五日')
-    expect(kanjiDate('2026-12-03T09:00:00+09:00')).toBe('十二月三日')
+    expect(kanjiDate(new Date(2026, 7, 15))).toBe('八月十五日')
+    expect(kanjiDate(new Date(2026, 11, 3))).toBe('十二月三日')
   })
 })

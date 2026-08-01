@@ -20,6 +20,7 @@ export function buildPhases(
   if (reduced) return [{ name: 'yoin', durMs: REDUCED_MS, fromLeaves: toLeaves, toLeaves }]
   const at = (name: ReplayPhaseName, durMs: number, a: number, b: number): ReplayPhase =>
     ({ name, durMs, fromLeaves: a, toLeaves: b })
+  // 「すでに越えていた目盛りは演出しない／今回ちょうど到達した目盛りは演出する」の境界選択
   if (lastCrossedLeaves != null && lastCrossedLeaves > fromLeaves && lastCrossedLeaves <= toLeaves) {
     return [
       at('tame', TAME_MS, fromLeaves, fromLeaves),

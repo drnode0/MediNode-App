@@ -8,8 +8,10 @@ export function kanjiNumber(n: number): string {
   return (tens > 1 ? DIGITS[tens] : '') + (tens >= 1 ? '十' : '') + DIGITS[ones]
 }
 
-export function kanjiDate(iso: string): string {
-  const d = new Date(iso)
+// 刻みの日付は「使用者の暦日」（端末ローカル）で打つ。
+// ISO文字列を受けて環境TZで再解釈すると、サーバー（UTC等）で暦日がずれるため、
+// 呼び出し側がローカルのDateを渡す契約にする（描画は端末上のみ＝'use client'）。
+export function kanjiDate(d: Date): string {
   const m = d.getMonth() + 1
   const day = d.getDate()
   return `${kanjiNumber(m)}月${day === 1 ? '朔日' : `${kanjiNumber(day)}日`}`
