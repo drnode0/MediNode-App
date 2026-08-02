@@ -10,6 +10,7 @@ const {
   updateMock,
   updateEqMock,
   updateSelectMock,
+  updateNeqMock,
   selectEqCalls,
   deleteEqMock,
   deleteLtMock,
@@ -19,6 +20,7 @@ const {
   updateMock: vi.fn(),
   updateEqMock: vi.fn(),
   updateSelectMock: vi.fn(),
+  updateNeqMock: vi.fn(),
   selectEqCalls: [] as unknown[][],
   deleteEqMock: vi.fn(),
   deleteLtMock: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@/lib/supabase/server', () => ({
             updateEqMock(args)
             return chain
           },
+          neq: (...args: unknown[]) => updateNeqMock(args),
           select: (cols: string) => updateSelectMock(cols),
         }
         return chain
@@ -68,6 +71,7 @@ import {
   findClaimable,
   markClaimed,
   purgeExpired,
+  retireOtherCompleted,
 } from '../supabase/oauth-states'
 import { PENDING_TTL_MS, CLAIM_WINDOW_MS } from '../oauth-state'
 
@@ -80,6 +84,7 @@ beforeEach(() => {
   updateMock.mockReset()
   updateEqMock.mockReset()
   updateSelectMock.mockReset().mockResolvedValue({ data: [{ state: 's' }], error: null })
+  updateNeqMock.mockReset().mockResolvedValue({ error: null })
   selectEqCalls.length = 0
   deleteEqMock.mockReset()
   deleteLtMock.mockReset().mockResolvedValue({ error: null })
@@ -196,5 +201,20 @@ describe('purgeExpired', () => {
   it('cutoffは nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS) のISO文字列', async () => {
     await purgeExpired('u1', NOW)
     expect(deleteLtMock).toHaveBeenCalledWith('created_at', iso(NOW - (PENDING_TTL_MS + CLAIM_WINDOW_MS)))
+  })
+})
+
+describe('retireOtherCompleted', () => {
+  it('user_id・status=completedで絞り込み、引き取った行(exceptState)はneqで除外してtoken_encを落とす', async () => {
+    const ok = await retireOtherCompleted('u1', 'st-claimed')
+    expect(ok).toBe(true)
+    expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
+    expect(updateEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
+    expect(updateEqMock).toHaveBeenCalledWith(['status', 'completed'])
+    expect(updateNeqMock).toHaveBeenCalledWith(['state', 'st-claimed'])
+  })
+  it('更新に失敗しても例外を投げずfalseを返す', async () => {
+    updateNeqMock.mockResolvedValue({ error: { message: 'boom' } })
+    expect(await retireOtherCompleted('u1', 'st-claimed')).toBe(false)
   })
 })

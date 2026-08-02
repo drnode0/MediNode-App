@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const {
   getUserMock, hasFeatureMock, findClaimableMock, markClaimedMock,
   maybeSingleMock, upsertMock, unreadableMock, cryptoReadyMock,
-  rateLimitMock, captureExceptionMock,
+  rateLimitMock, captureExceptionMock, retireOtherCompletedMock,
 } = vi.hoisted(() => ({
   getUserMock: vi.fn(),
   hasFeatureMock: vi.fn(),
@@ -17,6 +17,7 @@ const {
   cryptoReadyMock: vi.fn(() => true),
   rateLimitMock: vi.fn(async () => true),
   captureExceptionMock: vi.fn(),
+  retireOtherCompletedMock: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -33,6 +34,7 @@ vi.mock('@/lib/supabase/oauth-states', () => ({
   findClaimable: findClaimableMock,
   markClaimed: markClaimedMock,
   purgeExpired: vi.fn().mockResolvedValue(undefined),
+  retireOtherCompleted: retireOtherCompletedMock,
 }))
 vi.mock('@/lib/notion-readability', () => ({ findUnreadableDatabases: unreadableMock }))
 vi.mock('@/lib/crypto', () => ({
@@ -68,6 +70,7 @@ beforeEach(() => {
   cryptoReadyMock.mockReset().mockReturnValue(true)
   rateLimitMock.mockReset().mockResolvedValue(true)
   captureExceptionMock.mockReset()
+  retireOtherCompletedMock.mockReset().mockResolvedValue(true)
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc'
@@ -85,6 +88,7 @@ describe('POST /api/notion/oauth/claim', () => {
     hasFeatureMock.mockResolvedValue(false)
     const res = await POST()
     expect(res.status).toBe(403)
+    expect(hasFeatureMock).toHaveBeenCalledWith('easy_connect')
     expect(findClaimableMock).not.toHaveBeenCalled()
   })
 
@@ -127,6 +131,7 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(w.notionWorkspaceName).toBe('WS')
     expect(w.notionTokenPrev).toBeUndefined()
     expect(markClaimedMock).toHaveBeenCalledWith('st')
+    expect(findClaimableMock).toHaveBeenCalledWith('u1', expect.any(Number))
   })
 
   it('サーバーに既存設定行があれば hadServerSettings は true', async () => {
@@ -134,6 +139,18 @@ describe('POST /api/notion/oauth/claim', () => {
     const res = await POST()
     const body = await res.json()
     expect(body.hadServerSettings).toBe(true)
+  })
+
+  it('Finding1: 行はあるがsettings_encがNULL（早期アクセスのフラグ付与だけの行）なら hadServerSettings は false', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { settings_enc: null }, error: null })
+    const res = await POST()
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+    expect(body.hadServerSettings).toBe(false)
+    // baseはDEFAULT_SETTINGSのまま（実データで上書きされていない）ことも併せて確認する
+    const w = written()
+    expect(w.notionToken).toBe('ntn_new')
+    expect(w.algoliaAppId).toBe('')
   })
 
   it('手動Tokenを置き換えるときは旧トークンを退避する', async () => {
@@ -242,6 +259,14 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
+  it('復号できてもaccessTokenが空文字なら書かずに500（トークンの実体が無いまま接続済みにしない）', async () => {
+    const emptyToken = { ...TOKEN, accessToken: '' }
+    findClaimableMock.mockResolvedValue({ ...claimRow, token_enc: `enc:${JSON.stringify(emptyToken)}` })
+    const res = await POST()
+    expect(res.status).toBe(500)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
   it('upsertが失敗したら500でmarkClaimedを呼ばない', async () => {
     upsertMock.mockResolvedValue({ error: { message: 'boom' } })
     const res = await POST()
@@ -263,5 +288,27 @@ describe('POST /api/notion/oauth/claim', () => {
     await POST()
     const w = written()
     expect(w.notionTokenPrev).toBeUndefined()
+  })
+
+  it('Finding2: 引き取り成功時はretireOtherCompletedを自分のuser_id・引き取った行のstateで呼ぶ', async () => {
+    await POST()
+    expect(retireOtherCompletedMock).toHaveBeenCalledWith('u1', 'st')
+  })
+
+  it('Finding2: conflictのときはretireOtherCompletedを呼ばない（何も書かず退避もしない）', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    unreadableMock.mockResolvedValue([{ role: 'medical', id: 'db1' }])
+    const res = await POST()
+    const body = await res.json()
+    expect(body.status).toBe('conflict')
+    expect(retireOtherCompletedMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding2: retireOtherCompletedが失敗してもokを返し、Sentryへ報告する', async () => {
+    retireOtherCompletedMock.mockResolvedValue(false)
+    const res = await POST()
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+    expect(captureExceptionMock).toHaveBeenCalled()
   })
 })

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sessionHasFeature } from '@/lib/supabase/early-access'
 import { findClaimable } from '@/lib/supabase/oauth-states'
 import { isCryptoReady } from '@/lib/crypto'
+import { rateLimitAsync } from '@/lib/rate-limit'
 
 // このルートは createClient()（anonキー）だけを使う。/api/user-settings と同じ考え方で、
 // env未設定時の生の throw を漏らさず、静かな claimable:false へ倒す。
@@ -28,6 +29,13 @@ export async function GET() {
   if (!user) return NextResponse.json({ claimable: false })
 
   if (!(await sessionHasFeature('easy_connect'))) return NextResponse.json({ claimable: false })
+
+  // アプリ起動時に毎回叩かれる想定の経路（claimより先に呼ばれ、claimより高頻度になりうる）。
+  // authコール・台帳読み取り・行クエリの3つを毎回行うため、claim（20回/10分）と同様に
+  // ユーザーID単位で絞るが、通常の起動を絶対に締め出さないよう余裕を持たせる。
+  if (!(await rateLimitAsync(`notion-oauth-claimable:${user.id}`, 30, 10 * 60 * 1000))) {
+    return NextResponse.json({ claimable: false, reason: 'rate_limited' })
+  }
 
   const row = await findClaimable(user.id, Date.now())
   return NextResponse.json({ claimable: !!row?.token_enc })

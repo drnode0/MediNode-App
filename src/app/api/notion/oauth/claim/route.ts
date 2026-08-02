@@ -6,11 +6,19 @@
 // 手動Tokenからの置き換えでも、すでにOAuthのトークンを持っている人が選び直した場合でも同じで、
 // 1つでも読めなければトークンを差し替えずに conflict を返す（§10b）。旧トークンの退避
 // （notionTokenPrev）だけは手動Tokenを置き換えるときに限る。
+//
+// レスポンス契約:
+//   { status: 'none' }                          引き取り対象なし
+//   { status: 'conflict', unreadable }           何も書いていない。stateはcompletedのまま残る
+//   { status: 'ok', settings, hadServerSettings }
+//     hadServerSettings が false の場合、settings は DEFAULT_SETTINGS 相当の土台でしかない
+//     （既存の暗号化設定=settings_encが無かった場合。早期アクセスのフラグだけを持つ行を含む）。
+//     クライアントは置き換えではなく、必ずローカル設定とのマージで扱うこと。
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sessionHasFeature } from '@/lib/supabase/early-access'
-import { findClaimable, markClaimed, purgeExpired } from '@/lib/supabase/oauth-states'
+import { findClaimable, markClaimed, purgeExpired, retireOtherCompleted } from '@/lib/supabase/oauth-states'
 import { findUnreadableDatabases, type DbRef } from '@/lib/notion-readability'
 import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
 import { rateLimitAsync } from '@/lib/rate-limit'
@@ -73,6 +81,11 @@ export async function POST() {
   } catch {
     return NextResponse.json({ error: '接続情報を読み取れませんでした' }, { status: 500 })
   }
+  // アクセストークンが空だと、既存DBを持たないユーザーは readability チェックを
+  // スキップして通過してしまい、トークンの実体がないまま「接続済み」として保存されかねない。
+  if (typeof token.accessToken !== 'string' || token.accessToken.length === 0) {
+    return NextResponse.json({ error: '接続情報を読み取れませんでした' }, { status: 500 })
+  }
 
   // 既存設定を読む。読み取り失敗・復号失敗のときは書かずに中断する
   // （DEFAULTで上書きすると全設定を失うため。v1で確立した原則）。
@@ -86,10 +99,14 @@ export async function POST() {
   if (readError) {
     return NextResponse.json({ error: '設定を読み取れませんでした' }, { status: 500 })
   }
-  // サーバーに既存の設定行が実在したか。無ければ、これから返す settings は
-  // DEFAULT_SETTINGS に新トークンを足しただけの土台であり、Algolia・team・列マッピングは
-  // すべて空になる。次段のクライアントは「置き換え」ではなくローカルとのマージで扱うこと。
-  const hadServerSettings = !!data
+  // サーバーに既存の暗号化設定（settings_enc）が実在したか。行の有無ではなく settings_enc の
+  // 有無で見る（/api/user-settings と同じ判定式）。早期アクセスのフラグ付与だけで作られた
+  // user_settings 行は settings_enc が NULL のまま存在しうるため、行の存在だけを見ると
+  // 「既存設定あり」と誤判定し、次段が実データの無い base で上書き（＝実質ワイプ）してしまう。
+  // 無ければ、これから返す settings は DEFAULT_SETTINGS に新トークンを足しただけの土台であり、
+  // Algolia・team・列マッピングはすべて空になる。次段のクライアントは「置き換え」ではなく
+  // ローカルとのマージで扱うこと。
+  const hadServerSettings = !!data?.settings_enc
   if (data?.settings_enc) {
     try {
       base = { ...DEFAULT_SETTINGS, ...JSON.parse(decryptSettingsDetailed(data.settings_enc).json) }
@@ -146,6 +163,16 @@ export async function POST() {
     const detail = `state=${row.state} user=${user.id}`
     console.error(`[claim] markClaimed に失敗（設定は保存済み・token_encが残存）: ${detail}`)
     Sentry.captureException(new Error(`claim markClaimed 失敗: ${detail}`))
+  }
+
+  // 引き取りが成功した以上、同じユーザーの他のcompleted行（今回の行を除く）は
+  // 用済みなので無効化する。放置すると、対応済みのconflict行が再び最新のcompletedとして
+  // 浮上し、claimable/claimが毎起動そのまま再実行され続ける（Notion API呼び出しの無駄）。
+  const retired = await retireOtherCompleted(user.id, row.state)
+  if (!retired) {
+    const detail = `state=${row.state} user=${user.id}`
+    console.error(`[claim] retireOtherCompleted に失敗（他のcompleted行が残存の可能性）: ${detail}`)
+    Sentry.captureException(new Error(`claim retireOtherCompleted 失敗: ${detail}`))
   }
 
   // クライアントは受け取った設定をそのまま localStorage へ書き、更新時刻を now にする。

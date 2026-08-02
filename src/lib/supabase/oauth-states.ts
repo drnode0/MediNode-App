@@ -116,6 +116,26 @@ export async function markClaimed(state: string): Promise<boolean> {
   }
 }
 
+// claim成功後に呼ぶ。同じユーザーの他のcompleted行（今引き取った状態は除く）を
+// 無効化し、token_encを落とす。これをしないと、対応済みのconflict行が
+// completed_at順で再び最新として浮上し、claimable/claimが毎起動そのまま再実行されてしまう
+// （§findClaimable は user_id×status=completed で最新の1件を返すだけで、他の
+// completed行がいくつ残っていても気にしないため）。
+export async function retireOtherCompleted(userId: string, exceptState: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('oauth_states')
+      .update({ token_enc: null })
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .neq('state', exceptState)
+    return !error
+  } catch {
+    return false
+  }
+}
+
 // 自分の古い行の掃除。best-effort（失敗しても主処理は続ける）。cronは足さない。
 export async function purgeExpired(userId: string, nowMs: number): Promise<void> {
   try {
