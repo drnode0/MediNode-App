@@ -21,6 +21,11 @@ export type AppSettings = {
   notionWorkspaceName?: string
   // 認可フローでテンプレート複製が行われた場合の複製先ページID（将来のGA用に保持のみ）
   notionDuplicatedTemplateId?: string
+  // かんたん接続で置き換えられる前の手動Tokenの退避（任意）。手動接続へ戻せるようにするため
+  // claim 時にだけ書かれる。すでにOAuthのトークンを持っている人の分は上書きされない。
+  notionTokenPrev?: string
+  // 退避した notionTokenPrev がどの出自だったか（通常 'manual'）。
+  notionAuthKindPrev?: string
 
   // Algoliaモードのみ必須
   algoliaAppId: string

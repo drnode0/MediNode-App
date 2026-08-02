@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   getUserMock, hasFeatureMock, findClaimableMock, markClaimedMock,
-  maybeSingleMock, upsertMock, unreadableMock,
+  maybeSingleMock, upsertMock, unreadableMock, cryptoReadyMock,
+  rateLimitMock, captureExceptionMock,
 } = vi.hoisted(() => ({
   getUserMock: vi.fn(),
   hasFeatureMock: vi.fn(),
@@ -13,6 +14,9 @@ const {
   maybeSingleMock: vi.fn(),
   upsertMock: vi.fn(),
   unreadableMock: vi.fn(),
+  cryptoReadyMock: vi.fn(() => true),
+  rateLimitMock: vi.fn(async () => true),
+  captureExceptionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -32,13 +36,18 @@ vi.mock('@/lib/supabase/oauth-states', () => ({
 }))
 vi.mock('@/lib/notion-readability', () => ({ findUnreadableDatabases: unreadableMock }))
 vi.mock('@/lib/crypto', () => ({
-  isCryptoReady: () => true,
+  isCryptoReady: cryptoReadyMock,
   encryptSettings: (json: string) => `enc:${json}`,
   decryptSettingsDetailed: (enc: string) => {
     if (!enc.startsWith('enc:')) throw new Error('decrypt failed')
     return { json: enc.replace(/^enc:/, ''), needsReencrypt: false }
   },
 }))
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimitAsync: rateLimitMock,
+  clientIp: () => '203.0.113.1',
+}))
+vi.mock('@sentry/nextjs', () => ({ captureException: captureExceptionMock }))
 
 import { POST } from '../../app/api/notion/oauth/claim/route'
 
@@ -56,6 +65,12 @@ beforeEach(() => {
   maybeSingleMock.mockReset().mockResolvedValue({ data: null, error: null })
   upsertMock.mockReset().mockResolvedValue({ error: null })
   unreadableMock.mockReset().mockResolvedValue([])
+  cryptoReadyMock.mockReset().mockReturnValue(true)
+  rateLimitMock.mockReset().mockResolvedValue(true)
+  captureExceptionMock.mockReset()
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co'
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc'
 })
 
 describe('POST /api/notion/oauth/claim', () => {
@@ -79,16 +94,46 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(res.status).toBe(401)
   })
 
-  it('新規（既存トークンなし）は素直に保存して ok', async () => {
+  it('Supabaseのenvが未設定なら503で何も読み書きしない', async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const res = await POST()
+    expect(res.status).toBe(503)
+    expect(getUserMock).not.toHaveBeenCalled()
+  })
+
+  it('crypto未準備なら500で何も読み書きしない', async () => {
+    cryptoReadyMock.mockReturnValue(false)
+    const res = await POST()
+    expect(res.status).toBe(500)
+    expect(getUserMock).not.toHaveBeenCalled()
+  })
+
+  it('レート制限を超えたら429で何も読み書きしない（ユーザーID単位）', async () => {
+    rateLimitMock.mockResolvedValue(false)
+    const res = await POST()
+    expect(res.status).toBe(429)
+    expect(findClaimableMock).not.toHaveBeenCalled()
+    expect(rateLimitMock).toHaveBeenCalledWith(expect.stringContaining('u1'), expect.any(Number), expect.any(Number))
+  })
+
+  it('新規（既存トークンなし）は素直に保存して ok・hadServerSettingsはfalse', async () => {
     const res = await POST()
     const body = await res.json()
     expect(body.status).toBe('ok')
+    expect(body.hadServerSettings).toBe(false)
     const w = written()
     expect(w.notionToken).toBe('ntn_new')
     expect(w.notionAuthKind).toBe('oauth')
     expect(w.notionWorkspaceName).toBe('WS')
     expect(w.notionTokenPrev).toBeUndefined()
     expect(markClaimedMock).toHaveBeenCalledWith('st')
+  })
+
+  it('サーバーに既存設定行があれば hadServerSettings は true', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old' }))
+    const res = await POST()
+    const body = await res.json()
+    expect(body.hadServerSettings).toBe(true)
   })
 
   it('手動Tokenを置き換えるときは旧トークンを退避する', async () => {
@@ -114,14 +159,66 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(markClaimedMock).not.toHaveBeenCalled()
   })
 
-  it('部署（team）の設定には触らない', async () => {
+  it('既存がoauth接続でも、新トークンで既存DBが読めなければconflictにして何も書かない（Finding1: 読めるかチェックはprevKindに関わらず必ず走る）', async () => {
     maybeSingleMock.mockResolvedValue(savedSettings({
-      notionToken: 'secret_old', teamNotionToken: 'team_tok', teamNotionMedicalDbId: 'tdb',
+      notionToken: 'ntn_old', notionAuthKind: 'oauth', notionMedicalDbId: 'db1',
+    }))
+    unreadableMock.mockResolvedValue([{ role: 'medical', id: 'db1' }])
+    const res = await POST()
+    const body = await res.json()
+    expect(body.status).toBe('conflict')
+    expect(body.unreadable).toEqual([{ role: 'medical', id: 'db1' }])
+    expect(upsertMock).not.toHaveBeenCalled()
+    expect(markClaimedMock).not.toHaveBeenCalled()
+  })
+
+  it('findUnreadableDatabasesには新トークンと3ロールぶんの登録済みIDを渡す（旧トークンを渡さない・medicalだけに絞らない）', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({
+      notionToken: 'secret_old', notionMedicalDbId: 'db1', notionReferenceDbId: 'db2', notionManualDbId: 'db3',
+    }))
+    await POST()
+    expect(unreadableMock).toHaveBeenCalledWith({
+      token: 'ntn_new',
+      refs: [
+        { role: 'medical', id: 'db1' },
+        { role: 'reference', id: 'db2' },
+        { role: 'manual', id: 'db3' },
+      ],
+    })
+  })
+
+  it('部署（team）の設定・列マッピング・サブスク設定には触らない', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({
+      notionToken: 'secret_old',
+      teamNotionToken: 'team_tok', teamNotionMedicalDbId: 'tdb',
+      propSummary: '要約列', propKeywords: 'キーワード列', propKnowledgeLevel: 'レベル列', propGenre: 'ジャンル列',
+      subscriptionAppId: 'sub_app', subscriptionSearchKey: 'sub_key', subscriptionIndex: 'sub_idx',
     }))
     await POST()
     const w = written()
     expect(w.teamNotionToken).toBe('team_tok')
     expect(w.teamNotionMedicalDbId).toBe('tdb')
+    expect(w.propSummary).toBe('要約列')
+    expect(w.propKeywords).toBe('キーワード列')
+    expect(w.propKnowledgeLevel).toBe('レベル列')
+    expect(w.propGenre).toBe('ジャンル列')
+    expect(w.subscriptionAppId).toBe('sub_app')
+    expect(w.subscriptionSearchKey).toBe('sub_key')
+    expect(w.subscriptionIndex).toBe('sub_idx')
+  })
+
+  it('notionDuplicatedTemplateIdは値がある時だけ書かれる', async () => {
+    const tokenWithTemplate = { ...TOKEN, duplicatedTemplateId: 'tmpl_1' }
+    findClaimableMock.mockResolvedValue({ ...claimRow, token_enc: `enc:${JSON.stringify(tokenWithTemplate)}` })
+    await POST()
+    const w = written()
+    expect(w.notionDuplicatedTemplateId).toBe('tmpl_1')
+  })
+
+  it('notionDuplicatedTemplateIdがnullなら書かれない', async () => {
+    await POST()
+    const w = written()
+    expect(w.notionDuplicatedTemplateId).toBeUndefined()
   })
 
   it('既存設定の読み取りに失敗したら書かずに500', async () => {
@@ -136,6 +233,29 @@ describe('POST /api/notion/oauth/claim', () => {
     const res = await POST()
     expect(res.status).toBe(500)
     expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('token_encの復号に失敗したら書かずに500', async () => {
+    findClaimableMock.mockResolvedValue({ ...claimRow, token_enc: 'broken' })
+    const res = await POST()
+    expect(res.status).toBe(500)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('upsertが失敗したら500でmarkClaimedを呼ばない', async () => {
+    upsertMock.mockResolvedValue({ error: { message: 'boom' } })
+    const res = await POST()
+    expect(res.status).toBe(500)
+    expect(markClaimedMock).not.toHaveBeenCalled()
+  })
+
+  it('markClaimedがfalseでも設定保存は成功しているのでokを返し、Sentryへ報告する', async () => {
+    markClaimedMock.mockResolvedValue(false)
+    const res = await POST()
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+    expect(upsertMock).toHaveBeenCalled()
+    expect(captureExceptionMock).toHaveBeenCalled()
   })
 
   it('すでにoauthのトークンを持っている人は退避しない（Prevを上書きしない）', async () => {
