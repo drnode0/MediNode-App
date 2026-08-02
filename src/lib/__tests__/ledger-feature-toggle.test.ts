@@ -131,3 +131,70 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     expect(logMock.mock.calls[0][1].action).toBe('grant_early_access')
   })
 })
+
+// C1: レガシー early_access(boolean) は「マルチ部署検索」と「知の塔」を1つのbooleanで
+// 兼務していた。読み取り時にしか解釈されないため、配列だけを上書きするPATCHでは
+// 個別に取り消せなかった（外しても legacy true が復活させてしまう）。
+// オーナーが1行を操作した瞬間に、実効アクセスを変えないまま配列へ変換する。
+describe('PATCH /api/admin/ledger（レガシー early_access(boolean) の配列への変換・C1）', () => {
+  it('レガシーユーザー（early_access:true, 配列[]）の 知の塔 を disable → early_access:false・配列は multi_department のみ', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { early_access: true, early_access_features: [] }, error: null })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'tower', enabled: false }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock.mock.calls[0][0]).toEqual({
+      user_id: 'u1',
+      early_access_features: ['multi_department'],
+      early_access: false,
+    })
+    expect(data.features).toEqual(['multi_department'])
+    // 実効アクセス: 変換の瞬間もマルチ部署検索は持ったまま、知の塔だけが無くなる。
+  })
+
+  it('レガシーユーザーの easy_connect を enable → early_access:false・配列は正準順で3機能とも入る（何も失わない）', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { early_access: true, early_access_features: [] }, error: null })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock.mock.calls[0][0]).toEqual({
+      user_id: 'u1',
+      early_access_features: ['easy_connect', 'multi_department', 'tower'],
+      early_access: false,
+    })
+    expect(data.features).toEqual(['easy_connect', 'multi_department', 'tower'])
+  })
+})
+
+// I2: 変化の無いトグル（配列もレガシー変換も不要）でupsertすると、user_settings行がまだ無い
+// フレッシュなテスターアカウントにも行がINSERTされ、updated_at が「セットアップ完了」の
+// 判定材料として使われている /admin の集計を狂わせる。実際に変わる時だけ書き込む。
+describe('PATCH /api/admin/ledger（no-opはDBに書かない・I2）', () => {
+  it('非レガシーユーザーが持っていない機能を disable → upsert・監査ログとも呼ばれない', async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: { early_access: false, early_access_features: ['tower'] },
+      error: null,
+    })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: false }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.features).toEqual(['tower'])
+    expect(upsertMock).not.toHaveBeenCalled()
+    expect(logMock).not.toHaveBeenCalled()
+  })
+
+  it('非レガシーユーザーの実際の変更では、upsertに early_access キーを含めない（持ったことのない boolean を勝手に立てない）', async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: { early_access: false, early_access_features: ['tower'] },
+      error: null,
+    })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock).toHaveBeenCalled()
+    const payload = upsertMock.mock.calls[0][0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty('early_access')
+    expect(payload.early_access_features).toEqual(['easy_connect', 'tower'])
+    expect(data.features).toEqual(['easy_connect', 'tower'])
+  })
+})

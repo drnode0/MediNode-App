@@ -14,7 +14,9 @@ export type EarlyAccessFeature = (typeof EARLY_ACCESS_FEATURES)[number]
 
 // レガシー early_access(boolean) が意味していた機能。かんたん接続は含めない
 // （boolean 時代に存在しなかった機能なので、過去の true が新機能を開けてはいけない）。
-const LEGACY_BOOLEAN_FEATURES: readonly EarlyAccessFeature[] = ['multi_department', 'tower']
+// /admin の表示・PATCH の変換判定でも同じ定義を使うため export する（手コピーで
+// 定義がズレるのを防ぐ）。
+export const LEGACY_BOOLEAN_FEATURES: readonly EarlyAccessFeature[] = ['multi_department', 'tower']
 
 // 機能ごとの env 名。ga=全員開放、emails=指定メールのみ。
 // multi_department と tower が同じ EARLY_ACCESS_EMAILS を見るのは既存挙動の維持
@@ -72,9 +74,8 @@ export function emailInEarlyAccessList(email: string | null | undefined): boolea
 }
 
 // マルチ部署検索の開放判定。hasFeature('multi_department', …) の別名。
-export function resolveEarlyAccess(input: {
-  email?: string | null
-  ledgerEarlyAccess?: boolean | null
-}): boolean {
+// 引数は FeatureInput をそのまま使う（ledgerFeatures を省いた狭い型にすると、
+// hasFeature が実際には読んでいる台帳の機能配列を呼び出し側が渡せなくなる）。
+export function resolveEarlyAccess(input: FeatureInput): boolean {
   return hasFeature('multi_department', input)
 }

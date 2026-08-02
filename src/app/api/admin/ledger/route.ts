@@ -23,7 +23,12 @@ import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
 import { logAdminAction } from '@/lib/admin-audit'
 import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
-import { EARLY_ACCESS_FEATURES, type EarlyAccessFeature } from '@/lib/feature-access'
+import {
+  EARLY_ACCESS_FEATURES,
+  LEGACY_BOOLEAN_FEATURES,
+  resolveFeatures,
+  type EarlyAccessFeature,
+} from '@/lib/feature-access'
 import Stripe from 'stripe'
 
 export async function GET() {
@@ -302,6 +307,15 @@ export async function GET() {
           // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
           earlyAccess: earlyAccessByUser.get(u.id) ?? false,
           earlyAccessFeatures: featuresByUser.get(u.id) ?? [],
+          // 実効的に開いている機能（env の GA/メールリスト＋台帳の配列＋レガシーboolean を
+          // 合成した最終結果）。env 由来の開放は台帳の配列に出てこないため、素の
+          // earlyAccessFeatures だけでは「env で開いているのに /admin では未チェック」に
+          // 見えてしまう。/admin 側はこちらを「実際に開いているか」の表示に使う。
+          earlyAccessEffectiveFeatures: resolveFeatures({
+            email: u.email ?? null,
+            ledgerEarlyAccess: earlyAccessByUser.get(u.id) ?? false,
+            ledgerFeatures: featuresByUser.get(u.id) ?? [],
+          }),
           // アプリ内CQ投稿（cq_submissions・/admin専用の管理記録）と投票数。
           cqCount: (cqByUser.get(u.id) ?? []).length,
           cqList: cqByUser.get(u.id) ?? [],
@@ -605,24 +619,64 @@ export async function PATCH(req: NextRequest) {
       // 読み取りが失敗した場合はfail closed（書き込まない）。RLS不整合や一時的な通信断でも、
       // 空配列として扱ってしまうと他の機能を巻き添えで消してしまうため、区別せず一律で止める。
       // 一方、行がまだ無いユーザー（data: null かつ error: null）は正常系で、空配列として続行する。
+      // レガシー early_access(boolean) の解釈に使うため early_access も一緒に読む。
       const { data: cur, error: curErr } = await admin
         .from('user_settings')
-        .select('early_access_features')
+        .select('early_access, early_access_features')
         .eq('user_id', userId)
         .maybeSingle()
       if (curErr) {
         return NextResponse.json(
-          { error: '現在の設定を読み取れなかったため、変更は行っていません' },
+          {
+            error:
+              '現在の設定を読み取れなかったため、変更は行っていません（migration 0021 が未適用の可能性があります）',
+          },
           { status: 500 },
         )
       }
-      const currentFeatures = ((cur?.early_access_features as string[] | null) ?? []).filter(Boolean)
-      const nextFeatures = enabled
-        ? Array.from(new Set([...currentFeatures, key]))
-        : currentFeatures.filter((f) => f !== key)
+      const row = cur as { early_access?: boolean | null; early_access_features?: string[] | null } | null
+      const storedFeatures = (row?.early_access_features ?? []).filter(Boolean)
+      const legacyTrue = row?.early_access === true
+
+      // 正準順（EARLY_ACCESS_FEATURES の定義順）で安定させる。
+      const canonicalOrder = (features: Iterable<string>): EarlyAccessFeature[] => {
+        const set = new Set(features)
+        return EARLY_ACCESS_FEATURES.filter((f) => set.has(f))
+      }
+      const arraysEqual = (a: readonly string[], b: readonly string[]) =>
+        a.length === b.length && a.every((v, i) => v === b[i])
+
+      // 実効集合（今この人に見えている状態）＝配列 ∪（レガシーboolean が true ならその2機能）。
+      // ここに legacy を混ぜてからトグルを適用することで、初回操作の瞬間に効果が変わらない
+      // まま「配列だけが正」の状態へ変換できる（C1: レガシー付与は個別に取り消せなかった問題）。
+      const effective = new Set<string>(storedFeatures)
+      if (legacyTrue) {
+        for (const f of LEGACY_BOOLEAN_FEATURES) effective.add(f)
+      }
+      if (enabled) effective.add(key)
+      else effective.delete(key)
+      const nextFeatures = canonicalOrder(effective)
+      const storedOrdered = canonicalOrder(storedFeatures)
+
+      // 変化なし（配列も legacy 変換も不要）なら何も書かない。ここで無条件に upsert すると、
+      // user_settings 行がまだ無いユーザー（フレッシュなテスターアカウント＝まだセットアップ未完了）
+      // に INSERT が走り、updated_at が「セットアップ完了」の判定材料として使われている
+      // /admin の集計（設定完了カウント・離脱位置抽出・最終利用）を誤って進めてしまう。
+      if (arraysEqual(nextFeatures, storedOrdered) && !legacyTrue) {
+        return NextResponse.json({ ok: true, userId, feature: key, enabled, features: nextFeatures })
+      }
+
+      const upsertPayload: Record<string, unknown> = { user_id: userId, early_access_features: nextFeatures }
+      if (legacyTrue) {
+        // レガシー early_access(boolean) が意味していた開放を配列へ明示的に書き込んだので、
+        // true のまま残すと、今回外した機能も含めて再び開いてしまう。これはオーナーが
+        // この1行を操作した瞬間だけに起きる変換であり、全ユーザーへの一斉バックフィルではない
+        // （他のユーザーの行には一切触れない）。
+        upsertPayload.early_access = false
+      }
       const { error: upErr } = await admin
         .from('user_settings')
-        .upsert({ user_id: userId, early_access_features: nextFeatures }, { onConflict: 'user_id' })
+        .upsert(upsertPayload, { onConflict: 'user_id' })
       if (upErr) throw new Error(upErr.message)
       await logAdminAction(admin, {
         actorEmail: auth.email,
