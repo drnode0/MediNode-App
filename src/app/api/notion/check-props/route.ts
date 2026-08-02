@@ -27,24 +27,33 @@ export async function POST(req: NextRequest) {
     const referenceRequired = [summary, keywords]
 
     const notion = new Client({ auth: notionToken })
+    const toSchema = (props: Record<string, unknown>) =>
+      Object.entries(props).map(([name, p]) => ({
+        name,
+        type: ((p as { type?: string }).type as string) || 'unknown',
+      }))
     const result: {
-      medical: { found: string[]; missing: string[] }
-      reference?: { found: string[]; missing: string[] }
-    } = { medical: { found: [], missing: [] } }
+      medical: { found: string[]; missing: string[]; schema: Array<{ name: string; type: string }> }
+      reference?: { found: string[]; missing: string[]; schema: Array<{ name: string; type: string }> }
+    } = { medical: { found: [], missing: [], schema: [] } }
 
     // Medical DB
     const medicalDb = await notion.databases.retrieve({ database_id: notionMedicalDbId })
-    const medicalProps = Object.keys((medicalDb as any).properties || {})
+    const medicalPropsObj = ((medicalDb as { properties?: Record<string, unknown> }).properties || {}) as Record<string, unknown>
+    const medicalProps = Object.keys(medicalPropsObj)
     result.medical.found = medicalRequired.filter((p) => medicalProps.includes(p))
     result.medical.missing = medicalRequired.filter((p) => !medicalProps.includes(p))
+    result.medical.schema = toSchema(medicalPropsObj)
 
     // Reference DB（任意）
     if (notionReferenceDbId) {
       const refDb = await notion.databases.retrieve({ database_id: notionReferenceDbId })
-      const refProps = Object.keys((refDb as any).properties || {})
+      const refPropsObj = ((refDb as { properties?: Record<string, unknown> }).properties || {}) as Record<string, unknown>
+      const refProps = Object.keys(refPropsObj)
       result.reference = {
         found: referenceRequired.filter((p) => refProps.includes(p)),
         missing: referenceRequired.filter((p) => !refProps.includes(p)),
+        schema: toSchema(refPropsObj),
       }
     }
 
