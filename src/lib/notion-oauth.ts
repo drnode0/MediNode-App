@@ -52,6 +52,9 @@ export async function exchangeCode(opts: {
     // Notionは {error:'invalid_grant'} 等を返す。メッセージに載せて呼び出し側で分類する。
     throw new Error(String(data.error || `notion_oauth_http_${(res as Response).status}`))
   }
+  if (!data.access_token) {
+    throw new Error('missing_access_token')
+  }
   return {
     accessToken: String(data.access_token || ''),
     workspaceName: String(data.workspace_name || ''),

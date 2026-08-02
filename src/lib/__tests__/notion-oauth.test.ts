@@ -90,4 +90,14 @@ describe('exchangeCode', () => {
     })
     expect(res.duplicatedTemplateId).toBe('tmpl-1')
   })
+
+  it('ok応答でも access_token が無ければ例外を投げる', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ workspace_name: 'WS', workspace_id: 'w', bot_id: 'b', duplicated_template_id: null }),
+    })
+    await expect(
+      exchangeCode({ code: 'c', redirectUri: 'r', clientId: 'i', clientSecret: 's', fetchFn: fetchFn as unknown as typeof fetch }),
+    ).rejects.toThrow('missing_access_token')
+  })
 })

@@ -1193,16 +1193,20 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               </button>
               {saveMsg && <p className="text-xs text-green-600 dark:text-green-400 text-center">{saveMsg}</p>}
               <button
-                onClick={() => saveSection({
-                  notionToken: notionForm.notionToken,
-                  notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
-                  notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
-                  notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
-                  propSummary: notionForm.propSummary.trim(),
-                  propKeywords: notionForm.propKeywords.trim(),
-                  propKnowledgeLevel: notionForm.propKnowledgeLevel.trim(),
-                  propGenre: notionForm.propGenre.trim(),
-                })}
+                onClick={() => {
+                  const tokenChanged = !!notionForm.notionToken && notionForm.notionToken !== getSettings()?.notionToken
+                  saveSection({
+                    notionToken: notionForm.notionToken,
+                    notionMedicalDbId: extractNotionDbId(notionForm.notionMedicalDbId),
+                    notionReferenceDbId: notionForm.notionReferenceDbId ? extractNotionDbId(notionForm.notionReferenceDbId) : '',
+                    notionManualDbId: notionForm.notionManualDbId ? extractNotionDbId(notionForm.notionManualDbId) : '',
+                    propSummary: notionForm.propSummary.trim(),
+                    propKeywords: notionForm.propKeywords.trim(),
+                    propKnowledgeLevel: notionForm.propKnowledgeLevel.trim(),
+                    propGenre: notionForm.propGenre.trim(),
+                    ...(tokenChanged ? { notionAuthKind: 'manual' as const, notionWorkspaceName: '' } : {}),
+                  })
+                }}
                 className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 保存する
