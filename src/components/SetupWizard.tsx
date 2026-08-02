@@ -4,6 +4,8 @@ import type React from 'react'
 import { PlayCircle, User, Users, Star, Smartphone, Sparkles, CheckCircle2, FlaskConical, Gift, ClipboardList, Zap, Compass, KeyRound, Lightbulb, AlertTriangle, Link2, Siren, CircleDollarSign, Pencil, Lock, Package, Plug, Save, X, Check, Book, BookOpen, Ambulance, CreditCard, Hospital, ArrowRight, ArrowLeft, ChevronUp, ChevronDown, Settings, Eye, EyeOff, Info, ExternalLink } from 'lucide-react'
 import { Spinner } from './Spinner'
 import { saveSettings, getSettings, saveDraft, getDraft, clearDraft, saveLastSynced, extractNotionDbId, markTrialUsed, hasUsedTrial, isSetupComplete, mergeSettings, setSettingsUpdatedAt, buildPropMap, type AppSettings } from '@/lib/settings'
+import { inferPropMap } from '@/lib/prop-infer'
+import { PropMapEditor } from './PropMapEditor'
 import { NOTION_MAGAZINE_URL, NOTION_ACCOUNT_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 import { parseErrorMessage } from '@/lib/connection-errors'
@@ -729,6 +731,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // Notionステップの接続テスト（シンプルモードでは唯一の事前確認になる）
   const [notionTesting, setNotionTesting] = useState(false)
   const [notionTest, setNotionTest] = useState<{ status: 'ok' | 'warn'; missing: string[] } | null>(null)
+  // 接続テストで取得したDBのプロパティ一覧（列名の推定プリフィル＋PropMapEditorに使う）
+  const [dbSchema, setDbSchema] = useState<Array<{ name: string; type: string }> | null>(null)
   // シンプルモードで接続未確認のまま「次へ」を押したとき、一度だけ確認を促すためのフラグ。
   const [notionNextConfirm, setNotionNextConfirm] = useState(false)
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
@@ -966,6 +970,19 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         ...((data.medical?.missing || []) as string[]).map((p) => `Medical DB: 「${p}」`),
         ...((data.reference?.missing || []) as string[]).map((p) => `Reference DB: 「${p}」`),
       ]
+      // DBの列一覧を取得できたら、役割を推定して未入力の欄だけ埋める（既入力は上書きしない）
+      const schema = (data.medical?.schema as Array<{ name: string; type: string }>) || null
+      setDbSchema(schema)
+      if (schema) {
+        const inf = inferPropMap(schema)
+        setForm((f) => ({
+          ...f,
+          propSummary: f.propSummary || (inf.summary.confidence === 'likely' ? inf.summary.best || '' : ''),
+          propKeywords: f.propKeywords || (inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : ''),
+          propGenre: f.propGenre || (inf.genre.confidence === 'likely' ? inf.genre.best || '' : ''),
+          propKnowledgeLevel: f.propKnowledgeLevel || (inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : ''),
+        }))
+      }
       setNotionTest(missing.length > 0 ? { status: 'warn', missing } : { status: 'ok', missing: [] })
     } catch {
       setError('ネットワークエラーが発生しました。接続を確認してください。')
@@ -978,8 +995,21 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const renderNotionTestBlock = () => (
     <div className="space-y-2">
       {notionTest?.status === 'ok' && (
-        <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 text-center font-medium">
-          <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Notionに接続できました（必須プロパティもOK）
+        <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 space-y-1">
+          <p className="text-center font-medium">
+            <CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Notionに接続できました
+          </p>
+          {(form.propSummary || form.propKeywords || form.propGenre || form.propKnowledgeLevel) ? (
+            <p className="text-xs text-green-600 dark:text-green-300 text-center">
+              列の読み替えあり:
+              {form.propSummary && ` 要約←${form.propSummary}`}
+              {form.propKeywords && ` キーワード←${form.propKeywords}`}
+              {form.propGenre && ` ジャンル←${form.propGenre}`}
+              {form.propKnowledgeLevel && ` 知識レベル←${form.propKnowledgeLevel}`}
+            </p>
+          ) : (
+            <p className="text-xs text-green-600 dark:text-green-300 text-center">既定の列名をそのまま読みます</p>
+          )}
         </div>
       )}
       {notionTest?.status === 'warn' && (
@@ -999,31 +1029,25 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           {/* 既存DBの列名をここで読み替える。何百枚のページを一括編集させないための逃げ道。
               入力後に「もう一度テスト」でその名前の存在を確認する。 */}
           <div className="space-y-2 pt-1">
-            {([
-              ['propSummary', '要約', '例: サマリー'],
-              ['propKeywords', 'キーワード', '例: タグ'],
-              ['propGenre', 'ジャンル', '例: カテゴリ'],
-            ] as const).map(([key, label, ph]) => (
-              <div key={key}>
-                <label className="block text-[11px] font-medium text-amber-800 dark:text-amber-200 mb-0.5">
-                  「{label}」にあたる列名
-                </label>
-                <input
-                  type="text"
-                  value={form[key]}
-                  onChange={(e) => update(key, e.target.value)}
-                  placeholder={ph}
-                  className="w-full border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-            ))}
+            {dbSchema && (
+              <PropMapEditor
+                schema={dbSchema}
+                value={{
+                  propSummary: form.propSummary,
+                  propKeywords: form.propKeywords,
+                  propKnowledgeLevel: form.propKnowledgeLevel,
+                  propGenre: form.propGenre,
+                }}
+                onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+              />
+            )}
             <button
               type="button"
               onClick={handleNotionTest}
               disabled={notionTesting}
               className="w-full border border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200 rounded-lg py-2 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
             >
-              {notionTesting ? '確認中...' : 'この列名でもう一度テスト'}
+              {notionTesting ? '確認中...' : 'この設定でもう一度テスト'}
             </button>
           </div>
         </div>
