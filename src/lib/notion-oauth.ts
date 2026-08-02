@@ -1,6 +1,7 @@
 // Notion OAuth（かんたん接続）のヘルパー。サーバー専用（client_secretを扱う）。
 // 認可URLの組み立てと、認可コード→アクセストークンの交換のみを担当する。
-// トークンの保存は /api/notion/oauth/callback が既存の暗号化設定保存に委ねる。
+// 交換で得たトークンの保存はこのモジュールの外（callback が oauth_states 行に
+// 暗号化して一時的に置く）で行う。user_settings への書き込みはここでは行わない。
 
 export type NotionOAuthToken = {
   accessToken: string
