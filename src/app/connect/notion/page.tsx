@@ -7,6 +7,7 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { buildAuthorizeUrl } from '@/lib/notion-oauth'
+import { redirectUriFromHost } from '@/lib/oauth-redirect'
 import { takePendingState } from '@/lib/supabase/oauth-states'
 import { CopyLink } from './CopyLink'
 
@@ -23,8 +24,12 @@ export default async function ConnectNotionPage({
   const { s } = await searchParams
   const state = s || ''
   const row = state ? await takePendingState(state, Date.now()) : null
+  const clientId = process.env.NOTION_OAUTH_CLIENT_ID || ''
 
-  if (!row) {
+  // client_id 未設定はサーバー側の設定ミスだが、無効な state と同じ「使えません」に
+  // 倒す。ここを出し分けると、訪問者に「自分のリンクの問題か、サーバー側の問題か」を
+  // 教えてしまうことになる（callback 側が clientId 欠如を quietError に倒すのと対称）。
+  if (!row || !clientId) {
     return (
       <main className="min-h-screen bg-gray-50 dark:bg-gray-900 px-6 py-12">
         <div className="max-w-sm mx-auto space-y-4 text-center">
@@ -41,13 +46,11 @@ export default async function ConnectNotionPage({
   }
 
   // redirect_uri は callback 側が組み立てる値と1文字でも違うと Notion が交換を拒む。
-  // callback は req.url から作るので、こちらもリクエストのホストから作って揃える
+  // 双方が共有ヘルパー（src/lib/oauth-redirect.ts）を通ることで一致を保証する
   // （NEXT_PUBLIC_APP_URL は末尾スラッシュや別ドメインでずれる余地があるので使わない）。
   const h = await headers()
   const host = h.get('host') || ''
-  const proto = h.get('x-forwarded-proto') || (host.startsWith('localhost') ? 'http' : 'https')
-  const clientId = process.env.NOTION_OAUTH_CLIENT_ID || ''
-  const redirectUri = `${proto}://${host}/api/notion/oauth/callback`
+  const redirectUri = redirectUriFromHost({ host, forwardedProto: h.get('x-forwarded-proto') })
   const authorizeUrl = buildAuthorizeUrl({ clientId, redirectUri, state })
 
   const primaryButton = (

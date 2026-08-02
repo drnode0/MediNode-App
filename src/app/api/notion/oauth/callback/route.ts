@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { encryptSettings, isCryptoReady } from '@/lib/crypto'
 import { exchangeCode } from '@/lib/notion-oauth'
+import { redirectUriFromRequestUrl } from '@/lib/oauth-redirect'
 import { takePendingState, markCompleted } from '@/lib/supabase/oauth-states'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
 
   let token
   try {
-    const redirectUri = new URL('/api/notion/oauth/callback', req.url).toString()
+    const redirectUri = redirectUriFromRequestUrl(req.url)
     token = await exchangeCode({ code, redirectUri, clientId, clientSecret })
   } catch {
     return quietError(req)
