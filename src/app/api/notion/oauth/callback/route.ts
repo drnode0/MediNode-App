@@ -1,100 +1,57 @@
-// かんたん接続の出口。state検証→コードをトークンに交換→既存の暗号化設定保存
-// （user_settings）へ notionToken としてマージ→アプリへ戻す。
-// クライアントは既存のSettingsSync（サーバー優先のlast-write-wins）で受け取るため、
-// ここで updated_at を now にすることが「復元される」ための条件になる。
+// かんたん接続の出口。v1と違い Cookie もセッションも見ない。
+//
+// なぜか: スタンドアロンPWAのストレージはSafari本体と別なので、PWAから認可へ出ると
+// その先のブラウザに MediNode のセッションが無い。v1はここでユーザーを特定していたため、
+// 認可がどこで完了してもログイン扱いにならず完走できなかった（設計書§1の原因②）。
+//
+// 代わりに state が唯一の鍵になる。だから無効な state は理由を出し分けず、すべて同じ
+// 静かなエラーへ倒す（列挙攻撃に情報を返さない・§6）。
+//
+// そして成功してもトークンは user_settings には入れない。oauth_states に暗号化して置き、
+// 本人のログイン済みセッションからの claim を経て初めて設定へ入る（セッション固定対策）。
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
-import { exchangeCode, STATE_COOKIE } from '@/lib/notion-oauth'
+import { encryptSettings, isCryptoReady } from '@/lib/crypto'
+import { exchangeCode } from '@/lib/notion-oauth'
+import { takePendingState, markCompleted } from '@/lib/supabase/oauth-states'
 
-// サーバーに設定行がまだ無いユーザー向けの土台（クライアントのsaveSection既定と同型）。
-const DEFAULT_SETTINGS = {
-  searchMode: 'notion',
-  notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
-  algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-  teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
-  subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
-  propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+function done(req: NextRequest, params: Record<string, string>): NextResponse {
+  const url = new URL('/connect/notion/done', req.url)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  return NextResponse.redirect(url)
 }
 
-function back(req: NextRequest, query: string): NextResponse {
-  const res = NextResponse.redirect(new URL(`/?${query}`, req.url))
-  res.cookies.set(STATE_COOKIE, '', { httpOnly: true, maxAge: 0, path: '/' })
-  return res
+// 失敗はすべてこの1本に集約する。理由をURLに出さない。
+function quietError(req: NextRequest): NextResponse {
+  return done(req, { e: '1' })
 }
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   const clientSecret = process.env.NOTION_OAUTH_CLIENT_SECRET
-  if (!clientId || !clientSecret || !isCryptoReady()) {
-    return back(req, 'oauthError=unconfigured')
-  }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return back(req, 'oauthError=login')
+  if (!clientId || !clientSecret || !isCryptoReady()) return quietError(req)
 
   const params = req.nextUrl.searchParams
-  if (params.get('error')) {
-    // ユーザーが認可画面で「キャンセル」した場合など。エラー扱いにせず静かに戻す。
-    return back(req, 'oauthError=denied')
-  }
+  // 認可画面でキャンセルした場合もここに来る。エラー扱いにはするが理由は出さない。
+  if (params.get('error')) return quietError(req)
+
   const code = params.get('code') || ''
   const state = params.get('state') || ''
-  const cookieState = req.cookies.get(STATE_COOKIE)?.value || ''
-  if (!code || !state || !cookieState || state !== cookieState) {
-    return back(req, 'oauthError=state')
-  }
+  if (!code || !state) return quietError(req)
+
+  const row = await takePendingState(state, Date.now())
+  if (!row) return quietError(req)
 
   let token
   try {
     const redirectUri = new URL('/api/notion/oauth/callback', req.url).toString()
     token = await exchangeCode({ code, redirectUri, clientId, clientSecret })
   } catch {
-    return back(req, 'oauthError=exchange')
+    return quietError(req)
   }
 
-  // 既存のサーバー設定を読み、notionToken系だけ差し替えて保存する（他項目は温存）。
-  // 「行が無い」場合だけDEFAULTからの新規作成を許可する。読み取り自体の失敗（DB一時エラー等）や
-  // 既存行の復号失敗（鍵ローテーション窓など）でDEFAULTへフォールバックすると、
-  // 既存の全設定をDEFAULTで上書きしたまま「成功」扱いになってしまうため、その場合は書き込まず中断する。
-  const admin = createAdminClient()
-  let base: Record<string, unknown> = { ...DEFAULT_SETTINGS }
-  const { data, error: readError } = await admin
-    .from('user_settings')
-    .select('settings_enc')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (readError) return back(req, 'oauthError=save')
-  if (data?.settings_enc) {
-    try {
-      const { json } = decryptSettingsDetailed(data.settings_enc)
-      base = { ...DEFAULT_SETTINGS, ...JSON.parse(json) }
-    } catch {
-      // 復号できない既存行をDEFAULTで上書きすると全設定を失う。書き込まずに中断する。
-      return back(req, 'oauthError=save')
-    }
-  }
+  // トークン一式をそのまま暗号化して置く（claim 側で復号して設定へマージする）。
+  const ok = await markCompleted(state, encryptSettings(JSON.stringify(token)), new Date().toISOString())
+  if (!ok) return quietError(req)
 
-  const merged = {
-    ...base,
-    notionToken: token.accessToken,
-    notionAuthKind: 'oauth',
-    notionWorkspaceName: token.workspaceName,
-    ...(token.duplicatedTemplateId ? { notionDuplicatedTemplateId: token.duplicatedTemplateId } : {}),
-  }
-
-  try {
-    const { error } = await admin
-      .from('user_settings')
-      .upsert(
-        { user_id: user.id, settings_enc: encryptSettings(JSON.stringify(merged)), updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      )
-    if (error) return back(req, 'oauthError=save')
-  } catch {
-    return back(req, 'oauthError=save')
-  }
-
-  return back(req, 'oauth=notion-done')
+  return done(req, { s: state })
 }

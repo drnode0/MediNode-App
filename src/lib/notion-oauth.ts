@@ -2,8 +2,6 @@
 // 認可URLの組み立てと、認可コード→アクセストークンの交換のみを担当する。
 // トークンの保存は /api/notion/oauth/callback が既存の暗号化設定保存に委ねる。
 
-export const STATE_COOKIE = 'medinode_notion_oauth_state'
-
 export type NotionOAuthToken = {
   accessToken: string
   workspaceName: string
