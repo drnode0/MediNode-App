@@ -99,10 +99,11 @@
 <div class="panel">
   <h2>茂　り　の　濃　さ</h2>
   <div class="ctl"><label>葉の数</label>
-    <input type="range" id="n" min="7" max="20" step="1" value="12"><span class="val" id="nV">12</span></div>
+    <input type="range" id="n" min="7" max="20" step="1" value="11"><span class="val" id="nV">11</span></div>
   <p class="note">節間 ÷ 葉身長 = <b id="ratio">–</b>
     <span class="band">実測の自然な帯 0.22〜0.40（熱帯林床24種の中央値0.22／つる Monstera 0.39〜0.40）</span></p>
-  <p class="note band">本物の蔓は2割前後は重なっている（自己被陰率 0.18〜0.32）。重なりゼロは不自然。</p>
+  <p class="note band">本物の蔓は2割前後は重なっている（自己被陰率 0.18〜0.32）。ただしここは<b>近景</b>の絵で、
+    実データでは葉95枚から先は1枚ずつ描けない——遠景は「巻」に集約する。→ <b>2026-08-02-vine-rules.html</b></p>
 </div>
 <div class="legend">
   <h2>葉　の　状　態　見　本</h2>
@@ -288,7 +289,7 @@
   }
   document.getElementById('replay').addEventListener('click', play)
   document.getElementById('n').addEventListener('input', e => { build(+e.target.value); play() })
-  build(12)
+  build(11)
   Promise.all([...document.images].map(i => i.decode().catch(() => {}))).then(() => setTimeout(play, 300))
 })()
 </script>

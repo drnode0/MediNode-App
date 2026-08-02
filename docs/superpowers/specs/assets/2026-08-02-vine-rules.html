@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知の蔓 — 何をしたら何が生えるのか</title>
+<style>
+  body { margin:0; background:#e7dfc9; display:flex; flex-direction:column; align-items:center; gap:12px;
+         padding:14px 14px 40px; font-family:"Hiragino Mincho ProN",serif; color:#3d3627; }
+  .card { width:min(400px,96vw); background:#f2ead6; border-radius:14px;
+          box-shadow:0 4px 18px rgba(60,50,30,.18); }
+  .card h2 { margin:0; padding:12px 16px 4px; font-size:11px; font-weight:normal;
+             letter-spacing:.25em; color:#7d6f52; }
+  .stage { position:relative; height:430px; overflow:hidden; border-radius:14px 14px 0 0; }
+  .stage img { position:absolute; user-select:none; -webkit-user-drag:none; }
+  .ground { position:absolute; left:6%; right:6%; bottom:40px; border-bottom:3px solid rgba(44,42,34,.45); border-radius:50%; }
+  .vineWrap { position:absolute; left:30px; bottom:42px; width:180px; height:0; overflow:hidden; }
+  .vineCol { position:absolute; bottom:0; left:0; width:180px; }
+  .vineCol img { position:absolute; }
+  .cup { right:16px; bottom:42px; width:132px; }
+  .readout { position:absolute; top:12px; left:16px; }
+  .readout .n { font-size:12px; color:#7d6f52; letter-spacing:.1em; }
+  .readout .h { font-size:26px; color:#2c2a22; line-height:1.15; }
+  .readout .next { font-size:11px; color:#8a7f63; }
+  .scaleNote { position:absolute; top:14px; right:14px; text-align:right; font-size:10px;
+               color:#a39678; line-height:1.6; }
+  .warn { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:#9a6b52; }
+
+  .leafPos { position:absolute; }
+  .leafArt { position:absolute; inset:0;
+             -webkit-mask-image:url(generated/alpha/leaf_single.png); mask-image:url(generated/alpha/leaf_single.png);
+             -webkit-mask-size:100% 100%; mask-size:100% 100%; }
+  .leafLine { position:absolute; inset:0;
+              -webkit-mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),
+                                 url(generated/alpha/leaf_single.png);
+              mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),
+                         url(generated/alpha/leaf_single.png);
+              -webkit-mask-size:100% 100%; mask-size:100% 100%;
+              -webkit-mask-composite:source-in,source-in; mask-composite:intersect,intersect; }
+  .sprout { animation:pop .38s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop { from{transform:scale(0)} 70%{transform:scale(1.16)} to{transform:scale(1)} }
+
+  .acts { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px 14px 14px; }
+  .act { display:flex; align-items:center; gap:9px; background:#faf5e8; border:1px solid #ded2b4;
+         border-radius:11px; padding:8px 9px; font-family:inherit; text-align:left; cursor:pointer; }
+  .act:active { background:#f3ecda; }
+  .act .chip { position:relative; width:34px; height:34px; flex:none; }
+  .act .t { font-size:12.5px; color:#2c2a22; }
+  .act .c { font-size:9.5px; color:#8a7f63; line-height:1.5; }
+  .row2 { display:flex; gap:8px; padding:0 14px 14px; }
+  .row2 button { flex:1; background:#efe7d2; border:1px solid #ded2b4; border-radius:11px;
+                 padding:9px; font-family:inherit; font-size:12px; color:#5c5340; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th, td { padding:5px 6px; border-bottom:1px solid #e3d9bf; text-align:right; }
+  th { color:#8a7f63; font-weight:normal; font-size:10px; }
+  td:first-child, th:first-child { text-align:left; }
+  tr.mark td { color:#9a6b52; }
+  .body { padding:6px 16px 16px; font-size:11.5px; line-height:1.85; }
+  .body p { margin:0 0 8px; }
+  .body b { font-weight:normal; color:#2c2a22; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="stage" id="stage">
+    <div class="readout">
+      <div class="n"><span id="cnt">0</span> 枚</div>
+      <div class="h" id="hgt">0mm</div>
+      <div class="next" id="next">つぎは アリ 5mm</div>
+    </div>
+    <div class="scaleNote" id="scaleNote"></div>
+    <div class="ground"></div>
+    <img class="cup" src="generated/alpha/object_yunomi.png" alt="">
+    <div class="vineWrap" id="vineWrap">
+      <div class="vineCol" id="vineCol">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:0; left:0; width:160px">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:212px; left:16px; width:132px; transform:scaleX(-1)">
+        <img src="generated/alpha/vine_seg_young_a.png" style="bottom:382px; left:30px; width:108px">
+      </div>
+    </div>
+    <div class="leafBox" id="leaves" style="position:absolute; inset:0; pointer-events:none"></div>
+    <div class="warn" id="warn"></div>
+  </div>
+  <h2>し　た　こ　と　→　生　え　る　葉</h2>
+  <div class="acts" id="acts"></div>
+  <div class="row2">
+    <button id="skip">90日 経つ</button>
+    <button id="bulk">まとめて30回</button>
+    <button id="reset">はじめから</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>伸　び　方（実装済みの定数）</h2>
+  <div class="body">
+    <p><b>葉が1枚ひらくと、蔓が2mm伸びる。</b>ネコ（葉125枚＝25cm）から先は1枚ごとに +0.8% の複利になる。</p>
+    <p>だから同じ1枚でも、葉200枚のときは4mm、500枚のときは3.9cm、1000枚のときは2.1m伸びる。<b>同じ行為が、続けた人ほど遠くまで運ぶ。</b></p>
+  </div>
+  <table id="scaleTable"></table>
+  <div class="body" style="padding-top:12px">
+    <p id="verdict"></p>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── 実装済みの定数（src/lib/vine-ladder.ts / tower-steps.ts と一致）──
+  const MM_PER_LEAF = 2, COMPOUND_START = 125, COMPOUND_RATE = 0.008
+  const BASE_MM = COMPOUND_START * MM_PER_LEAF
+  const heightMm = n => n <= COMPOUND_START ? n * MM_PER_LEAF
+                      : BASE_MM * Math.pow(1 + COMPOUND_RATE, n - COMPOUND_START)
+  const fmt = mm => mm < 10 ? Math.round(mm) + 'mm'
+                  : mm < 1000 ? (mm/10).toFixed(1).replace(/\.0$/,'') + 'cm'
+                  : (mm/1000).toFixed(2).replace(/\.?0+$/,'') + 'm'
+  const LADDER = [[5,'アリ'],[8,'テントウムシ'],[20,'ドングリ'],[35,'カタツムリ'],[70,'湯のみ'],
+    [100,'スズメ'],[250,'ネコ'],[398,'一升瓶'],[750,'番傘'],[900,'ニホンジカ'],[1400,'タンチョウ'],
+    [1700,'ヒト'],[3000,'白象'],[5000,'鳥居'],[12000,'合掌造りの民家'],[15000,'奈良の大仏'],
+    [25000,'ご神木の大杉'],[54800,'五重塔'],[133000,'那智の滝'],[350000,'称名滝'],[877000,'筑波山'],
+    [1982000,'石鎚山'],[3015000,'立山'],[3776000,'富士山']]
+  const nextOf = mm => LADDER.find(m => m[0] > mm) || [3776000,'富士山（この先は雲の上）']
+  const prevMmOf = mm => { let p = 0; for (const m of LADDER) { if (m[0] <= mm) p = m[0]; else break } return p }
+
+  // ── 葉の状態機械（src/lib/vine-leaves.ts と一致）──
+  //  read=輪郭のみ（褪せない）/ wrote=双葉（褪せない）/ recall・repolish=青葉（90日で色褪せ）
+  //  一度褪せてから磨き直した葉だけが「照り葉」になる
+  const COLORS = { aoba:'#5c6a43', teri:'#333f26', fade:'#c6cbc2' }
+  function paint(el, form, fade, teri) {
+    el.innerHTML = ''
+    const add = (cls, css) => { const d = document.createElement('div'); d.className = cls
+      Object.assign(d.style, css); el.appendChild(d); return d }
+    if (form === 'outline') { add('leafLine', { background:'#2b281f' }); return }
+    if (teri) {
+      add('leafArt', { background:COLORS.teri })
+      add('leafArt', { background:COLORS.teri, opacity:'.62' })
+      add('leafArt', { background:'linear-gradient(112deg,rgba(255,255,255,0) 6%,rgba(255,255,255,.72) 18%,rgba(255,255,255,.16) 30%,rgba(255,255,255,0) 42%)' })
+      add('leafLine', { background:'rgba(22,30,18,.7)' }); return
+    }
+    if (fade > 0.05) {
+      add('leafArt', { background:COLORS.fade, opacity: (0.35 + 0.65*fade).toFixed(2) })
+      add('leafArt', { background:COLORS.aoba, opacity: (1 - fade).toFixed(2) })
+      add('leafLine', { background:'rgba(104,110,102,.72)' }); return
+    }
+    add('leafArt', { background:COLORS.aoba })
+  }
+
+  // ── 状態 ──
+  const AX = .203, AY = .813, GOLDEN = 137.507764
+  const STAGE_H = 430, GROUND = 42, VIEWPORT_RATIO = 0.7
+  let leaves = []          // {form, fade, teri, day}
+  let today = 0            // 経過日
+
+  const stage = document.getElementById('stage')
+  const wrap = document.getElementById('vineWrap')
+  const col = document.getElementById('vineCol')
+  const box = document.getElementById('leaves')
+
+  const ACTIONS = [
+    { key:'read',  form:'outline', t:'読んだ',    c:'知識を開いた。まだ色はない。1件につき一生に1回' },
+    { key:'wrote', form:'futaba',  t:'書いた',    c:'自分の記録を残した。褪せない。1件につき1回' },
+    { key:'recall',form:'green',   t:'思い出せた', c:'クイズで初めて即答できた。1件につき1回' },
+    { key:'repolish', form:'green', teri:true, t:'磨き直した', c:'90日たって褪せた葉を、もう一度思い出せた' },
+  ]
+
+  function add(a) {
+    // 磨き直しは「褪せた青葉」がないと起きない（実装の recallKind と同じ条件）
+    if (a.key === 'repolish') {
+      const target = leaves.find(l => l.form === 'green' && l.fade > 0 && !l.teri)
+      if (!target) { flash('褪せた葉がないと磨き直せない（90日 経つ を押す）'); return }
+      target.fade = 0; target.teri = true
+    }
+    leaves.push({ form:a.form, fade:0, teri:false, day:today, fresh:true })
+    render()
+  }
+  function flash(msg) {
+    const w = document.getElementById('warn')
+    w.textContent = msg
+    clearTimeout(flash.t); flash.t = setTimeout(() => render(), 2200)
+  }
+
+  function render() {
+    const n = leaves.length
+    const mm = heightMm(n)
+    const [nextMm, nextLabel] = nextOf(mm)
+    // シーン縮尺（src/lib/vine-ladder.ts sceneForLeaves と同じ規則）
+    const pxPerMm = (STAGE_H * VIEWPORT_RATIO) / nextMm
+    const vinePx = Math.min(STAGE_H - GROUND - 8, mm * pxPerMm)
+    wrap.style.height = vinePx + 'px'
+    col.style.height = Math.max(vinePx, 1) + 'px'
+    document.getElementById('cnt').textContent = n
+    document.getElementById('hgt').textContent = fmt(mm)
+    document.getElementById('next').textContent = 'つぎは ' + nextLabel + ' ' + fmt(nextMm)
+
+    // 葉を、それが生えた時点の高さに置く
+    box.innerHTML = ''
+    let minGap = Infinity, prevY = null
+    leaves.forEach((l, i) => {
+      const y = heightMm(i + 1) * pxPerMm
+      if (prevY !== null) minGap = Math.min(minGap, y - prevY)
+      prevY = y
+      const th = i * GOLDEN * Math.PI / 180
+      const sx = Math.sin(th)
+      const px = 30 + 26 * Math.min(1, vinePx / 260)   // 蔓が育つほど葉も大きく見える
+      const el = document.createElement('div')
+      el.className = 'leafPos' + (l.fresh ? ' sprout' : '')
+      el.style.width = el.style.height = px + 'px'
+      const cx = 108 + 16 * Math.sin(y / 46)           // 蔓のうねりに沿わせる
+      el.style.left = (cx - AX * px) + 'px'
+      el.style.bottom = (GROUND + y - (1 - AY) * px) + 'px'
+      el.style.transformOrigin = (AX*100) + '% ' + (AY*100) + '%'
+      const fore = 0.46 + 0.54 * Math.abs(sx)
+      const rot = 14 - 30 * Math.min(1, y / vinePx || 0)
+      el.style.transform = `scaleX(${(sx < 0 ? -fore : fore).toFixed(3)}) rotate(${rot.toFixed(1)}deg)`
+      if (l.form === 'futaba') {
+        // 双葉＝小さい葉を左右に一対。※専用アセット未発注（発注書に追記済み）
+        const a = document.createElement('div'); a.className = 'leafPos'
+        a.style.cssText = el.style.cssText; a.style.transform = `scaleX(${(fore*0.62).toFixed(3)}) rotate(-14deg)`
+        const b = document.createElement('div'); b.className = 'leafPos'
+        b.style.cssText = el.style.cssText; b.style.transform = `scaleX(${(-fore*0.62).toFixed(3)}) rotate(-14deg)`
+        paint(a, 'green', 0, false); paint(b, 'green', 0, false)
+        box.appendChild(a); box.appendChild(b)
+      } else {
+        paint(el, l.form, l.fade, l.teri)
+        box.appendChild(el)
+      }
+      l.fresh = false
+    })
+    // 葉が1枚ずつ見えているか
+    const note = document.getElementById('scaleNote')
+    note.innerHTML = n < 2 ? '' :
+      '葉の間隔 ' + minGap.toFixed(1) + 'px<br>' + (minGap < 6 ? '<span style="color:#9a6b52">1枚ずつは描けない</span>' : '1枚ずつ見える')
+    document.getElementById('warn').textContent =
+      minGap < 6 && n > 2 ? '葉が重なって潰れている——ここから先は「巻」に集約する領域' : ''
+  }
+
+  // ── 行為ボタン ──
+  const acts = document.getElementById('acts')
+  ACTIONS.forEach(a => {
+    const b = document.createElement('button')
+    b.className = 'act'
+    const chip = document.createElement('div'); chip.className = 'chip'
+    if (a.key === 'wrote') {
+      const l = document.createElement('div'); l.className = 'leafPos'
+      l.style.cssText = 'position:absolute;inset:0;transform:scaleX(.6)'
+      const r = document.createElement('div'); r.className = 'leafPos'
+      r.style.cssText = 'position:absolute;inset:0;transform:scaleX(-.6)'
+      paint(l, 'green', 0, false); paint(r, 'green', 0, false)
+      chip.appendChild(l); chip.appendChild(r)
+    } else {
+      const d = document.createElement('div'); d.style.cssText = 'position:absolute;inset:0'
+      paint(d, a.form, 0, !!a.teri); chip.appendChild(d)
+    }
+    const txt = document.createElement('div')
+    txt.innerHTML = `<div class="t">${a.t}</div><div class="c">${a.c}</div>`
+    b.appendChild(chip); b.appendChild(txt)
+    b.addEventListener('click', () => add(a))
+    acts.appendChild(b)
+  })
+  document.getElementById('skip').addEventListener('click', () => {
+    today += 90
+    leaves.forEach(l => { if (l.form === 'green' && !l.teri && today - l.day >= 90) l.fade = 1 })
+    render()
+  })
+  document.getElementById('bulk').addEventListener('click', () => {
+    for (let i = 0; i < 30; i++) leaves.push({ form: i % 3 === 0 ? 'outline' : 'green', fade:0, teri:false, day:today })
+    render()
+  })
+  document.getElementById('reset').addEventListener('click', () => { leaves = []; today = 0; render() })
+
+  // ── スケール表 ──
+  const rows = [30, 95, 125, 200, 300, 500, 900, 1333]
+  const labelOf = mm => { let p = '—'; for (const m of LADDER) { if (m[0] <= mm) p = m[1]; else break } return p }
+  let html = '<tr><th>葉</th><th>相当する知識</th><th>高さ</th><th>実物</th><th>葉の間隔</th></tr>'
+  rows.forEach(n => {
+    const mm = heightMm(n)
+    const px = (STAGE_H * VIEWPORT_RATIO) / nextOf(mm)[0]
+    const gap = (mm - heightMm(n - 1)) * px
+    const mark = (n === 95 || n === 1333) ? ' class="mark"' : ''
+    html += `<tr${mark}><td>${n}枚</td><td>${Math.round(n/3)}件</td><td>${fmt(mm)}</td>` +
+            `<td>${labelOf(mm)}</td><td>${gap < 0.1 ? '&lt;0.1' : gap.toFixed(1)}px</td></tr>`
+  })
+  document.getElementById('scaleTable').innerHTML = html
+  document.getElementById('verdict').innerHTML =
+    '「相当する知識」は、自分で書いた知識1件を育てきると葉3枚（読んだ・書いた・思い出せた）になる換算。<br><br>' +
+    '<b>葉95枚＝知識およそ32件で、画面に葉を1枚ずつ描けなくなる。</b>' +
+    'ここが最初の壁で、想像よりずっと早く来る。答えは「巻」——30歩ごとに束ねて、古い区間は一巻の帯として見せる。<br><br>' +
+    '<b>葉1333枚＝知識およそ444件で、富士山に届いてラダーを使い切る。</b>' +
+    'その先は仕様どおり「雲の上」＝測れない領域になる。'
+
+  render()
+})()
+</script>
+</body>
+</html>
