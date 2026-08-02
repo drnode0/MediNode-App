@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>知の蔓 — 成長の見た目（完成形寄せ）</title>
+<title>知の蔓 — 成長の見た目（筆致マスク彩色）</title>
 <style>
-  body { margin:0; background:#e7dfc9; display:flex; justify-content:center; padding:14px;
+  body { margin:0; background:#e7dfc9; display:flex; flex-direction:column; align-items:center; gap:12px; padding:14px;
          font-family:"Hiragino Mincho ProN",serif; }
   .frame { width:min(400px,96vw); background:#f2ead6; border-radius:14px; overflow:hidden;
            box-shadow:0 6px 30px rgba(60,50,30,.25); position:relative; }
@@ -22,24 +22,36 @@
   .suzume { right:66px; bottom:58px; width:70px; transition:transform .55s cubic-bezier(.34,1.4,.64,1); }
   .usagi { left:148px; bottom:58px; width:92px; transform-origin:50% 100%; animation:bob 5.4s ease-in-out infinite alternate; }
   @keyframes bob { from{transform:rotate(-.6deg)} to{transform:rotate(.7deg)} }
-  .leafPos { position:absolute; width:52px; height:34px; }
-  .leafPop { opacity:0; transform-origin:8% 60%; }
+  /* 葉＝筆致PNG(leaf_single)のアルファをマスクに、状態色をCSSで塗る。
+     アンカー（葉柄の先）は画像の 20.3% / 81.3% — ここを茎の中心線に吸着させる */
+  .leafPos { position:absolute; }
+  .leafPop { opacity:0; transform-origin:20.3% 81.3%; }
   .leafPop.on { opacity:1; animation:pop .34s cubic-bezier(.34,1.56,.64,1); }
   @keyframes pop { from{transform:scale(0)} 70%{transform:scale(1.18)} to{transform:scale(1)} }
-  .swayer { transform-origin:8% 60%; animation:leafSway 4.2s ease-in-out infinite alternate; }
+  .swayer { transform-origin:20.3% 81.3%; animation:leafSway 4.2s ease-in-out infinite alternate; }
   @keyframes leafSway { from{transform:rotate(-2.4deg)} to{transform:rotate(2.8deg)} }
-  .leafPos svg { overflow:visible; display:block; }
+  .leafArt { -webkit-mask-image:url(generated/alpha/leaf_single.png); mask-image:url(generated/alpha/leaf_single.png);
+             -webkit-mask-size:100% 100%; mask-size:100% 100%; }
   .label { position:absolute; top:14px; left:18px; font-size:11px; letter-spacing:.3em; color:#7d6f52; }
   .h { position:absolute; top:30px; left:18px; font-size:24px; color:#2c2a22; }
   .cap { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:#a39678; }
   button { position:absolute; top:14px; right:14px; font-family:inherit; font-size:12px;
            background:#faf5e8; border:1px solid #cbbf9f; border-radius:18px; padding:6px 12px; }
+  /* 状態見本パネル */
+  .legend { width:min(400px,96vw); background:#f2ead6; border-radius:14px; padding:12px 8px 8px;
+            box-shadow:0 4px 18px rgba(60,50,30,.18); }
+  .legend h2 { margin:0 0 4px 14px; font-size:11px; font-weight:normal; letter-spacing:.25em; color:#7d6f52; }
+  .legend .row { display:flex; justify-content:space-around; align-items:flex-end; }
+  .legend .cell { text-align:center; }
+  .legend .cell .box { position:relative; width:86px; height:86px; margin:0 auto; }
+  .legend .cell .box > div { position:absolute; inset:0; }
+  .legend .cell p { margin:2px 0 0; font-size:10px; color:#6d6249; }
 </style>
 </head>
 <body>
 <div class="frame">
   <div class="stage" id="stage">
-    <div class="label">知　の　蔓（成長の見た目・完成形寄せ）</div>
+    <div class="label">知　の　蔓（筆致マスク彩色）</div>
     <div class="h" id="h">0cm</div>
     <button id="replay">もう一度</button>
     <div class="ground"></div>
@@ -55,8 +67,12 @@
     <img class="tip" id="tip" src="generated/alpha/vine_tip.png" alt="">
     <img class="suzume" id="suzume" src="generated/alpha/resident_suzume.png" alt="">
     <div id="leaves"></div>
-    <div class="cap">数ヶ月育った蔓のイメージ——太さ3段階（若→中→縄）・葉はコード描画で茎に吸着・つなぎ目は葉の茂みが結ぶ</div>
+    <div class="cap">葉＝筆の型（leaf_single）のマスク彩色。墨の葉脈・輪郭は濃淡として型に残る</div>
   </div>
+</div>
+<div class="legend">
+  <h2>葉　の　状　態　見　本</h2>
+  <div class="row" id="legendRow"></div>
 </div>
 <script>
 (() => {
@@ -67,32 +83,81 @@
   const leavesBox = document.getElementById('leaves')
   const MAX = 560
   const CM_PER_PX = 7 / 120
-  // x = 実画像の墨画素から測定した蔓中心線（stem_x測定値）。葉はここに吸着する
+  // アンカー（葉柄の先）: 実画像の墨画素から測定 (255,1019)/1254
+  const AX = 0.203, AY = 0.813
+  // 状態色: 青葉=苔色 / 照り=艶の勾配 / fade=銀鼠〜月白（茶色禁止）
+  const COLORS = {
+    aoba:  '#4c5a3c',
+    teri:  'linear-gradient(115deg,#8a9a5e 0%,#4c5a3c 48%,#36452c 100%)',
+    fade1: '#8f958a',
+    fade2: '#c9cec3',
+  }
+  const leafFill = (state, s) => {
+    const d = document.createElement('div')
+    d.className = 'leafArt'
+    d.style.width = d.style.height = (76 * s) + 'px'
+    d.style.background = COLORS[state] || COLORS.aoba
+    return d
+  }
+  // 輪郭の葉(read): 色を持たない墨の素描。淡い墨を平塗りすると
+  // 型のアルファ濃淡（葉脈・輪郭≒0.9／葉身≒0.3）がそのまま線画として立つ
+  const leafOutline = s => {
+    const d = leafFill('aoba', s)
+    d.style.background = 'rgba(44,42,34,.5)'
+    return d
+  }
+  // x = 実画像の墨画素から測定した蔓中心線（stem_x測定値）。葉柄の先をここに吸着する
   const LEAVES = [
-    {h:60,x:109.5,side:1,s:.9},{h:105,x:121.3,side:-1,s:1},{h:150,x:112.7,side:1,s:1.05},{h:195,x:126.0,side:-1,s:.95},
-    {h:240,x:128.2,side:1,s:1.05},{h:252,x:118.3,side:-1,s:.85},{h:264,x:127.8,side:1,s:.75},
-    {h:300,x:126.9,side:-1,s:1},{h:345,x:128.2,side:1,s:.95},{h:390,x:117.8,side:-1,s:1},
-    {h:420,x:124.9,side:1,s:.8},{h:432,x:122.6,side:-1,s:.9},
-    {h:470,x:130.2,side:1,s:.9},{h:510,x:119.4,side:-1,s:.85},{h:548,x:123.3,side:1,s:.8},
+    {h:60,x:109.5,side:1,s:.9,r:4},{h:105,x:121.3,side:-1,s:1,r:-3},{h:150,x:112.7,side:1,s:1.05,r:-6},{h:195,x:126.0,side:-1,s:.95,r:5},
+    {h:240,x:128.2,side:1,s:1.05,r:0},{h:252,x:118.3,side:-1,s:.85,r:8},{h:264,x:127.8,side:1,s:.75,r:-9},
+    {h:300,x:126.9,side:-1,s:1,r:2},{h:345,x:128.2,side:1,s:.95,r:-4},{h:390,x:117.8,side:-1,s:1,r:6},
+    {h:420,x:124.9,side:1,s:.8,r:10},{h:432,x:122.6,side:-1,s:.9,r:-7},
+    {h:470,x:130.2,side:1,s:.9,r:3},{h:510,x:119.4,side:-1,s:.85,r:-5},{h:548,x:123.3,side:1,s:.8,r:7},
   ]
-  const LEAF_SVG = s => `<svg width="${52*s}" height="${34*s}" viewBox="0 0 52 20">
-      <path d="M4,6 C10,2 16,4 20,8" fill="none" stroke="#39442c" stroke-width="2" stroke-linecap="round" opacity=".8"/>
-      <path d="M18,6 C26,-8 44,-8 48,4 C44,16 26,18 18,6 Z" fill="#7d9169" stroke="#2c2a22" stroke-width="2" opacity=".92"/>
-      <path d="M20,6 C30,2 42,1 48,4" fill="none" stroke="#39442c" stroke-width="1.3" opacity=".55"/>
-    </svg>`
-  const leafEls = LEAVES.map(l => {
+  // 見た目の確認用: 下の古い葉2枚はうっすら色褪せ・中程1枚は照り葉
+  const STATES = { 0:'fade1', 1:'fade1', 7:'teri' }
+  const leafEls = LEAVES.map((l, i) => {
+    const W = 76 * l.s
     const pos = document.createElement('div')
     pos.className = 'leafPos'
-    // 吸着: 通常=葉柄の根元(左端+4)を茎に。鏡像=右端-4を茎に
-    pos.style.left = (l.side > 0 ? l.x - 4 : l.x - 52 * l.s + 4) + 'px'
-    pos.style.bottom = (58 + l.h - 8 * l.s) + 'px'
-    if (l.side < 0) pos.style.transform = 'scaleX(-1)'
+    pos.style.width = pos.style.height = W + 'px'
+    // 吸着: アンカー(AX,AY)を茎中心 (l.x, 地面+h) に重ねる。鏡像はアンカーも鏡像
+    pos.style.left = (l.side > 0 ? l.x - AX * W : l.x - (1 - AX) * W) + 'px'
+    pos.style.bottom = (58 + l.h - (1 - AY) * W) + 'px'
+    pos.style.transformOrigin = (l.side > 0 ? AX * 100 : (1 - AX) * 100) + '% ' + (AY * 100) + '%'
+    pos.style.transform = (l.side < 0 ? 'scaleX(-1) ' : '') + `rotate(${l.r}deg)`
     const pop = document.createElement('div')
     pop.className = 'leafPop'
-    pop.innerHTML = `<div class="swayer" style="animation-delay:${(-Math.random()*4).toFixed(2)}s">${LEAF_SVG(l.s)}</div>`
+    const sw = document.createElement('div')
+    sw.className = 'swayer'
+    sw.style.animationDelay = (-((i * 1.7) % 4)).toFixed(2) + 's'
+    sw.appendChild(leafFill(STATES[i] || 'aoba', l.s))
+    pop.appendChild(sw)
     pos.appendChild(pop)
     leavesBox.appendChild(pos)
     return pop
+  })
+  // 状態見本パネル
+  const legendRow = document.getElementById('legendRow')
+  ;[
+    ['青葉', () => leafFill('aoba', 1.13), '思い出せた'],
+    ['照り葉', () => leafFill('teri', 1.13), '磨き直した'],
+    ['色褪せ', () => { const d = leafFill('fade1', 1.13); d.style.background = COLORS.fade2; return d }, '90日 経った'],
+    ['輪郭の葉', () => leafOutline(1.13), '読んだ'],
+  ].forEach(([name, make, note]) => {
+    const cell = document.createElement('div')
+    cell.className = 'cell'
+    const box = document.createElement('div')
+    box.className = 'box'
+    box.appendChild(make())
+    cell.appendChild(box)
+    const p = document.createElement('p')
+    p.textContent = name
+    const q = document.createElement('p')
+    q.textContent = note
+    q.style.color = '#a39678'
+    cell.appendChild(p); cell.appendChild(q)
+    legendRow.appendChild(cell)
   })
   let timer = 0
   function play() {

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知の蔓 — 雀ぬるっとコマ送り検証</title>
+<style>
+  body { margin:0; background:#e7dfc9; display:flex; flex-direction:column; align-items:center; gap:12px;
+         padding:14px; font-family:"Hiragino Mincho ProN",serif; }
+  .frame { width:min(400px,96vw); background:#f2ead6; border-radius:14px; overflow:hidden;
+           box-shadow:0 6px 30px rgba(60,50,30,.25); position:relative; }
+  .stage { position:relative; height:560px; }
+  .stage > img { position:absolute; user-select:none; -webkit-user-drag:none; }
+  .ground { position:absolute; left:6%; right:6%; bottom:56px; border-bottom:3px solid rgba(44,42,34,.45); border-radius:50%; }
+  .cup { right:26px; bottom:58px; width:190px; }
+  .vineWrap { position:absolute; left:34px; bottom:58px; width:170px; height:430px; overflow:hidden; }
+  .vineWrap img { position:absolute; }
+  /* 雀＝同一座標に2ポーズを重ね、opacityのクロスフェードだけでコマを送る */
+  .bird { position:absolute; width:76px; height:76px; will-change:transform; }
+  .bird img { position:absolute; inset:0; width:100%; height:100%;
+              transition:opacity var(--xf,120ms) linear; }
+  .bird.flip { transform:scaleX(-1); }
+  .label { position:absolute; top:14px; left:18px; font-size:11px; letter-spacing:.3em; color:#7d6f52; }
+  .cap { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:#a39678; }
+  .fly { position:absolute; top:14px; right:14px; font-family:inherit; font-size:12px;
+         background:#faf5e8; border:1px solid #cbbf9f; border-radius:18px; padding:6px 12px; }
+  .panel { width:min(400px,96vw); background:#f2ead6; border-radius:14px; padding:12px 16px 14px;
+           box-shadow:0 4px 18px rgba(60,50,30,.18); font-size:12px; color:#5c5340; }
+  .panel h2 { margin:0 0 8px; font-size:11px; font-weight:normal; letter-spacing:.25em; color:#7d6f52; }
+  .panel .ctl { display:flex; align-items:center; gap:10px; margin:8px 0; }
+  .panel .ctl label { width:9em; }
+  .panel input[type=range] { flex:1; }
+  .panel .val { width:4.5em; text-align:right; color:#2c2a22; }
+  .panel .chk { display:flex; align-items:center; gap:6px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="stage">
+    <div class="label">雀　ぬ　る　っ　と　コ　マ　送　り</div>
+    <button class="fly" id="go">飛ばす</button>
+    <div class="ground"></div>
+    <div class="vineWrap">
+      <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:0; left:0; width:150px">
+      <img src="generated/alpha/vine_seg_young_a.png" style="bottom:200px; left:14px; width:120px">
+    </div>
+    <img class="cup" src="generated/alpha/object_yunomi.png" alt="">
+    <div class="bird" id="bird">
+      <img id="pose_perch" src="generated/alpha/resident_suzume.png" alt="">
+      <img id="pose_fly" src="generated/alpha/resident_suzume_fly.png" alt="" style="opacity:0">
+    </div>
+    <div class="cap">2ポーズ（止まり⇄羽ばたき）のクロスフェードだけで飛ぶ。切り抜き・中割りなし</div>
+  </div>
+</div>
+<div class="panel">
+  <h2>検　証　つ　ま　み</h2>
+  <div class="ctl"><label>コマ間隔（羽ばたき）</label>
+    <input type="range" id="flap" min="80" max="400" step="10" value="150"><span class="val" id="flapV">150ms</span></div>
+  <div class="ctl"><label>クロスフェード</label>
+    <input type="range" id="xf" min="0" max="300" step="10" value="120"><span class="val" id="xfV">120ms</span></div>
+  <div class="ctl"><label>飛行時間</label>
+    <input type="range" id="dur" min="800" max="3200" step="100" value="1700"><span class="val" id="durV">1.7s</span></div>
+  <div class="chk"><input type="checkbox" id="flapOn" checked><label for="flapOn">飛行中に羽ばたく（OFF＝羽ばたきポーズ固定）</label></div>
+  <div class="chk"><input type="checkbox" id="loop"><label for="loop">往復ループ</label></div>
+</div>
+<script>
+(() => {
+  const bird = document.getElementById('bird')
+  const imgPerch = document.getElementById('pose_perch')
+  const imgFly = document.getElementById('pose_fly')
+  const $ = id => document.getElementById(id)
+  // 止まり木2点（left/bottom は .bird 左下基準）
+  // 採寸: 雀の足=箱左から38.2px/箱下から24.5px。湯呑の縁上端=地面+190.6(中心x=254.8)
+  const PERCH_CUP  = { x: 217, y: 164 }   // 湯呑の縁
+  const PERCH_VINE = { x: 77,  y: 238 }   // 蔓の節のつなぎ目
+  let at = PERCH_CUP
+  let flying = false
+  let flapTimer = 0
+  let wingsUp = false
+  function place(p) { bird.style.left = p.x + 'px'; bird.style.bottom = p.y + 'px' }
+  place(at)
+  function setPose(fly) {
+    wingsUp = fly
+    imgFly.style.opacity = fly ? 1 : 0
+    imgPerch.style.opacity = fly ? 0 : 1
+  }
+  function syncKnobs() {
+    document.documentElement.style.setProperty('--xf', $('xf').value + 'ms')
+    $('flapV').textContent = $('flap').value + 'ms'
+    $('xfV').textContent = $('xf').value + 'ms'
+    $('durV').textContent = ($('dur').value / 1000).toFixed(1) + 's'
+  }
+  ;['flap','xf','dur'].forEach(id => $(id).addEventListener('input', syncKnobs))
+  syncKnobs()
+  const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2
+  function flyTo(dest, done) {
+    if (flying) return
+    flying = true
+    const from = at
+    const dur = +$('dur').value
+    // 向き: 画像は右向き。左へ飛ぶ時は鏡像
+    bird.classList.toggle('flip', dest.x < from.x)
+    setPose(true)
+    if ($('flapOn').checked) {
+      flapTimer = setInterval(() => setPose(!wingsUp), +$('flap').value)
+    }
+    const T0 = performance.now()
+    function step(now) {
+      const p = Math.min(1, (now - T0) / dur)
+      const q = ease(p)
+      const x = from.x + (dest.x - from.x) * q
+      // ふわりと弧を描く（行きは持ち上がり、着地前に沈む）
+      const arc = Math.sin(p * Math.PI) * 64
+      const y = from.y + (dest.y - from.y) * q + arc
+      place({ x, y })
+      if (p < 1) { requestAnimationFrame(step) } else {
+        clearInterval(flapTimer)
+        setPose(false)
+        bird.classList.remove('flip')  // 着地後は正面（右向き）に戻す
+        at = dest
+        flying = false
+        if (done) done()
+      }
+    }
+    requestAnimationFrame(step)
+  }
+  function hop() { flyTo(at === PERCH_CUP ? PERCH_VINE : PERCH_CUP, () => {
+    if ($('loop').checked) setTimeout(hop, 700)
+  }) }
+  $('go').addEventListener('click', hop)
+  $('loop').addEventListener('change', e => { if (e.target.checked && !flying) hop() })
+})()
+</script>
+</body>
+</html>
