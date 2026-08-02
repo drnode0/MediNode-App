@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
+import { LEGACY_BOOLEAN_FEATURES, type EarlyAccessFeature } from '@/lib/feature-access'
 import { LAUNCH_CAMPAIGN_END } from '@/lib/campaign'
 import { PersonRow } from './PersonRow'
 import { lastSeenMs, activityBand, fmtRelative, comparePeople, type PeopleSortMode } from '@/lib/ledger-people'
@@ -100,6 +101,9 @@ type LedgerRow = {
   ownerNote: string | null
   earlyAccess?: boolean
   earlyAccessFeatures?: string[]
+  // サーバーで解決済みの実効機能一覧（env の GA/メールリスト＋台帳の配列＋レガシーboolean を
+  // 合成した最終結果・正準順）。env 由来の開放は earlyAccessFeatures には出てこない。
+  earlyAccessEffectiveFeatures?: string[]
   cqCount: number
   cqList: Array<{ question: string; role: string | null; createdAt: string }>
   voteCount: number
@@ -111,7 +115,7 @@ type LedgerRow = {
 const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial', 'auto_trial']
 
 // 先行体験の機能ラベル。何が開くのか読み取れるよう、省略せずに書く。
-const FEATURE_LABELS: Array<{ key: string; label: string; hint: string }> = [
+const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string }> = [
   { key: 'easy_connect', label: 'かんたん接続（OAuth検証）', hint: 'Notionの認可でつなぐ新方式。実機検証用' },
   { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
   { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },
@@ -516,7 +520,7 @@ ${label}`,
 
   // 機能別の先行体験トグル。1機能ずつサーバーへ投げ、成功したら台帳を読み直す。
   const toggleFeature = useCallback(
-    async (row: LedgerRow, feature: string, enabled: boolean) => {
+    async (row: LedgerRow, feature: EarlyAccessFeature, enabled: boolean) => {
       setBusy(row.userId)
       try {
         const res = await fetch('/api/admin/ledger', {
@@ -1634,11 +1638,15 @@ ${label}`,
                             {/* 管理者行にも出す: 知の塔の暗転ゲートを兼ねるため、
                                 オーナー自身が自分に付与できる必要がある（2026-08-01） */}
                             {(() => {
-                              const active = FEATURE_LABELS.filter((f) =>
-                                (r.earlyAccessFeatures ?? []).includes(f.key) ||
-                                // レガシー: early_access=true はマルチ部署と知の塔を持つ扱い
-                                (r.earlyAccess === true && (f.key === 'multi_department' || f.key === 'tower')),
+                              // サーバーで解決済みの実効集合（env含む）。無ければ従来どおり
+                              // 台帳の配列＋レガシーboolean から手元で組み立てる（後方互換）。
+                              const effectiveKeys = new Set<string>(
+                                r.earlyAccessEffectiveFeatures ?? [
+                                  ...(r.earlyAccessFeatures ?? []),
+                                  ...(r.earlyAccess === true ? LEGACY_BOOLEAN_FEATURES : []),
+                                ],
                               )
+                              const active = FEATURE_LABELS.filter((f) => effectiveKeys.has(f.key))
                               const open = featureMenuFor === r.userId
                               return (
                                 <span className="relative inline-block">
@@ -1663,9 +1671,31 @@ ${label}`,
                                   {open && (
                                     <div className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 shadow-lg text-left">
                                       {FEATURE_LABELS.map((f) => {
-                                        const on = active.some((a) => a.key === f.key)
-                                        const legacyOnly =
-                                          on && !(r.earlyAccessFeatures ?? []).includes(f.key)
+                                        const on = effectiveKeys.has(f.key)
+                                        const ledgerHasFeature = (r.earlyAccessFeatures ?? []).includes(f.key)
+                                        const legacyGrant =
+                                          r.earlyAccess === true && LEGACY_BOOLEAN_FEATURES.includes(f.key)
+                                        const legacyOnly = on && !ledgerHasFeature && legacyGrant
+                                        // env（GA/メールリスト）由来の開放は台帳の配列を動かせないので、
+                                        // トグルではなく非活性のバッジで示す（押してもPATCHは飛ばさない）。
+                                        const envOnly = on && !ledgerHasFeature && !legacyGrant
+                                        if (envOnly) {
+                                          return (
+                                            <div
+                                              key={f.key}
+                                              title={f.hint}
+                                              className="w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-xs cursor-default"
+                                            >
+                                              <span className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-teal-400 bg-teal-100 text-teal-700 dark:border-teal-600 dark:bg-teal-900/40 dark:text-teal-300">
+                                                <Check className="h-2.5 w-2.5" aria-hidden />
+                                              </span>
+                                              <span className="flex-1">
+                                                <span className="block text-gray-800 dark:text-gray-100">{f.label}</span>
+                                                <span className="block text-[10px] text-gray-400">envで開放中</span>
+                                              </span>
+                                            </div>
+                                          )
+                                        }
                                         return (
                                           <button
                                             key={f.key}
