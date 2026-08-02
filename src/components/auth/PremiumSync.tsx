@@ -91,12 +91,23 @@ export function PremiumSync() {
         if (cancelled) return
         const current = getSettings() || DEFAULT_SETTINGS
 
-        // 先行体験（マルチ部署串刺し検索）フラグを反映。active/非activeを問わず同期する
-        // （フリー会員も対象になりうるため）。変化時のみ保存し、UI 反映のため軽くリロード。
-        if (typeof data.earlyAccess === 'boolean' && (current.earlyAccess ?? false) !== data.earlyAccess) {
-          saveSettings({ ...current, earlyAccess: data.earlyAccess })
-          window.location.reload()
-          return
+        // 先行体験を反映。active/非activeを問わず同期する（フリー会員も対象になりうる）。
+        // boolean と機能配列の両方を見て、変化があれば「1回だけ」保存してリロードする
+        // （別々に判定すると2回リロードが走る）。
+        {
+          const nextEarlyAccess =
+            typeof data.earlyAccess === 'boolean' ? data.earlyAccess : (current.earlyAccess ?? false)
+          const nextFeatures: string[] = Array.isArray(data.features)
+            ? (data.features as string[])
+            : (current.earlyAccessFeatures ?? [])
+          const earlyAccessChanged = (current.earlyAccess ?? false) !== nextEarlyAccess
+          const featuresChanged =
+            JSON.stringify(current.earlyAccessFeatures ?? []) !== JSON.stringify(nextFeatures)
+          if (earlyAccessChanged || featuresChanged) {
+            saveSettings({ ...current, earlyAccess: nextEarlyAccess, earlyAccessFeatures: nextFeatures })
+            window.location.reload()
+            return
+          }
         }
 
         if (data.active && data.algolia) {
