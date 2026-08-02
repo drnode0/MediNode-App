@@ -1077,6 +1077,25 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
                 <Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" /><strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
               </div>
+              {/* かんたん接続（OAuth）でつながっている場合は出自を示し、ページの選び直し導線を出す */}
+              {(() => {
+                const authSettings = getSettings()
+                return authSettings?.notionAuthKind === 'oauth' && (
+                  <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 space-y-2 text-xs text-brand-800 dark:text-brand-200">
+                    <p className="font-semibold">
+                      かんたん接続でつながっています{authSettings.notionWorkspaceName ? `（${authSettings.notionWorkspaceName}）` : ''}
+                    </p>
+                    <p>読めるページを増やす・減らすときや、接続をやり直すときは、もう一度Notionの画面から選び直せます。</p>
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                      className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
+                    >
+                      Notionでページを選び直す
+                    </button>
+                  </div>
+                )
+              })()}
               {/* 初回セットアップと同じ画面つき手順書をここからも開ける */}
               <button
                 type="button"
