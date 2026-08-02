@@ -522,28 +522,9 @@ export async function sessionHasFeature(feature: EarlyAccessFeature): Promise<bo
 }
 
 // 分離前からの公開API。マルチ部署検索の判定として残す。
+// 中身は sessionHasFeature に委譲する（判定ロジックを2箇所に持たない）。
 export async function getSessionEarlyAccess(): Promise<boolean> {
-  try {
-    if (hasFeature('multi_department', {})) return true
-
-    const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
-    if (!supabaseReady) return false
-
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
-
-    if (hasFeature('multi_department', { email: user.email })) return true
-
-    const ledger = await readLedger(supabase, user.id)
-    return hasFeature('multi_department', {
-      email: user.email,
-      ledgerEarlyAccess: ledger.earlyAccess,
-      ledgerFeatures: ledger.features,
-    })
-  } catch {
-    return false
-  }
+  return sessionHasFeature('multi_department')
 }
 ```
 
@@ -1125,11 +1106,11 @@ const FEATURE_LABELS: Array<{ key: string; label: string; hint: string }> = [
 
 **注意**: `legacyOnly` の行を「外す」と、レガシー `early_access=true` は残ったままなので見た目が変わらない。これは意図どおり（レガシー boolean は触らない方針）。実運用でレガシー分を外したい場合は、既存の `toggleEarlyAccess` を呼ぶ導線が必要になる——**今回は作らない**（オーナーが必要と言うまでYAGNI）。
 
-- [ ] **Step 4: 未使用になった `toggleEarlyAccess` を確認する**
+- [ ] **Step 4: 未使用になった `toggleEarlyAccess` を削除する**
 
-`toggleEarlyAccess` はこの変更で呼び出し元が無くなる。**削除せずに残すと lint/tsc の未使用警告になる可能性があるため**、`npx tsc --noEmit` の結果を見て判断する:
-- エラーにならない場合はそのまま残す（レガシー経路として温存）
-- エラーになる場合のみ、関数の直前に `// レガシー一括開放。UIからの呼び出しは Task 7 で外したが、API側の互換のため残す。` を書いたうえで削除し、API 側の `earlyAccess` 分岐だけを互換として残す
+この変更で `toggleEarlyAccess` は呼び出し元が無くなる。**関数ごと削除する**（使われないコードを残さない）。API 側の `earlyAccess` 分岐は互換のため残っているので、古いクライアントからの呼び出しは引き続き通る。
+
+削除するのは `src/app/admin/AdminLedgerClient.tsx` の `// 先行体験（マルチ部署串刺し検索）の開放 ON/OFF。` のコメントから、その `useCallback` の閉じ括弧 `[load],\n  )` までの一塊。
 
 - [ ] **Step 5: 確認とコミット**
 
