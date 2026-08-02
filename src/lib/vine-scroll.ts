@@ -30,10 +30,12 @@ export function visibleRange(
   scrollTop: number, viewportH: number, total: number,
 ): { from: number; to: number } {
   if (total <= 0) return { from: 1, to: 0 }
-  // 実DOMのscrollTopは負にならない。想定外の負値が来ても窓が退化しないよう下限で丸める。
-  const clampedScrollTop = Math.max(0, scrollTop)
-  const yTop = clampedScrollTop - viewportH
-  const yBottom = clampedScrollTop + viewportH * 2
+  // 実DOMの scrollTop が取りうる範囲へ丸める。片側だけ守ると、極端な値のとき
+  // from/to が同じ端に張り付いて窓が1枚に潰れる（両端を独立に丸めているため）。
+  const maxScroll = Math.max(0, sceneHeightPx(total) - viewportH)
+  const s = Math.min(Math.max(0, scrollTop), maxScroll)
+  const yTop = s - viewportH
+  const yBottom = s + viewportH * 2
   // y が小さいほど新しい。y → index は leafY の逆
   const idxAt = (y: number) => total - (y - SCENE_TOP_PAD) / PX_PER_LEAF
   const hi = Math.ceil(idxAt(yTop))

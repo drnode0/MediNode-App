@@ -54,6 +54,11 @@ describe('仮想化の窓', () => {
     expect(r.from).toBe(1)
     expect(r.to).toBe(50)
   })
+  it('極端に大きいスクロール位置でも窓が潰れない', () => {
+    const r = visibleRange(100000, 700, 50)
+    expect(r.from).toBe(1)
+    expect(r.to).toBe(50)
+  })
   it('葉0なら空の窓を返す', () => {
     expect(visibleRange(0, 700, 0)).toEqual({ from: 1, to: 0 })
   })
