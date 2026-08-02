@@ -17,6 +17,7 @@ export function extractBodyExcerpt(blocks: unknown[], maxLen = 300): string {
   const parts: string[] = []
   let total = 0
   for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue
     const b = block as Record<string, unknown>
     const type = b.type as string
     if (!TEXT_BLOCK_TYPES.includes(type as (typeof TEXT_BLOCK_TYPES)[number])) continue

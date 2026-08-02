@@ -34,4 +34,21 @@ describe('extractBodyExcerpt', () => {
   it('空配列なら空文字', () => {
     expect(extractBodyExcerpt([])).toBe('')
   })
+
+  it('rich_text が無いブロックは読み飛ばす', () => {
+    expect(extractBodyExcerpt([{ type: 'paragraph', paragraph: {} }, para('本文')])).toBe('本文')
+  })
+
+  it('plain_text が無い rich_text 要素は空として扱う', () => {
+    const blocks = [{ type: 'paragraph', paragraph: { rich_text: [{}] } }, para('本文')]
+    expect(extractBodyExcerpt(blocks)).toBe('本文')
+  })
+
+  it('複数ブロックの合算でも maxLen を超えない（区切り空白を含めて切る）', () => {
+    expect(extractBodyExcerpt([para('hello'), para('world')], 8)).toBe('hello wo')
+  })
+
+  it('null や非オブジェクト要素は読み飛ばす', () => {
+    expect(extractBodyExcerpt([null, 'x', para('本文')] as unknown[])).toBe('本文')
+  })
 })
