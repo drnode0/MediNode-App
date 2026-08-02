@@ -23,6 +23,7 @@ import { parseErrorMessage } from '@/lib/connection-errors'
 import { Spinner } from '@/components/Spinner'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { PremiumValueProps } from '@/components/PremiumValueProps'
+import { PropMapEditor } from './PropMapEditor'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { usePremiumPaymentMode, TestModeNotice } from '@/components/premium-shared'
 import { type SettingsPanelSection } from '@/components/SearchErrors'
@@ -462,6 +463,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   // 接続テスト（Notion / Algolia 各セクション。保存前のフォーム値で試す）
   const [notionTest, setNotionTest] = useState<null | { status: 'ok' | 'warn' | 'error'; detail: string[] }>(null)
   const [notionTesting, setNotionTesting] = useState(false)
+  // 列名マッピング用: 接続テストで取得したDBスキーマ（列名と型）
+  const [dbSchema, setDbSchema] = useState<Array<{ name: string; type: string }> | null>(null)
   const [algoliaTest, setAlgoliaTest] = useState<null | { status: 'ok' | 'error'; detail: string[] }>(null)
   const [algoliaTesting, setAlgoliaTesting] = useState(false)
   // ガイドモーダル（セットアップと同じ画面つき手順書）
@@ -499,6 +502,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
         ...((data.medical?.missing || []) as string[]).map((p) => `Medical DB: 「${p}」が見つかりません`),
         ...((data.reference?.missing || []) as string[]).map((p) => `Reference DB: 「${p}」が見つかりません`),
       ]
+      setDbSchema((data.medical?.schema as Array<{ name: string; type: string }>) || null)
       setNotionTest(missing.length > 0
         ? {
             status: 'warn',
@@ -1113,26 +1117,29 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   <div className="p-3 space-y-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                       MediNodeは既定で「要約」「キーワード」「知識レベル」「ジャンル」という列を読みます。
-                      すでに別の名前で書きためている場合は、<strong>そのDBでの列名</strong>をここに入れてください。Notion側の列名を変える必要はありません。
-                      空欄のままなら既定の名前を読みます。<strong>どの欄も必須ではありません</strong>（タイトルさえあればページは取り込まれます）。
+                      すでに別の名前で書きためている場合は、<strong>そのDBでの列</strong>をここで選んでください。Notion側の列名を変える必要はありません。
                     </p>
-                    <div>
-                      <label className={labelCls}>要約にあたる列</label>
-                      <input type="text" value={notionForm.propSummary} onChange={(e) => setNotionForm(f => ({ ...f, propSummary: e.target.value }))} placeholder="既定: 要約" className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>キーワードにあたる列</label>
-                      <input type="text" value={notionForm.propKeywords} onChange={(e) => setNotionForm(f => ({ ...f, propKeywords: e.target.value }))} placeholder="既定: キーワード" className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>ジャンルにあたる列</label>
-                      <input type="text" value={notionForm.propGenre} onChange={(e) => setNotionForm(f => ({ ...f, propGenre: e.target.value }))} placeholder="既定: ジャンル" className={inputCls} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">マルチセレクト・セレクト・ステータスのどれでも読みます</p>
-                    </div>
-                    <div>
-                      <label className={labelCls}>知識レベルにあたる列</label>
-                      <input type="text" value={notionForm.propKnowledgeLevel} onChange={(e) => setNotionForm(f => ({ ...f, propKnowledgeLevel: e.target.value }))} placeholder="既定: 知識レベル" className={inputCls} />
-                    </div>
+                    {!dbSchema ? (
+                      <button
+                        type="button"
+                        onClick={handleNotionConnTest}
+                        disabled={notionTesting || !notionForm.notionToken.trim() || !notionForm.notionMedicalDbId.trim()}
+                        className="w-full border border-brand-300 dark:border-brand-700 text-brand-600 dark:text-brand-300 rounded-xl py-2.5 text-xs font-semibold hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50"
+                      >
+                        {notionTesting ? '読み込み中...' : 'Notionから列を読み込む'}
+                      </button>
+                    ) : (
+                      <PropMapEditor
+                        schema={dbSchema}
+                        value={{
+                          propSummary: notionForm.propSummary,
+                          propKeywords: notionForm.propKeywords,
+                          propKnowledgeLevel: notionForm.propKnowledgeLevel,
+                          propGenre: notionForm.propGenre,
+                        }}
+                        onChange={(patch) => setNotionForm((f) => ({ ...f, ...patch }))}
+                      />
+                    )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
                       変更したら「保存する」のあと、<strong>再同期</strong>すると読み替えが反映されます。
                     </p>
