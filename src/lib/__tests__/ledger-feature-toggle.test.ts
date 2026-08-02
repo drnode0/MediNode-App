@@ -53,10 +53,44 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     expect(logMock.mock.calls[0][1].action).toBe('revoke_feature:easy_connect')
   })
 
-  it('二重に足しても重複しない', async () => {
+  it('すでに持っている機能を重ねてenableしても変化なし扱いでDBに書かない（no-opスキップ）', async () => {
     maybeSingleMock.mockResolvedValue({ data: { early_access_features: ['tower'] }, error: null })
     const res = await PATCH(makeReq({ userId: 'u1', feature: 'tower', enabled: true }))
     expect((await res.json()).features).toEqual(['tower'])
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('レガシーユーザーが持っている機能を重ねてenableすると、変換で書き込みが発生し重複しない', async () => {
+    // レガシー変換（early_access:true → false）が絡むと no-op スキップを通らず必ず書き込みが
+    // 走る。このとき Set 経由で重複が起きないことを、実際に書かれたペイロードで確認する。
+    maybeSingleMock.mockResolvedValue({
+      data: { early_access: true, early_access_features: ['tower'] },
+      error: null,
+    })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'tower', enabled: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock.mock.calls[0][0]).toEqual({
+      user_id: 'u1',
+      early_access_features: ['multi_department', 'tower'],
+      early_access: false,
+    })
+    expect(data.features).toEqual(['multi_department', 'tower'])
+  })
+
+  it('保存済み配列に未知の値が混ざっていても、書き込み時にそのまま温存される', async () => {
+    // 0021 は配列にCHECK制約を持たせていない（未知の値は無視されるだけで消えない、が仕様）。
+    // canonicalOrder が既知の3機能だけでフィルタして書き戻すと、future_feature のような
+    // 未知の値がこの1回のトグルで失われてしまう。
+    maybeSingleMock.mockResolvedValue({
+      data: { early_access: false, early_access_features: ['tower', 'future_feature'] },
+      error: null,
+    })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock.mock.calls[0][0].early_access_features).toContain('future_feature')
+    expect(data.features).toContain('future_feature')
   })
 
   it('未知の機能名は400', async () => {
@@ -149,6 +183,11 @@ describe('PATCH /api/admin/ledger（レガシー early_access(boolean) の配列
     })
     expect(data.features).toEqual(['multi_department'])
     // 実効アクセス: 変換の瞬間もマルチ部署検索は持ったまま、知の塔だけが無くなる。
+    // 監査ログにも「レガシーからの変換だった」ことが detail として残る。
+    expect(logMock.mock.calls[0][1].detail).toEqual({
+      legacyConverted: true,
+      features: ['multi_department'],
+    })
   })
 
   it('レガシーユーザーの easy_connect を enable → early_access:false・配列は正準順で3機能とも入る（何も失わない）', async () => {

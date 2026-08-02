@@ -64,6 +64,13 @@ export async function GET() {
     // 設定を変えた・別端末でログイン復元した等でサーバー保存が走った時刻（検索のたびには動かない）。
     // early_access 列（先行体験フラグ）は未適用の環境があり得るため、無ければ updated_at だけで続行する
     //（0004 の app_usage と同じ「未適用でも落とさない」方針）。
+    //
+    // settings_enc（暗号化された設定本体）が入っている行だけを「設定を保存した」とみなす。
+    // /admin から機能トグルを付与すると user_settings 行が INSERT され、updated_at には
+    // default now() が入る。これを無条件に「設定同期時刻」として扱うと、まだ一度も設定を
+    // 保存していないフレッシュなテスターアカウントに機能を付与しただけで「設定完了」「最終利用=今日」
+    // に見えてしまう（セットアップ完了カウント・離脱位置抽出・最終利用の3箇所が誤る）。
+    // settings_enc は暗号文そのもの（内容は読まない・ログにも出さない。null かどうかだけを見る）。
     const settingsByUser = new Map<string, string | null>()
     const earlyAccessByUser = new Map<string, boolean>()
     const featuresByUser = new Map<string, string[]>()
@@ -71,19 +78,25 @@ export async function GET() {
       type SettingsRow = {
         user_id: string
         updated_at: string | null
+        settings_enc?: string | null
         early_access?: boolean | null
         early_access_features?: string[] | null
       }
+      // settings_enc は3段階すべてに含める。PostgRESTには「非nullかどうかだけ」を返す軽量な
+      // 射影が無く、そのためのSQLビュー/RPCを新設するのはこの修正の範囲外（新規migrationになる）
+      // なので、列そのものを select する（暗号文の中身は使わない・破棄するだけ）。
       const withFeatures = await admin
         .from('user_settings')
-        .select('user_id, updated_at, early_access, early_access_features')
+        .select('user_id, updated_at, settings_enc, early_access, early_access_features')
       let rows: SettingsRow[]
       if (withFeatures.error) {
         // early_access_features 列が無いなら early_access までで再取得。
-        const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
+        const withEarly = await admin
+          .from('user_settings')
+          .select('user_id, updated_at, settings_enc, early_access')
         if (withEarly.error) {
-          // early_access 列も無い等で失敗したら、必須の updated_at だけで再取得して続行。
-          const basic = await admin.from('user_settings').select('user_id, updated_at')
+          // early_access 列も無い等で失敗したら、必須の updated_at・settings_enc だけで再取得して続行。
+          const basic = await admin.from('user_settings').select('user_id, updated_at, settings_enc')
           if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
           rows = (basic.data ?? []) as SettingsRow[]
         } else {
@@ -93,7 +106,9 @@ export async function GET() {
         rows = (withFeatures.data ?? []) as SettingsRow[]
       }
       for (const s of rows) {
-        settingsByUser.set(s.user_id, s.updated_at ?? null)
+        // settings_enc が無い（＝一度も設定を保存していない）行は、updated_at が入っていても
+        // null 扱いにする。機能トグルだけで作られた行を「設定完了」に見せないため。
+        settingsByUser.set(s.user_id, s.settings_enc ? (s.updated_at ?? null) : null)
         earlyAccessByUser.set(s.user_id, s.early_access ?? false)
         featuresByUser.set(s.user_id, s.early_access_features ?? [])
       }
@@ -638,10 +653,16 @@ export async function PATCH(req: NextRequest) {
       const storedFeatures = (row?.early_access_features ?? []).filter(Boolean)
       const legacyTrue = row?.early_access === true
 
-      // 正準順（EARLY_ACCESS_FEATURES の定義順）で安定させる。
-      const canonicalOrder = (features: Iterable<string>): EarlyAccessFeature[] => {
+      // 正準順（EARLY_ACCESS_FEATURES の定義順）で安定させる。既知の3機能以外の値
+      // （SQLで直接足された・このデプロイがまだ知らない新しい機能キー等）は、無視や削除
+      // ではなく既知グループの後ろにそのまま温存する。0021マイグレーションは配列に
+      // CHECK制約を持たせておらず、未知の値は「無視されるだけで消えない」ことを仕様として
+      // 明言しているため、ここで消してしまうと約束を破ることになる。
+      const canonicalOrder = (features: Iterable<string>): string[] => {
         const set = new Set(features)
-        return EARLY_ACCESS_FEATURES.filter((f) => set.has(f))
+        const known = EARLY_ACCESS_FEATURES.filter((f) => set.has(f))
+        const rest = [...set].filter((f) => !(EARLY_ACCESS_FEATURES as readonly string[]).includes(f))
+        return [...known, ...rest]
       }
       const arraysEqual = (a: readonly string[], b: readonly string[]) =>
         a.length === b.length && a.every((v, i) => v === b[i])
@@ -683,6 +704,10 @@ export async function PATCH(req: NextRequest) {
         action: enabled ? `grant_feature:${key}` : `revoke_feature:${key}`,
         targetUserId: userId,
         targetEmail: u.user.email ?? null,
+        // レガシー early_access(boolean) を配列へ変換した回だけ detail を残す。
+        // grant_feature/revoke_feature のアクション名だけでは「なぜ早期の boolean が
+        // false になったのか」が監査ログから読み取れないため。
+        ...(legacyTrue ? { detail: { legacyConverted: true, features: nextFeatures } } : {}),
       })
       return NextResponse.json({ ok: true, userId, feature: key, enabled, features: nextFeatures })
     }

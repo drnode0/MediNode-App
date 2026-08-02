@@ -116,7 +116,11 @@ const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial'
 
 // 先行体験の機能ラベル。何が開くのか読み取れるよう、省略せずに書く。
 const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string }> = [
-  { key: 'easy_connect', label: 'かんたん接続（OAuth検証）', hint: 'Notionの認可でつなぐ新方式。実機検証用' },
+  {
+    key: 'easy_connect',
+    label: 'かんたん接続（OAuth検証）',
+    hint: 'Notionの認可でつなぐ新方式。実機検証用。このトグル自体はまだ配線されておらず、実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
+  },
   { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
   { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },
 ]
