@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知の蔓 — 成長の見た目（完成形寄せ）</title>
+<style>
+  body { margin:0; background:#e7dfc9; display:flex; justify-content:center; padding:14px;
+         font-family:"Hiragino Mincho ProN",serif; }
+  .frame { width:min(400px,96vw); background:#f2ead6; border-radius:14px; overflow:hidden;
+           box-shadow:0 6px 30px rgba(60,50,30,.25); position:relative; }
+  .stage { position:relative; height:690px; }
+  .stage img { mix-blend-mode:multiply; position:absolute; user-select:none; -webkit-user-drag:none; }
+  .ground { position:absolute; left:6%; right:6%; bottom:56px; border-bottom:3px solid rgba(44,42,34,.45); border-radius:50%; }
+  .vineWrap { position:absolute; left:36px; bottom:58px; width:190px; height:0; overflow:hidden; }
+  .vineCol { position:absolute; bottom:0; left:0; width:190px; }
+  .vineCol img { position:absolute; }
+  .tip { position:absolute; width:105px; mix-blend-mode:multiply; transform-origin:50% 95%;
+         animation:tipSway 3.8s ease-in-out infinite alternate; opacity:0; left:72px; }
+  @keyframes tipSway { from{transform:rotate(-2.6deg)} to{transform:rotate(2.4deg)} }
+  .cup { right:22px; bottom:58px; width:200px; }
+  .suzume { right:66px; bottom:58px; width:70px; transition:transform .55s cubic-bezier(.34,1.4,.64,1); }
+  .usagi { left:148px; bottom:58px; width:92px; transform-origin:50% 100%; animation:bob 5.4s ease-in-out infinite alternate; }
+  @keyframes bob { from{transform:rotate(-.6deg)} to{transform:rotate(.7deg)} }
+  .leafPos { position:absolute; width:52px; height:34px; }
+  .leafPop { opacity:0; transform-origin:8% 60%; }
+  .leafPop.on { opacity:1; animation:pop .34s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop { from{transform:scale(0)} 70%{transform:scale(1.18)} to{transform:scale(1)} }
+  .swayer { transform-origin:8% 60%; animation:leafSway 4.2s ease-in-out infinite alternate; }
+  @keyframes leafSway { from{transform:rotate(-2.4deg)} to{transform:rotate(2.8deg)} }
+  .leafPos svg { overflow:visible; display:block; }
+  .label { position:absolute; top:14px; left:18px; font-size:11px; letter-spacing:.3em; color:#7d6f52; }
+  .h { position:absolute; top:30px; left:18px; font-size:24px; color:#2c2a22; }
+  .cap { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:#a39678; }
+  button { position:absolute; top:14px; right:14px; font-family:inherit; font-size:12px;
+           background:#faf5e8; border:1px solid #cbbf9f; border-radius:18px; padding:6px 12px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="stage" id="stage">
+    <div class="label">知　の　蔓（成長の見た目・完成形寄せ）</div>
+    <div class="h" id="h">0cm</div>
+    <button id="replay">もう一度</button>
+    <div class="ground"></div>
+    <img class="cup" src="generated/prep/object_yunomi.png" alt="">
+    <img class="usagi" src="generated/prep/resident_usagi.png" alt="">
+    <div class="vineWrap" id="vineWrap">
+      <div class="vineCol">
+        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:0; left:0; width:170px">
+        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:225px; left:18px; width:140px; transform:scaleX(-1)">
+        <img src="generated/prep/vine_seg_young_a.png" style="bottom:405px; left:32px; width:115px">
+      </div>
+    </div>
+    <img class="tip" id="tip" src="generated/prep/vine_tip.png" alt="">
+    <img class="suzume" id="suzume" src="generated/prep/resident_suzume.png" alt="">
+    <div id="leaves"></div>
+    <div class="cap">数ヶ月育った蔓のイメージ——太さ3段階（若→中→縄）・葉はコード描画で茎に吸着・つなぎ目は葉の茂みが結ぶ</div>
+  </div>
+</div>
+<script>
+(() => {
+  const wrap = document.getElementById('vineWrap')
+  const tip = document.getElementById('tip')
+  const suzume = document.getElementById('suzume')
+  const hEl = document.getElementById('h')
+  const leavesBox = document.getElementById('leaves')
+  const MAX = 560
+  const CM_PER_PX = 7 / 120
+  // x = 実画像の墨画素から測定した蔓中心線（stem_x測定値）。葉はここに吸着する
+  const LEAVES = [
+    {h:60,x:109.5,side:1,s:.9},{h:105,x:121.3,side:-1,s:1},{h:150,x:112.7,side:1,s:1.05},{h:195,x:126.0,side:-1,s:.95},
+    {h:240,x:128.2,side:1,s:1.05},{h:252,x:118.3,side:-1,s:.85},{h:264,x:127.8,side:1,s:.75},
+    {h:300,x:126.9,side:-1,s:1},{h:345,x:128.2,side:1,s:.95},{h:390,x:117.8,side:-1,s:1},
+    {h:420,x:124.9,side:1,s:.8},{h:432,x:122.6,side:-1,s:.9},
+    {h:470,x:130.2,side:1,s:.9},{h:510,x:119.4,side:-1,s:.85},{h:548,x:123.3,side:1,s:.8},
+  ]
+  const LEAF_SVG = s => `<svg width="${52*s}" height="${34*s}" viewBox="0 0 52 20">
+      <path d="M4,6 C10,2 16,4 20,8" fill="none" stroke="#39442c" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+      <path d="M18,6 C26,-8 44,-8 48,4 C44,16 26,18 18,6 Z" fill="#7d9169" stroke="#2c2a22" stroke-width="2" opacity=".92"/>
+      <path d="M20,6 C30,2 42,1 48,4" fill="none" stroke="#39442c" stroke-width="1.3" opacity=".55"/>
+    </svg>`
+  const leafEls = LEAVES.map(l => {
+    const pos = document.createElement('div')
+    pos.className = 'leafPos'
+    // 吸着: 通常=葉柄の根元(左端+4)を茎に。鏡像=右端-4を茎に
+    pos.style.left = (l.side > 0 ? l.x - 4 : l.x - 52 * l.s + 4) + 'px'
+    pos.style.bottom = (58 + l.h - 8 * l.s) + 'px'
+    if (l.side < 0) pos.style.transform = 'scaleX(-1)'
+    const pop = document.createElement('div')
+    pop.className = 'leafPop'
+    pop.innerHTML = `<div class="swayer" style="animation-delay:${(-Math.random()*4).toFixed(2)}s">${LEAF_SVG(l.s)}</div>`
+    pos.appendChild(pop)
+    leavesBox.appendChild(pos)
+    return pop
+  })
+  let timer = 0
+  function play() {
+    clearInterval(timer)
+    leafEls.forEach(el => el.classList.remove('on'))
+    tip.style.opacity = 0
+    suzume.style.transform = 'translateY(0)'
+    delete suzume.dataset.hopped
+    const T0 = performance.now()
+    const DUR = 3000
+    const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2
+    function step() {
+      const p = Math.min(1, (performance.now() - T0 - 500) / DUR)
+      const q = p < 0 ? 0 : ease(p)
+      const hh = MAX * q
+      wrap.style.height = hh + 'px'
+      tip.style.bottom = (58 + hh - 20) + 'px'
+      tip.style.opacity = p > 0.02 ? 1 : 0
+      hEl.textContent = (hh * CM_PER_PX).toFixed(1).replace(/\.0$/, '') + 'cm'
+      leafEls.forEach((el, i) => { if (LEAVES[i].h <= hh) el.classList.add('on') })
+      if (!suzume.dataset.hopped && hh > 300) {
+        suzume.dataset.hopped = '1'
+        suzume.style.transform = 'translateY(-138px) translateX(-24px)'
+      }
+      if (p >= 1) clearInterval(timer)
+    }
+    timer = setInterval(step, 16)
+  }
+  document.getElementById('replay').addEventListener('click', play)
+  Promise.all([...document.images].map(i => i.decode().catch(() => {}))).then(() => setTimeout(play, 300))
+})()
+</script>
+</body>
+</html>
