@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { MEMBER_KIND_LABEL, type MemberKind } from '@/lib/member-ledger'
+import { LEGACY_BOOLEAN_FEATURES, type EarlyAccessFeature } from '@/lib/feature-access'
 import { LAUNCH_CAMPAIGN_END } from '@/lib/campaign'
 import { PersonRow } from './PersonRow'
 import { lastSeenMs, activityBand, fmtRelative, comparePeople, type PeopleSortMode } from '@/lib/ledger-people'
@@ -99,6 +100,10 @@ type LedgerRow = {
   isOwner: boolean
   ownerNote: string | null
   earlyAccess?: boolean
+  earlyAccessFeatures?: string[]
+  // サーバーで解決済みの実効機能一覧（env の GA/メールリスト＋台帳の配列＋レガシーboolean を
+  // 合成した最終結果・正準順）。env 由来の開放は earlyAccessFeatures には出てこない。
+  earlyAccessEffectiveFeatures?: string[]
   cqCount: number
   cqList: Array<{ question: string; role: string | null; createdAt: string }>
   voteCount: number
@@ -108,6 +113,21 @@ type LedgerRow = {
 
 // プレミアムを見られる状態の区分（課金中＋各種トライアル）。プレミアム未利用者の抽出対象。
 const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial', 'auto_trial']
+
+// 先行体験の機能ラベル。何が開くのか読み取れるよう、省略せずに書く。
+// note はタッチ端末でも読める可視サブテキスト（title属性はタップでは出ないため）。
+// 該当する機能が無ければ省略してよい。将来 easy_connect の配線が終わったら、この note を
+// 削除するだけで下の表示ロジックには手を入れずに済む。
+const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string; note?: string }> = [
+  {
+    key: 'easy_connect',
+    label: 'かんたん接続（OAuth検証）',
+    hint: 'Notionの認可でつなぐ新方式。実機検証用。このトグル自体はまだ配線されておらず、実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
+    note: 'このトグルはまだ配線されていない。実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
+  },
+  { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
+  { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },
+]
 
 // セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。
 const STEP_LABEL: Record<string, string> = {
@@ -304,6 +324,8 @@ export function AdminLedgerClient() {
   // 「紹介経由で始めた人」だけに絞る表示（キャンペーンの効き具合を見る）。
   const [onlyReferred, setOnlyReferred] = useState(false)
   const [busy, setBusy] = useState<string | null>(null) // 取り消し/付与の実行中userId
+  // 機能メニューを開いている行のuserId（同時に1つだけ開く）。
+  const [featureMenuFor, setFeatureMenuFor] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   // タブ切替（長い1ページを分割してスクロールを減らす）。既定は「今日」。
   const [tab, setTab] = useState<AdminTab>('today')
@@ -504,15 +526,15 @@ ${label}`,
     [load],
   )
 
-  // 先行体験（マルチ部署串刺し検索）の開放 ON/OFF。user_settings.early_access を更新する。
-  const toggleEarlyAccess = useCallback(
-    async (row: LedgerRow) => {
+  // 機能別の先行体験トグル。1機能ずつサーバーへ投げ、成功したら台帳を読み直す。
+  const toggleFeature = useCallback(
+    async (row: LedgerRow, feature: EarlyAccessFeature, enabled: boolean) => {
       setBusy(row.userId)
       try {
         const res = await fetch('/api/admin/ledger', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: row.userId, earlyAccess: !row.earlyAccess }),
+          body: JSON.stringify({ userId: row.userId, feature, enabled }),
         })
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data.error || '先行体験の変更に失敗しました')
@@ -1621,26 +1643,107 @@ ${label}`,
                                 {r.ownerNote ? r.ownerNote : 'メモ'}
                               </button>
                             )}
-                            {/* 管理者行にも出す: 先行体験フラグは知の塔の暗転ゲートも兼ねるため、
+                            {/* 管理者行にも出す: 知の塔の暗転ゲートを兼ねるため、
                                 オーナー自身が自分に付与できる必要がある（2026-08-01） */}
-                            <button
-                                type="button"
-                                onClick={() => void toggleEarlyAccess(r)}
-                                disabled={busy === r.userId}
-                                title={r.earlyAccess ? '先行体験を取り消す' : 'この人に先行体験（マルチ部署検索・知の塔）を開放する'}
-                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
-                                  r.earlyAccess
-                                    ? 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
-                                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-teal-50 dark:hover:bg-teal-950/30'
-                                }`}
-                              >
-                                {r.earlyAccess ? (
-                                  <Check className="w-3.5 h-3.5" aria-hidden />
-                                ) : (
-                                  <Sparkles className="w-3.5 h-3.5" aria-hidden />
-                                )}
-                                {r.earlyAccess ? '先行体験' : '先行体験を開放'}
-                              </button>
+                            {(() => {
+                              // サーバーで解決済みの実効集合（env含む）。無ければ従来どおり
+                              // 台帳の配列＋レガシーboolean から手元で組み立てる（後方互換）。
+                              const effectiveKeys = new Set<string>(
+                                r.earlyAccessEffectiveFeatures ?? [
+                                  ...(r.earlyAccessFeatures ?? []),
+                                  ...(r.earlyAccess === true ? LEGACY_BOOLEAN_FEATURES : []),
+                                ],
+                              )
+                              const active = FEATURE_LABELS.filter((f) => effectiveKeys.has(f.key))
+                              const open = featureMenuFor === r.userId
+                              return (
+                                <span className="relative inline-block">
+                                  <button
+                                    type="button"
+                                    onClick={() => setFeatureMenuFor(open ? null : r.userId)}
+                                    disabled={busy === r.userId}
+                                    title="この人に開放する先行体験を選ぶ"
+                                    className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border disabled:opacity-50 whitespace-nowrap ${
+                                      active.length > 0
+                                        ? 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
+                                        : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-teal-50 dark:hover:bg-teal-950/30'
+                                    }`}
+                                  >
+                                    {active.length > 0 ? (
+                                      <Check className="w-3.5 h-3.5" aria-hidden />
+                                    ) : (
+                                      <Sparkles className="w-3.5 h-3.5" aria-hidden />
+                                    )}
+                                    {active.length > 0 ? `先行体験 ${active.length}` : '先行体験'}
+                                  </button>
+                                  {open && (
+                                    <div className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 shadow-lg text-left">
+                                      {FEATURE_LABELS.map((f) => {
+                                        const on = effectiveKeys.has(f.key)
+                                        const ledgerHasFeature = (r.earlyAccessFeatures ?? []).includes(f.key)
+                                        const legacyGrant =
+                                          r.earlyAccess === true && LEGACY_BOOLEAN_FEATURES.includes(f.key)
+                                        const legacyOnly = on && !ledgerHasFeature && legacyGrant
+                                        // env（GA/メールリスト）由来の開放は台帳の配列を動かせないので、
+                                        // トグルではなく非活性のバッジで示す（押してもPATCHは飛ばさない）。
+                                        const envOnly = on && !ledgerHasFeature && !legacyGrant
+                                        if (envOnly) {
+                                          return (
+                                            <div
+                                              key={f.key}
+                                              title={f.hint}
+                                              className="w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-xs cursor-default"
+                                            >
+                                              <span className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-teal-400 bg-teal-100 text-teal-700 dark:border-teal-600 dark:bg-teal-900/40 dark:text-teal-300">
+                                                <Check className="h-2.5 w-2.5" aria-hidden />
+                                              </span>
+                                              <span className="flex-1">
+                                                <span className="block text-gray-800 dark:text-gray-100">{f.label}</span>
+                                                <span className="block text-[10px] text-gray-400">envで開放中</span>
+                                                {f.note && (
+                                                  <span className="block text-[10px] text-gray-400">{f.note}</span>
+                                                )}
+                                              </span>
+                                            </div>
+                                          )
+                                        }
+                                        return (
+                                          <button
+                                            key={f.key}
+                                            type="button"
+                                            onClick={() => void toggleFeature(r, f.key, !on)}
+                                            disabled={busy === r.userId}
+                                            title={f.hint}
+                                            className="w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+                                          >
+                                            <span
+                                              className={`mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                                                on
+                                                  ? 'border-teal-500 bg-teal-500 text-white'
+                                                  : 'border-gray-300 dark:border-gray-600'
+                                              }`}
+                                            >
+                                              {on && <Check className="h-2.5 w-2.5" aria-hidden />}
+                                            </span>
+                                            <span className="flex-1">
+                                              <span className="block text-gray-800 dark:text-gray-100">{f.label}</span>
+                                              {legacyOnly && (
+                                                <span className="block text-[10px] text-gray-400">
+                                                  以前の一括開放から引き継ぎ
+                                                </span>
+                                              )}
+                                              {f.note && (
+                                                <span className="block text-[10px] text-gray-400">{f.note}</span>
+                                              )}
+                                            </span>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </span>
+                              )
+                            })()}
                             {canDelete && (
                               <button
                                 type="button"

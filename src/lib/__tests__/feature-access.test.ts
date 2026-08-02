@@ -1,5 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { resolveEarlyAccess, emailInEarlyAccessList, isMultiDepartmentGa } from '../feature-access'
+import {
+  resolveEarlyAccess,
+  emailInEarlyAccessList,
+  isMultiDepartmentGa,
+  hasFeature,
+  resolveFeatures,
+  EARLY_ACCESS_FEATURES,
+} from '../feature-access'
 
 const ENV = { ...process.env }
 afterEach(() => { process.env = { ...ENV } })
@@ -49,5 +56,89 @@ describe('resolveEarlyAccess', () => {
     delete process.env.EARLY_ACCESS_EMAILS
     expect(resolveEarlyAccess({ email: 'x@z.com', ledgerEarlyAccess: false })).toBe(false)
     expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: null })).toBe(false)
+  })
+})
+
+describe('hasFeature', () => {
+  const clean = () => {
+    delete process.env.MULTI_DEPARTMENT_GA
+    delete process.env.TOWER_GA
+    delete process.env.EASY_CONNECT_GA
+    delete process.env.EARLY_ACCESS_EMAILS
+    delete process.env.EASY_CONNECT_EMAILS
+  }
+
+  it('機能キーは3つ', () => {
+    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower'])
+  })
+
+  it('機能ごとのGA envが立っていればその機能だけ true', () => {
+    clean()
+    process.env.EASY_CONNECT_GA = 'true'
+    expect(hasFeature('easy_connect', {})).toBe(true)
+    expect(hasFeature('multi_department', {})).toBe(false)
+    expect(hasFeature('tower', {})).toBe(false)
+  })
+
+  it('EASY_CONNECT_EMAILS はかんたん接続にだけ効く（大小無視）', () => {
+    clean()
+    process.env.EASY_CONNECT_EMAILS = 'Tester@X.com'
+    expect(hasFeature('easy_connect', { email: 'tester@x.com' })).toBe(true)
+    expect(hasFeature('multi_department', { email: 'tester@x.com' })).toBe(false)
+    expect(hasFeature('easy_connect', { email: 'other@x.com' })).toBe(false)
+  })
+
+  it('EARLY_ACCESS_EMAILS はマルチ部署と知の塔の両方に効く（既存挙動の維持）', () => {
+    clean()
+    process.env.EARLY_ACCESS_EMAILS = 'a@x.com'
+    expect(hasFeature('multi_department', { email: 'a@x.com' })).toBe(true)
+    expect(hasFeature('tower', { email: 'a@x.com' })).toBe(true)
+    expect(hasFeature('easy_connect', { email: 'a@x.com' })).toBe(false)
+  })
+
+  it('台帳の機能配列に入っていれば true', () => {
+    clean()
+    expect(hasFeature('easy_connect', { ledgerFeatures: ['easy_connect'] })).toBe(true)
+    expect(hasFeature('tower', { ledgerFeatures: ['easy_connect'] })).toBe(false)
+  })
+
+  it('レガシー early_access=true はマルチ部署と知の塔にだけ効く', () => {
+    clean()
+    expect(hasFeature('multi_department', { ledgerEarlyAccess: true })).toBe(true)
+    expect(hasFeature('tower', { ledgerEarlyAccess: true })).toBe(true)
+    expect(hasFeature('easy_connect', { ledgerEarlyAccess: true })).toBe(false)
+  })
+
+  it('どれも無ければ false', () => {
+    clean()
+    expect(hasFeature('easy_connect', { email: 'x@z.com', ledgerEarlyAccess: false, ledgerFeatures: [] })).toBe(false)
+    expect(hasFeature('multi_department', {})).toBe(false)
+  })
+
+  it('未知の値が配列に混ざっていても壊れない', () => {
+    clean()
+    expect(hasFeature('tower', { ledgerFeatures: ['nope', 'tower'] })).toBe(true)
+  })
+})
+
+describe('resolveFeatures', () => {
+  it('有効な機能だけを定義順で返す', () => {
+    delete process.env.MULTI_DEPARTMENT_GA
+    delete process.env.TOWER_GA
+    delete process.env.EASY_CONNECT_GA
+    delete process.env.EARLY_ACCESS_EMAILS
+    delete process.env.EASY_CONNECT_EMAILS
+    expect(resolveFeatures({ ledgerEarlyAccess: true })).toEqual(['multi_department', 'tower'])
+    expect(resolveFeatures({ ledgerFeatures: ['easy_connect'] })).toEqual(['easy_connect'])
+    expect(resolveFeatures({})).toEqual([])
+  })
+})
+
+describe('resolveEarlyAccess（既存APIの維持）', () => {
+  it('hasFeature(multi_department) と同じ答えを返す', () => {
+    delete process.env.MULTI_DEPARTMENT_GA
+    delete process.env.EARLY_ACCESS_EMAILS
+    expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: true })).toBe(true)
+    expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: false })).toBe(false)
   })
 })

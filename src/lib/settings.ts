@@ -40,6 +40,9 @@ export type AppSettings = {
   additionalTeams?: TeamConfig[]
   // サーバー由来の先行体験フラグのミラー（表示制御のみ・判定の正はサーバー）。
   earlyAccess?: boolean
+  // サーバー由来の先行体験・機能一覧のミラー（表示制御のみ・判定の正はサーバー）。
+  // 値は 'easy_connect' / 'multi_department' / 'tower'。
+  earlyAccessFeatures?: string[]
 
   // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string

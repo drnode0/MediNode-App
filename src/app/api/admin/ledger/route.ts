@@ -23,6 +23,12 @@ import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
 import { logAdminAction } from '@/lib/admin-audit'
 import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
+import {
+  EARLY_ACCESS_FEATURES,
+  LEGACY_BOOLEAN_FEATURES,
+  resolveFeatures,
+  type EarlyAccessFeature,
+} from '@/lib/feature-access'
 import Stripe from 'stripe'
 
 export async function GET() {
@@ -58,23 +64,69 @@ export async function GET() {
     // 設定を変えた・別端末でログイン復元した等でサーバー保存が走った時刻（検索のたびには動かない）。
     // early_access 列（先行体験フラグ）は未適用の環境があり得るため、無ければ updated_at だけで続行する
     //（0004 の app_usage と同じ「未適用でも落とさない」方針）。
+    //
+    // settings_enc（暗号化された設定本体）が入っている行だけを「設定を保存した」とみなす。
+    // /admin から機能トグルを付与すると user_settings 行が INSERT され、updated_at には
+    // default now() が入る。これを無条件に「設定同期時刻」として扱うと、まだ一度も設定を
+    // 保存していないフレッシュなテスターアカウントに機能を付与しただけで「設定完了」「最終利用=今日」
+    // に見えてしまう（セットアップ完了カウント・離脱位置抽出・最終利用の3箇所が誤る）。
+    //
+    // ただし settings_enc は暗号文そのもの（ユーザーのAppSettings全体＝Notionトークン・
+    // Algolia管理キー・追加チーム・プロパティマップ）で1人あたり1〜8KB程度あり、
+    // 中身を使わないのに毎回すべて転送するのは無駄が大きい。non-null かどうかだけを見たいので、
+    // 列そのものを select するのではなく「settings_enc が null でない行の user_id」だけを
+    // 別クエリで取得し、暗号文を一切こちら側に持ち込まない。
     const settingsByUser = new Map<string, string | null>()
     const earlyAccessByUser = new Map<string, boolean>()
+    const featuresByUser = new Map<string, string[]>()
     {
-      type SettingsRow = { user_id: string; updated_at: string | null; early_access?: boolean | null }
-      const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
-      let rows: SettingsRow[]
-      if (withEarly.error) {
-        // early_access 列が無い等で失敗したら、必須の updated_at だけで再取得して続行。
-        const basic = await admin.from('user_settings').select('user_id, updated_at')
-        if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
-        rows = (basic.data ?? []) as SettingsRow[]
-      } else {
-        rows = (withEarly.data ?? []) as SettingsRow[]
+      type SettingsRow = {
+        user_id: string
+        updated_at: string | null
+        early_access?: boolean | null
+        early_access_features?: string[] | null
       }
+      const withFeatures = await admin
+        .from('user_settings')
+        .select('user_id, updated_at, early_access, early_access_features')
+      let rows: SettingsRow[]
+      if (withFeatures.error) {
+        // early_access_features 列が無いなら early_access までで再取得。
+        const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
+        if (withEarly.error) {
+          // early_access 列も無い等で失敗したら、必須の updated_at だけで再取得して続行。
+          const basic = await admin.from('user_settings').select('user_id, updated_at')
+          if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
+          rows = (basic.data ?? []) as SettingsRow[]
+        } else {
+          rows = (withEarly.data ?? []) as SettingsRow[]
+        }
+      } else {
+        rows = (withFeatures.data ?? []) as SettingsRow[]
+      }
+
+      // settings_enc は 0003（テーブル作成migration）由来でここにある列の中で最も古く、
+      // 通常は必ず存在する。それでもこのプローブ自体が失敗した場合は、内容を読まず
+      // 全員「設定なし」に倒すと セットアップ完了カウントがゼロになり離脱リストが溢れるという
+      // 誤りが実害として大きいため、安全側として「区別できない＝従来どおり updated_at を
+      // そのまま信用する」側にフォールバックする（機能付与直後を設定完了と誤認する既知の
+      // 揺れは残るが、全員を未設定に見せる誤りよりましと判断）。
+      let savedSettingsUserIds: Set<string> | null = null
+      const probe = await admin.from('user_settings').select('user_id').not('settings_enc', 'is', null)
+      if (!probe.error) {
+        savedSettingsUserIds = new Set((probe.data ?? []).map((r) => r.user_id as string))
+      }
+
       for (const s of rows) {
-        settingsByUser.set(s.user_id, s.updated_at ?? null)
+        // プローブが成功した場合のみ settings_enc の有無で判定する。行はあるが settings_enc が
+        // 無い（＝一度も設定を保存していない）行は、updated_at が入っていても null 扱いにする。
+        // プローブ自体が失敗した場合は区別できないので updated_at をそのまま採用する。
+        settingsByUser.set(
+          s.user_id,
+          savedSettingsUserIds ? (savedSettingsUserIds.has(s.user_id) ? (s.updated_at ?? null) : null) : (s.updated_at ?? null)
+        )
         earlyAccessByUser.set(s.user_id, s.early_access ?? false)
+        featuresByUser.set(s.user_id, s.early_access_features ?? [])
       }
     }
 
@@ -285,6 +337,16 @@ export async function GET() {
           ownerNote: (u.user_metadata?.owner_note as string | undefined) ?? null,
           // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
           earlyAccess: earlyAccessByUser.get(u.id) ?? false,
+          earlyAccessFeatures: featuresByUser.get(u.id) ?? [],
+          // 実効的に開いている機能（env の GA/メールリスト＋台帳の配列＋レガシーboolean を
+          // 合成した最終結果）。env 由来の開放は台帳の配列に出てこないため、素の
+          // earlyAccessFeatures だけでは「env で開いているのに /admin では未チェック」に
+          // 見えてしまう。/admin 側はこちらを「実際に開いているか」の表示に使う。
+          earlyAccessEffectiveFeatures: resolveFeatures({
+            email: u.email ?? null,
+            ledgerEarlyAccess: earlyAccessByUser.get(u.id) ?? false,
+            ledgerFeatures: featuresByUser.get(u.id) ?? [],
+          }),
           // アプリ内CQ投稿（cq_submissions・/admin専用の管理記録）と投票数。
           cqCount: (cqByUser.get(u.id) ?? []).length,
           cqList: cqByUser.get(u.id) ?? [],
@@ -550,15 +612,120 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   try {
-    const { userId, isMonitor, isOwner, ownerNote, earlyAccess } = (await req.json()) as {
+    const { userId, isMonitor, isOwner, ownerNote, earlyAccess, feature, enabled } = (await req.json()) as {
       userId?: unknown
       isMonitor?: unknown
       isOwner?: unknown
       ownerNote?: unknown
       earlyAccess?: unknown
+      feature?: unknown
+      enabled?: unknown
     }
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    // feature キーが来ているのに型が不正なら、ここで即座に400を返す。
+    // このガードが無いと、下の分岐条件を素通りしてレガシー分岐にまで落ち、
+    // 最終catch-allの「isMonitor / isOwner」エラーという的外れな応答になってしまう
+    // （分岐の並び順に安全性が依存する状態を避けるための明示ガード）。
+    if (feature !== undefined && (typeof feature !== 'string' || typeof enabled !== 'boolean')) {
+      return NextResponse.json(
+        { error: 'feature は機能名の文字列、enabled は真偽値である必要があります' },
+        { status: 400 },
+      )
+    }
+    // 機能別の先行体験トグル。user_settings.early_access_features を出し入れする。
+    // レガシーの earlyAccess(boolean) 分岐はそのまま残す（古いUIからの呼び出し互換）。
+    if (typeof feature === 'string' && typeof enabled === 'boolean') {
+      if (!(EARLY_ACCESS_FEATURES as readonly string[]).includes(feature)) {
+        return NextResponse.json({ error: '未知の機能名です' }, { status: 400 })
+      }
+      const key = feature as EarlyAccessFeature
+      const admin = createAdminClient()
+      const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId)
+      if (uErr || !u?.user) {
+        return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+      }
+      // 現在値を読んでから差分を作る（配列まるごと上書きなので、読まずに書くと他機能を消す）。
+      // 読み取りが失敗した場合はfail closed（書き込まない）。RLS不整合や一時的な通信断でも、
+      // 空配列として扱ってしまうと他の機能を巻き添えで消してしまうため、区別せず一律で止める。
+      // 一方、行がまだ無いユーザー（data: null かつ error: null）は正常系で、空配列として続行する。
+      // レガシー early_access(boolean) の解釈に使うため early_access も一緒に読む。
+      const { data: cur, error: curErr } = await admin
+        .from('user_settings')
+        .select('early_access, early_access_features')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (curErr) {
+        return NextResponse.json(
+          {
+            error:
+              '現在の設定を読み取れなかったため、変更は行っていません（migration 0021 が未適用の可能性があります）',
+          },
+          { status: 500 },
+        )
+      }
+      const row = cur as { early_access?: boolean | null; early_access_features?: string[] | null } | null
+      const storedFeatures = (row?.early_access_features ?? []).filter(Boolean)
+      const legacyTrue = row?.early_access === true
+
+      // 正準順（EARLY_ACCESS_FEATURES の定義順）で安定させる。既知の3機能以外の値
+      // （SQLで直接足された・このデプロイがまだ知らない新しい機能キー等）は、無視や削除
+      // ではなく既知グループの後ろにそのまま温存する。0021マイグレーションは配列に
+      // CHECK制約を持たせておらず、未知の値は「無視されるだけで消えない」ことを仕様として
+      // 明言しているため、ここで消してしまうと約束を破ることになる。
+      const canonicalOrder = (features: Iterable<string>): string[] => {
+        const set = new Set(features)
+        const known = EARLY_ACCESS_FEATURES.filter((f) => set.has(f))
+        const rest = [...set].filter((f) => !(EARLY_ACCESS_FEATURES as readonly string[]).includes(f))
+        return [...known, ...rest]
+      }
+      const arraysEqual = (a: readonly string[], b: readonly string[]) =>
+        a.length === b.length && a.every((v, i) => v === b[i])
+
+      // 実効集合（今この人に見えている状態）＝配列 ∪（レガシーboolean が true ならその2機能）。
+      // ここに legacy を混ぜてからトグルを適用することで、初回操作の瞬間に効果が変わらない
+      // まま「配列だけが正」の状態へ変換できる（C1: レガシー付与は個別に取り消せなかった問題）。
+      const effective = new Set<string>(storedFeatures)
+      if (legacyTrue) {
+        for (const f of LEGACY_BOOLEAN_FEATURES) effective.add(f)
+      }
+      if (enabled) effective.add(key)
+      else effective.delete(key)
+      const nextFeatures = canonicalOrder(effective)
+      const storedOrdered = canonicalOrder(storedFeatures)
+
+      // 変化なし（配列も legacy 変換も不要）なら何も書かない。ここで無条件に upsert すると、
+      // user_settings 行がまだ無いユーザー（フレッシュなテスターアカウント＝まだセットアップ未完了）
+      // に INSERT が走り、updated_at が「セットアップ完了」の判定材料として使われている
+      // /admin の集計（設定完了カウント・離脱位置抽出・最終利用）を誤って進めてしまう。
+      if (arraysEqual(nextFeatures, storedOrdered) && !legacyTrue) {
+        return NextResponse.json({ ok: true, userId, feature: key, enabled, features: nextFeatures })
+      }
+
+      const upsertPayload: Record<string, unknown> = { user_id: userId, early_access_features: nextFeatures }
+      if (legacyTrue) {
+        // レガシー early_access(boolean) が意味していた開放を配列へ明示的に書き込んだので、
+        // true のまま残すと、今回外した機能も含めて再び開いてしまう。これはオーナーが
+        // この1行を操作した瞬間だけに起きる変換であり、全ユーザーへの一斉バックフィルではない
+        // （他のユーザーの行には一切触れない）。
+        upsertPayload.early_access = false
+      }
+      const { error: upErr } = await admin
+        .from('user_settings')
+        .upsert(upsertPayload, { onConflict: 'user_id' })
+      if (upErr) throw new Error(upErr.message)
+      await logAdminAction(admin, {
+        actorEmail: auth.email,
+        action: enabled ? `grant_feature:${key}` : `revoke_feature:${key}`,
+        targetUserId: userId,
+        targetEmail: u.user.email ?? null,
+        // レガシー early_access(boolean) を配列へ変換した回だけ detail を残す。
+        // grant_feature/revoke_feature のアクション名だけでは「なぜ早期の boolean が
+        // false になったのか」が監査ログから読み取れないため。
+        ...(legacyTrue ? { detail: { legacyConverted: true, features: nextFeatures } } : {}),
+      })
+      return NextResponse.json({ ok: true, userId, feature: key, enabled, features: nextFeatures })
     }
     // 先行体験（マルチ部署検索）の開放トグル。user_settings.early_access を更新する。
     if (typeof earlyAccess === 'boolean') {
