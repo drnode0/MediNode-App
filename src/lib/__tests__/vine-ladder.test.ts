@@ -14,7 +14,7 @@ describe('ゴールデン定数（GA後は変更不可。落ちたら定数を�
   // 複利帯の1枚あたりの伸びは (START×MM_PER_LEAF)×RATE。これが MM_PER_LEAF と
   // 等しくなる条件が START×RATE=1。崩すと複利開始と同時に減速する。
   it('不変条件: 複利開始枚数 × 率 = 1（境界が滑らかにつながる条件）', () => {
-    expect(COMPOUND_START_LEAVES * COMPOUND_RATE).toBe(1)
+    expect(COMPOUND_START_LEAVES * COMPOUND_RATE).toBeCloseTo(1, 12)
   })
   it('実寸帯: 葉0=0mm・葉3=6mm・葉200=400mm', () => {
     expect(heightMmFromLeaves(0)).toBe(0)

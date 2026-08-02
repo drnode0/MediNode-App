@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { crossedLine, grewLine, weekLine, ALL_VINE_COPY } from '../vine-copy'
+import { crossedLine, grewLine, leafCountLine, ALL_VINE_COPY } from '../vine-copy'
 
 describe('文言', () => {
   it('越えたときは常体で、溜めの読点を置かない', () => {
@@ -9,10 +9,10 @@ describe('文言', () => {
     expect(grewLine('三')).toBe('葉が三枚ふえた')
   })
   it('測るものは算用数字。中黒でなく空きで区切る', () => {
-    expect(weekLine(3, 274)).toBe('今週 3枚　ぜんぶで 274枚')
+    expect(leafCountLine(3, 274)).toBe('あたらしく 3枚　ぜんぶで 274枚')
   })
-  it('今週ゼロなら今週の分を黙る（催促にしない）', () => {
-    expect(weekLine(0, 274)).toBe('ぜんぶで 274枚')
+  it('増分ゼロなら増分の分を黙る（催促にしない）', () => {
+    expect(leafCountLine(0, 274)).toBe('ぜんぶで 274枚')
   })
 })
 

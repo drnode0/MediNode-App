@@ -11,7 +11,7 @@ import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
-import { crossedLine, grewLine, weekLine } from '@/lib/vine-copy'
+import { crossedLine, grewLine, leafCountLine } from '@/lib/vine-copy'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -109,7 +109,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           <div>
             <div className="text-[11px] tracking-[.35em] text-[#7d6f52]">知　の　蔓</div>
             <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>
-            <div className="mt-0.5 text-[11px] text-[#8b8272]">{weekLine(newLeaves, to)}</div>
+            <div className="mt-0.5 text-[11px] text-[#8b8272]">{leafCountLine(newLeaves, to)}</div>
           </div>
           <div className="flex items-start gap-2">
             <div className="text-right text-[10px] leading-relaxed text-[#a39678]">

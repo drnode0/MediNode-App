@@ -1,4 +1,6 @@
-// 知の蔓の画面に出す言葉。ここに集めてテストで守る（spec §14「画面に出す言葉」）。
+// 知の蔓の画面に出す言葉（spec §14「画面に出す言葉」）。
+// まずこの3つ（crossedLine・grewLine・leafCountLine）を集約した。
+// 「つぎは」「今日の葉：」凡例「たしかめる」など残る画面文言はフェーズ2以降で移す。
 // 蔓は絵であって案内役ではない。説明を始めた瞬間に世界が壊れる。
 // 中は常体——敬体が混じると「アプリが喋っている」音になる。
 // 操作の言葉（ボタン・設定・閉じる）はアプリの領分なのでここには入れない。
@@ -14,10 +16,11 @@ export function grewLine(kanjiCount: string): string {
   return `葉が${kanjiCount}枚ふえた`
 }
 
-// 今週ゼロのときは今週の分を黙る。「今週 まだ」は止まっている人への催促になる。
-export function weekLine(newLeaves: number, total: number): string {
+// newLeaves は今回この画面を見てからの増分（前回視聴からの差分）であって、直近7日の「今週」ではない。
+// ゼロのときは増分の分を黙る。「あたらしく 0枚」は止まっている人への催促になる。
+export function leafCountLine(newLeaves: number, total: number): string {
   const all = `ぜんぶで ${total}枚`
-  return newLeaves > 0 ? `今週 ${newLeaves}枚　${all}` : all
+  return newLeaves > 0 ? `あたらしく ${newLeaves}枚　${all}` : all
 }
 
 // 六つの禁をテストで走査するための一覧。文言を足したらここにも足す。
@@ -27,6 +30,6 @@ export const ALL_VINE_COPY: string[] = [
   ...LADDER.map((m) => crossedLine(m.label)),
   crossedLine(FAR_DREAM.label),
   grewLine('三'),
-  weekLine(3, 274),
-  weekLine(0, 274),
+  leafCountLine(3, 274),
+  leafCountLine(0, 274),
 ]
