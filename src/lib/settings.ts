@@ -57,6 +57,10 @@ export type AppSettings = {
   // 検索・まとめ用途で使う人向けに、学習系のUIを消せるようにする。
   hideQuizTab?: boolean   // クイズタブを非表示
   hideCqButton?: boolean  // CQ登録の浮きボタンを非表示（個人Notionを使わない人向け）
+
+  // 本文フォールバック（任意・パワーモードの同期のみ）。
+  // ONのとき、要約が空のページは本文冒頭を代わりに索引する（同期は遅くなる）。
+  syncBodyFallback?: boolean
 }
 
 // 同期API・接続テストAPIへ送る列名の読み替え表を組み立てる。
