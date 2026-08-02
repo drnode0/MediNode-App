@@ -2,11 +2,12 @@
 // トークン交換成功時のマージ保存・各エラーのリダイレクト先を検証する。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getUserMock, upsertMock, maybeSingleMock, exchangeMock } = vi.hoisted(() => ({
+const { getUserMock, upsertMock, maybeSingleMock, exchangeMock, decryptMock } = vi.hoisted(() => ({
   getUserMock: vi.fn(),
   upsertMock: vi.fn(),
   maybeSingleMock: vi.fn(),
   exchangeMock: vi.fn(),
+  decryptMock: vi.fn((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false })),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -21,7 +22,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/crypto', () => ({
   isCryptoReady: () => true,
   encryptSettings: (json: string) => `enc:${json}`,
-  decryptSettingsDetailed: (enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false }),
+  decryptSettingsDetailed: decryptMock,
 }))
 vi.mock('@/lib/notion-oauth', async (orig) => ({
   ...(await orig()),
@@ -44,6 +45,7 @@ beforeEach(() => {
   upsertMock.mockReset().mockResolvedValue({ error: null })
   maybeSingleMock.mockReset()
   exchangeMock.mockReset()
+  decryptMock.mockReset().mockImplementation((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false }))
   process.env.NOTION_OAUTH_CLIENT_ID = 'cid-1'
   process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec-1'
 })
@@ -122,5 +124,37 @@ describe('GET /api/notion/oauth/callback', () => {
       req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
     )
     expect(res.headers.get('location')).toContain('oauthError=exchange')
+  })
+
+  it('既存設定の読み取りがDBエラーなら書き込まず /?oauthError=save へ', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    maybeSingleMock.mockResolvedValue({ data: null, error: { message: 'db down' } })
+    exchangeMock.mockResolvedValue({
+      accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
+    })
+    const res = await callbackGET(
+      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
+    )
+    expect(res.headers.get('location')).toContain('oauthError=save')
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('既存行の復号に失敗したら書き込まず /?oauthError=save へ（DEFAULTでの上書きを防ぐ）', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    maybeSingleMock.mockResolvedValue({
+      data: { settings_enc: 'corrupted' },
+      error: null,
+    })
+    decryptMock.mockImplementation(() => {
+      throw new Error('decrypt failed')
+    })
+    exchangeMock.mockResolvedValue({
+      accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
+    })
+    const res = await callbackGET(
+      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
+    )
+    expect(res.headers.get('location')).toContain('oauthError=save')
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 })

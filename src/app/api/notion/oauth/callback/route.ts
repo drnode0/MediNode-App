@@ -55,20 +55,25 @@ export async function GET(req: NextRequest) {
   }
 
   // 既存のサーバー設定を読み、notionToken系だけ差し替えて保存する（他項目は温存）。
+  // 「行が無い」場合だけDEFAULTからの新規作成を許可する。読み取り自体の失敗（DB一時エラー等）や
+  // 既存行の復号失敗（鍵ローテーション窓など）でDEFAULTへフォールバックすると、
+  // 既存の全設定をDEFAULTで上書きしたまま「成功」扱いになってしまうため、その場合は書き込まず中断する。
   const admin = createAdminClient()
   let base: Record<string, unknown> = { ...DEFAULT_SETTINGS }
-  try {
-    const { data } = await admin
-      .from('user_settings')
-      .select('settings_enc')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (data?.settings_enc) {
+  const { data, error: readError } = await admin
+    .from('user_settings')
+    .select('settings_enc')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (readError) return back(req, 'oauthError=save')
+  if (data?.settings_enc) {
+    try {
       const { json } = decryptSettingsDetailed(data.settings_enc)
       base = { ...DEFAULT_SETTINGS, ...JSON.parse(json) }
+    } catch {
+      // 復号できない既存行をDEFAULTで上書きすると全設定を失う。書き込まずに中断する。
+      return back(req, 'oauthError=save')
     }
-  } catch {
-    // 復号失敗時は土台から作り直す（トークンを失うよりは新規保存を優先）
   }
 
   const merged = {
