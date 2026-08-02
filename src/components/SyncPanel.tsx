@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, CheckCircle2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
 import { Spinner } from './Spinner'
-import { getSettings, saveLastSynced, getLastSynced, formatLastSynced, buildPropMap } from '@/lib/settings'
+import { getSettings, saveSettings, saveLastSynced, getLastSynced, formatLastSynced, buildPropMap } from '@/lib/settings'
 
 export function SyncPanel() {
   const [syncing, setSyncing] = useState(false)
+  const [bodyFallback, setBodyFallback] = useState<boolean>(() => !!getSettings()?.syncBodyFallback)
   const [result, setResult] = useState<{
     total: number
     medical: number
@@ -46,6 +47,7 @@ export function SyncPanel() {
           teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
           // 列名の読み替え（設定済みの項目のみ送信・未設定はAPI側が既定名で解決する）
           propMap: buildPropMap(settings),
+          bodyFallback: !!settings.syncBodyFallback,
         }),
       })
       const data = await res.json()
@@ -179,6 +181,23 @@ export function SyncPanel() {
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">Notionのデータを更新した後に同期してください。</p>
           )}
+
+          <label className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={bodyFallback}
+              onChange={(e) => {
+                const on = e.target.checked
+                setBodyFallback(on)
+                const cur = getSettings()
+                if (cur) saveSettings({ ...cur, syncBodyFallback: on })
+              }}
+              className="mt-0.5 accent-brand-600"
+            />
+            <span>
+              本文も検索対象にする（要約が空のページだけ・同期が遅くなります）
+            </span>
+          </label>
 
           <button
             onClick={handleSync}

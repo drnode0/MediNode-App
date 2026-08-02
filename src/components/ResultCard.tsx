@@ -39,6 +39,7 @@ export type Hit = {
   status?: string
   summary?: string
   aiSummary?: string
+  summarySource?: 'property' | 'body'
   evidenceLevel?: string
   recordingLevel?: string
   author?: string
@@ -290,7 +291,12 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
         {/* 折りたたみ時：2行まで表示 */}
         {!expanded && (
           displaySummary ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{displaySummary}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+              {displaySummary}
+              {hit.summarySource === 'body' && displaySummary && (
+                <span className="ml-1 text-[10px] text-gray-400 dark:text-gray-500 align-middle">本文から自動抜粋</span>
+              )}
+            </p>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500 italic">要約なし</p>
           )
