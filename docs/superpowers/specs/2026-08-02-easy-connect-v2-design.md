@@ -3,6 +3,7 @@
 日付: 2026-08-02
 状態: 設計承認済み（実装計画は別途）（v1はiPhone実機で不成立→UI退避済み・main e116c4f）
 追補: §9〜§15（2026-08-02 第2次設計・初心者導線／登録先行／既存ユーザー保護／トライアル起点／出荷の切り方）を承認済みで追加。§4aは§9dで置き換わる
+追補2: §16〜§18（2026-08-02 第3次設計・機能別の先行体験／2つの鍵／段階出荷A〜D）を承認済みで追加。**§13は§17で置き換わる**（単一envフラグ → 指定アカウント＋プレビューCookie）
 前提: v1実装（oauth routes・OAuthFinish・フラグNEXT_PUBLIC_EASY_CONNECT）は温存されており、本設計はその改修として実装する
 
 ## 1. v1が実機で失敗した原因の分析（調査済みの事実）
@@ -232,3 +233,75 @@ QR生成は依存追加なしで実装（軽量な自前SVG生成 or `api.qrserv
 - **ユニット**：`oauth_states` の TTL・一回限り（completed→claimed の一方向）／claim のマージが Algolia・team・プレミアム・列マッピングを保存しないこと／可読性検査の分岐（全部読める→保存、1つでも読めない→conflict で保存しない）／`notionTokenPrev` の退避と復元
 - **回帰（最重要）**：`NEXT_PUBLIC_EASY_CONNECT` 未設定で、現行の手動接続フロー・登録は最後・auto-trial のログイン時付与が完走すること
 - **実機**：§5マトリクス＋「手動Token運用中のアカウントでかんたん接続を押し、認可で別ページだけ選ぶ」→ conflict 画面が出て設定が壊れないこと
+
+---
+
+# 追補2（2026-08-02・第3次設計）：機能別の先行体験と段階出荷
+
+§13で「全部を `NEXT_PUBLIC_EASY_CONNECT` の裏に入れる」と決めたが、オーナーの判断で**指定アカウントだけが先に体験できる**形に変更する。単一の env フラグは「全員か誰も居ないか」の二値しか作れないため、§13を本節で置き換える。
+
+## 16. 機能別の先行体験（early access features）
+
+### 16a. いまの問題
+
+`user_settings.early_access`（boolean 1本）が、すでに**マルチ部署検索と知の塔の2機能を兼務**している。`src/lib/tower-flags.ts:1-3` にも「マルチ部署を他へ開放するときは分離が必要」という警告が残っている。/admin のボタンは「先行体験を開放」の1つだけで、押すと何が開くのか読み取れない。ここに3つ目を足すと破綻する。
+
+マルチ部署検索と知の塔は**それぞれ別案件として進行中**のため、開閉は独立していなければならない。
+
+### 16b. 決定：機能名を導入する
+
+- **新カラム** `user_settings.early_access_features text[] not null default '{}'`（migration `supabase/migrations/0021_early_access_features.sql`）
+- **機能キー**は3つ：`easy_connect` / `multi_department` / `tower`
+- **既存を壊さない**：`early_access = true` の行は**読み取り時に** `['multi_department','tower']` を持つとみなす。既存行のデータ書き換えは行わない（バックフィルしない）。これにより、カラム未適用の環境でも従来どおり動く（`early_access` と同じく select 失敗時は空配列にフォールバック）
+- **判定の正はサーバー**。`src/lib/feature-access.ts` に集約する:
+
+```
+hasFeature(key, { email, ledgerEarlyAccess, ledgerFeatures }): boolean
+  1. 機能ごとの GA env が true          → true   （既存 MULTI_DEPARTMENT_GA を維持。easy_connect は EASY_CONNECT_GA）
+  2. 機能ごとのメールリスト env に一致   → true   （既存 EARLY_ACCESS_EMAILS は multi_department + tower に対応。
+                                                   かんたん接続用に EASY_CONNECT_EMAILS を新設）
+  3. ledgerFeatures に key が含まれる   → true
+  4. key ∈ {multi_department, tower} かつ ledgerEarlyAccess が true → true （レガシー互換）
+  5. それ以外                           → false
+```
+
+- 既存の `resolveEarlyAccess()` は `hasFeature('multi_department', …)` の別名として残す（呼び出し側を一斉に書き換えない）
+- `src/lib/supabase/early-access.ts` の `getSessionEarlyAccess()` に加えて `getSessionFeatures(): Promise<string[]>` を用意し、`/api/notion/search` 等の既存サーバー判定はそのまま動かす
+
+### 16c. クライアントへの配り方
+
+- `/api/premium/status` の応答に `features: string[]` を**追加**する。既存の `earlyAccess: boolean` は**残す**（古いクライアント・PWAのキャッシュが壊れないように）
+- `AppSettings` に `earlyAccessFeatures?: string[]` を追加。`PremiumSync` が `earlyAccess` と同じ要領で同期する（変化時のみ保存＋リロード）
+- `src/lib/tower-flags.ts` の `isTowerEnabled()` は `earlyAccessFeatures.includes('tower')` を見るようにし、未設定時は従来の `earlyAccess` にフォールバックする（切替時に知の塔が消えないため）
+- 表示制御はクライアント、**許可の正はサーバー**という現行の原則を変えない
+
+### 16d. /admin の見え方
+
+- `AdminLedgerClient.tsx` の「先行体験を開放」1ボタンを、**機能名つきの3トグル**に置き換える。行が窮屈なら「先行体験 ▾」で開くポップオーバーに3つ入れる
+- ラベルは省略せずに書く：**「かんたん接続（OAuth検証）」「マルチ部署検索」「知の塔」**
+- `PATCH /api/admin/ledger` に `{ userId, feature, enabled }` を追加。既存の `{ userId, earlyAccess }` も残す（後方互換）
+- 監査ログの action を `grant_feature:<key>` / `revoke_feature:<key>` にする（既存の `grant_early_access` はレガシー経路用に残す）
+
+## 17. 2つの鍵（§13の置き換え）
+
+登録先行（§9）の入口は**アカウントが決まる前の画面**なので、アカウント単位では出し分けられない。鍵を2つに分ける。
+
+| 対象 | 鍵 | 効く範囲 |
+|---|---|---|
+| かんたん接続の**機能**（カード・認可・claim・保存） | アカウントの `easy_connect` 機能 | /admin で指定した人だけ。**APIも同じ判定をサーバー側で行う**ため、指定外のアカウントでは技術的に成立しない |
+| **登録先行の画面順序**（§9） | `?preview=easyconnect` で立つブラウザCookie（30日・設定から解除可） | そのブラウザだけ。漏れても接続はできないので実害がない |
+
+- `NEXT_PUBLIC_EASY_CONNECT` は**廃止する**。代わりにサーバー env `EASY_CONNECT_GA=true`（全員開放＝GA判断）と、上記2つの鍵で可視性を決める
+- §13で入れた「調整中はサーバー側でも止める」ガード（`/api/notion/oauth/start`・`callback`）は、`isEasyConnectOn()` から `hasFeature('easy_connect', …)` へ差し替える。**止まる方向の挙動は維持する**（指定外は今までどおり静かにホームへ戻す）
+- プレビューCookieは**画面順序にしか効かない**。Cookieがあってもアカウントに `easy_connect` が無ければ、かんたん接続カードは出ない
+
+## 18. 実装の段階（この設計から作る計画の単位）
+
+| 段 | 内容 | 出せる状態 |
+|---|---|---|
+| **A** | 機能別先行体験（16a–16d）＋/admin の3トグル | 単独で出荷可。かんたん接続と独立に価値がある（tower の警告もここで解消） |
+| **B** | かんたん接続 v2 本体（§3・§10）＝ `oauth_states`・claim・既存接続の保護・中間ページ。`easy_connect` 機能で閉じる | 指定アカウントのみ本番で体験可 |
+| **C** | 登録先行の導線（§9）＋プレビューリンク（§17） | プレビューCookieを持つブラウザのみ |
+| **D** | 実機検証（§5マトリクス）→ 文言調整 → `EASY_CONNECT_GA=true` でGA | 全員 |
+
+各段は独立にマージ・デプロイでき、どの段で止めても本番が壊れない。段Aから着手する。
