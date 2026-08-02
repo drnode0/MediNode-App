@@ -2,6 +2,7 @@
 
 日付: 2026-08-02
 状態: 設計承認済み（実装計画は別途）（v1はiPhone実機で不成立→UI退避済み・main e116c4f）
+追補: §9〜§15（2026-08-02 第2次設計・初心者導線／登録先行／既存ユーザー保護／トライアル起点／出荷の切り方）を承認済みで追加。§4aは§9dで置き換わる
 前提: v1実装（oauth routes・OAuthFinish・フラグNEXT_PUBLIC_EASY_CONNECT）は温存されており、本設計はその改修として実装する
 
 ## 1. v1が実機で失敗した原因の分析（調査済みの事実）
@@ -121,3 +122,113 @@ QR生成は依存追加なしで実装（軽量な自前SVG生成 or `api.qrserv
 
 - インラインログイン: **既存ログインシートを開く**（カード→シート→戻って自動で接続続行）
 - PCハンドオフ初版: **リンクコピーのみ**（QRは効果を見てから）
+
+---
+
+# 追補（2026-08-02・第2次設計）：初心者導線・登録動線・既存ユーザー保護
+
+§1〜§8はOAuthを実機で成立させるための設計だった。本追補は、それを**初心者が迷わず使い始められる導線**として成立させるために必要な設計を足す。§4aの「インラインログイン」は§9で置き換わる。
+
+## 9. 導線の再設計：登録先行（オーナー決定）
+
+### 9a. 決定と理由
+
+**「はじめて使う方」は、何よりも先にメール登録する。** 以降のセットアップは全員ログイン済みで進む。
+
+現行は「設定を全部終えてから最後にメール登録」（2026-07-15判断）。かんたん接続はトークンをアカウントに保存するため**構造的にログイン先行が必須**であり、経路によって登録タイミングが違う状態は初心者にとって説明不能になる。導線を一本にすることを優先する。
+
+**離脱率の悪化リスクは承知の上で採る**（現行の完遂率は9割前後）。悪化した場合はフラグOFFで即座に現行へ戻せる形にすること（§13）。
+
+### 9b. 新しい順序
+
+```
+オンボーディング（6枚）
+  → entry：はじめて使う方 ／ アカウントをお持ちの方
+      ├ はじめて使う方 → 【登録】メール登録（新設・必須）
+      └ アカウントをお持ちの方 → 復元（現行のまま・変更なし）
+  → start（何から始めますか）
+  → mode（シンプル／パワー）
+  → notion（かんたん接続 ／ 手動接続）
+  → 列の確認
+  → options
+  → 完了
+```
+
+### 9c. UI・文言
+
+- 登録ステップは**ゲートではなく持ち物**として提示する。見出しは「まず、あなたのアカウントを作ります」、説明は「設定はアカウントに保存されるので、スマホでもパソコンでも同じ状態で使えます」。「登録しないと使えません」系の書き方はしない
+- ステップインジケータに**「登録」を1つ目として表示する**。現在 `entry` はインジケータから除外されているが、登録は工程として見せる（残り工程数を偽らないため）
+- `options` の最終ボタンは「メールを登録して検索を開始する」→**「検索を開始する」**（この時点で登録済みのため）
+- ログイン済みで `entry` に来た人の挙動は現行から変更しない
+- 登録ステップは**スキップできない**（フラグON時）。ただし「戻る」で `entry` へ戻れる。入力途中の設定は現行どおり `saveDraft` が保持する
+
+### 9d. §4aの置き換え
+
+かんたん接続カードの「未ログイン状態」は**存在しなくなる**（登録先行により、Notionステップに到達する時点で必ずログイン済み）。ただしコードからは消さない——フラグOFF経路と、セッション切れで戻ってきた人のためにカードの未ログイン分岐は残し、押下時に既存ログインシートを開く（§8の決定を維持）。
+
+## 10. 既存ユーザーの保護（新規）
+
+### 10a. 壊れ方
+
+手動Tokenで運用中の人がかんたん接続を使うと、`notionToken` が**認可で選んだページしか読めないOAuthトークン**に置き換わる。既存の `notionMedicalDbId` 等がその認可範囲外なら、同期も検索も401/404で沈黙して壊れる。§1〜§8にはこの経路の防御が無い。
+
+### 10b. 決定：退避＋検知＋差し戻し
+
+`POST /api/notion/oauth/claim` は、**保存する前に**次を行う。
+
+1. **退避** — 既存設定に `notionToken` があり `notionAuthKind !== 'oauth'` なら、`notionTokenPrev` / `notionAuthKindPrev` へ退避してから書き換える
+2. **可読性検査** — 既存の `notionMedicalDbId` / `notionReferenceDbId` / `notionManualDbId` のうち非空のものを、**新トークンで** `databases.retrieve` して読めるか確かめる
+3. **読めないIDが1つでもあれば `notionToken` を置き換えない。** claim は `{ status: 'conflict', unreadable: [{role, id, title?}] }` を返し、`oauth_states` は `completed` のまま残す（やり直せる）
+4. クライアント（OAuthFinish）は conflict を受けて選び直しフェーズを開く:
+   - 「今の接続では、いま使っているデータベースが見えません。Notionの画面でそのページも選び直すと、続けられます」
+   - 「Notionでページを選び直す」（`/connect/notion` へ）／「このままの接続を続ける（変更しない）」（claim を破棄して閉じる）
+5. **差し戻し** — 置き換えが成立した後も、`notionTokenPrev` があるうちは設定→Notion接続に「元の接続に戻す」を出す。押すと `notionToken` / `notionAuthKind` を Prev から復元し、Prev を消す
+
+### 10c. 触らない範囲
+
+- **部署（team）接続は claim のマージ対象外**。`teamNotionToken` / `teamNotionMedicalDbId` 等には一切書き込まない
+- Algolia キー・プレミアムキー・列マッピング（`propSummary` 等）・`earlyAccess` も claim では触らない。claim が書くのは `notionToken` / `notionAuthKind` / `notionWorkspaceName` / `notionDuplicatedTemplateId` / `notionTokenPrev` / `notionAuthKindPrev` のみ
+- セットアップ完了済みの既存ユーザーはウィザードに入らないため、§9の導線変更の影響を受けない
+
+### 10d. SettingsSync との競合回避
+
+`SettingsSync` は whole-object の last-write-wins ではなく「新しい側を primary に、空欄だけ相手から補完する」マージ（`src/components/auth/SettingsSync.tsx`）。したがって claim の結果をサーバーに書くだけだと、ローカルの `settings_updated` が新しい端末では**古い手動トークンが勝ち続ける**。
+
+対策：**claim はサーバー保存と同時に、マージ後の設定をレスポンスで返す。** クライアントは受け取った値を `saveSettings()` + `setSettingsUpdatedAt(now)` で即座に書く。これで復元待ちに依存せず、v1で `restoring` に張り付いた経路も消える。
+
+## 11. 自動トライアルの起点を後ろへ（オーナー決定）
+
+登録先行にすると、現行の `PremiumSync`（ログインのたびに `POST /api/premium/auto-trial`）では**セットアップを始める前に3日（キャンペーン時7日）の体験が走り出す**。途中で中断して翌日戻る人は体験日数を無駄に失う。
+
+**決定：付与をセットアップ完了時まで遅らせる。**
+
+- `PremiumSync` の auto-trial 呼び出しに条件を足す：`isSettingsSyncSettled() && isSetupComplete()` のときだけ叩く。未完了なら叩かず、`onSettingsSyncSettled` で再評価する
+- セットアップ完了時の付与は**既存の `finishWithPremiumBootstrap()` がすでに行っている**（`SetupWizard.tsx:888`）。この経路を正にする
+- 付与済み・契約済みはサーバーが no-op のため、既存ユーザーへの影響はない
+- **フラグOFF時は現行どおり無条件で叩く**（挙動を変えない）
+
+## 12. スマホ／PC の主役切替
+
+- 中間ページ `/connect/notion` の構成は §4b のまま（主役ボタン＋PCハンドオフのリンクコピー。QRは後続）
+- **どちらを主役に見せるかを env `NEXT_PUBLIC_EASY_CONNECT_MOBILE=direct|handoff` の1変数にする**（既定 `direct`）。§5の実機検証の結果に応じて、コードを触らずに本番の主役を決められるようにする。PC（`pointer: fine`）では常に direct
+- 完了ページは PWA／Safari／別デバイスのどこで開いても成立する（claim はアプリ側で行うため）。Service Worker が完了ページのHTMLを横取りしないことを確認する（`'/'` 限定ガードは導入済み）
+
+## 13. 出荷の切り方（オーナー決定）
+
+**登録先行もかんたん接続も `NEXT_PUBLIC_EASY_CONNECT=on` の裏に入れる。** 独立フラグにはしない。
+
+- OFF の間：現行の「登録は最後」「手動接続のみ」「auto-trial はログイン時付与」が**1バイトも変わらない**
+- 検証は Vercel Preview（フラグON）→ 実機マトリクス（§5）→ 本番ON
+- 本番ON後、/admin の離脱ヒストグラムで**登録ステップの通過率**を見る。悪化したらフラグOFFで即戻す
+
+## 14. 観測
+
+- `setup-telemetry.ts` の `STEP_ORDER` に `register` を追加（`entry` と `start` の間）。保存値はステップ名なので過去データは無効化されない。`/admin` の `STEP_LABEL` にも「登録」を追加
+- 新イベント（`track()`）：`easy_connect_start` / `easy_connect_callback_ok` / `easy_connect_callback_error`（種別つき）/ `easy_connect_claimed` / `easy_connect_handoff_copied` / `easy_connect_db_unreadable`
+- 判定に使う数字：登録ステップ通過率、かんたん接続の start→claimed 完遂率、`db_unreadable` の発生数
+
+## 15. テスト方針（追補分）
+
+- **ユニット**：`oauth_states` の TTL・一回限り（completed→claimed の一方向）／claim のマージが Algolia・team・プレミアム・列マッピングを保存しないこと／可読性検査の分岐（全部読める→保存、1つでも読めない→conflict で保存しない）／`notionTokenPrev` の退避と復元
+- **回帰（最重要）**：`NEXT_PUBLIC_EASY_CONNECT` 未設定で、現行の手動接続フロー・登録は最後・auto-trial のログイン時付与が完走すること
+- **実機**：§5マトリクス＋「手動Token運用中のアカウントでかんたん接続を押し、認可で別ページだけ選ぶ」→ conflict 画面が出て設定が壊れないこと
