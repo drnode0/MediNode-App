@@ -1607,397 +1607,421 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionとつなぐ</h2>
               </div>
 
-              {/* 10秒プライマー：トークン＝合鍵のメンタルモデルを渡してからガイドへ流す */}
-              <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-1.5">
-                <p className="text-sm font-bold text-brand-700 dark:text-brand-300">
-                  <KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />
-                  これから、Notionとこのアプリをつなぎます
+              {/* かんたん接続（OAuth）。トークン手作業を丸ごと置き換える推奨経路。
+                  未ログインならサーバーが /?oauthError=login で戻すので、ここでは判定しない。 */}
+              <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2 bg-brand-50/50 dark:bg-brand-900/20">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">かんたん接続 <span className="ml-1 text-[10px] align-middle bg-brand-600 text-white rounded-full px-2 py-0.5">推奨</span></p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  Notionの画面でページを選んで許可するだけで、接続が終わります。トークンの作成やコピーは不要です。既存のページを編集することはありません。
                 </p>
-                <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed">
-                  アプリはあなたのNotionを勝手に読めません。Notion側で合鍵（コネクトToken）を作ってアプリに渡し、読ませたいDBに鍵を差します。
-                </p>
-                <p className="text-xs text-brand-600/80 dark:text-brand-300/80 leading-relaxed">
-                  画面の通りに進めれば、目安は約5分。あとからでも設定できます。
-                </p>
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                  className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
+                >
+                  Notionでページを選んで接続する
+                </button>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">先にメールアドレスでのログインが必要です（未ログインの場合は案内が出ます）。</p>
               </div>
 
-              {/* 主動線はこの1ボタンのみ。他の入口（動画・テキスト手順）は下の折りたたみへ */}
-              <button
-                type="button"
-                onClick={() => setTokenGuideStep(0)}
-                className="w-full flex items-center justify-center gap-1.5 bg-brand-600 rounded-xl py-3 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-              >
-                <BookOpen className="h-4 w-4" />
-                画面を見ながら進める
-              </button>
-
-              {/* コネクトToken（常に表示） */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  コネクトToken <span className="text-red-500">*</span>
-                  <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">ntn_</code> または <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_</code>で始まる文字列）</span>
-                </label>
-                <PasswordInput
-                  value={form.notionToken}
-                  onChange={(e) => update('notionToken', e.target.value)}
-                  placeholder="ntn_xxxxxxxxxxxx"
-                  required
-                  show={!!showPassword['notionToken']}
-                  onToggle={() => togglePassword('notionToken')}
-                />
-                <div className="mt-1.5 space-y-0.5">
-                  {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
-                  )}
-                  {form.notionToken && (form.notionToken.startsWith('ntn_') || form.notionToken.startsWith('secret_')) && (
-                    <p className="text-xs text-green-600 dark:text-green-400"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />形式OK</p>
-                  )}
-                </div>
-
-                {/* 他の入口と補足はここに格納（初見の視界から外す） */}
-                <details className="mt-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                  <summary className="px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-600 dark:text-gray-300">
-                    他の方法と補足（動画・テキスト手順・部署用DBなど）
-                  </summary>
-                  <div className="px-3 pb-3 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowSetupVideo(true)}
-                      className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 rounded-xl py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
-                    >
-                      <PlayCircle className="h-4 w-4" />
-                      動画で通しで見る（約3分・タップ箇所に赤枠つき）
-                    </button>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      慣れている方は：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+              <details className="rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+                <summary className="bg-gray-50 dark:bg-gray-700 px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-700 dark:text-gray-200">
+                  手動で接続する（トークンを自分で作る・上級者向け）
+                </summary>
+                <div className="p-3 space-y-4">
+                  {/* 10秒プライマー：トークン＝合鍵のメンタルモデルを渡してからガイドへ流す */}
+                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-1.5">
+                    <p className="text-sm font-bold text-brand-700 dark:text-brand-300">
+                      <KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />
+                      これから、Notionとこのアプリをつなぎます
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
+                    <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed">
+                      アプリはあなたのNotionを勝手に読めません。Notion側で合鍵（コネクトToken）を作ってアプリに渡し、読ませたいDBに鍵を差します。
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      Notion自体がはじめての方は、まず
-                      <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notionアカウントの作り方（note・スクショつき）</a>
-                      でアカウントを用意してください。基本操作は
-                      <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
-                      も参考にどうぞ。
+                    <p className="text-xs text-brand-600/80 dark:text-brand-300/80 leading-relaxed">
+                      画面の通りに進めれば、目安は約5分。あとからでも設定できます。
                     </p>
                   </div>
-                </details>
-              </div>
 
-              {/* DBのセットアップ方法の選択（choose モード） */}
-              {notionSetupMode === 'choose' && (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                    NotionのDBはどうしますか？
-                  </p>
-                  {/* テンプレート複製（推奨）
-                      ホーム画面追加のPWA（特にiOS）では window.open がブロックされ
-                      「押してもページが開かない」事故になるため、実アンカーで開く */}
-                  <a
-                    href={MANUAL_TEMPLATE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      if (!form.notionToken.trim()) {
-                        e.preventDefault()
-                        setError('先にコネクトTokenを入力してください')
-                        return
-                      }
-                      setError('')
-                      setNotionSetupMode('after-template')
-                    }}
-                    className="block w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />テンプレートを複製して使う</p>
-                      <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
-                    </div>
-                    <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-                      配布中のNotionテンプレートを複製するだけ。プロパティ設定不要ですぐ使えます。
-                    </p>
-                  </a>
-                  {/* 既存DBに連携 */}
+                  {/* 主動線はこの1ボタンのみ。他の入口（動画・テキスト手順）は下の折りたたみへ */}
                   <button
-                    onClick={() => {
-                      if (!form.notionToken.trim()) {
-                        setError('先にコネクトTokenを入力してください')
-                        return
-                      }
-                      setError('')
-                      setNotionSetupMode('existing')
-                    }}
-                    className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    type="button"
+                    onClick={() => setTokenGuideStep(0)}
+                    className="w-full flex items-center justify-center gap-1.5 bg-brand-600 rounded-xl py-3 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
                   >
-                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存のDBに連携する</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。</p>
+                    <BookOpen className="h-4 w-4" />
+                    画面を見ながら進める
                   </button>
-                </div>
-              )}
 
-              {/* テンプレート複製後の最短フロー */}
-              {notionSetupMode === 'after-template' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => { setNotionSetupMode('choose'); setError('') }}
-                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
-                    </button>
+                  {/* コネクトToken（常に表示） */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      コネクトToken <span className="text-red-500">*</span>
+                      <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">（<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">ntn_</code> または <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">secret_</code>で始まる文字列）</span>
+                    </label>
+                    <PasswordInput
+                      value={form.notionToken}
+                      onChange={(e) => update('notionToken', e.target.value)}
+                      placeholder="ntn_xxxxxxxxxxxx"
+                      required
+                      show={!!showPassword['notionToken']}
+                      onToggle={() => togglePassword('notionToken')}
+                    />
+                    <div className="mt-1.5 space-y-0.5">
+                      {form.notionToken && !form.notionToken.startsWith('ntn_') && !form.notionToken.startsWith('secret_') && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">コネクトTokenは通常 <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">ntn_</code> または <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">secret_</code> で始まります</p>
+                      )}
+                      {form.notionToken && (form.notionToken.startsWith('ntn_') || form.notionToken.startsWith('secret_')) && (
+                        <p className="text-xs text-green-600 dark:text-green-400"><Check className="inline-block h-3 w-3 align-text-bottom mr-1.5" />形式OK</p>
+                      )}
+                    </div>
+
+                    {/* 他の入口と補足はここに格納（初見の視界から外す） */}
+                    <details className="mt-2 rounded-xl border border-gray-200 dark:border-gray-600">
+                      <summary className="px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-600 dark:text-gray-300">
+                        他の方法と補足（動画・テキスト手順・部署用DBなど）
+                      </summary>
+                      <div className="px-3 pb-3 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowSetupVideo(true)}
+                          className="w-full flex items-center justify-center gap-1.5 border border-brand-200 dark:border-brand-700 rounded-xl py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          動画で通しで見る（約3分・タップ箇所に赤枠つき）
+                        </button>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          慣れている方は：<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline text-brand-500">notion.so/my-integrations</a> → 「新規コネクト」→ 認証方法「アクセストークン」→ 作成後に「アクセストークン」をコピー
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                          ここは<strong>あなた個人のDB</strong>用の設定です。職場のメンバーと共有DBを使う場合は、あとの「オプション設定 → 部署用DB」で設定できます（その際は、共有用に<strong>別のToken</strong>を用意するのがおすすめです）。
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                          Notion自体がはじめての方は、まず
+                          <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notionアカウントの作り方（note・スクショつき）</a>
+                          でアカウントを用意してください。基本操作は
+                          <a href={NOTION_MAGAZINE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline underline-offset-2 mx-0.5">Notion入門（note・第1話）</a>
+                          も参考にどうぞ。
+                        </p>
+                      </div>
+                    </details>
                   </div>
 
-                  {/* ステップガイド */}
-                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-3">
-                    <p className="text-sm font-bold text-brand-700 dark:text-brand-300">テンプレートの複製手順</p>
-                    <p className="text-xs text-brand-700 dark:text-brand-300">
-                      複製にはNotionアカウントが必要です。まだお持ちでない方は
-                      <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 mx-0.5 font-semibold">Notionアカウントの作り方（note・約5分）</a>
-                      から先に済ませてください。
-                    </p>
-                    <a
-                      href={MANUAL_TEMPLATE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      テンプレートページが開かなかった方はこちら
-                    </a>
-                    <ol className="space-y-2.5 text-xs text-brand-700 dark:text-brand-300">
-                      <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
-                        <span>開いたNotionページ右上の <strong>「複製」</strong> をクリック</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
-                        <span>複製されたDBページを開き、右上 <strong>「…」→「コネクト」</strong> から作成したコネクト（旧称: インテグレーション）を接続</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
-                        <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
-                      </li>
-                    </ol>
-                    <button
-                      type="button"
-                      onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
-                      className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
-                    >
-                      <BookOpen className="h-3.5 w-3.5" />
-                      手順2「コネクトを接続」を画面で見る
-                    </button>
-                    <p className="text-[11px] text-brand-600/80 dark:text-brand-300/80 leading-relaxed pt-1 border-t border-brand-200/60 dark:border-brand-700/60 mt-1">
-                      複製したDBの列名は、そのままにしておくのが簡単です。あとから変えた場合も、設定の「列名がちがうとき」で読み取る列を選び直せます。
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Medical DB の URL <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionMedicalDbId}
-                        onChange={(e) => update('notionMedicalDbId', e.target.value)}
-                        placeholder="https://www.notion.so/..."
-                        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
-                          !form.notionMedicalDbId.trim()
-                            ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-                            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
-                        }`}
-                      />
-                      <DbIdStatus value={form.notionMedicalDbId} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Reference DB の URL <span className="text-gray-400 font-normal text-xs">（任意）</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionReferenceDbId}
-                        onChange={(e) => update('notionReferenceDbId', e.target.value)}
-                        placeholder="https://www.notion.so/..."
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                      />
-                      <DbIdStatus value={form.notionReferenceDbId} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Manual DB の URL <span className="text-gray-400 font-normal text-xs">（マニュアル・お知らせ・任意）</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionManualDbId}
-                        onChange={(e) => update('notionManualDbId', e.target.value)}
-                        placeholder="https://www.notion.so/..."
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                      />
-                      <DbIdStatus value={form.notionManualDbId} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
-                    </div>
-                  </div>
-
-                  {renderNotionTestBlock()}
-
-                  {error && (
-                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                      <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
-                      {error.split('\n').map((line, i) => (
-                        <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
-                      ))}
+                  {/* DBのセットアップ方法の選択（choose モード） */}
+                  {notionSetupMode === 'choose' && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                        NotionのDBはどうしますか？
+                      </p>
+                      {/* テンプレート複製（推奨）
+                          ホーム画面追加のPWA（特にiOS）では window.open がブロックされ
+                          「押してもページが開かない」事故になるため、実アンカーで開く */}
+                      <a
+                        href={MANUAL_TEMPLATE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          if (!form.notionToken.trim()) {
+                            e.preventDefault()
+                            setError('先にコネクトTokenを入力してください')
+                            return
+                          }
+                          setError('')
+                          setNotionSetupMode('after-template')
+                        }}
+                        className="block w-full border-2 border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />テンプレートを複製して使う</p>
+                          <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full shrink-0">推奨</span>
+                        </div>
+                        <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+                          配布中のNotionテンプレートを複製するだけ。プロパティ設定不要ですぐ使えます。
+                        </p>
+                      </a>
+                      {/* 既存DBに連携 */}
+                      <button
+                        onClick={() => {
+                          if (!form.notionToken.trim()) {
+                            setError('先にコネクトTokenを入力してください')
+                            return
+                          }
+                          setError('')
+                          setNotionSetupMode('existing')
+                        }}
+                        className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 text-left hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      >
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-200"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存のDBに連携する</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">すでにNotionにDBがある場合はこちら。</p>
+                      </button>
                     </div>
                   )}
 
-                  <button
-                    onClick={handleNotionNext}
-                    className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
-                  >
-                    次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
-                  </button>
-                </div>
-              )}
+                  {/* テンプレート複製後の最短フロー */}
+                  {notionSetupMode === 'after-template' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setNotionSetupMode('choose'); setError('') }}
+                          className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />戻る
+                        </button>
+                      </div>
 
-              {/* 既存DB連携モード */}
-              {notionSetupMode === 'existing' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <button
-                      onClick={() => { setNotionSetupMode('choose'); setError('') }}
-                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />選択に戻る
-                    </button>
-                    <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存DB連携</span>
-                  </div>
+                      {/* ステップガイド */}
+                      <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-3">
+                        <p className="text-sm font-bold text-brand-700 dark:text-brand-300">テンプレートの複製手順</p>
+                        <p className="text-xs text-brand-700 dark:text-brand-300">
+                          複製にはNotionアカウントが必要です。まだお持ちでない方は
+                          <a href={NOTION_ACCOUNT_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 mx-0.5 font-semibold">Notionアカウントの作り方（note・約5分）</a>
+                          から先に済ませてください。
+                        </p>
+                        <a
+                          href={MANUAL_TEMPLATE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          テンプレートページが開かなかった方はこちら
+                        </a>
+                        <ol className="space-y-2.5 text-xs text-brand-700 dark:text-brand-300">
+                          <li className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
+                            <span>開いたNotionページ右上の <strong>「複製」</strong> をクリック</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
+                            <span>複製されたDBページを開き、右上 <strong>「…」→「コネクト」</strong> から作成したコネクト（旧称: インテグレーション）を接続</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-brand-200 dark:bg-brand-800 flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
+                            <span>DBページの <strong>URLをコピー</strong> して下に貼り付け</span>
+                          </li>
+                        </ol>
+                        <button
+                          type="button"
+                          onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
+                          className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
+                        >
+                          <BookOpen className="h-3.5 w-3.5" />
+                          手順2「コネクトを接続」を画面で見る
+                        </button>
+                        <p className="text-[11px] text-brand-600/80 dark:text-brand-300/80 leading-relaxed pt-1 border-t border-brand-200/60 dark:border-brand-700/60 mt-1">
+                          複製したDBの列名は、そのままにしておくのが簡単です。あとから変えた場合も、設定の「列名がちがうとき」で読み取る列を選び直せます。
+                        </p>
+                      </div>
 
-                  {/* Integration接続手順 */}
-                  <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-700 dark:text-brand-300 space-y-2">
-                    <p className="font-semibold"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />コネクト（旧称: インテグレーション）をDBに接続する（必須）</p>
-                    <ol className="space-y-1 list-decimal list-inside text-brand-700 dark:text-brand-300">
-                      <li>NotionでMedical DBのページを開く</li>
-                      <li>右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
-                      <li>「<strong>コネクト</strong>」または「<strong>コネクトを追加</strong>」を選択</li>
-                      <li>作成したコネクト名を選択して接続</li>
-                      <li>Reference DBがある場合も同様に接続する</li>
-                    </ol>
-                    <button
-                      type="button"
-                      onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
-                      className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
-                    >
-                      <BookOpen className="h-3.5 w-3.5" />
-                      この操作を画面で見る
-                    </button>
-                    <p className="text-amber-600 dark:text-amber-400 font-medium">この接続を忘れると「403エラー」になります</p>
-                  </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Medical DB の URL <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionMedicalDbId}
+                            onChange={(e) => update('notionMedicalDbId', e.target.value)}
+                            placeholder="https://www.notion.so/..."
+                            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
+                              !form.notionMedicalDbId.trim()
+                                ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
+                                : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
+                            }`}
+                          />
+                          <DbIdStatus value={form.notionMedicalDbId} />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Reference DB の URL <span className="text-gray-400 font-normal text-xs">（任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionReferenceDbId}
+                            onChange={(e) => update('notionReferenceDbId', e.target.value)}
+                            placeholder="https://www.notion.so/..."
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                          />
+                          <DbIdStatus value={form.notionReferenceDbId} />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Manual DB の URL <span className="text-gray-400 font-normal text-xs">（マニュアル・お知らせ・任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionManualDbId}
+                            onChange={(e) => update('notionManualDbId', e.target.value)}
+                            placeholder="https://www.notion.so/..."
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                          />
+                          <DbIdStatus value={form.notionManualDbId} />
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます（病院・部署のマニュアルやお知らせを検索）</p>
+                        </div>
+                      </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
-                    <p className="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />DB URLの入力方法</p>
-                    <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
-                    <p className="text-gray-400 break-all">例: https://notion.so/workspace/<strong>abc123def456...</strong>?v=...</p>
-                  </div>
+                      {renderNotionTestBlock()}
 
-                  {/* DBの役割説明（トグルで畳める：入力欄まで早く到達できるように） */}
-                  <details className="bg-brand-50 dark:bg-brand-900/30 rounded-xl text-xs text-brand-700 dark:text-brand-300">
-                    <summary className="font-semibold cursor-pointer p-3 select-none"><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB / Reference DB / Manual DB ってなに？（タップで開く）</summary>
-                    <div className="space-y-1.5 px-3 pb-3">
-                      <p><strong><Ambulance className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB</strong>（メイン・必須）<br/>
-                        <span className="text-brand-600 dark:text-brand-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
-                      </p>
-                      <p><strong><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Reference DB</strong>（参考文献・任意）<br/>
-                        <span className="text-brand-600 dark:text-brand-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
-                      </p>
-                      <p><strong><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
-                        <span className="text-brand-600 dark:text-brand-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定するとマニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
-                      </p>
-                    </div>
-                  </details>
+                      {error && (
+                        <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                          <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
+                          {error.split('\n').map((line, i) => (
+                            <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                          ))}
+                        </div>
+                      )}
 
-                  {/* プロパティの案内。必須はタイトルだけ、という実態をそのまま短く伝える。
-                      列名の違いは接続テスト後のドロップダウンで解決するので、ここで脅さない。
-                      （旧: 3DB×列の必須バッジ表＋「完全一致・サマリーNG」の長文 → モニターFBで
-                      「説明が多すぎる・実装と矛盾」と判明したため3行に刷新） */}
-                  <div className="rounded-xl bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 p-3 space-y-1.5 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
-                    <p className="font-semibold"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DBは、今のままつなげます</p>
-                    <p>必ず要るのは、タイトルの列（Notionの「名前」）だけです。</p>
-                    <p>「要約」「キーワード」「ジャンル」の列があると、タイトル以外の言葉での検索や、ジャンルごとの一覧もできるようになります。</p>
-                    <p>列の名前がちがっていても、<strong>接続テスト</strong>のあとに、どの列を読むかを選べます。Notion側を直す必要はありません。</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Medical DB（URLまたはID） <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionMedicalDbId}
-                        onChange={(e) => update('notionMedicalDbId', e.target.value)}
-                        placeholder="https://www.notion.so/... またはID32桁"
-                        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
-                          !form.notionMedicalDbId.trim()
-                            ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
-                            : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
-                        }`}
-                      />
-                      <DbIdStatus value={form.notionMedicalDbId} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Reference DB（URLまたはID） <span className="text-gray-400 font-normal">（任意）</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionReferenceDbId}
-                        onChange={(e) => update('notionReferenceDbId', e.target.value)}
-                        placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                      />
-                      <DbIdStatus value={form.notionReferenceDbId} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Manual DB（URLまたはID） <span className="text-gray-400 font-normal">（マニュアル・お知らせ・任意）</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.notionManualDbId}
-                        onChange={(e) => update('notionManualDbId', e.target.value)}
-                        placeholder="https://www.notion.so/... またはID32桁"
-                        className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                      />
-                      <DbIdStatus value={form.notionManualDbId} />
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
-                    </div>
-                  </div>
-
-                  {renderNotionTestBlock()}
-
-                  {error && (
-                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
-                      <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
-                      {error.split('\n').map((line, i) => (
-                        <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
-                      ))}
+                      <button
+                        onClick={handleNotionNext}
+                        className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
+                      >
+                        次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
+                      </button>
                     </div>
                   )}
 
-                  <button
-                    onClick={handleNotionNext}
-                    className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
-                  >
-                    次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
-                  </button>
-                </div>
-              )}
+                  {/* 既存DB連携モード */}
+                  {notionSetupMode === 'existing' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <button
+                          onClick={() => { setNotionSetupMode('choose'); setError('') }}
+                          className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <ArrowLeft className="inline-block h-4 w-4 align-text-bottom mr-1" />選択に戻る
+                        </button>
+                        <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold"><Link2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />既存DB連携</span>
+                      </div>
 
-              {/* choose モードでのエラー（Token未入力時） */}
-              {notionSetupMode === 'choose' && error && (
-                <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
-                  <p className="font-medium">{error}</p>
+                      {/* Integration接続手順 */}
+                      <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 text-xs text-brand-700 dark:text-brand-300 space-y-2">
+                        <p className="font-semibold"><KeyRound className="inline-block h-4 w-4 align-text-bottom mr-1.5" />コネクト（旧称: インテグレーション）をDBに接続する（必須）</p>
+                        <ol className="space-y-1 list-decimal list-inside text-brand-700 dark:text-brand-300">
+                          <li>NotionでMedical DBのページを開く</li>
+                          <li>右上の「<strong>…</strong>（三点リーダ）」をクリック</li>
+                          <li>「<strong>コネクト</strong>」または「<strong>コネクトを追加</strong>」を選択</li>
+                          <li>作成したコネクト名を選択して接続</li>
+                          <li>Reference DBがある場合も同様に接続する</li>
+                        </ol>
+                        <button
+                          type="button"
+                          onClick={() => setTokenGuideStep(CONNECT_FIRST_STEP)}
+                          className="w-full flex items-center justify-center gap-1.5 border border-brand-300 dark:border-brand-600 bg-white dark:bg-brand-900/40 rounded-lg py-2 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition-colors"
+                        >
+                          <BookOpen className="h-3.5 w-3.5" />
+                          この操作を画面で見る
+                        </button>
+                        <p className="text-amber-600 dark:text-amber-400 font-medium">この接続を忘れると「403エラー」になります</p>
+                      </div>
+
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                        <p className="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5"><KeyRound className="h-4 w-4 shrink-0" />DB URLの入力方法</p>
+                        <p>DBページのURLをそのまま貼り付けてください（IDが自動で抽出されます）</p>
+                        <p className="text-gray-400 break-all">例: https://notion.so/workspace/<strong>abc123def456...</strong>?v=...</p>
+                      </div>
+
+                      {/* DBの役割説明（トグルで畳める：入力欄まで早く到達できるように） */}
+                      <details className="bg-brand-50 dark:bg-brand-900/30 rounded-xl text-xs text-brand-700 dark:text-brand-300">
+                        <summary className="font-semibold cursor-pointer p-3 select-none"><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB / Reference DB / Manual DB ってなに？（タップで開く）</summary>
+                        <div className="space-y-1.5 px-3 pb-3">
+                          <p><strong><Ambulance className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Medical DB</strong>（メイン・必須）<br/>
+                            <span className="text-brand-600 dark:text-brand-200">病態・薬剤・手技など、検索したい知識本体を入れるDB。アプリの検索・ジャンルブラウズ・クイズはここを見ます。</span>
+                          </p>
+                          <p><strong><BookOpen className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Reference DB</strong>（参考文献・任意）<br/>
+                            <span className="text-brand-600 dark:text-brand-200">論文・ガイドラインなどの根拠資料を別管理したい人向け。<strong>使わなくてもアプリは動きます。</strong></span>
+                          </p>
+                          <p><strong><ClipboardList className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Manual DB</strong>（マニュアル・お知らせ・任意）<br/>
+                            <span className="text-brand-600 dark:text-brand-200">病院・部署のマニュアルやお知らせ、業務改善を管理するDB。設定するとマニュアルタブが表示されます。<strong>使わなくてもアプリは動きます。</strong></span>
+                          </p>
+                        </div>
+                      </details>
+
+                      {/* プロパティの案内。必須はタイトルだけ、という実態をそのまま短く伝える。
+                          列名の違いは接続テスト後のドロップダウンで解決するので、ここで脅さない。
+                          （旧: 3DB×列の必須バッジ表＋「完全一致・サマリーNG」の長文 → モニターFBで
+                          「説明が多すぎる・実装と矛盾」と判明したため3行に刷新） */}
+                      <div className="rounded-xl bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 p-3 space-y-1.5 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
+                        <p className="font-semibold"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DBは、今のままつなげます</p>
+                        <p>必ず要るのは、タイトルの列（Notionの「名前」）だけです。</p>
+                        <p>「要約」「キーワード」「ジャンル」の列があると、タイトル以外の言葉での検索や、ジャンルごとの一覧もできるようになります。</p>
+                        <p>列の名前がちがっていても、<strong>接続テスト</strong>のあとに、どの列を読むかを選べます。Notion側を直す必要はありません。</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Medical DB（URLまたはID） <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionMedicalDbId}
+                            onChange={(e) => update('notionMedicalDbId', e.target.value)}
+                            placeholder="https://www.notion.so/... またはID32桁"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${
+                              !form.notionMedicalDbId.trim()
+                                ? 'border-red-400 dark:border-red-500 bg-red-50/40 dark:bg-red-900/10 focus:ring-red-300 focus:border-red-400'
+                                : 'border-gray-200 dark:border-gray-600 focus:ring-brand-300'
+                            }`}
+                          />
+                          <DbIdStatus value={form.notionMedicalDbId} />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Reference DB（URLまたはID） <span className="text-gray-400 font-normal">（任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionReferenceDbId}
+                            onChange={(e) => update('notionReferenceDbId', e.target.value)}
+                            placeholder="https://www.notion.so/... またはID32桁"
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                          />
+                          <DbIdStatus value={form.notionReferenceDbId} />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Manual DB（URLまたはID） <span className="text-gray-400 font-normal">（マニュアル・お知らせ・任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.notionManualDbId}
+                            onChange={(e) => update('notionManualDbId', e.target.value)}
+                            placeholder="https://www.notion.so/... またはID32桁"
+                            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                          />
+                          <DbIdStatus value={form.notionManualDbId} />
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">設定するとマニュアルタブが表示されます</p>
+                        </div>
+                      </div>
+
+                      {renderNotionTestBlock()}
+
+                      {error && (
+                        <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-4 text-sm text-red-600 dark:text-red-400">
+                          <p className="font-semibold mb-1"><AlertTriangle className="inline-block h-3.5 w-3.5 align-text-bottom mr-1.5" />エラー</p>
+                          {error.split('\n').map((line, i) => (
+                            <p key={i} className={i === 0 ? 'font-medium' : 'mt-0.5 text-xs'}>{line}</p>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleNotionNext}
+                        className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
+                      >
+                        次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* choose モードでのエラー（Token未入力時） */}
+                  {notionSetupMode === 'choose' && error && (
+                    <div className="bg-red-50 dark:bg-red-900/30 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
+                      <p className="font-medium">{error}</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </details>
 
               {skipToPremiumLink}
             </div>

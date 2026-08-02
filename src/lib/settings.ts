@@ -14,6 +14,13 @@ export type AppSettings = {
   notionReferenceDbId: string
   // マニュアル・お知らせ・業務改善DB（任意）。未設定なら📋マニュアルタブは非表示。
   notionManualDbId: string
+  // Notion接続の出自（任意）。'oauth'=かんたん接続で取得したトークン。
+  // 未設定/'manual'=手入力。下流の同期・検索はこのフラグを区別しない（表示と再接続導線のみ）。
+  notionAuthKind?: 'oauth' | 'manual'
+  // かんたん接続時のワークスペース名（表示用）
+  notionWorkspaceName?: string
+  // 認可フローでテンプレート複製が行われた場合の複製先ページID（将来のGA用に保持のみ）
+  notionDuplicatedTemplateId?: string
 
   // Algoliaモードのみ必須
   algoliaAppId: string

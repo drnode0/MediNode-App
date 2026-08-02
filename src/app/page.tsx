@@ -83,8 +83,14 @@ const SettingsPanel = dynamicImport(
     ),
   },
 )
+// かんたん接続（OAuth）の仕上げシート。認可から戻った直後だけ使うため遅延読込。
+const OAuthFinish = dynamicImport(
+  () => import('@/components/OAuthFinish').then((m) => m.OAuthFinish),
+  { ssr: false, loading: () => <AppSkeleton /> },
+)
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
+import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -2663,6 +2669,36 @@ export default function Home() {
       })
   }, [])
 
+  // かんたん接続（OAuth）から戻ったときの受け口。クエリを消してからシートを開く。
+  // OAuth帰還直後はローカル設定がまだ古く、直後にSettingsSyncが復元→reloadすることがある
+  // （＝このuseEffectがもう一度最初から走る）。その時点でURLからクエリは既に剥がされているため、
+  // クエリだけを頼りにするとシートが二度と開かない。sessionStorageにマーカーを残し、
+  // クエリが無い場合でもマーカーがあれば開き直す（OAuthFinish側が保存成功/明示close時に消す）。
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('oauth') === 'notion-done') {
+      try { sessionStorage.setItem(OAUTH_FINISH_MARKER, '1') } catch {}
+      window.history.replaceState(null, '', window.location.pathname)
+      setShowOauthFinish(true)
+    } else {
+      let marked = false
+      try { marked = sessionStorage.getItem(OAUTH_FINISH_MARKER) === '1' } catch {}
+      if (marked) setShowOauthFinish(true)
+    }
+    const oauthErr = params.get('oauthError')
+    if (oauthErr) {
+      window.history.replaceState(null, '', window.location.pathname)
+      const msg = oauthErr === 'login'
+        ? 'かんたん接続には、先にメールアドレスでのログインが必要です。'
+        : oauthErr === 'denied'
+        ? 'Notionでの許可がキャンセルされました。もう一度お試しください。'
+        : oauthErr === 'unconfigured'
+        ? 'かんたん接続は現在準備中です。手動接続をご利用ください。'
+        : 'かんたん接続に失敗しました。もう一度お試しください。'
+      window.alert(msg)
+    }
+  }, [])
+
   useEffect(() => {
     setSetupDone(isSetupComplete())
     const done = typeof window !== 'undefined' && !!localStorage.getItem(ONBOARDING_DONE_KEY)
@@ -2697,6 +2733,8 @@ export default function Home() {
   }
 
   const [showOnboardingFromSetup, setShowOnboardingFromSetup] = useState(false)
+  // かんたん接続（OAuth）から戻った直後だけ立てる。オンボーディング/セットアップより優先して開く。
+  const [showOauthFinish, setShowOauthFinish] = useState(false)
 
   const completeOnboarding = () => {
     localStorage.setItem(ONBOARDING_DONE_KEY, '1')
@@ -2739,6 +2777,19 @@ export default function Home() {
           )}
         </div>
       </div>
+    )
+  }
+
+  // かんたん接続（OAuth）から戻った直後は、オンボーディング/セットアップより最優先で
+  // 仕上げシートを開く（DB選択→列確認→保存）。onComplete（保存成功）は
+  // 既存のSetupWizard onComplete と同じ完了処理系。onAbort（エラー画面の「閉じる」）は
+  // セットアップ完了扱いにしない — シートを閉じるだけで、setSetupDone等の副作用を通さない。
+  if (showOauthFinish) {
+    return (
+      <OAuthFinish
+        onComplete={() => { setShowOauthFinish(false); setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }}
+        onAbort={() => { setShowOauthFinish(false) }}
+      />
     )
   }
 
