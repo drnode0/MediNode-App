@@ -1,10 +1,14 @@
 // 知の蔓の高さ関数。ルールは一文——「葉が1枚ひらくと、蔓が2mm伸びる」。
-// ネコ（葉125枚=25cm）から先は複利（1枚ごとに+0.8%）。「学びは複利」を機構で語る。
+// 一升瓶のすぐ上（葉200枚=40cm）から先は複利（1枚ごとに+0.5%）。「学びは複利」を機構で語る。
 // ⚠️ この3定数は表示露出後は実質変更不可（ユーザーの高さが動く）。
 //    ゴールデンテスト（vine-ladder.test.ts）が事故的変更を封じている。GA前の監修でのみ動かす。
+// ⚠️ この3定数は独立ではない。COMPOUND_START_LEAVES × COMPOUND_RATE = 1 が
+//    成り立つときだけ複利の境界で「1枚=2mm」が途切れない。率だけ下げると
+//    複利開始と同時に減速する（率0.0034にすると2mm→0.85mmに落ち、戻るのは葉379枚）。
+//    変えるときは開始枚数を選び、率はその逆数にする。
 export const MM_PER_LEAF = 2
-export const COMPOUND_START_LEAVES = 125
-export const COMPOUND_RATE = 0.008
+export const COMPOUND_START_LEAVES = 200
+export const COMPOUND_RATE = 0.005
 
 const COMPOUND_BASE_MM = COMPOUND_START_LEAVES * MM_PER_LEAF // 250mm（ネコ）
 

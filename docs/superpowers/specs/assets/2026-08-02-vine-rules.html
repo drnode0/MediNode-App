@@ -94,8 +94,8 @@
 <div class="card">
   <h2>伸　び　方（実装済みの定数）</h2>
   <div class="body">
-    <p><b>葉が1枚ひらくと、蔓が2mm伸びる。</b>ネコ（葉125枚＝25cm）から先は1枚ごとに +0.8% の複利になる。</p>
-    <p>だから同じ1枚でも、葉200枚のときは4mm、500枚のときは3.9cm、1000枚のときは2.1m伸びる。<b>同じ行為が、続けた人ほど遠くまで運ぶ。</b></p>
+    <p><b>葉が1枚ひらくと、蔓が2mm伸びる。</b>一升瓶のすぐ上（葉200枚＝40cm）から先は1枚ごとに +0.5% の複利になる。</p>
+    <p>だから同じ1枚でも、葉500枚のときは8.9mm、1000枚のときは10.8cm、1500枚のときは1.3m伸びる。<b>同じ行為が、続けた人ほど遠くまで運ぶ。</b></p>
   </div>
   <table id="scaleTable"></table>
   <div class="body" style="padding-top:12px">
@@ -106,7 +106,7 @@
 <script>
 (() => {
   // ── 実装済みの定数（src/lib/vine-ladder.ts / tower-steps.ts と一致）──
-  const MM_PER_LEAF = 2, COMPOUND_START = 125, COMPOUND_RATE = 0.008
+  const MM_PER_LEAF = 2, COMPOUND_START = 200, COMPOUND_RATE = 0.005
   const BASE_MM = COMPOUND_START * MM_PER_LEAF
   const heightMm = n => n <= COMPOUND_START ? n * MM_PER_LEAF
                       : BASE_MM * Math.pow(1 + COMPOUND_RATE, n - COMPOUND_START)
@@ -268,14 +268,14 @@
   document.getElementById('reset').addEventListener('click', () => { leaves = []; today = 0; render() })
 
   // ── スケール表 ──
-  const rows = [30, 95, 125, 200, 300, 500, 900, 1333]
+  const rows = [30, 95, 125, 200, 300, 500, 900, 2036]
   const labelOf = mm => { let p = '—'; for (const m of LADDER) { if (m[0] <= mm) p = m[1]; else break } return p }
   let html = '<tr><th>葉</th><th>相当する知識</th><th>高さ</th><th>実物</th><th>葉の間隔</th></tr>'
   rows.forEach(n => {
     const mm = heightMm(n)
     const px = (STAGE_H * VIEWPORT_RATIO) / nextOf(mm)[0]
     const gap = (mm - heightMm(n - 1)) * px
-    const mark = (n === 95 || n === 1333) ? ' class="mark"' : ''
+    const mark = (n === 95 || n === 2036) ? ' class="mark"' : ''
     html += `<tr${mark}><td>${n}枚</td><td>${Math.round(n/3)}件</td><td>${fmt(mm)}</td>` +
             `<td>${labelOf(mm)}</td><td>${gap < 0.1 ? '&lt;0.1' : gap.toFixed(1)}px</td></tr>`
   })
@@ -284,7 +284,7 @@
     '「相当する知識」は、自分で書いた知識1件を育てきると葉3枚（読んだ・書いた・思い出せた）になる換算。<br><br>' +
     '<b>葉95枚＝知識およそ32件で、画面に葉を1枚ずつ描けなくなる。</b>' +
     'ここが最初の壁で、想像よりずっと早く来る。答えは「巻」——30歩ごとに束ねて、古い区間は一巻の帯として見せる。<br><br>' +
-    '<b>葉1333枚＝知識およそ444件で、富士山に届いてラダーを使い切る。</b>' +
+    '<b>葉2036枚＝知識およそ679件で、富士山に届いてラダーを使い切る。</b>' +
     'その先は仕様どおり「雲の上」＝測れない領域になる。'
 
   render()

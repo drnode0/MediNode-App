@@ -6,19 +6,27 @@ import {
 } from '../vine-ladder'
 
 describe('ゴールデン定数（GA後は変更不可。落ちたら定数を疑え、テストを直すな）', () => {
-  it('葉1枚=2mm・複利開始125枚・r=0.8%', () => {
+  it('葉1枚=2mm・複利開始200枚・r=0.5%', () => {
     expect(MM_PER_LEAF).toBe(2)
-    expect(COMPOUND_START_LEAVES).toBe(125)
-    expect(COMPOUND_RATE).toBe(0.008)
+    expect(COMPOUND_START_LEAVES).toBe(200)
+    expect(COMPOUND_RATE).toBe(0.005)
   })
-  it('実寸帯: 葉0=0mm・葉3=6mm・葉125=250mm', () => {
+  // 複利帯の1枚あたりの伸びは (START×MM_PER_LEAF)×RATE。これが MM_PER_LEAF と
+  // 等しくなる条件が START×RATE=1。崩すと複利開始と同時に減速する。
+  it('不変条件: 複利開始枚数 × 率 = 1（境界が滑らかにつながる条件）', () => {
+    expect(COMPOUND_START_LEAVES * COMPOUND_RATE).toBe(1)
+  })
+  it('実寸帯: 葉0=0mm・葉3=6mm・葉200=400mm', () => {
     expect(heightMmFromLeaves(0)).toBe(0)
     expect(heightMmFromLeaves(3)).toBe(6)
-    expect(heightMmFromLeaves(125)).toBe(250)
+    expect(heightMmFromLeaves(200)).toBe(400)
   })
-  it('複利帯: 葉126=252mm・富士山(3776m)は葉1333枚で越える', () => {
-    expect(heightMmFromLeaves(126)).toBeCloseTo(252, 0)
-    expect(leavesForHeightMm(3_776_000)).toBe(1333)
+  it('複利帯: 葉201=402mm・富士山(3776m)は葉2036枚で越える', () => {
+    expect(heightMmFromLeaves(201)).toBeCloseTo(402, 6)
+    expect(leavesForHeightMm(3_776_000)).toBe(2036)
+  })
+  it('境界の伸びが2mmのまま連続する', () => {
+    expect(heightMmFromLeaves(201) - heightMmFromLeaves(200)).toBeCloseTo(2, 6)
   })
 })
 
