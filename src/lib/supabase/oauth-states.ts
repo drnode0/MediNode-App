@@ -1,7 +1,13 @@
 // oauth_states への読み書き。かんたん接続の state を扱うのはこのファイルだけにする
 // （token_enc に触れる場所を1つに閉じるため）。すべて service_role 経由。
 import { createAdminClient } from '@/lib/supabase/server'
-import { generateState, isPendingExpired, isClaimExpired } from '@/lib/oauth-state'
+import {
+  generateState,
+  isPendingExpired,
+  isClaimExpired,
+  PENDING_TTL_MS,
+  CLAIM_WINDOW_MS,
+} from '@/lib/oauth-state'
 
 export type OAuthStateRow = {
   state: string
@@ -16,8 +22,8 @@ const COLUMNS = 'state, user_id, status, token_enc, created_at, completed_at'
 
 // 認可へ出る直前に発行する。失敗しても例外は投げず null を返す（呼び出し側が静かに戻す）。
 export async function createPendingState(userId: string, nowMs: number): Promise<string | null> {
-  const state = generateState()
   try {
+    const state = generateState()
     const admin = createAdminClient()
     const { error } = await admin.from('oauth_states').insert({
       state,
@@ -59,12 +65,14 @@ export async function takePendingState(state: string, nowMs: number): Promise<OA
 export async function markCompleted(state: string, tokenEnc: string, nowIso: string): Promise<boolean> {
   try {
     const admin = createAdminClient()
-    const { error } = await admin
+    const { data, error } = await admin
       .from('oauth_states')
       .update({ status: 'completed', token_enc: tokenEnc, completed_at: nowIso })
       .eq('state', state)
       .eq('status', 'pending')
-    return !error
+      .select('state')
+    // 述語に一致した行が実際にあったかを見る。無ければ横取りされたとみなし false を返す。
+    return !error && !!data && data.length > 0
   } catch {
     return false
   }
@@ -95,12 +103,14 @@ export async function findClaimable(userId: string, nowMs: number): Promise<OAut
 export async function markClaimed(state: string): Promise<boolean> {
   try {
     const admin = createAdminClient()
-    const { error } = await admin
+    const { data, error } = await admin
       .from('oauth_states')
       .update({ status: 'claimed', token_enc: null })
       .eq('state', state)
       .eq('status', 'completed')
-    return !error
+      .select('state')
+    // 述語に一致した行が実際にあったかを見る。無ければ横取りされたとみなし false を返す。
+    return !error && !!data && data.length > 0
   } catch {
     return false
   }
@@ -110,8 +120,10 @@ export async function markClaimed(state: string): Promise<boolean> {
 export async function purgeExpired(userId: string, nowMs: number): Promise<void> {
   try {
     const admin = createAdminClient()
-    // completed の猶予（60分）より古いものは pending / completed / claimed を問わず不要。
-    const cutoff = new Date(nowMs - 60 * 60_000).toISOString()
+    // created_at起点で見て、その行がまだ引き取り可能でありうる最遅時刻は
+    // 「pendingの猶予を使い切ってからcompletedになり、そこからさらにclaimの猶予を使い切る」
+    // ケース（PENDING_TTL_MS + CLAIM_WINDOW_MS）。これより古い行だけを不要と判断する。
+    const cutoff = new Date(nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS)).toISOString()
     await admin.from('oauth_states').delete().eq('user_id', userId).lt('created_at', cutoff)
   } catch {
     // 掃除の失敗は無視してよい

@@ -2,29 +2,61 @@
 // 「期限切れを渡さない」「一方向にしか進めない」ことを検証する。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { insertMock, maybeSingleMock, updateEqMock, deleteMock, capturedSelect } = vi.hoisted(() => ({
+// update/select/delete それぞれのチェーンに渡された引数を記録する。
+// .eq(...) は同じ引数リストへ積み上げていき、テスト側で列名と値を検証できるようにする。
+const {
+  insertMock,
+  maybeSingleMock,
+  updateMock,
+  updateEqMock,
+  updateSelectMock,
+  selectEqCalls,
+  deleteEqMock,
+  deleteLtMock,
+} = vi.hoisted(() => ({
   insertMock: vi.fn(),
   maybeSingleMock: vi.fn(),
+  updateMock: vi.fn(),
   updateEqMock: vi.fn(),
-  deleteMock: vi.fn(),
-  capturedSelect: vi.fn(),
+  updateSelectMock: vi.fn(),
+  selectEqCalls: [] as unknown[][],
+  deleteEqMock: vi.fn(),
+  deleteLtMock: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
     from: () => ({
       insert: insertMock,
-      select: (cols: string) => {
-        capturedSelect(cols)
-        return {
-          eq: () => ({
-            eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: maybeSingleMock }) }) }),
-            maybeSingle: maybeSingleMock,
-          }),
+      select: () => {
+        const chain = {
+          eq: (...args: unknown[]) => {
+            selectEqCalls.push(args)
+            return chain
+          },
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: maybeSingleMock,
         }
+        return chain
       },
-      update: () => ({ eq: () => ({ eq: updateEqMock }) }),
-      delete: () => ({ eq: () => ({ lt: deleteMock }) }),
+      update: (payload: unknown) => {
+        updateMock(payload)
+        const chain = {
+          eq: (...args: unknown[]) => {
+            updateEqMock(args)
+            return chain
+          },
+          select: (cols: string) => updateSelectMock(cols),
+        }
+        return chain
+      },
+      delete: () => ({
+        eq: (...args: unknown[]) => {
+          deleteEqMock(args)
+          return { lt: deleteLtMock }
+        },
+      }),
     }),
   }),
 }))
@@ -35,6 +67,7 @@ import {
   markCompleted,
   findClaimable,
   markClaimed,
+  purgeExpired,
 } from '../supabase/oauth-states'
 import { PENDING_TTL_MS, CLAIM_WINDOW_MS } from '../oauth-state'
 
@@ -44,9 +77,12 @@ const iso = (ms: number) => new Date(ms).toISOString()
 beforeEach(() => {
   insertMock.mockReset().mockResolvedValue({ error: null })
   maybeSingleMock.mockReset()
-  updateEqMock.mockReset().mockResolvedValue({ error: null })
-  deleteMock.mockReset().mockResolvedValue({ error: null })
-  capturedSelect.mockReset()
+  updateMock.mockReset()
+  updateEqMock.mockReset()
+  updateSelectMock.mockReset().mockResolvedValue({ data: [{ state: 's' }], error: null })
+  selectEqCalls.length = 0
+  deleteEqMock.mockReset()
+  deleteLtMock.mockReset().mockResolvedValue({ error: null })
 })
 
 describe('createPendingState', () => {
@@ -69,6 +105,7 @@ describe('takePendingState', () => {
     })
     const row = await takePendingState('s', NOW)
     expect(row?.user_id).toBe('u1')
+    expect(selectEqCalls).toContainEqual(['state', 's'])
   })
   it('期限切れなら null', async () => {
     maybeSingleMock.mockResolvedValue({
@@ -93,25 +130,35 @@ describe('takePendingState', () => {
 })
 
 describe('markCompleted', () => {
-  it('status=completed かつ pending の行だけを更新する', async () => {
+  it('stateとstatus=pendingの両方で絞り込み、completedへの更新内容を渡す', async () => {
     const ok = await markCompleted('s', 'enc-token', iso(NOW))
     expect(ok).toBe(true)
-    expect(updateEqMock).toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed', token_enc: 'enc-token', completed_at: iso(NOW) })
+    )
+    expect(updateEqMock).toHaveBeenCalledWith(['state', 's'])
+    expect(updateEqMock).toHaveBeenCalledWith(['status', 'pending'])
   })
   it('更新に失敗したら false', async () => {
-    updateEqMock.mockResolvedValue({ error: { message: 'x' } })
+    updateSelectMock.mockResolvedValue({ data: null, error: { message: 'x' } })
+    expect(await markCompleted('s', 'enc', iso(NOW))).toBe(false)
+  })
+  it('述語に一致する行が無ければ（横取り済みなら）false', async () => {
+    updateSelectMock.mockResolvedValue({ data: [], error: null })
     expect(await markCompleted('s', 'enc', iso(NOW))).toBe(false)
   })
 })
 
 describe('findClaimable', () => {
-  it('猶予内のcompletedを返す', async () => {
+  it('user_idとstatus=completedで絞り込み、猶予内のcompletedを返す', async () => {
     maybeSingleMock.mockResolvedValue({
       data: { state: 's', user_id: 'u1', status: 'completed', token_enc: 'enc', created_at: iso(NOW), completed_at: iso(NOW) },
       error: null,
     })
     const row = await findClaimable('u1', NOW)
     expect(row?.token_enc).toBe('enc')
+    expect(selectEqCalls).toContainEqual(['user_id', 'u1'])
+    expect(selectEqCalls).toContainEqual(['status', 'completed'])
   })
   it('猶予を過ぎていたら null', async () => {
     maybeSingleMock.mockResolvedValue({
@@ -123,7 +170,31 @@ describe('findClaimable', () => {
 })
 
 describe('markClaimed', () => {
-  it('token_enc を null に落として claimed にする', async () => {
+  it('stateとstatus=completedの両方で絞り込み、token_encをnullに落としてclaimedにする', async () => {
     expect(await markClaimed('s')).toBe(true)
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'claimed', token_enc: null })
+    )
+    expect(updateEqMock).toHaveBeenCalledWith(['state', 's'])
+    expect(updateEqMock).toHaveBeenCalledWith(['status', 'completed'])
+  })
+  it('更新に失敗したら false', async () => {
+    updateSelectMock.mockResolvedValue({ data: null, error: { message: 'x' } })
+    expect(await markClaimed('s')).toBe(false)
+  })
+  it('述語に一致する行が無ければ（横取り済みなら）false', async () => {
+    updateSelectMock.mockResolvedValue({ data: [], error: null })
+    expect(await markClaimed('s')).toBe(false)
+  })
+})
+
+describe('purgeExpired', () => {
+  it('指定したuser_idだけを削除対象にする', async () => {
+    await purgeExpired('u1', NOW)
+    expect(deleteEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
+  })
+  it('cutoffは nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS) のISO文字列', async () => {
+    await purgeExpired('u1', NOW)
+    expect(deleteLtMock).toHaveBeenCalledWith('created_at', iso(NOW - (PENDING_TTL_MS + CLAIM_WINDOW_MS)))
   })
 })
