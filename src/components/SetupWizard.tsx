@@ -11,6 +11,7 @@ import { autoTrialDays, trialCodeDays } from '@/lib/campaign'
 import { parseErrorMessage } from '@/lib/connection-errors'
 import { classifyRestoreResponse, type RestoreOutcome } from '@/lib/restore-outcome'
 import { recordSetup } from '@/lib/setup-telemetry'
+import { isEasyConnectOn } from '@/lib/easy-connect-flag'
 import { HelpFaq } from './HelpFaq'
 import NotionTokenGuide, { CONNECT_FIRST_STEP } from './NotionTokenGuide'
 import SetupVideoModal from './SetupVideoModal'
@@ -331,7 +332,8 @@ function DbIdStatus({ value }: { value: string | undefined }) {
 const SETUP_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 
 // かんたん接続（OAuth）の表示フラグ。iOSのユニバーサルリンク横取り問題の再設計まで既定OFF。
-const EASY_CONNECT_ON = process.env.NEXT_PUBLIC_EASY_CONNECT === 'on'
+// 判定は easy-connect-flag.ts に1本化（設定画面・OAuth帰還の受け口・APIルートと同じ値を使う）。
+const EASY_CONNECT_ON = isEasyConnectOn()
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {

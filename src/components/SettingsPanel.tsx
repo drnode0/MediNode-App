@@ -17,6 +17,7 @@ import {
 import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
+import { isEasyConnectOn } from '@/lib/easy-connect-flag'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
 import { parseErrorMessage } from '@/lib/connection-errors'
@@ -1077,10 +1078,21 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
                 <Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" /><strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
               </div>
-              {/* かんたん接続（OAuth）でつながっている場合は出自を示し、ページの選び直し導線を出す */}
+              {/* かんたん接続（OAuth）でつながっている場合の表示。
+                  フラグOFF（＝調整中）のときは選び直し導線を出さない。押しても認可画面へ
+                  到達できない経路が実機で判明しているため、代わりに手動接続へ戻す案内だけを残す。 */}
               {(() => {
                 const authSettings = getSettings()
-                return authSettings?.notionAuthKind === 'oauth' && (
+                if (authSettings?.notionAuthKind !== 'oauth') return null
+                if (!isEasyConnectOn()) {
+                  return (
+                    <div className="bg-amber-50 dark:bg-amber-900/25 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-1.5 text-xs text-amber-800 dark:text-amber-200">
+                      <p className="font-semibold">かんたん接続は調整中のため止めています</p>
+                      <p>いまはNotionのコネクトTokenを使う方法だけが使えます。下の「コネクトToken」欄にTokenを入れて、接続テストまで進めてください。</p>
+                    </div>
+                  )
+                }
+                return (
                   <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 space-y-2 text-xs text-brand-800 dark:text-brand-200">
                     <p className="font-semibold">
                       かんたん接続でつながっています{authSettings.notionWorkspaceName ? `（${authSettings.notionWorkspaceName}）` : ''}

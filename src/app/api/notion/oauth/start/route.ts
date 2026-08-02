@@ -4,8 +4,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { buildAuthorizeUrl, STATE_COOKIE } from '@/lib/notion-oauth'
+import { isEasyConnectOn } from '@/lib/easy-connect-flag'
 
 export async function GET(req: NextRequest) {
+  // 調整中はUIを隠すだけでなくサーバー側でも止める（URL直叩きでトークンが書き換わらないように）。
+  if (!isEasyConnectOn()) {
+    return NextResponse.redirect(new URL('/', req.url))
+  }
+
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   if (!clientId || !process.env.NOTION_OAUTH_CLIENT_SECRET) {
     return NextResponse.redirect(new URL('/?oauthError=unconfigured', req.url))

@@ -48,6 +48,30 @@ beforeEach(() => {
   decryptMock.mockReset().mockImplementation((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false }))
   process.env.NOTION_OAUTH_CLIENT_ID = 'cid-1'
   process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec-1'
+  // かんたん接続は既定OFF（調整中）。以下の本体テストはON前提なので明示的に立てる。
+  process.env.NEXT_PUBLIC_EASY_CONNECT = 'on'
+})
+
+describe('かんたん接続フラグOFF（調整中）', () => {
+  it('start はNotionへ飛ばさずホームへ戻す', async () => {
+    delete process.env.NEXT_PUBLIC_EASY_CONNECT
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
+    const loc = res.headers.get('location') || ''
+    expect(loc).not.toContain('api.notion.com')
+    expect(new URL(loc).pathname).toBe('/')
+  })
+
+  it('callback はトークン交換も保存もしない', async () => {
+    delete process.env.NEXT_PUBLIC_EASY_CONNECT
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const res = await callbackGET(
+      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
+    )
+    expect(new URL(res.headers.get('location') || '').pathname).toBe('/')
+    expect(exchangeMock).not.toHaveBeenCalled()
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('GET /api/notion/oauth/start', () => {
