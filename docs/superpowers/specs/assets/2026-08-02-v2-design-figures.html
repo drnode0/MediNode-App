@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知の蔓 v2 — 図解</title>
+<style>
+  body { margin:0; background:#e7dfc9; display:flex; flex-direction:column; align-items:center; gap:14px;
+         padding:14px 14px 48px; font-family:"Hiragino Mincho ProN",serif; color:#3d3627; }
+  .card { width:min(420px,96vw); background:#f2ead6; border-radius:14px; padding:14px 16px 16px;
+          box-shadow:0 4px 18px rgba(60,50,30,.18); }
+  h1 { font-size:14px; font-weight:normal; letter-spacing:.28em; color:#7d6f52; margin:2px 0 14px; text-align:center; }
+  h2 { font-size:11px; font-weight:normal; letter-spacing:.24em; color:#7d6f52; margin:0 0 10px; }
+  p { font-size:11.5px; line-height:1.9; margin:10px 0 0; }
+  b { font-weight:normal; color:#2c2a22; }
+  .bad { color:#9a6b52; }
+  svg { display:block; width:100%; height:auto; overflow:visible; }
+  .cap { font-size:10px; color:#a39678; margin-top:6px; line-height:1.7; }
+</style>
+</head>
+<body>
+<h1>知　の　蔓　v2　図　解</h1>
+
+<div class="card">
+  <h2>①　画　面　の　構　造　が　変　わ　る</h2>
+  <svg viewBox="0 0 390 250">
+    <!-- v1.2 -->
+    <text x="10" y="12" font-size="10" fill="#9a6b52">v1.2 ぜんぶ画面に収める</text>
+    <rect x="10" y="20" width="120" height="210" rx="8" fill="#faf5e8" stroke="#cbbf9f"/>
+    <line x1="18" y1="215" x2="122" y2="215" stroke="#2c2a22" stroke-width="1.5"/>
+    <!-- squashed vine -->
+    <path d="M55,215 C48,180 62,150 55,120 C48,90 62,60 56,34" fill="none" stroke="#6b7a55" stroke-width="4"/>
+    <g fill="#5c6a43">
+      <!-- crushed leaves: many tiny -->
+      <g id="squash"></g>
+    </g>
+    <rect x="96" y="60" width="20" height="155" rx="3" fill="#e2d7bb" stroke="#2c2a22" stroke-width="1"/>
+    <text x="106" y="54" font-size="7" fill="#8a7f63" text-anchor="middle">つぎの実物</text>
+    <text x="70" y="245" font-size="9" fill="#9a6b52">葉が潰れて塊になる</text>
+
+    <!-- v2 -->
+    <text x="200" y="12" font-size="10" fill="#4a5a37">v2 スクロールで辿る</text>
+    <rect x="200" y="20" width="120" height="210" rx="8" fill="#faf5e8" stroke="#cbbf9f"/>
+    <clipPath id="win"><rect x="200" y="20" width="120" height="210" rx="8"/></clipPath>
+    <g clip-path="url(#win)">
+      <path d="M250,250 C243,215 257,185 250,155 C243,125 257,95 250,60 C245,38 252,14 249,-10"
+            fill="none" stroke="#6b7a55" stroke-width="6"/>
+      <g id="spread"></g>
+      <!-- marks -->
+      <g id="marks"></g>
+    </g>
+    <text x="326" y="120" font-size="8" fill="#8a7f63" transform="rotate(90 326 120)">上へ 今 ／ 下へ 過去</text>
+    <text x="206" y="245" font-size="9" fill="#4a5a37">葉は何枚でも同じ間隔</text>
+  </svg>
+  <p><b>あの「葉95枚の壁」は、背比べのために蔓全体を画面に収めようとしたから生まれたものでした。</b>
+  スクロールで辿るなら、葉は何枚あっても触れる大きさを保てて、壁そのものが消えます。</p>
+</div>
+
+<div class="card">
+  <h2>②　越　え　た　印　が　背　比　べ　と　目　次　を　兼　ね　る</h2>
+  <svg viewBox="0 0 390 210">
+    <rect x="0" y="0" width="390" height="210" fill="none"/>
+    <path d="M120,205 C112,170 128,140 120,108 C112,76 128,46 121,8" fill="none" stroke="#6b7a55" stroke-width="7"/>
+    <g id="idxLeaves"></g>
+    <g id="idxMarks"></g>
+  </svg>
+  <p>越えた実物を、<b>越えた時点の葉の位置</b>に印として置きます。下へ辿ると「ここでスズメを越えた」と通り過ぎる。
+  背比べが常設の縮尺と場所を取り合うのをやめて、<b>旅の途中で出会う出来事</b>になります。
+  ラダーは全24段しかないので、これがそのまま目次になり、タップで飛べます。</p>
+</div>
+
+<div class="card">
+  <h2>③　複　利　の　罠（自己レビューで発見）</h2>
+  <svg viewBox="0 0 390 240" id="trap"></svg>
+  <p>3つの定数は独立ではなく <b>複利開始枚数 × 率 = 1</b> で結合していました。125×0.008＝1。
+  この等式が成り立つときだけ、境界で「1枚あたり2mm」が途切れずにつながります。</p>
+  <p class="bad">私が提案した「率だけ0.0034に下げる」をやると、複利が始まった瞬間に伸びが
+  2mm→0.85mm（58%減）に落ち、2mmに戻るのは葉379枚。約250枚のあいだ
+  「複利が始まったのに減速している」状態が続きます。</p>
+  <p>だから選ぶのは率ではなく<b>複利開始枚数</b>で、率はその逆数になります。</p>
+</div>
+
+<div class="card">
+  <h2>④　定　数　を　こ　う　変　え　る</h2>
+  <svg viewBox="0 0 390 250" id="grow"></svg>
+  <p><b>複利開始 125枚 → 200枚（＝40cm、一升瓶39.8cmの直後）。率 0.8% → 0.5%。</b>
+  富士山まで葉2036枚＝週2件で6.8年・週1件で13.6年。
+  最初の200枚は完全に線形なので、序盤の手応えは現行と1mmも変わりません。</p>
+  <p>複利開始をネコ（0.4年）から一升瓶（0.7年）へ後ろにずらしたのは、
+  <b>複利は「続けたこと」への報酬として届くべき</b>だからです。</p>
+</div>
+
+<div class="card">
+  <h2>⑤　雲　の　先</h2>
+  <svg viewBox="0 0 390 160" id="cloud"></svg>
+  <p>富士山を越えたら測るのをやめ、<b>比べる相手が「自分の去年」になります</b>。
+  去年の今日いた高さに印が立つ。宇宙ステーションを足すような世界観の嘘をつかず、
+  新しいアセットも要らず、絶対に尽きません。</p>
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg'
+  const el = (t, a) => { const n = document.createElementNS(NS, t)
+    for (const k in a) n.setAttribute(k, a[k]); return n }
+  const put = (id, node) => document.getElementById(id).appendChild(node)
+
+  // ① 潰れた葉（v1.2）と 等間隔の葉（v2）
+  for (let i = 0; i < 46; i++) {
+    const y = 210 - i * 3.9
+    const x = 55 + (i % 2 ? 5 : -5) + Math.sin(i / 3) * 3
+    put('squash', el('ellipse', { cx:x, cy:y, rx:9, ry:2.4, fill:'#5c6a43', opacity:.5 }))
+  }
+  for (let i = 0; i < 9; i++) {
+    const y = 232 - i * 26
+    const left = i % 2 === 0
+    const x = 250 + (left ? -30 : 30)
+    put('spread', el('ellipse', { cx:x, cy:y, rx:22, ry:12, fill:'#5c6a43', opacity:.62,
+      transform:`rotate(${left ? 14 : -14} ${x} ${y})` }))
+    put('spread', el('line', { x1:250, y1:y + 3, x2:x, y2:y, stroke:'#4a5a37', 'stroke-width':1.6 }))
+  }
+  ;[['スズメ', 178], ['ネコ', 92]].forEach(([lab, y]) => {
+    put('marks', el('line', { x1:206, y1:y, x2:296, y2:y, stroke:'#B33A2B', 'stroke-width':1.4, 'stroke-dasharray':'4 3' }))
+    const t = el('text', { x:210, y:y - 4, 'font-size':8, fill:'#B33A2B' }); t.textContent = lab + 'を越えた'
+    put('marks', t)
+  })
+
+  // ② 目次
+  for (let i = 0; i < 12; i++) {
+    const y = 198 - i * 16
+    const left = i % 2 === 0
+    const x = 120 + (left ? -26 : 26)
+    put('idxLeaves', el('ellipse', { cx:x, cy:y, rx:18, ry:9.5, fill:'#5c6a43', opacity:.6,
+      transform:`rotate(${left ? 14 : -14} ${x} ${y})` }))
+    put('idxLeaves', el('line', { x1:120, y1:y + 2, x2:x, y2:y, stroke:'#4a5a37', 'stroke-width':1.4 }))
+  }
+  ;[['湯のみ 7cm', 186], ['スズメ 10cm', 138], ['ネコ 25cm', 74], ['一升瓶 39.8cm', 26]]
+  .forEach(([lab, y]) => {
+    put('idxMarks', el('line', { x1:60, y1:y, x2:300, y2:y, stroke:'#B33A2B', 'stroke-width':1.2, 'stroke-dasharray':'5 4', opacity:.85 }))
+    const t = el('text', { x:306, y:y + 3.5, 'font-size':9, fill:'#B33A2B' }); t.textContent = lab
+    put('idxMarks', t)
+    put('idxMarks', el('line', { x1:60, y1:y - 5, x2:60, y2:y + 5, stroke:'#B33A2B', 'stroke-width':2.4 }))
+  })
+
+  // ③ 複利の罠: 1枚あたりの伸び
+  {
+    const W = 390, H = 240, L = 42, R = 12, T = 16, B = 34
+    const x0 = L, x1 = W - R, y0 = H - B, y1 = T
+    const XMAX = 460, YMAX = 4.2
+    const px = n => x0 + (n / XMAX) * (x1 - x0)
+    const py = v => y0 - (v / YMAX) * (y0 - y1)
+    const g = document.getElementById('trap')
+    const add = n => g.appendChild(n)
+    // 軸
+    add(el('line', { x1:x0, y1:y0, x2:x1, y2:y0, stroke:'#a39678', 'stroke-width':1 }))
+    add(el('line', { x1:x0, y1:y0, x2:x0, y2:y1, stroke:'#a39678', 'stroke-width':1 }))
+    for (const v of [1, 2, 3, 4]) {
+      add(el('line', { x1:x0, y1:py(v), x2:x1, y2:py(v), stroke:'#ded2b4', 'stroke-width':.8 }))
+      const t = el('text', { x:x0 - 6, y:py(v) + 3, 'font-size':8, fill:'#a39678', 'text-anchor':'end' })
+      t.textContent = v + 'mm'; add(t)
+    }
+    for (const n of [0, 125, 200, 300, 400]) {
+      const t = el('text', { x:px(n), y:y0 + 13, 'font-size':8, fill:'#a39678', 'text-anchor':'middle' })
+      t.textContent = n + '枚'; add(t)
+    }
+    const ax = el('text', { x:(x0 + x1) / 2, y:H - 6, 'font-size':8.5, fill:'#8a7f63', 'text-anchor':'middle' })
+    ax.textContent = '葉の番号 →　　1枚ひらくと何mm伸びるか'; add(ax)
+    // 曲線
+    const curve = (S, Rate, color, dash) => {
+      const pts = []
+      for (let n = 0; n <= XMAX; n += 2) {
+        const v = n <= S ? 2 : (S * 2) * Rate * Math.pow(1 + Rate, n - S)
+        pts.push(`${px(n).toFixed(1)},${py(Math.min(v, YMAX)).toFixed(1)}`)
+      }
+      add(el('polyline', { points:pts.join(' '), fill:'none', stroke:color, 'stroke-width':2.2,
+        'stroke-dasharray': dash || '', 'stroke-linejoin':'round' }))
+    }
+    curve(125, 0.0034, '#9a6b52', '6 4')   // 誤案
+    curve(125, 0.008, '#a39678')           // 現行
+    curve(200, 0.005, '#4a5a37')           // v2
+    // 注記
+    const dip = el('text', { x:px(150), y:py(0.85) + 14, 'font-size':8.5, fill:'#9a6b52' })
+    dip.textContent = '↓ 0.85mm まで落ちる'; add(dip)
+    add(el('circle', { cx:px(126), cy:py(0.85), r:3, fill:'#9a6b52' }))
+    const lg = [['現行 125枚/0.8%', '#a39678', 0], ['率だけ下げた誤案 125枚/0.34%', '#9a6b52', 1], ['v2 200枚/0.5%', '#4a5a37', 2]]
+    // 凡例は左上の空き（曲線が来ない領域）に置く
+    lg.forEach(([lab, c, i]) => {
+      const ly = py(3.95) + i * 12
+      add(el('line', { x1:x0 + 8, y1:ly, x2:x0 + 26, y2:ly, stroke:c, 'stroke-width':2.2,
+        'stroke-dasharray': i === 1 ? '6 4' : '' }))
+      const t = el('text', { x:x0 + 30, y:ly + 3, 'font-size':8, fill:'#5c5340' })
+      t.textContent = lab; add(t)
+    })
+  }
+
+  // ④ 高さの育ち方（縦は対数）
+  {
+    const W = 390, H = 250, L = 48, R = 58, T = 14, B = 32
+    const x0 = L, x1 = W - R, y0 = H - B, y1 = T
+    const XMAX = 2200
+    const lo = Math.log(2), hi = Math.log(3776000)
+    const px = n => x0 + (n / XMAX) * (x1 - x0)
+    const py = mm => y0 - ((Math.log(Math.max(2, mm)) - lo) / (hi - lo)) * (y0 - y1)
+    const g = document.getElementById('grow')
+    const add = n => g.appendChild(n)
+    add(el('line', { x1:x0, y1:y0, x2:x1, y2:y0, stroke:'#a39678', 'stroke-width':1 }))
+    add(el('line', { x1:x0, y1:y0, x2:x0, y2:y1, stroke:'#a39678', 'stroke-width':1 }))
+    ;[[70,'湯のみ'],[250,'ネコ'],[750,'番傘'],[1700,'ヒト'],[15000,'大仏'],[133000,'那智の滝'],[3776000,'富士山']]
+    .forEach(([mm, lab]) => {
+      add(el('line', { x1:x0, y1:py(mm), x2:x1, y2:py(mm), stroke:'#ded2b4', 'stroke-width':.8 }))
+      const t = el('text', { x:x1 + 4, y:py(mm) + 3, 'font-size':7.5, fill:'#a39678' })
+      t.textContent = lab; add(t)
+    })
+    for (const n of [0, 500, 1000, 1500, 2000]) {
+      const t = el('text', { x:px(n), y:y0 + 13, 'font-size':8, fill:'#a39678', 'text-anchor':'middle' })
+      t.textContent = n + '枚'; add(t)
+    }
+    const ax = el('text', { x:(x0 + x1) / 2, y:H - 4, 'font-size':8.5, fill:'#8a7f63', 'text-anchor':'middle' })
+    ax.textContent = '葉の番号 →（縦は対数）'; add(ax)
+    const curve = (S, Rate, color, dash) => {
+      const pts = []
+      for (let n = 0; n <= XMAX; n += 4) {
+        const mm = n <= S ? n * 2 : (S * 2) * Math.pow(1 + Rate, n - S)
+        if (mm > 3776000) break
+        pts.push(`${px(n).toFixed(1)},${py(mm).toFixed(1)}`)
+      }
+      add(el('polyline', { points:pts.join(' '), fill:'none', stroke:color, 'stroke-width':2.2,
+        'stroke-dasharray': dash || '' }))
+    }
+    curve(125, 0.008, '#a39678')
+    curve(200, 0.005, '#4a5a37')
+    ;[[1333, '#a39678', '現行 4.4年'], [2036, '#4a5a37', 'v2 6.8年']].forEach(([n, c, lab]) => {
+      add(el('circle', { cx:px(n), cy:py(3776000), r:3.4, fill:c }))
+      const t = el('text', { x:px(n) - 2, y:py(3776000) - 7, 'font-size':8, fill:c, 'text-anchor':'middle' })
+      t.textContent = lab; add(t)
+    })
+    const note = el('text', { x:px(1150), y:py(120), 'font-size':8, fill:'#8a7f63' })
+    note.textContent = '最初の200枚は完全に線形（差は出ない）'; add(note)
+  }
+
+  // ⑤ 雲の先
+  {
+    const g = document.getElementById('cloud')
+    const add = n => g.appendChild(n)
+    // 蔓は下から雲を突き抜けて上へ
+    add(el('path', { d:'M44,158 C36,132 52,112 44,88 C36,64 52,42 45,6', fill:'none', stroke:'#6b7a55', 'stroke-width':6 }))
+    // 雲（蔓の後ろ・中ほど）
+    const cloud = 'M0,0 c-14,0 -22,9 -22,18 c-16,1 -24,10 -24,20 c0,11 10,20 24,20 h150 c16,0 26,-9 26,-20 c0,-11 -10,-19 -24,-20 c-2,-12 -12,-20 -26,-20 c-8,-9 -20,-12 -32,-8 c-8,-7 -20,-9 -30,-2 z'
+    add(el('path', { d:cloud, transform:'translate(96 84)', fill:'#e6ddc4', stroke:'#cbbf9f', 'stroke-width':1.2, opacity:.92 }))
+    const t1 = el('text', { x:196, y:130, 'font-size':9.5, fill:'#8a7f63' })
+    t1.textContent = '富士山を越えたら、測るのをやめる'; add(t1)
+    // 印は雲を抜けた先＝上に立つ
+    ;[[30, '去年の今日'], [56, '一昨年の今日']].forEach(([y, lab]) => {
+      add(el('line', { x1:20, y1:y, x2:150, y2:y, stroke:'#B33A2B', 'stroke-width':1.3, 'stroke-dasharray':'5 4' }))
+      const t = el('text', { x:156, y:y + 3.5, 'font-size':9.5, fill:'#B33A2B' }); t.textContent = lab; add(t)
+    })
+    const t3 = el('text', { x:20, y:82, 'font-size':9.5, fill:'#4a5a37' })
+    t3.textContent = '比べる相手が「自分の過去」になる'; add(t3)
+  }
+})()
+</script>
+</body>
+</html>
