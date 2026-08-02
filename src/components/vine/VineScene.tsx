@@ -8,13 +8,14 @@ import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
-import { leafY, groundY, sceneHeightPx, visibleRange, markPositions, PX_PER_LEAF } from '@/lib/vine-scroll'
+import { leafY, groundY, sceneHeightPx, visibleRange, markPositions } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
 import styles from './vine.module.css'
 
-const W = 390
 const VINE_SEED = 42
-const BASE_X = 150
+// 蔓の根元の横位置は容器幅に対する比で出す（実測390pxのとき150pxだった値を比に変換）。
+// 固定pxのままだと容器が390pxより狭い実機（iPhone 14で358px等）で蔓が右へ寄りすぎる。
+const BASE_X_RATIO = 150 / 390
 const AMP = 34
 const SHU = '#B33A2B'
 const INK = '#2c2a22'
@@ -30,28 +31,41 @@ function leafFill(v: LeafVisual): string {
 }
 
 export function VineScene({
-  leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH,
+  leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width,
 }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
   crossedNow: boolean; onLeafTap: (index: number) => void
-  scrollTop: number; viewportH: number
+  scrollTop: number; viewportH: number; width: number
 }) {
+  const W = width
+  const BASE_X = W * BASE_X_RATIO
   const H = sceneHeightPx(to)
   const gY = groundY(to)
   // 蔓は地面から最新の葉まで。パスは高さpxで生成し、y反転して地面基準で置く
   const vineH = Math.max(1, gY - leafY(to, to))
-  const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH])
+  const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH, BASE_X])
   const win = visibleRange(scrollTop, viewportH, to)
   const marks = useMemo(() => markPositions(to), [to])
 
   // 葉の番号 → 蔓の中心線上の点（蔓の弧長ではなく、葉の縦位置で引く）
   const stemXAt = (index: number) => pointAtHeight(path, gY - leafY(index, to)).x
 
+  // 蔓が「描かれていく」成長リビール。マスクは<g>自身のtransform適用後のローカル座標
+  // （=path.dと同じ、地面y=0・上が正）で解釈されるため、ここでも変換をかけ直さない
+  // （二重に変換すると反転する）。leavesNowがtoに達すればrevealHはvineHと一致し全体が見える。
+  const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
+  const revealH = gY - leafY(revealIndex, to)
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block" aria-label="知の蔓">
+      <defs>
+        <mask id="vineGrow">
+          <rect x={-40} y={-40} width={W + 80} height={revealH + 40} fill="#fff" />
+        </mask>
+      </defs>
       {/* 蔓（伸びた分だけ描く） */}
-      <g transform={`translate(0 ${gY}) scale(1 -1)`}>
+      <g mask="url(#vineGrow)" transform={`translate(0 ${gY}) scale(1 -1)`}>
         <path d={path.d} fill="none" stroke="#96a67e" strokeWidth={16} strokeLinecap="round" opacity={0.42} />
         <path d={path.d} fill="none" stroke="#55603f" strokeWidth={9} strokeLinecap="round" opacity={0.88} />
         <path d={path.d} fill="none" stroke={INK} strokeWidth={2} strokeLinecap="round" opacity={0.5} />

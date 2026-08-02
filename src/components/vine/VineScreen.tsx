@@ -10,7 +10,6 @@ import {
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
-import { sceneHeightPx, leafY } from '@/lib/vine-scroll'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine } from '@/lib/vine-copy'
 import { useReplayEngine } from './useReplayEngine'
@@ -36,6 +35,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(700)
+  const [viewportW, setViewportW] = useState(358)
   useBodyScrollLock()
 
   // 開いた瞬間のスナップショット（リプレイ中の新イベントは次回へ）
@@ -91,12 +91,29 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 開いた直後は穂先（＝今日）を見せる。下へスクロールすると過去へ遡る（§3）
+  // 開いた直後は穂先（＝今日）を見せる。下へスクロールすると過去へ遡る（§3）。
+  // 幅・高さの実測はResizeObserverで追随させる——[to]は開いた瞬間のスナップショット
+  // （useRef由来で以後変わらない）なのでeffect自体は初回しか走らないが、
+  // 横→縦の回転などスクロール容器のサイズ変化はResizeObserverのコールバックが拾い続ける。
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    setViewportH(el.clientHeight || 700)
     el.scrollTop = 0
+    const measure = () => {
+      setViewportH(el.clientHeight || 700)
+      setViewportW(el.clientWidth || 358)
+    }
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+    // ResizeObserver非対応環境向けのフォールバック。対象は古いSafari/WebViewのみで
+    // window.resizeだけでもカバーできる（回転時は多くの環境でこれも発火する）。
+    // 専用のvisualViewport購読までは、非対応環境の実利用が確認できるまで見送る。
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
   }, [to])
 
   const nowIso = useMemo(() => new Date().toISOString(), [])
@@ -145,7 +162,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
               visuals={visuals} spotlightIds={spotlight} steps={state.steps}
               crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
               onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
-              scrollTop={scrollTop} viewportH={viewportH}
+              scrollTop={scrollTop} viewportH={viewportH} width={viewportW}
             />
           </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
