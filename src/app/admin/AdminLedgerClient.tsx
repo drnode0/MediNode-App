@@ -115,11 +115,15 @@ type LedgerRow = {
 const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial', 'auto_trial']
 
 // 先行体験の機能ラベル。何が開くのか読み取れるよう、省略せずに書く。
-const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string }> = [
+// note はタッチ端末でも読める可視サブテキスト（title属性はタップでは出ないため）。
+// 該当する機能が無ければ省略してよい。将来 easy_connect の配線が終わったら、この note を
+// 削除するだけで下の表示ロジックには手を入れずに済む。
+const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string; note?: string }> = [
   {
     key: 'easy_connect',
     label: 'かんたん接続（OAuth検証）',
     hint: 'Notionの認可でつなぐ新方式。実機検証用。このトグル自体はまだ配線されておらず、実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
+    note: 'このトグルはまだ配線されていない。実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
   },
   { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
   { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },
@@ -1696,6 +1700,9 @@ ${label}`,
                                               <span className="flex-1">
                                                 <span className="block text-gray-800 dark:text-gray-100">{f.label}</span>
                                                 <span className="block text-[10px] text-gray-400">envで開放中</span>
+                                                {f.note && (
+                                                  <span className="block text-[10px] text-gray-400">{f.note}</span>
+                                                )}
                                               </span>
                                             </div>
                                           )
@@ -1724,6 +1731,9 @@ ${label}`,
                                                 <span className="block text-[10px] text-gray-400">
                                                   以前の一括開放から引き継ぎ
                                                 </span>
+                                              )}
+                                              {f.note && (
+                                                <span className="block text-[10px] text-gray-400">{f.note}</span>
                                               )}
                                             </span>
                                           </button>

@@ -70,7 +70,12 @@ export async function GET() {
     // default now() が入る。これを無条件に「設定同期時刻」として扱うと、まだ一度も設定を
     // 保存していないフレッシュなテスターアカウントに機能を付与しただけで「設定完了」「最終利用=今日」
     // に見えてしまう（セットアップ完了カウント・離脱位置抽出・最終利用の3箇所が誤る）。
-    // settings_enc は暗号文そのもの（内容は読まない・ログにも出さない。null かどうかだけを見る）。
+    //
+    // ただし settings_enc は暗号文そのもの（ユーザーのAppSettings全体＝Notionトークン・
+    // Algolia管理キー・追加チーム・プロパティマップ）で1人あたり1〜8KB程度あり、
+    // 中身を使わないのに毎回すべて転送するのは無駄が大きい。non-null かどうかだけを見たいので、
+    // 列そのものを select するのではなく「settings_enc が null でない行の user_id」だけを
+    // 別クエリで取得し、暗号文を一切こちら側に持ち込まない。
     const settingsByUser = new Map<string, string | null>()
     const earlyAccessByUser = new Map<string, boolean>()
     const featuresByUser = new Map<string, string[]>()
@@ -78,25 +83,19 @@ export async function GET() {
       type SettingsRow = {
         user_id: string
         updated_at: string | null
-        settings_enc?: string | null
         early_access?: boolean | null
         early_access_features?: string[] | null
       }
-      // settings_enc は3段階すべてに含める。PostgRESTには「非nullかどうかだけ」を返す軽量な
-      // 射影が無く、そのためのSQLビュー/RPCを新設するのはこの修正の範囲外（新規migrationになる）
-      // なので、列そのものを select する（暗号文の中身は使わない・破棄するだけ）。
       const withFeatures = await admin
         .from('user_settings')
-        .select('user_id, updated_at, settings_enc, early_access, early_access_features')
+        .select('user_id, updated_at, early_access, early_access_features')
       let rows: SettingsRow[]
       if (withFeatures.error) {
         // early_access_features 列が無いなら early_access までで再取得。
-        const withEarly = await admin
-          .from('user_settings')
-          .select('user_id, updated_at, settings_enc, early_access')
+        const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
         if (withEarly.error) {
-          // early_access 列も無い等で失敗したら、必須の updated_at・settings_enc だけで再取得して続行。
-          const basic = await admin.from('user_settings').select('user_id, updated_at, settings_enc')
+          // early_access 列も無い等で失敗したら、必須の updated_at だけで再取得して続行。
+          const basic = await admin.from('user_settings').select('user_id, updated_at')
           if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
           rows = (basic.data ?? []) as SettingsRow[]
         } else {
@@ -105,10 +104,27 @@ export async function GET() {
       } else {
         rows = (withFeatures.data ?? []) as SettingsRow[]
       }
+
+      // settings_enc は 0003（テーブル作成migration）由来でここにある列の中で最も古く、
+      // 通常は必ず存在する。それでもこのプローブ自体が失敗した場合は、内容を読まず
+      // 全員「設定なし」に倒すと セットアップ完了カウントがゼロになり離脱リストが溢れるという
+      // 誤りが実害として大きいため、安全側として「区別できない＝従来どおり updated_at を
+      // そのまま信用する」側にフォールバックする（機能付与直後を設定完了と誤認する既知の
+      // 揺れは残るが、全員を未設定に見せる誤りよりましと判断）。
+      let savedSettingsUserIds: Set<string> | null = null
+      const probe = await admin.from('user_settings').select('user_id').not('settings_enc', 'is', null)
+      if (!probe.error) {
+        savedSettingsUserIds = new Set((probe.data ?? []).map((r) => r.user_id as string))
+      }
+
       for (const s of rows) {
-        // settings_enc が無い（＝一度も設定を保存していない）行は、updated_at が入っていても
-        // null 扱いにする。機能トグルだけで作られた行を「設定完了」に見せないため。
-        settingsByUser.set(s.user_id, s.settings_enc ? (s.updated_at ?? null) : null)
+        // プローブが成功した場合のみ settings_enc の有無で判定する。行はあるが settings_enc が
+        // 無い（＝一度も設定を保存していない）行は、updated_at が入っていても null 扱いにする。
+        // プローブ自体が失敗した場合は区別できないので updated_at をそのまま採用する。
+        settingsByUser.set(
+          s.user_id,
+          savedSettingsUserIds ? (savedSettingsUserIds.has(s.user_id) ? (s.updated_at ?? null) : null) : (s.updated_at ?? null)
+        )
         earlyAccessByUser.set(s.user_id, s.early_access ?? false)
         featuresByUser.set(s.user_id, s.early_access_features ?? [])
       }
