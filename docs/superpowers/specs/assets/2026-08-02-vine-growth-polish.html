@@ -37,7 +37,7 @@
   /* 線だけ抜く: 同じ型を3枚重ねてアルファを掛け合わせる。
      実測 線α=.867 / 葉身α=.298 → 3乗で 線.651 / 葉身.026（比24.6倍）。
      淡彩が消えて墨の輪郭と葉脈だけが残る＝「輪郭の葉」。
-     4乗だと線まで.564まで落ちて見えなくなるので3乗が上限 */
+     4乗だと線まで.564に落ちて見えなくなるので3乗が上限 */
   .leafLine { -webkit-mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),
                                  url(generated/alpha/leaf_single.png);
               mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),
@@ -52,6 +52,16 @@
   .cap { position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:#a39678; }
   button { position:absolute; top:14px; right:14px; font-family:inherit; font-size:12px;
            background:#faf5e8; border:1px solid #cbbf9f; border-radius:18px; padding:6px 12px; }
+  .panel { width:min(400px,96vw); background:#f2ead6; border-radius:14px; padding:12px 16px 12px;
+           box-shadow:0 4px 18px rgba(60,50,30,.18); font-size:12px; color:#5c5340; }
+  .panel h2 { margin:0 0 8px; font-size:11px; font-weight:normal; letter-spacing:.25em; color:#7d6f52; }
+  .panel .ctl { display:flex; align-items:center; gap:10px; }
+  .panel .ctl label { width:5em; }
+  .panel input[type=range] { flex:1; }
+  .panel .val { width:3em; text-align:right; color:#2c2a22; }
+  .panel .note { margin:8px 0 0; line-height:1.7; }
+  .panel .note b { font-weight:normal; color:#2c2a22; }
+  .panel .band { color:#8a7f63; }
   /* 状態見本 */
   .legend { width:min(400px,96vw); background:#f2ead6; border-radius:14px; padding:12px 8px 10px;
             box-shadow:0 4px 18px rgba(60,50,30,.18); }
@@ -83,8 +93,16 @@
     <img class="tip" id="tip" src="generated/alpha/vine_tip.png" alt="">
     <img class="suzume" id="suzume" src="generated/alpha/resident_suzume.png" alt="">
     <div class="leavesBox" id="leavesFront"></div>
-    <div class="cap">葉は黄金角137.5°のらせんで着く。奥へ向いた葉は蔓の後ろ・淡く小さく見える</div>
+    <div class="cap">下の葉ほど寝て、上の葉は立つ。先端の葉はまだ展開しきっていない</div>
   </div>
+</div>
+<div class="panel">
+  <h2>茂　り　の　濃　さ</h2>
+  <div class="ctl"><label>葉の数</label>
+    <input type="range" id="n" min="7" max="20" step="1" value="12"><span class="val" id="nV">12</span></div>
+  <p class="note">節間 ÷ 葉身長 = <b id="ratio">–</b>
+    <span class="band">実測の自然な帯 0.22〜0.40（熱帯林床24種の中央値0.22／つる Monstera 0.39〜0.40）</span></p>
+  <p class="note band">本物の蔓は2割前後は重なっている（自己被陰率 0.18〜0.32）。重なりゼロは不自然。</p>
 </div>
 <div class="legend">
   <h2>葉　の　状　態　見　本</h2>
@@ -102,7 +120,12 @@
   const CM_PER_PX = 7 / 120
   const GROUND = 58
   const AX = 0.203, AY = 0.813   // 葉柄の先（型の実測アンカー）
-  const GOLDEN = 137.507764      // 開度＝黄金角
+  const BLADE = 0.786            // 葉身長 ÷ 型の一辺（アンカーから最遠点までを実測）
+  const LEAF_BASE = 92
+  // 開度＝黄金角。これは発生の力学（オーキシン再分配）から出てくるアトラクターで、
+  // 「重なりを最小化する角度」ではない（Strauss et al. 2020: 同等の最適角が他にも多数ある）。
+  // 重なりを実際に決めるのは節間長のほう。137.5°は「結果として積み上がらない」角度
+  const GOLDEN = 137.507764
 
   // 蔓の中心線（実画像の墨画素から測定した stem_x）。間は線形で補う
   const STEM = [[60,109.5],[105,121.3],[150,112.7],[195,126.0],[240,128.2],[264,127.8],
@@ -118,23 +141,21 @@
     return STEM[STEM.length-1][1]
   }
 
-  // 葉の大きさ = その葉が出た時の茎の充実度で決まり、出たあとは変わらない
-  //  基部＝まだ実生に近く小さい / 中〜上部＝充実期で最大 / 先端＝展開途中でまだ小さい
+  // 葉の大きさ = その葉が展開していた期間の茎の充実度で決まり、展開しきったら変わらない（決定成長）。
+  //  基部＝まだ実生に近く小さい（もう大きくならない） / 中〜上部＝充実期で最大 / 先端＝展開途中（これから大きくなる）
+  //  ＝一山型になるが、山の両側は理由が違う
   const smooth = (a,b,t) => { const x = Math.min(1, Math.max(0, (t-a)/(b-a))); return x*x*(3-2*x) }
-  const sizeAt = (h, tipH) => {
-    const vigor = 0.70 + 0.46 * smooth(0, 0.52, h / MAX)       // 株の充実（＝出た時の茎の太さ）
-    const expanding = 0.52 + 0.48 * smooth(0, 70, tipH - h)    // 穂先近くはまだ展開中
-    return vigor * expanding
-  }
+  const EXPAND_ZONE = 70                                        // 穂先から下へこの範囲がまだ展開中
+  const vigorAt = h => 0.70 + 0.46 * smooth(0, 0.52, h / MAX)   // 株の充実（＝出た時の茎の太さ）
+  const openAt  = h => smooth(0, EXPAND_ZONE, MAX - h)          // 展開の進み具合 0=出たて 1=展開ずみ
+  const sizeAt  = h => vigorAt(h) * (0.52 + 0.48 * openAt(h))
 
   const COLORS = {
     aoba:  '#5c6a43',   // 苔色・つや消し
     teri:  '#333f26',   // 磨いた葉は濃く沈む。差は明るさでなく「照りの帯」で出す
     fade:  '#c6cbc2',   // 銀鼠〜月白
   }
-  const LEAF_BASE = 92   // 型の一辺(px)。sizeAt を掛けて使う
 
-  // 状態ごとの葉の見た目。box(相対配置)を返す
   function makeLeaf(state, px) {
     const box = document.createElement('div')
     box.style.position = 'relative'
@@ -150,8 +171,8 @@
       // 読んだ＝まだ色がない。墨の線だけの素描
       add('leafLine', { background:'#2b281f' })
     } else if (state === 'teri') {
-      // 磨き直した＝艶。葉身のα≈.3が頭打ちなので、同じ塗りを2枚重ねて
-      // 実効α≈.51まで上げる（＝濃く沈む）。そこへ細い照りの帯を一本走らせる
+      // 磨き直した＝艶。葉身のα≈.3が頭打ちなので、同じ塗りを重ねて密度を上げ、
+      // そこへ細い照りの帯を一本走らせる（濡れたような質感）
       add('leafArt', { background:COLORS.teri })
       add('leafArt', { background:COLORS.teri, opacity:'.62' })
       add('leafArt', { background:'linear-gradient(112deg,rgba(255,255,255,0) 6%,rgba(255,255,255,.72) 18%,rgba(255,255,255,.16) 30%,rgba(255,255,255,0) 42%)' })
@@ -166,24 +187,23 @@
     return box
   }
 
-  // ── 葉を生やす ──
-  // 節を等間隔に置き、i枚目を 137.5°×i の方向へ。横から見るので
-  //   sinθ = 左右の張り出し（＋右／−左）, cosθ = 奥行き（＋手前／−奥）
-  const N = 12
-  const H0 = 62, H1 = 546
-  const TIP_H = MAX
-  const leaves = []
-  for (let i = 0; i < N; i++) {
-    const h = H0 + (H1 - H0) * i / (N - 1)
-    const th = (i * GOLDEN) * Math.PI / 180
-    const sx = Math.sin(th), depth = Math.cos(th)
-    const size = sizeAt(h, TIP_H)
-    leaves.push({ h, sx, depth, size, i })
-  }
+  // 見た目確認用の状態割当（実装では quiz-srs から導出）。
+  // 青葉を地にして他を散らす——固めると蔓の一部だけ白っぽく抜けて見える
+  const STATE_PATTERN = ['aoba','aoba','teri','aoba','fade','aoba','aoba','rinkaku','aoba','teri',
+                         'fade','aoba','aoba','rinkaku','aoba','aoba','fade','aoba','teri','aoba']
+  const STATE_AT = i => STATE_PATTERN[i % STATE_PATTERN.length]
 
-  function build() {
+  let leaves = [], leafEls = []
+  function build(n) {
     backBox.innerHTML = ''; frontBox.innerHTML = ''
-    return leaves.map(l => {
+    const H0 = 62, H1 = 546
+    leaves = []
+    for (let i = 0; i < n; i++) {
+      const h = H0 + (H1 - H0) * i / (n - 1)
+      const th = (i * GOLDEN) * Math.PI / 180
+      leaves.push({ h, sx: Math.sin(th), depth: Math.cos(th), size: sizeAt(h), i, f: i / (n - 1) })
+    }
+    leafEls = leaves.map(l => {
       const px = LEAF_BASE * l.size
       const front = l.depth >= 0
       const pos = document.createElement('div')
@@ -191,34 +211,37 @@
       pos.style.width = pos.style.height = px + 'px'
       const cx = stemX(l.h)
       const mirror = l.sx < 0
-      // 葉柄の先を節に置く。変換原点は常にその葉柄の先（＝実際の付け根）に取るので、
-      // 鏡像でも回転でも付け根は節から動かない。配置は左右で同じ式でよい
+      // 葉柄の先を節に置く。変換原点も常にその葉柄の先に取るので、
+      // 鏡像でも回転でも付け根は節から動かない
       pos.style.left = (cx - AX * px) + 'px'
       pos.style.bottom = (GROUND + l.h - (1 - AY) * px) + 'px'
       pos.style.transformOrigin = (AX * 100) + '% ' + (AY * 100) + '%'
       // 正面を向いた葉ほど横に縮んで見える（見かけの短縮）
       const fore = 0.46 + 0.54 * Math.abs(l.sx)
-      // 葉は自重で少し垂れる。大きい葉ほど深く（葉柄まわりのトルク）
-      const droop = 5 + 13 * l.size
-      pos.style.transform = `scaleX(${(mirror ? -fore : fore).toFixed(3)}) rotate(${droop.toFixed(1)}deg)`
-      // 奥の葉は霞んで小さく見える
+      // 葉身の傾き: 下の葉ほど寝て、上の葉ほど立つ（実測 最上部45.0° / 第2群92.0°）。
+      // これに自重のたわみを足す（葉柄の安全率は1.66〜2.94しかない＝ぴんと直線は硬すぎる）
+      const rot = 16 - 42 * (l.h / MAX) + 10 * l.size
+      pos.style.transform = `scaleX(${(mirror ? -fore : fore).toFixed(3)}) rotate(${rot.toFixed(1)}deg)`
+      // 奥の葉は霞む／展開しきっていない葉はまだ色が浅い
       const far = front ? 1 : 0.52 + 0.18 * (1 + l.depth)
-      pos.style.opacity = far.toFixed(2)
+      pos.style.opacity = (far * (0.55 + 0.45 * openAt(l.h))).toFixed(2)
       const pop = document.createElement('div')
       pop.className = 'leafPop'
       const sw = document.createElement('div')
       sw.className = 'swayer'
       sw.style.animationDelay = (-((l.i * 1.7) % 4)).toFixed(2) + 's'
-      sw.appendChild(makeLeaf(STATES[l.i] || 'aoba', px))
+      sw.appendChild(makeLeaf(STATE_AT(l.i), px))
       pop.appendChild(sw)
       pos.appendChild(pop)
       ;(front ? frontBox : backBox).appendChild(pos)
       return pop
     })
+    // 節間 ÷ 葉身長（最大の葉で代表させる）
+    const il = (546 - 62) / (n - 1)
+    const ll = LEAF_BASE * Math.max(...leaves.map(l => l.size)) * BLADE
+    document.getElementById('ratio').textContent = (il / ll).toFixed(2)
+    document.getElementById('nV').textContent = n
   }
-  // 見た目確認用の状態割当（実装では quiz-srs から導出）
-  const STATES = { 1:'fade', 3:'rinkaku', 5:'teri', 8:'fade', 10:'rinkaku' }
-  const leafEls = build()
 
   // ── 状態見本 ──
   const legendRow = document.getElementById('legendRow')
@@ -264,6 +287,8 @@
     timer = setInterval(step, 16)
   }
   document.getElementById('replay').addEventListener('click', play)
+  document.getElementById('n').addEventListener('input', e => { build(+e.target.value); play() })
+  build(12)
   Promise.all([...document.images].map(i => i.decode().catch(() => {}))).then(() => setTimeout(play, 300))
 })()
 </script>
