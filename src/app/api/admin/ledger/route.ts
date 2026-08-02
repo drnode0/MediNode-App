@@ -23,6 +23,7 @@ import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
 import { logAdminAction } from '@/lib/admin-audit'
 import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
+import { EARLY_ACCESS_FEATURES, type EarlyAccessFeature } from '@/lib/feature-access'
 import Stripe from 'stripe'
 
 export async function GET() {
@@ -60,21 +61,36 @@ export async function GET() {
     //（0004 の app_usage と同じ「未適用でも落とさない」方針）。
     const settingsByUser = new Map<string, string | null>()
     const earlyAccessByUser = new Map<string, boolean>()
+    const featuresByUser = new Map<string, string[]>()
     {
-      type SettingsRow = { user_id: string; updated_at: string | null; early_access?: boolean | null }
-      const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
+      type SettingsRow = {
+        user_id: string
+        updated_at: string | null
+        early_access?: boolean | null
+        early_access_features?: string[] | null
+      }
+      const withFeatures = await admin
+        .from('user_settings')
+        .select('user_id, updated_at, early_access, early_access_features')
       let rows: SettingsRow[]
-      if (withEarly.error) {
-        // early_access 列が無い等で失敗したら、必須の updated_at だけで再取得して続行。
-        const basic = await admin.from('user_settings').select('user_id, updated_at')
-        if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
-        rows = (basic.data ?? []) as SettingsRow[]
+      if (withFeatures.error) {
+        // early_access_features 列が無いなら early_access までで再取得。
+        const withEarly = await admin.from('user_settings').select('user_id, updated_at, early_access')
+        if (withEarly.error) {
+          // early_access 列も無い等で失敗したら、必須の updated_at だけで再取得して続行。
+          const basic = await admin.from('user_settings').select('user_id, updated_at')
+          if (basic.error) throw new Error(`設定同期時刻の取得に失敗: ${basic.error.message}`)
+          rows = (basic.data ?? []) as SettingsRow[]
+        } else {
+          rows = (withEarly.data ?? []) as SettingsRow[]
+        }
       } else {
-        rows = (withEarly.data ?? []) as SettingsRow[]
+        rows = (withFeatures.data ?? []) as SettingsRow[]
       }
       for (const s of rows) {
         settingsByUser.set(s.user_id, s.updated_at ?? null)
         earlyAccessByUser.set(s.user_id, s.early_access ?? false)
+        featuresByUser.set(s.user_id, s.early_access_features ?? [])
       }
     }
 
@@ -285,6 +301,7 @@ export async function GET() {
           ownerNote: (u.user_metadata?.owner_note as string | undefined) ?? null,
           // 先行体験（マルチ部署串刺し検索）の開放フラグ。user_settings.early_access。
           earlyAccess: earlyAccessByUser.get(u.id) ?? false,
+          earlyAccessFeatures: featuresByUser.get(u.id) ?? [],
           // アプリ内CQ投稿（cq_submissions・/admin専用の管理記録）と投票数。
           cqCount: (cqByUser.get(u.id) ?? []).length,
           cqList: cqByUser.get(u.id) ?? [],
@@ -550,15 +567,51 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   try {
-    const { userId, isMonitor, isOwner, ownerNote, earlyAccess } = (await req.json()) as {
+    const { userId, isMonitor, isOwner, ownerNote, earlyAccess, feature, enabled } = (await req.json()) as {
       userId?: unknown
       isMonitor?: unknown
       isOwner?: unknown
       ownerNote?: unknown
       earlyAccess?: unknown
+      feature?: unknown
+      enabled?: unknown
     }
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
+    }
+    // 機能別の先行体験トグル。user_settings.early_access_features を出し入れする。
+    // レガシーの earlyAccess(boolean) 分岐はそのまま残す（古いUIからの呼び出し互換）。
+    if (typeof feature === 'string' && typeof enabled === 'boolean') {
+      if (!(EARLY_ACCESS_FEATURES as readonly string[]).includes(feature)) {
+        return NextResponse.json({ error: '未知の機能名です' }, { status: 400 })
+      }
+      const key = feature as EarlyAccessFeature
+      const admin = createAdminClient()
+      const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId)
+      if (uErr || !u?.user) {
+        return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
+      }
+      // 現在値を読んでから差分を作る（配列まるごと上書きなので、読まずに書くと他機能を消す）。
+      const { data: cur } = await admin
+        .from('user_settings')
+        .select('early_access_features')
+        .eq('user_id', userId)
+        .maybeSingle()
+      const currentFeatures = ((cur?.early_access_features as string[] | null) ?? []).filter(Boolean)
+      const nextFeatures = enabled
+        ? Array.from(new Set([...currentFeatures, key]))
+        : currentFeatures.filter((f) => f !== key)
+      const { error: upErr } = await admin
+        .from('user_settings')
+        .upsert({ user_id: userId, early_access_features: nextFeatures }, { onConflict: 'user_id' })
+      if (upErr) throw new Error(upErr.message)
+      await logAdminAction(admin, {
+        actorEmail: auth.email,
+        action: enabled ? `grant_feature:${key}` : `revoke_feature:${key}`,
+        targetUserId: userId,
+        targetEmail: u.user.email ?? null,
+      })
+      return NextResponse.json({ ok: true, userId, feature: key, enabled, features: nextFeatures })
     }
     // 先行体験（マルチ部署検索）の開放トグル。user_settings.early_access を更新する。
     if (typeof earlyAccess === 'boolean') {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { EarlyAccessFeature } from './feature-access'
 
 export type AdminAction =
   | 'grant_comp'
@@ -11,6 +12,9 @@ export type AdminAction =
   | 'export_csv'
   | 'grant_early_access'
   | 'revoke_early_access'
+  // 機能別の先行体験。どの機能を開けたかがログから直接読めるようにキーを含める。
+  | `grant_feature:${EarlyAccessFeature}`
+  | `revoke_feature:${EarlyAccessFeature}`
 
 // 監査ログを1件記録。テーブル未適用・失敗でも主アクションは止めない（握りつぶす）。
 export async function logAdminAction(
