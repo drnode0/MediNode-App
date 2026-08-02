@@ -10,6 +10,7 @@ import {
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
+import { sceneHeightPx, leafY } from '@/lib/vine-scroll'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine } from '@/lib/vine-copy'
 import { useReplayEngine } from './useReplayEngine'
@@ -32,6 +33,9 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const [state, setState] = useState<TowerState>(() => initialState ?? loadTowerState())
   const [leafOpen, setLeafOpen] = useState<number | null>(null)
   const backfilled = useRef(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportH, setViewportH] = useState(700)
   useBodyScrollLock()
 
   // 開いた瞬間のスナップショット（リプレイ中の新イベントは次回へ）
@@ -87,6 +91,14 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 開いた直後は穂先（＝今日）を見せる。下へスクロールすると過去へ遡る（§3）
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setViewportH(el.clientHeight || 700)
+    el.scrollTop = 0
+  }, [to])
+
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const stats = useMemo(() => loadAllQuizStats(), [])
   const visuals = useMemo(() => buildLeafVisuals(state.steps, stats, nowIso), [state.steps, stats, nowIso])
@@ -122,13 +134,20 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
         </div>
 
         <div className="relative">
-          <VineScene
-            leavesNow={leavesNow} from={from} to={to}
-            visuals={visuals} spotlightIds={spotlight} steps={state.steps}
-            crossed={crossed && { label: crossed.label, sizeLabel: crossed.sizeLabel, mm: crossed.mm }}
-            crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
-            onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
-          />
+          <div
+            ref={scrollRef}
+            className="relative overflow-y-auto overscroll-contain"
+            style={{ maxHeight: '70vh' }}
+            onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+          >
+            <VineScene
+              leavesNow={leavesNow} from={from} to={to}
+              visuals={visuals} spotlightIds={spotlight} steps={state.steps}
+              crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
+              onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
+              scrollTop={scrollTop} viewportH={viewportH}
+            />
+          </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
           {showSan && play && (crossed || newLeaves > 0) && (
             <div className={`absolute right-3 top-4 text-[21px] leading-[1.9] ${styles.san} ${styles.fadeIn}`}>
