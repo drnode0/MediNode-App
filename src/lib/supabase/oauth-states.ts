@@ -149,3 +149,25 @@ export async function purgeExpired(userId: string, nowMs: number): Promise<void>
     // 掃除の失敗は無視してよい
   }
 }
+
+// 完了ページで「どのアカウントへ保存するか」を出すために、state の持ち主のメールを引く。
+// completed の行に限る（pending の state を踏ませてメールを覗く経路を作らない）。
+export async function findStateOwnerEmail(state: string): Promise<string | null> {
+  if (!state) return null
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('oauth_states')
+      .select('user_id, status')
+      .eq('state', state)
+      .maybeSingle()
+    if (error || !data) return null
+    const row = data as { user_id: string; status: string }
+    if (row.status !== 'completed') return null
+    const { data: u, error: uErr } = await admin.auth.admin.getUserById(row.user_id)
+    if (uErr || !u?.user) return null
+    return u.user.email ?? null
+  } catch {
+    return null
+  }
+}
