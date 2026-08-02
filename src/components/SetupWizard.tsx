@@ -1919,9 +1919,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       （旧: 3DB×列の必須バッジ表＋「完全一致・サマリーNG」の長文 → モニターFBで
                       「説明が多すぎる・実装と矛盾」と判明したため3行に刷新） */}
                   <div className="rounded-xl bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 p-3 space-y-1.5 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
-                    <p className="font-semibold"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DBは、今のままでつなげます</p>
-                    <p>必須の列は<strong>タイトル（名前）だけ</strong>です。「要約」「キーワード」「ジャンル」の列があると、検索と分類がその分よく働きます。</p>
-                    <p>列名がちがっていても大丈夫です。この下の<strong>接続テスト</strong>のあとに、読み取る列を選べます。</p>
+                    <p className="font-semibold"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />DBは、今のままつなげます</p>
+                    <p>必ず要るのは、タイトルの列（Notionの「名前」）だけです。</p>
+                    <p>「要約」「キーワード」「ジャンル」の列があると、タイトル以外の言葉での検索や、ジャンルごとの一覧もできるようになります。</p>
+                    <p>列の名前がちがっていても、<strong>接続テスト</strong>のあとに、どの列を読むかを選べます。Notion側を直す必要はありません。</p>
                   </div>
 
                   <div className="space-y-3">
