@@ -39,11 +39,8 @@ describe('heightMmFromLeaves', () => {
       prev = h
     }
   })
-  it('境界が連続（125枚と126枚の間に段差がない）', () => {
-    const gap = heightMmFromLeaves(126) - heightMmFromLeaves(125)
-    expect(gap).toBeGreaterThan(0)
-    expect(gap).toBeLessThan(4) // 2mm×複利ぶん程度
-  })
+  // 境界（200枚→201枚）の連続性は golden ブロック「境界の伸びが2mmのまま連続する」で
+  // 既に検証済み（同じ2点の差を厳密値2mmで検証）。二重検証を避けるためここでは持たない。
 })
 
 describe('leavesForHeightMm（逆関数）', () => {

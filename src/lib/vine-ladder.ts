@@ -10,7 +10,7 @@ export const MM_PER_LEAF = 2
 export const COMPOUND_START_LEAVES = 200
 export const COMPOUND_RATE = 0.005
 
-const COMPOUND_BASE_MM = COMPOUND_START_LEAVES * MM_PER_LEAF // 250mm（ネコ）
+const COMPOUND_BASE_MM = COMPOUND_START_LEAVES * MM_PER_LEAF // 400mm（一升瓶398mmのすぐ上）
 
 export function heightMmFromLeaves(n: number): number {
   if (n <= COMPOUND_START_LEAVES) return n * MM_PER_LEAF
