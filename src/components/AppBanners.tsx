@@ -9,7 +9,7 @@ import { useState, useEffect, useContext } from 'react'
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, Link2, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -32,13 +32,6 @@ export type Announcement = {
   links?: { label: string; url: string }[]
 }
 export const ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: '2026-08-02-easy-connect',
-    date: '2026-08-02',
-    Icon: Link2,
-    title: 'Notionとの接続が、ページを選ぶだけになりました（かんたん接続）',
-    body: 'セットアップの「かんたん接続」から、Notionの画面でページを選んで許可するだけで接続が終わります。トークンの作成やコピーは要りません。すでに接続済みの方は、いまのままで大丈夫です（お手続きは不要です）。',
-  },
   {
     id: '2026-07-23-daily-question',
     date: '2026-07-23',
