@@ -75,4 +75,43 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     const res = await PATCH(makeReq({ feature: 'tower', enabled: true }))
     expect(res.status).toBe(400)
   })
+
+  it('enabled=true で機能を足しても他の機能は残る', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { early_access_features: ['tower'] }, error: null })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+    expect(upsertMock.mock.calls[0][0].early_access_features).toEqual(
+      expect.arrayContaining(['tower', 'easy_connect']),
+    )
+    expect(data.features).toEqual(expect.arrayContaining(['tower', 'easy_connect']))
+  })
+
+  it('feature が文字列でなければ400・DBに触れない', async () => {
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 123, enabled: true }))
+    expect(res.status).toBe(400)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('enabled が文字列("true")なら400・DBに触れない', async () => {
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'tower', enabled: 'true' }))
+    expect(res.status).toBe(400)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('feature が "__proto__" は400・DBに触れない', async () => {
+    const res = await PATCH(makeReq({ userId: 'u1', feature: '__proto__', enabled: true }))
+    expect(res.status).toBe(400)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('feature キーが無ければレガシーの earlyAccess 分岐にそのまま到達する', async () => {
+    const res = await PATCH(makeReq({ userId: 'u1', earlyAccess: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.earlyAccess).toBe(true)
+    expect(upsertMock.mock.calls[0][0]).toEqual({ user_id: 'u1', early_access: true })
+    expect(logMock.mock.calls[0][1].action).toBe('grant_early_access')
+  })
 })

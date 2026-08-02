@@ -579,6 +579,16 @@ export async function PATCH(req: NextRequest) {
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId を指定してください' }, { status: 400 })
     }
+    // feature キーが来ているのに型が不正なら、ここで即座に400を返す。
+    // このガードが無いと、下の分岐条件を素通りしてレガシー分岐にまで落ち、
+    // 最終catch-allの「isMonitor / isOwner」エラーという的外れな応答になってしまう
+    // （分岐の並び順に安全性が依存する状態を避けるための明示ガード）。
+    if (feature !== undefined && (typeof feature !== 'string' || typeof enabled !== 'boolean')) {
+      return NextResponse.json(
+        { error: 'feature（文字列）と enabled（真偽値）を指定してください' },
+        { status: 400 },
+      )
+    }
     // 機能別の先行体験トグル。user_settings.early_access_features を出し入れする。
     // レガシーの earlyAccess(boolean) 分岐はそのまま残す（古いUIからの呼び出し互換）。
     if (typeof feature === 'string' && typeof enabled === 'boolean') {
