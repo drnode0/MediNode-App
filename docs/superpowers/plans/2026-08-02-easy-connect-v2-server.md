@@ -56,7 +56,7 @@
 | `src/app/connect/notion/CopyLink.tsx`（新規） | リンクコピーのクライアント部品（中間ページ唯一のJS） |
 | `src/app/connect/notion/done/page.tsx`（新規） | 完了ページ。保存先アカウントのマスク表示＋戻る導線 |
 | `src/proxy.ts`（変更） | `/connect` を公開パスに加える |
-| `src/lib/easy-connect-flag.ts`（削除） | 機能ゲートへ置き換え |
+| `src/lib/easy-connect-flag.ts`（変更） | クライアントの表示判定1本。段B-2まで常に非表示。サーバーの正は `sessionHasFeature` |
 
 ---
 
@@ -728,7 +728,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/app/api/notion/oauth/start/route.ts`
-- Delete: `src/lib/easy-connect-flag.ts`
+- Modify: `src/lib/easy-connect-flag.ts`
 - Modify: `src/app/api/notion/oauth/callback/route.ts`（import だけ暫定対応・本体は Task 6）
 - Modify: `src/app/page.tsx`（`isEasyConnectOn` の呼び出しを外す）
 - Modify: `src/components/SetupWizard.tsx`（同上）
@@ -867,39 +867,40 @@ export async function GET(req: NextRequest) {
 }
 ```
 
-- [ ] **Step 4: フラグの参照を外す**
+- [ ] **Step 4: 表示フラグを機能ベースの1箇所へ寄せる**
 
-`src/lib/easy-connect-flag.ts` を削除し、4つの参照元を次のように直す（いずれも「常に非表示」に倒す最小変更。段B-2で機能ベースに戻す）:
+クライアント側のかんたん接続UIは、段B-2でアプリ側の引き取り（claim）が入るまで**表示してはいけない**。認可だけ通っても完了できず、ユーザーが宙に浮くからだ。とはいえ判定を3ファイルに `false` で散らすと、後で戻し忘れる。**判定関数1本に寄せる。**
 
-- `src/components/SetupWizard.tsx`: `import { isEasyConnectOn } from '@/lib/easy-connect-flag'` の行を削除し、`const EASY_CONNECT_ON = isEasyConnectOn()` を次に置き換える
-
-```ts
-// かんたん接続カードの表示。段B-2でアカウントの easy_connect 機能を見て出し分ける。
-// それまでは非表示（手動接続だけが見える状態を維持する）。
-const EASY_CONNECT_ON = false
-```
-
-- `src/components/SettingsPanel.tsx`: import を削除し、`if (!isEasyConnectOn()) {` を `if (true) {` ではなく、次のように書き換える（意図が読めるように）
+`src/lib/easy-connect-flag.ts` を削除せず、全文を次に置き換える:
 
 ```ts
-                // 段B-2でアカウントの easy_connect 機能を見て出し分ける。
-                // それまでは、かんたん接続でつながっている人にも手動接続へ戻す案内だけを出す。
-                const easyConnectVisible = false
-                if (!easyConnectVisible) {
+// かんたん接続のUI表示判定（クライアント側）。
+//
+// いまは常に非表示。段B-1でサーバー側（認可・トークンの保管・引き取りAPI）が揃ったが、
+// アプリ側の引き取りは段B-2で入る。先に入口だけ見せると、認可を終えたのに何も起きない
+// 状態になるため、B-2が入るまで出さない。
+//
+// B-2ではこの関数の中身を、段Aで端末へ同期済みの機能一覧を見る形に差し替える:
+//   return getSettings()?.earlyAccessFeatures?.includes('easy_connect') === true
+// サーバー側の判定（sessionHasFeature('easy_connect')）が正であり、これは表示制御のみ。
+export function isEasyConnectVisible(): boolean {
+  return false
+}
 ```
 
-- `src/app/page.tsx`: import を削除し、`if (!isEasyConnectOn()) {` を次に書き換える
+参照元3つを次のように直す（関数名が変わるだけで、判定の置き場所は増やさない）:
 
-```ts
-    // OAuth帰還の受け口は段B-2で claim ベースに作り直す。それまでは閉じたままにし、
-    // 前回の試行で残ったマーカーがあれば掃除する。
-    const oauthReceiverOpen = false
-    if (!oauthReceiverOpen) {
-```
+- `src/components/SetupWizard.tsx`: import を `import { isEasyConnectVisible } from '@/lib/easy-connect-flag'` に変え、`const EASY_CONNECT_ON = isEasyConnectOn()` を `const EASY_CONNECT_ON = isEasyConnectVisible()` に変える
+- `src/components/SettingsPanel.tsx`: import を同様に変え、`if (!isEasyConnectOn()) {` を `if (!isEasyConnectVisible()) {` に変える
+- `src/app/page.tsx`: import を同様に変え、`if (!isEasyConnectOn()) {` を `if (!isEasyConnectVisible()) {` に変える
 
-- `src/app/api/notion/oauth/callback/route.ts`: import と `if (!isEasyConnectOn()) { return back(req, '') }` を削除する（本体は Task 6 で全面的に作り直すので、ここでは import エラーを消すだけ）
+- `src/app/api/notion/oauth/callback/route.ts`: import と `if (!isEasyConnectOn()) { return back(req, '') }` を削除する。**サーバー側の判定にこの表示用フラグを使ってはいけない**（正は `sessionHasFeature`）。callback 本体は Task 6 で全面的に作り直すので、ここでは import エラーを消すだけ。
 
-既存テスト `src/lib/__tests__/notion-oauth-routes.test.ts` は start/callback の旧仕様を検証している。**start に関する describe は本タスクの新テストで置き換わるので削除する。** callback に関する describe は Task 6 で置き換えるため、本タスクでは `describe.skip` にし、`// Task 6 で新仕様に差し替える` とコメントを付ける。
+既存テスト `src/lib/__tests__/notion-oauth-routes.test.ts` から、次の2つの describe を**削除する**:
+- `describe('GET /api/notion/oauth/start', ...)` — 本タスクの新テストが置き換える
+- `describe('かんたん接続フラグOFF（調整中）', ...)` — 判定がサーバー側の機能ゲートへ移り、このフラグはサーバーで使わなくなったため
+
+`describe('GET /api/notion/oauth/callback', ...)` は**残す**（旧仕様のまま通るはず。Task 6 で新仕様に差し替える）。`beforeEach` の `process.env.NEXT_PUBLIC_EASY_CONNECT = 'on'` の行も削除してよい。残った callback テストが通らない場合は、原因を報告して止まること。
 
 - [ ] **Step 5: 通ることを確認**
 
@@ -1842,10 +1843,10 @@ Expected: すべて成功
 - [ ] **Step 3: 参照が残っていないことを確認**
 
 ```bash
-grep -rn "NEXT_PUBLIC_EASY_CONNECT\b" src/ ; grep -rn "easy-connect-flag" src/ ; grep -rn "STATE_COOKIE" src/
+grep -rn "NEXT_PUBLIC_EASY_CONNECT\b" src/ ; grep -rn "isEasyConnectOn" src/ ; grep -rn "STATE_COOKIE" src/
 ```
 
-Expected: `src/` 配下に一切ヒットしないこと（`NEXT_PUBLIC_EASY_CONNECT_MOBILE` は別名なので `\b` 付きで除外される）
+Expected: 3つとも `src/` 配下に一切ヒットしないこと（`NEXT_PUBLIC_EASY_CONNECT_MOBILE` は別名なので `\b` 付きで除外される）。`easy-connect-flag` 自体は `isEasyConnectVisible` として残るので、ここでは検索しない
 
 - [ ] **Step 4: コミット**
 
