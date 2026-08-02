@@ -4,6 +4,8 @@
 // 操作の言葉（ボタン・設定・閉じる）はアプリの領分なのでここには入れない。
 // 数字は、測るもの（高さ・葉の総数）が算用数字、出来事が漢数字。
 
+import { LADDER, FAR_DREAM } from './vine-ladder'
+
 export function crossedLine(label: string): string {
   return `${label}を越えた`
 }
@@ -19,8 +21,11 @@ export function weekLine(newLeaves: number, total: number): string {
 }
 
 // 六つの禁をテストで走査するための一覧。文言を足したらここにも足す。
+// ラダー（LADDER・FAR_DREAM）の全ラベルを crossedLine() に通し、実際に画面へ出うる
+// 「越えた」文言を漏れなく含める。ラベルを足す／直すたびに自動でここへ反映される。
 export const ALL_VINE_COPY: string[] = [
-  crossedLine('ネコ'),
+  ...LADDER.map((m) => crossedLine(m.label)),
+  crossedLine(FAR_DREAM.label),
   grewLine('三'),
   weekLine(3, 274),
   weekLine(0, 274),
