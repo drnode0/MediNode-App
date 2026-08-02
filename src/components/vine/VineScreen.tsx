@@ -11,6 +11,7 @@ import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
+import { crossedLine, grewLine, weekLine } from '@/lib/vine-copy'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -108,7 +109,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           <div>
             <div className="text-[11px] tracking-[.35em] text-[#7d6f52]">知　の　蔓</div>
             <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>
-            <div className="mt-0.5 text-[11px] text-[#8b8272]">今週 葉が {newLeaves > 0 ? `${newLeaves}枚` : 'まだ'}・ぜんぶで {to}枚</div>
+            <div className="mt-0.5 text-[11px] text-[#8b8272]">{weekLine(newLeaves, to)}</div>
           </div>
           <div className="flex items-start gap-2">
             <div className="text-right text-[10px] leading-relaxed text-[#a39678]">
@@ -131,7 +132,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
           {showSan && play && (crossed || newLeaves > 0) && (
             <div className={`absolute right-3 top-4 text-[21px] leading-[1.9] ${styles.san} ${styles.fadeIn}`}>
-              {crossed ? `${crossed.label}を、越えました` : `葉が、${kanjiNumber(Math.min(newLeaves, 99))}枚ふえました`}
+              {crossed ? crossedLine(crossed.label) : grewLine(kanjiNumber(Math.min(newLeaves, 99)))}
             </div>
           )}
         </div>
