@@ -1,7 +1,7 @@
 // 検索ルート等で、クライアント改ざんを防ぐために先行体験をサーバー側で再判定する。
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import {
-  hasFeature,
   resolveFeatures,
   EARLY_ACCESS_FEATURES,
   type EarlyAccessFeature,
@@ -41,6 +41,15 @@ export async function readLedger(
     .select('early_access')
     .eq('user_id', userId)
     .maybeSingle()
+  if (fallback.error) {
+    // 列不足（未適用環境）ではなく、1回目・2回目とも失敗した＝一時的な通信断等。
+    // ここで黙って「空配列＝先行体験なし」を返すと、呼び出し元（getSessionFeatures）が
+    // それをそのまま機能なしと判定し、PremiumSync が「消えた」として保存・強制リロードする
+    // （知の塔／マルチ部署検索のUIが次の同期まで消える）。見える形で報告する。
+    const detail = `first=${first.error.message} fallback=${fallback.error.message}`
+    console.error(`[readLedger] user_settings の読み取りに二重失敗 user=${userId}: ${detail}`)
+    Sentry.captureException(new Error(`readLedger 二重失敗: ${detail}`))
+  }
   const row = fallback.data as { early_access?: boolean | null } | null
   return { earlyAccess: row?.early_access ?? null, features: [] }
 }

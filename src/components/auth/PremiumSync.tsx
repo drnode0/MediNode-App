@@ -101,6 +101,9 @@ export function PremiumSync() {
             ? (data.features as string[])
             : (current.earlyAccessFeatures ?? [])
           const earlyAccessChanged = (current.earlyAccess ?? false) !== nextEarlyAccess
+          // JSON.stringify での比較は順序依存だが、resolveFeatures は常に
+          // EARLY_ACCESS_FEATURES の正準順で返すため安全。順序をここで揃え直す必要はない
+          // （将来「直したくなる」人向けの注記）。
           const featuresChanged =
             JSON.stringify(current.earlyAccessFeatures ?? []) !== JSON.stringify(nextFeatures)
           if (earlyAccessChanged || featuresChanged) {
