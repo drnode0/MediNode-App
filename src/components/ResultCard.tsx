@@ -368,6 +368,9 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
         <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in-up">
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pt-3 whitespace-pre-wrap">
             {displaySummary}
+            {hit.summarySource === 'body' && displaySummary && (
+              <span className="ml-1 text-[10px] text-gray-400 dark:text-gray-500 align-middle">本文から自動抜粋</span>
+            )}
           </p>
           {hit.owner === 'subscription' && hit.headings && hit.headings.length > 0 && (
             <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">

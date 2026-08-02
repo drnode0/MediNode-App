@@ -472,7 +472,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
 
   // セクション移動でテスト結果を持ち越さない。
-  useEffect(() => { setNotionTest(null); setAlgoliaTest(null) }, [section])
+  useEffect(() => { setNotionTest(null); setAlgoliaTest(null); setDbSchema(null) }, [section])
 
   // 「← 戻る」前提のセットアップ用文面を、その場で直せる表現に読み替える。
   const inPlace = (msg: string) => parseErrorMessage(msg).replace(/「← 戻る」で「(Notion|Algolia)」の入力画面に戻り、/g, 'この画面で')
@@ -481,6 +481,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const handleNotionConnTest = async () => {
     setNotionTesting(true)
     setNotionTest(null)
+    setDbSchema(null)
     try {
       const res = await fetch('/api/notion/check-props', {
         method: 'POST',

@@ -4,7 +4,7 @@
 // 実際にDBにある列名からだけ選ばせる。選択肢は役割ごとに型で絞る。
 // 空文字 = 既定名（要約/キーワード/ジャンル/知識レベル）をそのまま読む。
 
-import { inferPropMap, type NotionPropSchema } from '@/lib/prop-infer'
+import { inferPropMap, typeAllowedColumns, type NotionPropSchema } from '@/lib/prop-infer'
 
 export type PropMapValue = {
   propSummary: string
@@ -39,8 +39,11 @@ export function PropMapEditor({
     <div className="space-y-2.5">
       {ROWS.map((row) => {
         const inf = inference[row.role]
-        // 選択肢: 推定best → その他候補。既に保存済みの値がリスト外なら先頭に足す（列名変更後の残骸も見えるように）
-        const options = [inf.best, ...inf.candidates].filter((n): n is string => !!n)
+        // 選択肢: 型が合う全列（claimなし）。推定bestを先頭に、保存済みのリスト外値は最前へ
+        const allowed = typeAllowedColumns(schema, row.role)
+        const options = inf.best
+          ? [inf.best, ...allowed.filter((n) => n !== inf.best)]
+          : [...allowed]
         if (value[row.key] && !options.includes(value[row.key])) options.unshift(value[row.key])
         return (
           <div key={row.key} className="flex items-center gap-2">

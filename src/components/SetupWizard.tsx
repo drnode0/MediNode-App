@@ -1024,7 +1024,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
             <strong>このまま進めます。</strong>タイトルのあるページは取り込まれます（見つからない列の中身が、検索とジャンル分けに乗らないだけです）。
           </p>
           <p>
-            すでに<strong>別の名前の列</strong>で書いている場合は、Notion側を書き換えずに、その名前をここで教えてください。
+            すでに<strong>別の名前の列</strong>で書いている場合は、Notion側を書き換えずに、その列をここで選んでください。
           </p>
           {/* 既存DBの列名をここで読み替える。何百枚のページを一括編集させないための逃げ道。
               入力後に「もう一度テスト」でその名前の存在を確認する。 */}

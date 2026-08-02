@@ -2,7 +2,7 @@
 // 既存DBの列名を書き換えずにつなぐため、スキーマ（名前と型）から
 // 役割ごとの候補を推定する。1つの列は1つの役割にしか割り当てない。
 import { describe, it, expect } from 'vitest'
-import { inferPropMap } from '../prop-infer'
+import { inferPropMap, typeAllowedColumns } from '../prop-infer'
 
 const p = (name: string, type: string) => ({ name, type })
 
@@ -53,5 +53,11 @@ describe('inferPropMap', () => {
   it('大文字小文字を無視して英語同義語も拾う（Summary→要約）', () => {
     const r = inferPropMap([p('名前', 'title'), p('Summary', 'rich_text')])
     expect(r.summary).toMatchObject({ best: 'Summary', confidence: 'likely' })
+  })
+
+  it('typeAllowedColumns はclaimせず、同じ列を複数役割の選択肢に出す', () => {
+    const schema = [p('名前', 'title'), p('タグ', 'multi_select')]
+    expect(typeAllowedColumns(schema, 'keywords')).toContain('タグ')
+    expect(typeAllowedColumns(schema, 'genre')).toContain('タグ')
   })
 })

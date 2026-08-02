@@ -87,3 +87,12 @@ export function inferPropMap(schema: NotionPropSchema[]): PropMapInference {
   }
   return result
 }
+
+// ドロップダウンの選択肢用: 型が合う列名をclaimなしで返す。
+// 推定（inferPropMap）は1列1役割だが、ユーザーの手動選択は制限しない。
+export function typeAllowedColumns(
+  schema: NotionPropSchema[],
+  role: keyof PropMapInference,
+): string[] {
+  return schema.filter((s) => ALLOWED_TYPES[role].includes(s.type)).map((s) => s.name)
+}

@@ -4,6 +4,10 @@ import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { extractBodyExcerpt } from '@/lib/notion-body'
 
+// このルートの実行時間上限（秒）。本文フォールバックで直列fetchが増えても
+// serverlessのデフォルトタイムアウトで打ち切られないようにする。
+export const maxDuration = 60
+
 // プロパティ名マッピング型
 export interface PropMap {
   summary?: string      // デフォルト: 要約
@@ -101,11 +105,16 @@ async function syncMedicalDb(
   records: Record<string, unknown>[],
   propMap: PropMap,
   bodyFallback: boolean,
-): Promise<number> {
+): Promise<{ count: number; bodyFallbackLimitHit: boolean }> {
   const summaryKey = propMap.summary || '要約'
   const keywordsKey = propMap.keywords || 'キーワード'
   const knowledgeLevelKey = propMap.knowledgeLevel || '知識レベル'
   const genreKey = propMap.genre || 'ジャンル'
+
+  // 本文フォールバックの上限。serverlessのタイムアウト内に収めるため、
+  // 1回の同期で取得する本文は最大40ページ。超過分は本文なしで索引する。
+  const BODY_FALLBACK_MAX = 40
+  let bodyFetches = 0
 
   let count = 0
   let cursor: string | undefined = undefined
@@ -130,9 +139,10 @@ async function syncMedicalDb(
       if (owner === 'personal' && migratedProp?.checkbox === true) continue
       let aiSummary = extractText(getProp(props, summaryKey, '要約'))
       let summarySource: 'property' | 'body' = 'property'
-      if (!aiSummary && bodyFallback) {
+      if (!aiSummary && bodyFallback && bodyFetches < BODY_FALLBACK_MAX) {
         // 要約が空のページに限り、本文冒頭を代わりに索引する（オプトイン）。
         // ページごとに1リクエスト増えるため、失敗はスキップして同期全体は止めない。
+        bodyFetches++
         try {
           const blocks = await notion.blocks.children.list({ block_id: page.id, page_size: 20 })
           const excerpt = extractBodyExcerpt(blocks.results as unknown[], 300)
@@ -166,7 +176,7 @@ async function syncMedicalDb(
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
-  return count
+  return { count, bodyFallbackLimitHit: bodyFetches >= BODY_FALLBACK_MAX }
 }
 
 async function syncReferenceDb(
@@ -296,9 +306,12 @@ export async function POST(req: NextRequest) {
     let syncedTeamMedical = 0
     let syncedTeamReference = 0
     const warnings: string[] = []
+    let bodyFallbackLimitHit = false
 
     // 個人用 Medical DB の同期
-    syncedPersonalMedical += await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records, resolvedPropMap, Boolean(bodyFallback))
+    const personalMedicalResult = await syncMedicalDb(notion, notionMedicalDbId, 'personal', '', records, resolvedPropMap, Boolean(bodyFallback))
+    syncedPersonalMedical += personalMedicalResult.count
+    bodyFallbackLimitHit = bodyFallbackLimitHit || personalMedicalResult.bodyFallbackLimitHit
 
     // 個人用 Reference DB の同期（任意）
     if (notionReferenceDbId) {
@@ -309,7 +322,9 @@ export async function POST(req: NextRequest) {
     if (teamNotionToken && teamNotionMedicalDbId) {
       const teamNotion = new Client({ auth: teamNotionToken })
       try {
-        syncedTeamMedical += await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap, Boolean(bodyFallback))
+        const teamMedicalResult = await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap, Boolean(bodyFallback))
+        syncedTeamMedical += teamMedicalResult.count
+        bodyFallbackLimitHit = bodyFallbackLimitHit || teamMedicalResult.bodyFallbackLimitHit
       } catch (err) {
         warnings.push(`部署用 Medical DB の同期に失敗: ${err instanceof Error ? err.message : String(err)}`)
       }
@@ -321,6 +336,10 @@ export async function POST(req: NextRequest) {
           warnings.push(`部署用 Reference DB の同期に失敗: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
+    }
+
+    if (bodyFallbackLimitHit) {
+      warnings.push('本文の取り込みは1回の同期で40ページまでです。超過したページは本文なしで索引しました。')
     }
 
     const syncedMedical = syncedPersonalMedical + syncedTeamMedical
