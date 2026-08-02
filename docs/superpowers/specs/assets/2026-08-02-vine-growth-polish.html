@@ -10,12 +10,12 @@
   .frame { width:min(400px,96vw); background:#f2ead6; border-radius:14px; overflow:hidden;
            box-shadow:0 6px 30px rgba(60,50,30,.25); position:relative; }
   .stage { position:relative; height:690px; }
-  .stage img { mix-blend-mode:multiply; position:absolute; user-select:none; -webkit-user-drag:none; }
+  .stage img { position:absolute; user-select:none; -webkit-user-drag:none; }
   .ground { position:absolute; left:6%; right:6%; bottom:56px; border-bottom:3px solid rgba(44,42,34,.45); border-radius:50%; }
   .vineWrap { position:absolute; left:36px; bottom:58px; width:190px; height:0; overflow:hidden; }
   .vineCol { position:absolute; bottom:0; left:0; width:190px; }
   .vineCol img { position:absolute; }
-  .tip { position:absolute; width:105px; mix-blend-mode:multiply; transform-origin:50% 95%;
+  .tip { position:absolute; width:105px; transform-origin:50% 95%;
          animation:tipSway 3.8s ease-in-out infinite alternate; opacity:0; left:72px; }
   @keyframes tipSway { from{transform:rotate(-2.6deg)} to{transform:rotate(2.4deg)} }
   .cup { right:22px; bottom:58px; width:200px; }
@@ -43,17 +43,17 @@
     <div class="h" id="h">0cm</div>
     <button id="replay">もう一度</button>
     <div class="ground"></div>
-    <img class="cup" src="generated/prep/object_yunomi.png" alt="">
-    <img class="usagi" src="generated/prep/resident_usagi.png" alt="">
+    <img class="cup" src="generated/alpha/object_yunomi.png" alt="">
+    <img class="usagi" src="generated/alpha/resident_usagi.png" alt="">
     <div class="vineWrap" id="vineWrap">
       <div class="vineCol">
-        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:0; left:0; width:170px">
-        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:225px; left:18px; width:140px; transform:scaleX(-1)">
-        <img src="generated/prep/vine_seg_young_a.png" style="bottom:405px; left:32px; width:115px">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:0; left:0; width:170px">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:225px; left:18px; width:140px; transform:scaleX(-1)">
+        <img src="generated/alpha/vine_seg_young_a.png" style="bottom:405px; left:32px; width:115px">
       </div>
     </div>
-    <img class="tip" id="tip" src="generated/prep/vine_tip.png" alt="">
-    <img class="suzume" id="suzume" src="generated/prep/resident_suzume.png" alt="">
+    <img class="tip" id="tip" src="generated/alpha/vine_tip.png" alt="">
+    <img class="suzume" id="suzume" src="generated/alpha/resident_suzume.png" alt="">
     <div id="leaves"></div>
     <div class="cap">数ヶ月育った蔓のイメージ——太さ3段階（若→中→縄）・葉はコード描画で茎に吸着・つなぎ目は葉の茂みが結ぶ</div>
   </div>

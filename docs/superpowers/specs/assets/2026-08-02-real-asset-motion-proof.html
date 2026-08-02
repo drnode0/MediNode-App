@@ -10,14 +10,14 @@
   .frame { width:min(400px, 96vw); background:#f2ead6; border-radius:14px; overflow:hidden;
            box-shadow:0 6px 30px rgba(60,50,30,.25); position:relative; }
   .stage { position:relative; height:640px; }
-  .stage img { mix-blend-mode:multiply; position:absolute; user-select:none; -webkit-user-drag:none; }
+  .stage img { position:absolute; user-select:none; -webkit-user-drag:none; }
   .ground { position:absolute; left:6%; right:6%; bottom:58px; border-bottom:3px solid rgba(44,42,34,.5);
             border-radius:50%; }
   /* 蔓の柱: 節を縦積みした列。リビールはwrapperの高さで行う */
   .vineWrap { position:absolute; left:36px; bottom:60px; width:150px; height:0; overflow:hidden; }
   .vineCol { position:absolute; bottom:0; left:0; width:150px; }
   .vineCol img { position:absolute; left:0; width:150px; }
-  .tip { position:absolute; left:44px; bottom:60px; width:130px; mix-blend-mode:multiply;
+  .tip { position:absolute; left:44px; bottom:60px; width:130px;
          transform-origin:50% 95%; animation:tipSway 3.6s ease-in-out infinite alternate; opacity:0; }
   @keyframes tipSway { from { transform:rotate(-2.4deg);} to { transform:rotate(2.6deg);} }
   .cup { right:28px; bottom:60px; width:190px; }
@@ -39,17 +39,17 @@
     <div class="h" id="h">0cm</div>
     <button id="replay">もう一度</button>
     <div class="ground"></div>
-    <img class="cup" src="generated/prep/object_yunomi.png" alt="">
-    <img class="usagi" src="generated/prep/resident_usagi.png" alt="">
+    <img class="cup" src="generated/alpha/object_yunomi.png" alt="">
+    <img class="usagi" src="generated/alpha/resident_usagi.png" alt="">
     <div class="vineWrap" id="vineWrap">
       <div class="vineCol" id="vineCol">
-        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:0">
-        <img src="generated/prep/vine_seg_mid_a.png" style="bottom:205px; transform:scaleX(-1)">
-        <img src="generated/prep/vine_seg_young_a.png" style="bottom:410px">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:0">
+        <img src="generated/alpha/vine_seg_mid_a.png" style="bottom:205px; transform:scaleX(-1)">
+        <img src="generated/alpha/vine_seg_young_a.png" style="bottom:410px">
       </div>
     </div>
-    <img class="tip" id="tip" src="generated/prep/vine_tip.png" alt="">
-    <img class="suzume" id="suzume" src="generated/prep/resident_suzume.png" alt="">
+    <img class="tip" id="tip" src="generated/alpha/vine_tip.png" alt="">
+    <img class="suzume" id="suzume" src="generated/alpha/resident_suzume.png" alt="">
     <div class="note">切り抜きなし・乗算合成のみ。蔓＝節PNGの縦積みをマスク開示／雀・兎＝丸ごと動く</div>
   </div>
 </div>
