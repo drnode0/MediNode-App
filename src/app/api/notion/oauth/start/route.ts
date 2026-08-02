@@ -1,38 +1,37 @@
-// かんたん接続の入口。ログイン済みユーザーをNotionの認可画面へ送る。
-// state（CSRF対策）はhttpOnly Cookieに置き、callbackで突き合わせる。
+// かんたん接続の入口。資格（ログイン＋easy_connect機能）を確かめ、state を
+// サーバーに発行してから中間ページへ送る。認可URLへ直接飛ばさないのは、
+// スマホで開けなかったときにPCへ逃がす導線を挟むため（§4b）。
+//
+// 資格が無い場合は理由を出さずにホームへ戻す。かんたん接続は指定アカウントだけの
+// 先行体験なので、持っていない人に存在を説明しない。
 import { NextRequest, NextResponse } from 'next/server'
-import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
-import { buildAuthorizeUrl, STATE_COOKIE } from '@/lib/notion-oauth'
-import { isEasyConnectOn } from '@/lib/easy-connect-flag'
+import { sessionHasFeature } from '@/lib/supabase/early-access'
+import { createPendingState, purgeExpired } from '@/lib/supabase/oauth-states'
+
+function home(req: NextRequest): NextResponse {
+  return NextResponse.redirect(new URL('/', req.url))
+}
 
 export async function GET(req: NextRequest) {
-  // 調整中はUIを隠すだけでなくサーバー側でも止める（URL直叩きでトークンが書き換わらないように）。
-  if (!isEasyConnectOn()) {
-    return NextResponse.redirect(new URL('/', req.url))
-  }
-
-  const clientId = process.env.NOTION_OAUTH_CLIENT_ID
-  if (!clientId || !process.env.NOTION_OAUTH_CLIENT_SECRET) {
-    return NextResponse.redirect(new URL('/?oauthError=unconfigured', req.url))
+  if (!process.env.NOTION_OAUTH_CLIENT_ID || !process.env.NOTION_OAUTH_CLIENT_SECRET) {
+    return home(req)
   }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    // かんたん接続はトークンをアカウントに保存するため、先にログインが必要。
-    return NextResponse.redirect(new URL('/?oauthError=login', req.url))
-  }
+  if (!user) return home(req)
 
-  const state = randomBytes(16).toString('hex')
-  const redirectUri = new URL('/api/notion/oauth/callback', req.url).toString()
-  const res = NextResponse.redirect(buildAuthorizeUrl({ clientId, redirectUri, state }))
-  res.cookies.set(STATE_COOKIE, state, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: req.nextUrl.protocol === 'https:',
-    maxAge: 600,
-    path: '/',
-  })
-  return res
+  if (!(await sessionHasFeature('easy_connect'))) return home(req)
+
+  const nowMs = Date.now()
+  // 自分の古い行を掃除してから発行する（cronを持たないため・§3a）。
+  await purgeExpired(user.id, nowMs)
+
+  const state = await createPendingState(user.id, nowMs)
+  if (!state) return home(req)
+
+  const url = new URL('/connect/notion', req.url)
+  url.searchParams.set('s', state)
+  return NextResponse.redirect(url)
 }

@@ -6,7 +6,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
 import { exchangeCode, STATE_COOKIE } from '@/lib/notion-oauth'
-import { isEasyConnectOn } from '@/lib/easy-connect-flag'
 
 // サーバーに設定行がまだ無いユーザー向けの土台（クライアントのsaveSection既定と同型）。
 const DEFAULT_SETTINGS = {
@@ -25,11 +24,6 @@ function back(req: NextRequest, query: string): NextResponse {
 }
 
 export async function GET(req: NextRequest) {
-  // 調整中は認可応答も受け取らない。保存済み設定を書き換えないことを最優先にする。
-  if (!isEasyConnectOn()) {
-    return back(req, '')
-  }
-
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   const clientSecret = process.env.NOTION_OAUTH_CLIENT_SECRET
   if (!clientId || !clientSecret || !isCryptoReady()) {

@@ -1,13 +1,12 @@
-// かんたん接続（Notion OAuth）の表示フラグ。
-// iOSでNotionアプリが認可URLをユニバーサルリンクとして横取りする問題が実機で判明したため、
-// 再設計（docs/superpowers/specs/2026-08-02-easy-connect-v2-design.md）が済むまで既定OFF。
+// かんたん接続のUI表示判定（クライアント側）。
 //
-// フラグOFFのときに素通りする入口が残っていると、調整中の機能に触れてしまう。
-// セットアップのカード・設定画面のバッジ・OAuth帰還の受け口・APIルートが同じ判定を
-// 使うよう、ここに1本化する。
+// いまは常に非表示。段B-1でサーバー側（認可・トークンの保管・引き取りAPI）が揃ったが、
+// アプリ側の引き取りは段B-2で入る。先に入口だけ見せると、認可を終えたのに何も起きない
+// 状態になるため、B-2が入るまで出さない。
 //
-// 注: NEXT_PUBLIC_ はビルド時にインライン展開されるため、参照はこの式のまま書くこと
-// （変数経由にすると置換されない）。サーバー側からも同じ値が読める。
-export function isEasyConnectOn(): boolean {
-  return process.env.NEXT_PUBLIC_EASY_CONNECT === 'on'
+// B-2ではこの関数の中身を、段Aで端末へ同期済みの機能一覧を見る形に差し替える:
+//   return getSettings()?.earlyAccessFeatures?.includes('easy_connect') === true
+// サーバー側の判定（sessionHasFeature('easy_connect')）が正であり、これは表示制御のみ。
+export function isEasyConnectVisible(): boolean {
+  return false
 }

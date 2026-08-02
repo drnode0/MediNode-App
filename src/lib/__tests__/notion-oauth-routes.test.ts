@@ -30,7 +30,6 @@ vi.mock('@/lib/notion-oauth', async (orig) => ({
 }))
 
 import { NextRequest } from 'next/server'
-import { GET as startGET } from '../../app/api/notion/oauth/start/route'
 import { GET as callbackGET } from '../../app/api/notion/oauth/callback/route'
 import { STATE_COOKIE } from '../notion-oauth'
 
@@ -48,57 +47,6 @@ beforeEach(() => {
   decryptMock.mockReset().mockImplementation((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false }))
   process.env.NOTION_OAUTH_CLIENT_ID = 'cid-1'
   process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec-1'
-  // かんたん接続は既定OFF（調整中）。以下の本体テストはON前提なので明示的に立てる。
-  process.env.NEXT_PUBLIC_EASY_CONNECT = 'on'
-})
-
-describe('かんたん接続フラグOFF（調整中）', () => {
-  it('start はNotionへ飛ばさずホームへ戻す', async () => {
-    delete process.env.NEXT_PUBLIC_EASY_CONNECT
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    const loc = res.headers.get('location') || ''
-    expect(loc).not.toContain('api.notion.com')
-    expect(new URL(loc).pathname).toBe('/')
-  })
-
-  it('callback はトークン交換も保存もしない', async () => {
-    delete process.env.NEXT_PUBLIC_EASY_CONNECT
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(new URL(res.headers.get('location') || '').pathname).toBe('/')
-    expect(exchangeMock).not.toHaveBeenCalled()
-    expect(upsertMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/notion/oauth/start', () => {
-  it('未ログインは /?oauthError=login へ302', async () => {
-    getUserMock.mockResolvedValue({ data: { user: null } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    expect(res.status).toBe(307)
-    expect(res.headers.get('location')).toContain('oauthError=login')
-  })
-
-  it('ログイン済みはNotion認可URLへ302し、state Cookieを置く', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    const loc = res.headers.get('location') || ''
-    expect(loc).toContain('https://api.notion.com/v1/oauth/authorize')
-    expect(loc).toContain('client_id=cid-1')
-    const state = new URL(loc).searchParams.get('state') || ''
-    expect(state.length).toBeGreaterThanOrEqual(16)
-    expect(res.cookies.get(STATE_COOKIE)?.value).toBe(state)
-  })
-
-  it('env未設定なら /?oauthError=unconfigured へ302', async () => {
-    delete process.env.NOTION_OAUTH_CLIENT_ID
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    expect(res.headers.get('location')).toContain('oauthError=unconfigured')
-  })
 })
 
 describe('GET /api/notion/oauth/callback', () => {
