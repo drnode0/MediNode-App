@@ -13,7 +13,12 @@ const EARLY_ACCESS_FEATURE_COUNT = EARLY_ACCESS_FEATURES.length
 // 台帳から先行体験の材料（レガシーboolean＋機能配列）を1回で読む。
 // early_access_features 列が未適用の環境では1回目の select が error を返すので、
 // early_access だけで取り直して続行する（列の有無でアプリを止めない）。
-async function readLedger(
+//
+// /api/premium/status（src/app/api/premium/status/route.ts）とこのファイルの
+// getSessionFeatures は、どちらも @/lib/supabase/server の createClient() が返す
+// 同じセッションクライアント型を使うため、この関数を共有する。同じ select/fallback
+// ロジックを2箇所に複製しない。
+export async function readLedger(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<{ earlyAccess: boolean | null; features: string[] }> {

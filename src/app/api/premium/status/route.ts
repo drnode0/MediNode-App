@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveStatusByUserId } from '@/lib/supabase/subscriptions'
 import { issuePremiumSearchKey } from '@/lib/algolia-secured'
 import { resolveEarlyAccess, resolveFeatures } from '@/lib/feature-access'
+import { readLedger } from '@/lib/supabase/early-access'
 
 export async function GET() {
   const supabaseReady = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -36,29 +37,9 @@ export async function GET() {
 
   // 先行体験。env or 台帳 or GA。機能ごとに開閉するため、台帳からは
   // レガシーboolean（early_access）と機能配列（early_access_features）の両方を読む。
-  // early_access_features 列が未適用でも落とさない（early_access だけで再取得）。
-  let ledgerEarlyAccess: boolean | null = null
-  let ledgerFeatures: string[] = []
-  {
-    const first = await supabase
-      .from('user_settings')
-      .select('early_access, early_access_features')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!first.error) {
-      const row = first.data as { early_access?: boolean | null; early_access_features?: string[] | null } | null
-      ledgerEarlyAccess = row?.early_access ?? null
-      ledgerFeatures = row?.early_access_features ?? []
-    } else {
-      const { data: us } = await supabase
-        .from('user_settings')
-        .select('early_access')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      ledgerEarlyAccess = (us?.early_access as boolean | undefined) ?? null
-    }
-  }
-  const featureInput = { email: user.email, ledgerEarlyAccess, ledgerFeatures }
+  // early_access_features 列が未適用でも落とさない（readLedger が early_access だけで再取得する）。
+  const ledger = await readLedger(supabase, user.id)
+  const featureInput = { email: user.email, ledgerEarlyAccess: ledger.earlyAccess, ledgerFeatures: ledger.features }
   // 既存クライアント（PWAキャッシュ含む）のために boolean も返し続ける。
   const earlyAccess = resolveEarlyAccess(featureInput)
   const features = resolveFeatures(featureInput)
