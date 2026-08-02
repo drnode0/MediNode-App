@@ -90,6 +90,7 @@ const OAuthFinish = dynamicImport(
 )
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
+import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -2669,11 +2670,20 @@ export default function Home() {
   }, [])
 
   // かんたん接続（OAuth）から戻ったときの受け口。クエリを消してからシートを開く。
+  // OAuth帰還直後はローカル設定がまだ古く、直後にSettingsSyncが復元→reloadすることがある
+  // （＝このuseEffectがもう一度最初から走る）。その時点でURLからクエリは既に剥がされているため、
+  // クエリだけを頼りにするとシートが二度と開かない。sessionStorageにマーカーを残し、
+  // クエリが無い場合でもマーカーがあれば開き直す（OAuthFinish側が保存成功/明示close時に消す）。
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('oauth') === 'notion-done') {
+      try { sessionStorage.setItem(OAUTH_FINISH_MARKER, '1') } catch {}
       window.history.replaceState(null, '', window.location.pathname)
       setShowOauthFinish(true)
+    } else {
+      let marked = false
+      try { marked = sessionStorage.getItem(OAUTH_FINISH_MARKER) === '1' } catch {}
+      if (marked) setShowOauthFinish(true)
     }
     const oauthErr = params.get('oauthError')
     if (oauthErr) {
@@ -2771,10 +2781,16 @@ export default function Home() {
   }
 
   // かんたん接続（OAuth）から戻った直後は、オンボーディング/セットアップより最優先で
-  // 仕上げシートを開く（DB選択→列確認→保存）。setSetupDone/setShowSettings は
-  // 既存のSetupWizard onComplete と同じ完了処理系。
+  // 仕上げシートを開く（DB選択→列確認→保存）。onComplete（保存成功）は
+  // 既存のSetupWizard onComplete と同じ完了処理系。onAbort（エラー画面の「閉じる」）は
+  // セットアップ完了扱いにしない — シートを閉じるだけで、setSetupDone等の副作用を通さない。
   if (showOauthFinish) {
-    return <OAuthFinish onComplete={() => { setShowOauthFinish(false); setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }} />
+    return (
+      <OAuthFinish
+        onComplete={() => { setShowOauthFinish(false); setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }}
+        onAbort={() => { setShowOauthFinish(false) }}
+      />
+    )
   }
 
   if (setupDone === null || onboardingDone === null) {

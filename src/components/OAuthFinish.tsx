@@ -9,13 +9,20 @@ import { CheckCircle2, Loader2 } from 'lucide-react'
 import { getSettings, saveSettings } from '@/lib/settings'
 import { isSettingsSyncSettled, onSettingsSyncSettled } from './auth/SettingsSync'
 import { inferPropMap } from '@/lib/prop-infer'
+import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
 import { PropMapEditor } from './PropMapEditor'
 import { Spinner } from './Spinner'
 
 type DbItem = { id: string; title: string }
 type Phase = 'restoring' | 'pick' | 'columns' | 'saving' | 'done' | 'error'
 
-export function OAuthFinish({ onComplete }: { onComplete: () => void }) {
+// 保存成功／エラー画面を明示的に閉じたときにマーカーを消す（reload自体では消さない。
+// reload後に再び本コンポーネントを開き直すのがこのマーカーの目的のため）。
+function clearOauthFinishMarker() {
+  try { sessionStorage.removeItem(OAUTH_FINISH_MARKER) } catch {}
+}
+
+export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; onAbort: () => void }) {
   const [phase, setPhase] = useState<Phase>('restoring')
   const [error, setError] = useState('')
   const [dbs, setDbs] = useState<DbItem[]>([])
@@ -72,20 +79,20 @@ export function OAuthFinish({ onComplete }: { onComplete: () => void }) {
         }),
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '')
       const sc = (data.medical?.schema as Array<{ name: string; type: string }>) || null
       setSchema(sc)
-      if (sc) {
-        const inf = inferPropMap(sc)
-        const allExact = (['summary', 'keywords', 'genre', 'knowledgeLevel'] as const)
-          .every((k) => inf[k].confidence === 'exact' || inf[k].confidence === 'none')
-        if (allExact) { await save({}) ; return }
-        setPropMap({
-          propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || '' : '',
-          propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : '',
-          propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || '' : '',
-          propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : '',
-        })
-      }
+      if (!sc) { await save({}); return }
+      const inf = inferPropMap(sc)
+      const allExact = (['summary', 'keywords', 'genre', 'knowledgeLevel'] as const)
+        .every((k) => inf[k].confidence === 'exact' || inf[k].confidence === 'none')
+      if (allExact) { await save({}) ; return }
+      setPropMap({
+        propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || '' : '',
+        propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : '',
+        propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || '' : '',
+        propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : '',
+      })
     } catch {
       // スキーマが取れなくても接続は成立させる（列は既定名で読む）
       await save({})
@@ -105,6 +112,7 @@ export function OAuthFinish({ onComplete }: { onComplete: () => void }) {
       notionReferenceDbId: referenceId,
       ...finalMap,
     })
+    clearOauthFinishMarker()
     setPhase('done')
     setTimeout(onComplete, 1200)
   }
@@ -138,7 +146,7 @@ export function OAuthFinish({ onComplete }: { onComplete: () => void }) {
               <>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Medical DB（必須）</label>
-                  <select value={medicalId} onChange={(e) => setMedicalId(e.target.value)} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
+                  <select value={medicalId} onChange={(e) => { const v = e.target.value; setMedicalId(v); if (referenceId === v) setReferenceId('') }} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
                     <option value="">選んでください</option>
                     {dbs.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
                   </select>
@@ -184,7 +192,7 @@ export function OAuthFinish({ onComplete }: { onComplete: () => void }) {
         {phase === 'error' && (
           <div className="space-y-3">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            <button type="button" onClick={onComplete} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">閉じる</button>
+            <button type="button" onClick={() => { clearOauthFinishMarker(); onAbort() }} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">閉じる</button>
           </div>
         )}
       </div>
