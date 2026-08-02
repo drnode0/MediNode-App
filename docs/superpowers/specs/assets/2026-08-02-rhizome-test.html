@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知の蔓 — 地下茎と「まだの芽」検証</title>
+<style>
+  body { margin:0; background:#e7dfc9; display:flex; flex-direction:column; align-items:center; gap:12px;
+         padding:14px 14px 40px; font-family:"Hiragino Mincho ProN",serif; color:#3d3627; }
+  .card { width:min(400px,96vw); background:#f2ead6; border-radius:14px;
+          box-shadow:0 4px 18px rgba(60,50,30,.18); position:relative; overflow:hidden; }
+  .cap { padding:10px 16px 12px; font-size:11px; line-height:1.8; color:#7d6f52; }
+  .cap b { color:#2c2a22; font-weight:normal; }
+  .stage { position:relative; height:520px; }
+  .stage img { position:absolute; user-select:none; -webkit-user-drag:none; }
+
+  /* 地面：他のデモと同じく、両端を浮かせた緩い弧にする（定規のような直線にしない） */
+  .ground { position:absolute; left:7%; right:7%; border-bottom:2.5px solid rgba(44,42,34,.4); border-radius:50%; }
+  /* 地下は下へ向かって溶けるように消す（根が画面下端で切れると図解に見える） */
+  .under { position:absolute; left:0; right:0; overflow:hidden;
+           -webkit-mask-image:linear-gradient(#000 0%,#000 42%,rgba(0,0,0,.25) 78%,transparent 100%);
+           mask-image:linear-gradient(#000 0%,#000 42%,rgba(0,0,0,.25) 78%,transparent 100%); }
+  .under img { left:0; }
+  .above { position:absolute; left:0; right:0; overflow:hidden; }
+
+  .leafPos { position:absolute; }
+  .layer { position:absolute; inset:0; }
+  .mLeaf { -webkit-mask-image:url(generated/alpha/leaf_single.png); mask-image:url(generated/alpha/leaf_single.png);
+           -webkit-mask-size:100% 100%; mask-size:100% 100%; }
+  .mBud  { -webkit-mask-image:url(generated/alpha/leaf_young_furled.png); mask-image:url(generated/alpha/leaf_young_furled.png);
+           -webkit-mask-size:100% 100%; mask-size:100% 100%; }
+  .mLeafLine { -webkit-mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png);
+               mask-image:url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png),url(generated/alpha/leaf_single.png);
+               -webkit-mask-size:100% 100%; mask-size:100% 100%;
+               -webkit-mask-composite:source-in,source-in; mask-composite:intersect,intersect; }
+  .mBudLine { -webkit-mask-image:url(generated/alpha/leaf_young_furled.png),url(generated/alpha/leaf_young_furled.png),url(generated/alpha/leaf_young_furled.png);
+              mask-image:url(generated/alpha/leaf_young_furled.png),url(generated/alpha/leaf_young_furled.png),url(generated/alpha/leaf_young_furled.png);
+              -webkit-mask-size:100% 100%; mask-size:100% 100%;
+              -webkit-mask-composite:source-in,source-in; mask-composite:intersect,intersect; }
+
+  .panel { width:min(400px,96vw); background:#f2ead6; border-radius:14px; padding:12px 16px 14px;
+           box-shadow:0 4px 18px rgba(60,50,30,.18); font-size:12px; color:#5c5340; }
+  .panel h2 { margin:0 0 8px; font-size:11px; font-weight:normal; letter-spacing:.25em; color:#7d6f52; }
+  .ctl { display:flex; align-items:center; gap:10px; margin:7px 0; }
+  .ctl label { width:8em; }
+  .ctl input[type=range] { flex:1; }
+  .val { width:3.5em; text-align:right; color:#2c2a22; }
+  .chk { display:flex; align-items:center; gap:6px; margin-top:8px; }
+  .legend { display:flex; justify-content:space-between; align-items:flex-end; padding:10px 10px 8px; }
+  .legend .cell { text-align:center; flex:1; min-width:0; }
+  .legend .box { position:relative; width:60px; height:60px; margin:0 auto; }
+  .legend p { margin:3px 0 0; font-size:10px; color:#4a4335; }
+  .legend p.sub { color:#a39678; font-size:9px; }
+  h2.t { margin:0; padding:12px 16px 2px; font-size:11px; font-weight:normal; letter-spacing:.25em; color:#7d6f52; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2 class="t" id="title">地　下　茎　と　地　上（持ち込み274件の人）</h2>
+  <div class="stage" id="stage">
+    <div class="under" id="under"><img src="generated/alpha/rhizome_a.png" alt=""></div>
+    <div class="ground" id="groundLine"></div>
+    <div class="above" id="above"></div>
+  </div>
+  <div class="cap" id="cap"></div>
+</div>
+
+<div class="panel">
+  <h2>つ　ま　み</h2>
+  <div class="ctl"><label>地下の淡さ</label>
+    <input type="range" id="dim" min="15" max="100" step="5" value="30"><span class="val" id="dimV">30%</span></div>
+  <div class="ctl"><label>地下の大きさ</label>
+    <input type="range" id="scale" min="60" max="180" step="5" value="70"><span class="val" id="scaleV">70%</span></div>
+  <div class="ctl"><label>地上の葉</label>
+    <input type="range" id="n" min="1" max="16" step="1" value="7"><span class="val" id="nV">7</span></div>
+  <div class="chk"><input type="checkbox" id="zero"><label for="zero">持ち込みゼロの人（地下を描かない）</label></div>
+  <div class="chk"><input type="checkbox" id="gline" checked><label for="gline">地面の線を引く</label></div>
+</div>
+
+<div class="card">
+  <h2 class="t">葉　の　状　態（芽を加えた5種）</h2>
+  <div class="legend" id="legendRow"></div>
+</div>
+
+<script>
+(() => {
+  const NS='http://www.w3.org/2000/svg'
+  const $=id=>document.getElementById(id)
+  // 実測値
+  const RH = { w:1536, h:1024, shootX:0.498, bodyTop:0.452, shootTip:0.249 } // 地下茎
+  const LEAF = { ax:0.203, ay:0.813 }   // leaf_single のアンカー
+  const BUD  = { ax:0.321, ay:0.842 }   // leaf_young_furled のアンカー（実測）
+  const STAGE_H = 520
+  const GROUND_Y = 300                   // 地面のy（stage上端から）
+
+  const COL = { aoba:'#5c6a43', teri:'#333f26', fade:'#c6cbc2', ink:'#2b281f' }
+
+  function makeLeaf(state, px) {
+    const box=document.createElement('div')
+    box.style.position='relative'; box.style.width=box.style.height=px+'px'
+    const add=(cls,css)=>{const d=document.createElement('div'); d.className='layer '+cls; Object.assign(d.style,css); box.appendChild(d); return d}
+    if (state==='bud') {            // まだの芽（巻き葉）
+      add('mBud',{background:'#8d9a76'})
+      add('mBudLine',{background:'rgba(43,40,31,.55)'})
+    } else if (state==='rinkaku') { add('mLeafLine',{background:COL.ink}) }
+    else if (state==='teri') {
+      add('mLeaf',{background:COL.teri}); add('mLeaf',{background:COL.teri,opacity:'.62'})
+      add('mLeaf',{background:'linear-gradient(112deg,rgba(255,255,255,0) 6%,rgba(255,255,255,.72) 18%,rgba(255,255,255,.16) 30%,rgba(255,255,255,0) 42%)'})
+      add('mLeafLine',{background:'rgba(22,30,18,.7)'})
+    }
+    else if (state==='fade') { add('mLeaf',{background:COL.fade}); add('mLeafLine',{background:'rgba(104,110,102,.72)'}) }
+    else { add('mLeaf',{background:COL.aoba}) }
+    return box
+  }
+
+  const GOLDEN=137.507764
+  function render() {
+    const dim=+$('dim').value, n=+$('n').value, zero=$('zero').checked, gl=$('gline').checked
+    const sc=+$('scale').value
+    $('dimV').textContent=dim+'%'; $('nV').textContent=n; $('scaleV').textContent=sc+'%'
+
+    // 地下茎：地面より下だけを見せる。芽の付け根が地面に来るよう配置
+    const under=$('under'), img=under.querySelector('img')
+    under.style.top=GROUND_Y+'px'
+    under.style.height=(STAGE_H-GROUND_Y)+'px'
+    const imgW=400*sc/100
+    const imgH=imgW*RH.h/RH.w
+    const imgLeft=(400-imgW)/2
+    img.style.width=imgW+'px'
+    img.style.left=imgLeft+'px'
+    // 芽の付け根(bodyTop)が地面のすぐ下に来るように上へずらす
+    img.style.top=(-imgH*RH.bodyTop+10)+'px'
+    img.style.opacity=(dim/100).toFixed(2)
+    under.style.display=zero?'none':'block'
+
+    $('groundLine').style.top=GROUND_Y+'px'
+    $('groundLine').style.opacity=gl?1:0
+
+    // 地上：地下茎の芽の真上から蔓が立つ（本物の筆致アセットを使う）
+    const cx = zero ? 200 : (imgLeft + imgW*RH.shootX)
+    const above=$('above')
+    above.style.top='0'; above.style.height=GROUND_Y+'px'
+    above.innerHTML=''
+    const stemH=Math.min(GROUND_Y-16, 26+n*17)
+    const stem=document.createElement('img')
+    stem.src='generated/alpha/vine_seg_young_a.png'
+    const stemW=stemH*0.42
+    stem.style.cssText=`position:absolute; left:${(cx-stemW*0.5).toFixed(1)}px; top:${(GROUND_Y-stemH).toFixed(1)}px; width:${stemW.toFixed(1)}px; height:${stemH.toFixed(1)}px`
+    above.appendChild(stem)
+
+    const STATES=['aoba','aoba','bud','aoba','fade','aoba','rinkaku','aoba','teri','aoba','bud','aoba','aoba','rinkaku','aoba','aoba']
+    for(let i=0;i<n;i++){
+      const t=(i+1)/(n+1)
+      const y=GROUND_Y-stemH*t
+      const th=i*GOLDEN*Math.PI/180
+      const sx=Math.sin(th)
+      const st=STATES[i%STATES.length]
+      const px=(st==='bud'?30:36)+16*t
+      const A=st==='bud'?BUD:LEAF
+      const pos=document.createElement('div')
+      pos.className='leafPos'
+      pos.style.width=pos.style.height=px+'px'
+      pos.style.left=(cx-A.ax*px)+'px'
+      pos.style.top=(y-A.ay*px)+'px'
+      pos.style.transformOrigin=(A.ax*100)+'% '+(A.ay*100)+'%'
+      const fore=0.46+0.54*Math.abs(sx)
+      const rot=14-30*t
+      pos.style.transform=`scaleX(${(sx<0?-fore:fore).toFixed(3)}) rotate(${rot.toFixed(1)}deg)`
+      pos.appendChild(makeLeaf(st,px))
+      above.appendChild(pos)
+    }
+    $('title').textContent = zero
+      ? '地　下　茎　と　地　上（持ち込みゼロの人）'
+      : '地　下　茎　と　地　上（持ち込み274件の人）'
+    $('cap').innerHTML = zero
+      ? '持ち込みゼロの人。<b>地下を描かない</b>——空っぽの地下を見せると「自分には過去が無い」という絵になる。'
+      : '地下に274件が眠り、地上は今日から。<b>地下に目盛りは打たない</b>。読み返す・思い出すと、地下の知識が地上に本葉として生まれ直す。'
+  }
+  ;['dim','n','scale'].forEach(id=>$(id).addEventListener('input',render))
+  ;['zero','gline'].forEach(id=>$(id).addEventListener('change',render))
+
+  // 状態見本
+  ;[['青葉','aoba','思い出せた'],['照り葉','teri','磨き直した'],['色褪せ','fade','90日 経った'],
+    ['輪郭の葉','rinkaku','読んだ'],['芽','bud','まだ思い出せない']]
+  .forEach(([name,st,note])=>{
+    const c=document.createElement('div'); c.className='cell'
+    const b=document.createElement('div'); b.className='box'
+    b.appendChild(makeLeaf(st,60))
+    const p=document.createElement('p'); p.textContent=name
+    const q=document.createElement('p'); q.className='sub'; q.textContent=note
+    c.appendChild(b); c.appendChild(p); c.appendChild(q)
+    $('legendRow').appendChild(c)
+  })
+  render()
+})()
+</script>
+</body>
+</html>
