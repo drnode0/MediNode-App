@@ -105,6 +105,22 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
+  it('現在値の読み取りが失敗したら500・書き込まない（fail closed）', async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: { message: 'read failed' } })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    expect(res.status).toBe(500)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('行がまだ無いユーザー（data:null・error:null）は空配列として続行する', async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: null })
+    const res = await PATCH(makeReq({ userId: 'u1', feature: 'easy_connect', enabled: true }))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(upsertMock).toHaveBeenCalled()
+    expect(data.features).toEqual(['easy_connect'])
+  })
+
   it('feature キーが無ければレガシーの earlyAccess 分岐にそのまま到達する', async () => {
     const res = await PATCH(makeReq({ userId: 'u1', earlyAccess: true }))
     const data = await res.json()

@@ -585,7 +585,7 @@ export async function PATCH(req: NextRequest) {
     // （分岐の並び順に安全性が依存する状態を避けるための明示ガード）。
     if (feature !== undefined && (typeof feature !== 'string' || typeof enabled !== 'boolean')) {
       return NextResponse.json(
-        { error: 'feature（文字列）と enabled（真偽値）を指定してください' },
+        { error: 'feature は機能名の文字列、enabled は真偽値である必要があります' },
         { status: 400 },
       )
     }
@@ -602,11 +602,20 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: '対象のユーザーが見つかりません' }, { status: 404 })
       }
       // 現在値を読んでから差分を作る（配列まるごと上書きなので、読まずに書くと他機能を消す）。
-      const { data: cur } = await admin
+      // 読み取りが失敗した場合はfail closed（書き込まない）。RLS不整合や一時的な通信断でも、
+      // 空配列として扱ってしまうと他の機能を巻き添えで消してしまうため、区別せず一律で止める。
+      // 一方、行がまだ無いユーザー（data: null かつ error: null）は正常系で、空配列として続行する。
+      const { data: cur, error: curErr } = await admin
         .from('user_settings')
         .select('early_access_features')
         .eq('user_id', userId)
         .maybeSingle()
+      if (curErr) {
+        return NextResponse.json(
+          { error: '現在の設定を読み取れなかったため、変更は行っていません' },
+          { status: 500 },
+        )
+      }
       const currentFeatures = ((cur?.early_access_features as string[] | null) ?? []).filter(Boolean)
       const nextFeatures = enabled
         ? Array.from(new Set([...currentFeatures, key]))
