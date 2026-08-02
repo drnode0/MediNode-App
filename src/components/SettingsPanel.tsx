@@ -1544,7 +1544,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               <section>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" />プロパティ名について</h3>
                 <div className="text-xs bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-amber-700 dark:text-amber-300 space-y-1.5">
-                  <p>NotionDBのプロパティ名（「名前」「ジャンル」「要約」など）は<strong>変更しないでください</strong>。選択肢の追加・変更は自由です。</p>
+                  <p>NotionDBの列名（「名前」「ジャンル」「要約」など）は、既定のままが簡単です。ちがう列名で使いたいときは「Notion接続設定」→「列名がちがうとき」で読み取る列を選べます。選択肢の追加・変更は自由です。</p>
                   <p><Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" />ジャンルタブで医療知識と参考文献をまとめて表示するには、Medical DB と Reference DB の「ジャンル」の<strong>選択肢名を完全に一致</strong>させてください（例: 両方とも「07.腎」）。名前が違うと別ジャンルとして表示されます。</p>
                 </div>
               </section>
