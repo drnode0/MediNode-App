@@ -56,6 +56,12 @@ describe('redirectUriFromHost', () => {
     )
   })
 
+  it('172.15.x.x はプライベートレンジ外（下限の外側）なので https', () => {
+    expect(redirectUriFromHost({ host: '172.15.255.255:3000' })).toBe(
+      'https://172.15.255.255:3000' + NOTION_OAUTH_CALLBACK_PATH,
+    )
+  })
+
   it('172.32.x.x はプライベートレンジ外なので https', () => {
     expect(redirectUriFromHost({ host: '172.32.0.1:3000' })).toBe(
       'https://172.32.0.1:3000' + NOTION_OAUTH_CALLBACK_PATH,
@@ -93,6 +99,18 @@ describe('redirectUriFromRequestUrl', () => {
       'https://app.example' + NOTION_OAUTH_CALLBACK_PATH,
     )
   })
+
+  it('requestUrl が http でも x-forwarded-proto: https を渡せばそちらが勝つ（TLS終端プロキシ配下）', () => {
+    expect(
+      redirectUriFromRequestUrl('http://app.example/api/notion/oauth/callback?code=c1', 'https'),
+    ).toBe('https://app.example' + NOTION_OAUTH_CALLBACK_PATH)
+  })
+
+  it('forwardedProto を渡さなければ requestUrl のスキームのまま（http維持）', () => {
+    expect(redirectUriFromRequestUrl('http://app.example/api/notion/oauth/callback?code=c1')).toBe(
+      'http://app.example' + NOTION_OAUTH_CALLBACK_PATH,
+    )
+  })
 })
 
 describe('redirectUriFromRequestUrl と redirectUriFromHost の一致', () => {
@@ -105,6 +123,15 @@ describe('redirectUriFromRequestUrl と redirectUriFromHost の一致', () => {
   it('LANのローカルIPでも一致する（forwardedProto無し・http想定）', () => {
     const fromHeader = redirectUriFromHost({ host: '192.168.1.42:3000' })
     const fromReqUrl = redirectUriFromRequestUrl('http://192.168.1.42:3000/api/notion/oauth/callback?code=c1')
+    expect(fromHeader).toBe(fromReqUrl)
+  })
+
+  it('TLS終端プロキシ配下（着信は http だが外部スキームは https）でも、同じ forwardedProto を渡せば一致する', () => {
+    const fromHeader = redirectUriFromHost({ host: 'app.example', forwardedProto: 'https' })
+    const fromReqUrl = redirectUriFromRequestUrl(
+      'http://app.example/api/notion/oauth/callback?code=c1&state=st',
+      'https',
+    )
     expect(fromHeader).toBe(fromReqUrl)
   })
 })

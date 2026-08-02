@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
   let token
   try {
-    const redirectUri = redirectUriFromRequestUrl(req.url)
+    const redirectUri = redirectUriFromRequestUrl(req.url, req.headers.get('x-forwarded-proto'))
     token = await exchangeCode({ code, redirectUri, clientId, clientSecret })
   } catch {
     return quietError(req)

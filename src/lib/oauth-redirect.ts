@@ -4,7 +4,15 @@
 // （/api/notion/oauth/callback, ルートハンドラ）は redirect_uri を別々に組み立てていたが、
 // Notionは認可時と交換時でこの値が1文字でも違うと交換を拒む。かつ実行文脈が違う
 // （片方は headers() のホスト値、片方は req.url）ので、組み立てロジックそのものを
-// ここへ集約し、両方が必ず同じ結果になるようにする。
+// ここへ集約する。
+//
+// 保証できるのは「両方の呼び出しに同じプロトコル信号を渡した場合、必ず同じ結果になる」
+// ことまでである。redirectUriFromHost は forwardedProto を最優先で使う。
+// redirectUriFromRequestUrl も forwardedProto を渡せば同様にそれを最優先し、渡さなければ
+// requestUrl に埋め込まれたスキームをそのまま使う。したがって、TLS終端リバースプロキシ配下で
+// Node プロセスへの着信が http なのに x-forwarded-proto: https が付くような環境では、
+// callback 側にも同じ x-forwarded-proto を渡さない限り両者は一致しない
+// （呼び出し側がこのヘッダーを読んで渡す責務を持つ）。
 //
 // 純粋関数のみ。next/headers も Request も扱わない — 呼び出し側が文字列で渡す。
 
@@ -47,8 +55,13 @@ function guessProtocol(host: string, forwardedProto?: string | null): string {
 }
 
 // callback ルートハンドラ用：req.url（フルURL文字列）からcallbackパスのURLを組み立てる。
-export function redirectUriFromRequestUrl(requestUrl: string): string {
-  return new URL(NOTION_OAUTH_CALLBACK_PATH, requestUrl).toString()
+// forwardedProto を渡した場合はそちらを優先し、requestUrl 側のスキームを上書きする
+// （redirectUriFromHost と同じ優先順位。TLS終端プロキシ配下で着信が http でも、
+// 呼び出し側が x-forwarded-proto を読んで渡せば https 側に揃う）。
+export function redirectUriFromRequestUrl(requestUrl: string, forwardedProto?: string | null): string {
+  const url = new URL(NOTION_OAUTH_CALLBACK_PATH, requestUrl)
+  if (forwardedProto) url.protocol = `${forwardedProto}:`
+  return url.toString()
 }
 
 // /connect/notion（サーバーコンポーネント）用：headers() から読んだ host / x-forwarded-proto
