@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { Client } from '@notionhq/client'
-import { requireSessionIfLoginRequired } from '@/lib/api-guard'
-import { resolveRequestPremium } from '@/lib/premium-access'
+import { requirePremiumRequest } from '@/lib/api-guard'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { SUBSCRIPTION_READER_TAG } from '@/lib/reader-cache'
@@ -26,16 +25,15 @@ const getReaderDocCached = (pageId: string, token: string) =>
   )()
 
 export async function GET(req: NextRequest) {
-  const denied = await requireSessionIfLoginRequired()
-  if (denied) return denied
-
+  // id の検証はセッション解決より先に済ませる（不正な id で認証サーバーへ出ないため）。
   const raw = new URL(req.url).searchParams.get('id')
   // 節レコードのobjectID（subscription_<pageId>#secN）が渡されても親ページとして解決する。
   const pageId = raw?.replace(/^subscription_/, '').replace(/#.*$/, '').trim()
   if (!pageId) return NextResponse.json({ error: 'missing id' }, { status: 400 })
 
-  const { premium } = await resolveRequestPremium()
-  if (!premium) return NextResponse.json({ error: 'premium required' }, { status: 403 })
+  // 認証と権限を1回のセッション解決で判定する（getUser の往復を2回→1回に）。
+  const { denied } = await requirePremiumRequest()
+  if (denied) return denied
 
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
   if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { Client } from '@notionhq/client'
-import { requireSessionIfLoginRequired } from '@/lib/api-guard'
-import { resolveRequestPremium } from '@/lib/premium-access'
+import { requirePremiumRequest } from '@/lib/api-guard'
 
 // 画像プロキシ（署名URL失効対策）。
 // Notionアップロード画像（type:'file'）の署名URLは約1hで失効するため、リーダー本文には
@@ -44,9 +43,6 @@ const freshCoverUrl = (pageId: string, token: string) =>
   )()
 
 export async function GET(req: NextRequest) {
-  const denied = await requireSessionIfLoginRequired()
-  if (denied) return denied
-
   const sp = new URL(req.url).searchParams
   const pageId = sp.get('id')?.replace(/^subscription_/, '').trim()
   const blockId = sp.get('b')?.trim()
@@ -55,8 +51,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'missing id' }, { status: 400 })
   }
 
-  const { premium } = await resolveRequestPremium()
-  if (!premium) return NextResponse.json({ error: 'premium required' }, { status: 403 })
+  // 認証と権限を1回のセッション解決で判定する。画像は本文1枚につき1リクエスト来るので、
+  // ここの往復を半分にする効果は図解のあるページほど大きい。
+  const { denied } = await requirePremiumRequest()
+  if (denied) return denied
 
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
   if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })

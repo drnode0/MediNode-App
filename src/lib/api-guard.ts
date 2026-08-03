@@ -11,6 +11,31 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
+import { resolveRequestPremium, type PremiumDeps } from '@/lib/premium-access'
+
+// プレミアム限定APIの入口。認証（401）と権限（403）を **1回のセッション解決** で決める。
+//
+// 以前は requireSessionIfLoginRequired() と resolveRequestPremium() を続けて呼んでおり、
+// どちらも内部で supabase.auth.getUser() を叩いていた。getUser() は getSession() と違い
+// 毎回認証サーバーへネットワークに出る仕様なので、この重複はそのまま待ち時間になる。
+// 本文がキャッシュ済みでも必ず払う固定費だった（本文・画像の各リクエストごとに）。
+//
+// 二重化（S-3）の趣旨は「middleware だけに依存せず route 内でも検証すること」であり、
+// 同じ検証を2回行うことではない。ここで1回検証すれば趣旨は満たされる。
+export async function requirePremiumRequest(
+  deps?: Partial<PremiumDeps>,
+): Promise<{ denied: NextResponse; userId: null } | { denied: null; userId: string; email: string | null }> {
+  const { premium, userId, email } = await resolveRequestPremium(deps)
+
+  // ログイン必須の運用では、未ログインは 403 ではなく 401 で返す（クライアントが再ログインへ導ける）。
+  if (process.env.REQUIRE_LOGIN === 'true' && !userId) {
+    return { denied: NextResponse.json({ error: 'login_required' }, { status: 401 }), userId: null }
+  }
+  if (!premium) {
+    return { denied: NextResponse.json({ error: 'premium required' }, { status: 403 }), userId: null }
+  }
+  return { denied: null, userId: userId as string, email }
+}
 
 // REQUIRE_LOGIN=true なら Supabase セッションを検証し、未ログインは 401 を返す。
 // 通過時は null を返す（呼び出し側は `const denied = await requireSessionIfLoginRequired(); if (denied) return denied` の形で使う）。
