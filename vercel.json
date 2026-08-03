@@ -1,6 +1,4 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "//regions": "利用者も Supabase(ap-northeast-1) も日本にあるのに、関数の既定は iad1（米国東部）だった。東京の実測で、何もしない関数のTTFBが306-317ms、エッジ配信の静的アセットが115-140ms＝往復だけで約190msを払っていた。加えて関数→Supabase も毎回太平洋を渡っていた（認証と契約状態の照会でリクエストあたり3往復）。hnd1 に寄せると両方が国内で閉じる。",
   "regions": ["hnd1"],
   "buildCommand": "npm run build",
   "devCommand": "next dev",
