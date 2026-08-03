@@ -38,12 +38,16 @@ describe('resolveClaimedSettings', () => {
   })
 
   it('サーバーに実体が無くても、新しいトークンは必ず反映する', () => {
-    const claimed = withOverrides({ notionToken: 'ntn_new', notionAuthKind: 'oauth', notionWorkspaceName: 'WS' })
+    const claimed = withOverrides({
+      notionToken: 'ntn_new', notionAuthKind: 'oauth', notionWorkspaceName: 'WS',
+      notionDuplicatedTemplateId: 'template_new',
+    })
     const local = withOverrides({ notionToken: 'secret_old', notionAuthKind: 'manual' })
     const out = resolveClaimedSettings(claimed, false, local)
     expect(out.notionToken).toBe('ntn_new')
     expect(out.notionAuthKind).toBe('oauth')
     expect(out.notionWorkspaceName).toBe('WS')
+    expect(out.notionDuplicatedTemplateId).toBe('template_new')
   })
 
   it('ローカルが無ければ応答をそのまま採る', () => {
@@ -57,5 +61,31 @@ describe('resolveClaimedSettings', () => {
     expect(out.notionTokenPrev).toBe('secret_old')
     expect(out.notionAuthKindPrev).toBe('manual')
     expect(out.algoliaAppId).toBe('A')
+  })
+
+  // mergeSettings の空判定は undefined/null/'' のみを「空」とみなす（[] や false は空扱いしない）。
+  // だから配列・真偽値のフィールドは、値が入っていれば常に端末側が勝つ。
+  // この3件は「壊れたら露呈すべき前提」を resolveClaimedSettings 越しに固定するための回帰テスト。
+  it('端末が持つ追加部署（配列）は、応答に無くても空で潰さない', () => {
+    const claimed = withOverrides({ notionToken: 'ntn_new' })
+    const local = withOverrides({
+      additionalTeams: [{ label: '放射線科', notionToken: 'team_tok', medicalDbId: 'db_radiology' }],
+    })
+    const out = resolveClaimedSettings(claimed, false, local)
+    expect(out.additionalTeams).toEqual([{ label: '放射線科', notionToken: 'team_tok', medicalDbId: 'db_radiology' }])
+  })
+
+  it('端末が false にしている表示設定（真偽値）は、応答が別の値でも上書きしない', () => {
+    const claimed = withOverrides({ notionToken: 'ntn_new', hideQuizTab: true })
+    const local = withOverrides({ hideQuizTab: false })
+    const out = resolveClaimedSettings(claimed, false, local)
+    expect(out.hideQuizTab).toBe(false)
+  })
+
+  it('端末が空文字のままの項目は、この場合に限って応答の値で埋まってよい', () => {
+    const claimed = withOverrides({ notionToken: 'ntn_new', propKeywords: 'FROM_SERVER_KW' })
+    const local = withOverrides({ propKeywords: '' })
+    const out = resolveClaimedSettings(claimed, false, local)
+    expect(out.propKeywords).toBe('FROM_SERVER_KW')
   })
 })

@@ -8,12 +8,21 @@
 import { mergeSettings, type AppSettings } from './settings'
 
 export type ClaimResponse =
-  | { status: 'ok'; settings: AppSettings; hadServerSettings?: boolean }
+  | {
+      status: 'ok'
+      settings: AppSettings
+      // サーバーは常にこのフィールドを付けて返す（省略されることはない想定）。
+      // それでも optional のままにしているのは、古いデプロイが万一これを省略しても
+      // 呼び出し側の `=== true` 判定が自然に false（=ローカル優先）へ倒れるようにするため。
+      hadServerSettings?: boolean
+    }
   | { status: 'conflict'; unreadable: Array<{ role: string; id: string }> }
   | { status: 'none' }
 
 // 接続そのものを表す項目。サーバーに実体が無い場合でも、ここだけは必ず新しい値を採る
 // （引き取りの目的そのものであり、ローカルの古いトークンを残すと接続が成立しない）。
+// `satisfies readonly (keyof AppSettings)[]` により、存在しないプロパティ名を書くと
+// ここでコンパイルエラーになる（配列リテラルの型は narrow なまま保たれる）。
 const CONNECTION_KEYS = [
   'notionToken',
   'notionAuthKind',
@@ -21,7 +30,16 @@ const CONNECTION_KEYS = [
   'notionDuplicatedTemplateId',
   'notionTokenPrev',
   'notionAuthKindPrev',
-] as const
+] as const satisfies readonly (keyof AppSettings)[]
+
+// CONNECTION_KEYS の1件を target へコピーする。呼び出しごとに型引数 K を束縛することで、
+// target[key] = source[key] という代入をコンパイラが検証できるようにする
+// （ユニオン型のキーを使い回すループ本体の中で直接代入すると、TS はこの代入の安全性を
+// 検証できず never 型エラーになるため、ジェネリック関数に一段くるんでいる）。
+function copyIfPresent<K extends keyof AppSettings>(target: AppSettings, source: AppSettings, key: K): void {
+  const value = source[key]
+  if (value !== undefined) target[key] = value
+}
 
 export function resolveClaimedSettings(
   claimed: AppSettings,
@@ -31,10 +49,12 @@ export function resolveClaimedSettings(
   if (hadServerSettings || !local) return claimed
 
   // ローカルを主にマージ（非空を空で潰さない）。
-  const merged = (mergeSettings(local, claimed) ?? claimed) as unknown as Record<string, unknown>
-  const from = claimed as unknown as Record<string, unknown>
+  // この時点で local・claimed とも非null（呼び出し元のガード・型注釈により保証）なので、
+  // mergeSettings の実装上 out を必ず返す。`?? claimed` はシグネチャ上の null 許容に
+  // 対応するための保険で、実行時にこの分岐を通ることはない。
+  const merged = mergeSettings(local, claimed) ?? claimed
   for (const k of CONNECTION_KEYS) {
-    if (from[k] !== undefined) merged[k] = from[k]
+    copyIfPresent(merged, claimed, k)
   }
-  return merged as unknown as AppSettings
+  return merged
 }
