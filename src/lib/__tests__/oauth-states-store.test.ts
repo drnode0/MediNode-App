@@ -83,6 +83,7 @@ import {
   markClaimed,
   purgeExpiredStates,
   retireOtherCompleted,
+  discardClaimable,
   findStateOwnerEmail,
 } from '../supabase/oauth-states'
 import { PENDING_TTL_MS, CLAIM_WINDOW_MS } from '../oauth-state'
@@ -288,6 +289,22 @@ describe('retireOtherCompleted', () => {
   it('更新に失敗しても例外を投げずfalseを返す', async () => {
     updateNeqMock.mockResolvedValue({ error: { message: 'boom' } })
     expect(await retireOtherCompleted('u1', 'st-claimed')).toBe(false)
+  })
+})
+
+describe('discardClaimable', () => {
+  it('user_id・status=completedで絞り込み、token_encを落とす（exceptなし・本人の引き取り可能な行すべてが対象）', async () => {
+    const ok = await discardClaimable('u1')
+    expect(ok).toBe(true)
+    expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
+    expect(updateEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
+    expect(updateEqMock).toHaveBeenCalledWith(['status', 'completed'])
+    // retireOtherCompletedと違い、除外する state は無い（neqは呼ばれない）。
+    expect(updateNeqMock).not.toHaveBeenCalled()
+  })
+  it('更新に失敗しても例外を投げずfalseを返す', async () => {
+    updateSelectMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await discardClaimable('u1')).toBe(false)
   })
 })
 

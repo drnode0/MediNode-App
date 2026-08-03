@@ -77,7 +77,7 @@ beforeEach(() => {
   markClaimedMock.mockReset().mockResolvedValue(true)
   maybeSingleMock.mockReset().mockResolvedValue({ data: null, error: null })
   upsertMock.mockReset().mockResolvedValue({ error: null })
-  unreadableMock.mockReset().mockResolvedValue([])
+  unreadableMock.mockReset().mockResolvedValue({ unreadable: [], indeterminate: [] })
   cryptoReadyMock.mockReset().mockReturnValue(true)
   rateLimitMock.mockReset().mockResolvedValue(true)
   captureExceptionMock.mockReset()
@@ -196,7 +196,7 @@ describe('POST /api/notion/oauth/claim', () => {
 
   it('既存DBが新トークンで読めないなら1バイトも書かず conflict を返す', async () => {
     maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
-    unreadableMock.mockResolvedValue([{ role: 'medical', id: 'db1' }])
+    unreadableMock.mockResolvedValue({ unreadable: [{ role: 'medical', id: 'db1' }], indeterminate: [] })
     const res = await POST(req())
     const body = await res.json()
     expect(body.status).toBe('conflict')
@@ -209,7 +209,7 @@ describe('POST /api/notion/oauth/claim', () => {
     maybeSingleMock.mockResolvedValue(savedSettings({
       notionToken: 'ntn_old', notionAuthKind: 'oauth', notionMedicalDbId: 'db1',
     }))
-    unreadableMock.mockResolvedValue([{ role: 'medical', id: 'db1' }])
+    unreadableMock.mockResolvedValue({ unreadable: [{ role: 'medical', id: 'db1' }], indeterminate: [] })
     const res = await POST(req())
     const body = await res.json()
     expect(body.status).toBe('conflict')
@@ -326,7 +326,7 @@ describe('POST /api/notion/oauth/claim', () => {
 
   it('Finding2: conflictのときはretireOtherCompletedを呼ばない（何も書かず退避もしない）', async () => {
     maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
-    unreadableMock.mockResolvedValue([{ role: 'medical', id: 'db1' }])
+    unreadableMock.mockResolvedValue({ unreadable: [{ role: 'medical', id: 'db1' }], indeterminate: [] })
     const res = await POST(req())
     const body = await res.json()
     expect(body.status).toBe('conflict')
@@ -339,6 +339,37 @@ describe('POST /api/notion/oauth/claim', () => {
     const body = await res.json()
     expect(body.status).toBe('ok')
     expect(captureExceptionMock).toHaveBeenCalled()
+  })
+})
+
+// Finding3: 「見えない」と確認できたのか、「確認できなかった」だけなのかで応答を分ける。
+// 後者は前者と同じく何も書かないが、ユーザーへの説明とアクション（再認可 vs 再試行）を
+// 変えるため、claimルート自身がstatusを見分けられる必要がある。
+describe('Finding3: 見えないと確認できない場合はcheck_failedにして何も書かない', () => {
+  it('indeterminateが1件でもあればconflictにせずcheck_failedを返し、何も書かない', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    unreadableMock.mockResolvedValue({ unreadable: [], indeterminate: [{ role: 'medical', id: 'db1' }] })
+    const res = await POST(req())
+    const body = await res.json()
+    expect(body).toEqual({ status: 'check_failed' })
+    expect(upsertMock).not.toHaveBeenCalled()
+    expect(markClaimedMock).not.toHaveBeenCalled()
+    expect(retireOtherCompletedMock).not.toHaveBeenCalled()
+  })
+
+  it('unreadableが1件でもあればindeterminateが混在していてもconflictを優先する', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({
+      notionToken: 'secret_old', notionMedicalDbId: 'db1', notionReferenceDbId: 'db2',
+    }))
+    unreadableMock.mockResolvedValue({
+      unreadable: [{ role: 'medical', id: 'db1' }],
+      indeterminate: [{ role: 'reference', id: 'db2' }],
+    })
+    const res = await POST(req())
+    const body = await res.json()
+    expect(body.status).toBe('conflict')
+    expect(body.unreadable).toEqual([{ role: 'medical', id: 'db1' }])
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 })
 
@@ -359,7 +390,7 @@ describe('Finding4: クライアントのローカルDB IDでreadabilityチェ�
 
   it('クライアント由来のIDが読めなければconflictにして何も書かない', async () => {
     maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
-    unreadableMock.mockResolvedValue([{ role: 'reference', id: 'db-local-only' }])
+    unreadableMock.mockResolvedValue({ unreadable: [{ role: 'reference', id: 'db-local-only' }], indeterminate: [] })
     const res = await POST(req({ notionReferenceDbId: 'db-local-only' }))
     const body = await res.json()
     expect(body.status).toBe('conflict')

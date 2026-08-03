@@ -99,10 +99,8 @@ export default async function ConnectNotionDonePage({
           MediNodeに戻る
         </Link>
 
-        {/* この文言はアプリ側の自動引き取り（claim/claimable呼び出し）がまだ実装されていない
-            現状に合わせたもの。そちらの配線が入ったら、実際の挙動に合わせて書き直すこと。 */}
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-          パソコンでここまで進めた場合、続きの自動的な引き継ぎには今のところ対応していません。今後の更新で対応する予定です。
+          MediNodeを開くと、この接続の続きが始まります。読み取るデータベースはそこで選べます。今このページを見ているブラウザでそのまま開いても構いません。
         </p>
       </div>
     </main>

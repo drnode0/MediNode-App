@@ -12,6 +12,9 @@ vi.mock('@notionhq/client', () => ({
   Client: class {
     databases = { retrieve: retrieveMock }
   },
+  // ルートは isNotionClientError も import している（Notionエラーの code を
+  // 取り出すため）。このモックに無いとその import 自体が失敗して全テストが落ちる。
+  isNotionClientError: () => false,
 }))
 
 import { POST } from '../../app/api/notion/check-props/route'

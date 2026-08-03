@@ -331,10 +331,6 @@ function DbIdStatus({ value }: { value: string | undefined }) {
 // 詳しい説明書（📘 セットアップ＆運用ガイド）。ヘルプシート内から別タブで開く。
 const SETUP_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 
-// かんたん接続（OAuth）の表示フラグ。iOSのユニバーサルリンク横取り問題の再設計まで既定OFF。
-// 判定は easy-connect-flag.ts に1本化（設定画面・OAuth帰還の受け口・APIルートと同じ値を使う）。
-const EASY_CONNECT_ON = isEasyConnectVisible()
-
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
   entry: {
@@ -669,6 +665,12 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
 }
 
 export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props) {
+  // かんたん接続（OAuth）の表示フラグ。端末に同期済みの earlyAccessFeatures で制御される。
+  // 判定は easy-connect-flag.ts に1本化。正はサーバー側（sessionHasFeature('easy_connect')）。
+  // レンダーのたびに呼ぶ（Minor fix）。モジュールスコープの定数にすると、claim直後に
+  // settings が更新されても、そのチャンクが最初に評価された時点の値（多くの場合false）に
+  // 凍結されたままになり、表示が更新されない。
+  const easyConnectOn = isEasyConnectVisible()
   // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
   const [step, setStep] = useState<Step>(initialStep || 'entry')
   // 「何から始めるか」の選択。最初から通る場合は未選択で始める（モニターFB:
@@ -1612,11 +1614,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionとつなぐ</h2>
               </div>
 
-              {/* かんたん接続（OAuth）。iOSでNotionアプリが認可URLをユニバーサルリンクとして
-                  横取りし認可画面に到達できない問題が実機で判明したため、再設計（段B-2の
-                  アプリ側引き取り）が済むまで isEasyConnectVisible() は常に false を返す
-                  （既定=非表示）。 */}
-              {EASY_CONNECT_ON && (
+              {/* かんたん接続（OAuth）。表示は earlyAccessFeatures で決定される。
+                  ここでのチェックは表示制御のみ。アカウント側が許可すると表示される。 */}
+              {easyConnectOn && (
               <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2 bg-brand-50/50 dark:bg-brand-900/20">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">かんたん接続 <span className="ml-1 text-[10px] align-middle bg-brand-600 text-white rounded-full px-2 py-0.5">推奨</span></p>
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -1629,16 +1629,15 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   Notionでページを選んで接続する
                 </button>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">先にメールアドレスでのログインが必要です（未ログインの場合は案内が出ます）。</p>
               </div>
               )}
 
               {/* フラグOFF時は details の枠を消して従来どおり直接表示する（display:contents） */}
-              <details open={!EASY_CONNECT_ON || undefined} className={EASY_CONNECT_ON ? 'rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden' : '[display:contents]'}>
-                <summary className={`bg-gray-50 dark:bg-gray-700 px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-700 dark:text-gray-200 ${EASY_CONNECT_ON ? '' : 'hidden'}`}>
+              <details open={!easyConnectOn || undefined} className={easyConnectOn ? 'rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden' : '[display:contents]'}>
+                <summary className={`bg-gray-50 dark:bg-gray-700 px-3 py-2 cursor-pointer select-none text-xs font-semibold text-gray-700 dark:text-gray-200 ${easyConnectOn ? '' : 'hidden'}`}>
                   手動で接続する（トークンを自分で作る・上級者向け）
                 </summary>
-                <div className={EASY_CONNECT_ON ? 'p-3 space-y-4' : 'space-y-4'}>
+                <div className={easyConnectOn ? 'p-3 space-y-4' : 'space-y-4'}>
                   {/* 10秒プライマー：トークン＝合鍵のメンタルモデルを渡してからガイドへ流す */}
                   <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 space-y-1.5">
                     <p className="text-sm font-bold text-brand-700 dark:text-brand-300">

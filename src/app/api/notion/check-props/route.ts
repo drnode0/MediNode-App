@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionOrSetupRateLimit } from '@/lib/api-guard'
-import { Client } from '@notionhq/client'
+import { Client, isNotionClientError } from '@notionhq/client'
 
 // 必須プロパティは現行ポリシー（SetupWizardの案内と同じ）に合わせる:
 //   Medical DB   … 要約 / キーワード / ジャンル（タイトル列は必ず存在するので名前は見ない）
@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Notionクライアントのエラーなら code（object_not_found / unauthorized / rate_limited 等）を
+    // 併記する。呼び出し側（OAuthFinish）はこれを見て「読めない」と「一時的な失敗」を区別する。
+    // HTTPステータスの意味（500）はこれまで通り変えない（SetupWizardの接続テストが !res.ok に依存）。
+    const code = isNotionClientError(err) ? err.code : undefined
+    return NextResponse.json({ error: message, code }, { status: 500 })
   }
 }

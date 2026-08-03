@@ -136,6 +136,28 @@ export async function retireOtherCompleted(userId: string, exceptState: string):
   }
 }
 
+// 明示的な却下（§10b step4「このままの接続を続ける（変更しない）」）から呼ぶ。
+// 何も引き取らない・何も保存しないが、completed のまま残すと findClaimable が同じ行を
+// 引き取り可能と判定し続け、次のコールドスタートでも全画面シートが再び開いてしまう
+// （claimの猶予=CLAIM_WINDOW_MSが尽きるまで）。retireOtherCompleted と同じ手当て
+// （token_encを落として claimable ではなくする）を、対象を「他の行」ではなく
+// 「本人の引き取り可能な行すべて」に広げて適用する。status は completed のまま
+// にする（監査用に行自体は残し、いずれ purgeExpiredStates が掃除する）。
+export async function discardClaimable(userId: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('oauth_states')
+      .update({ token_enc: null })
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .select('state')
+    return !error
+  } catch {
+    return false
+  }
+}
+
 // 古い行の掃除。best-effort（失敗しても主処理は続ける）。cronは足さない。
 //
 // Finding1: 以前は呼び出し元のuser_idだけを対象にしていたが、それでは「認可だけして

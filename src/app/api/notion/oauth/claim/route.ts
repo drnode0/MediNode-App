@@ -9,7 +9,13 @@
 //
 // レスポンス契約:
 //   { status: 'none' }                          引き取り対象なし（機能を持たない場合も同じ形にする）
-//   { status: 'conflict', unreadable }           何も書いていない。stateはcompletedのまま残る
+//   { status: 'conflict', unreadable }           見えないことを確認できたDBがある。何も書いていない。
+//                                                stateはcompletedのまま残る
+//   { status: 'check_failed' }                   見えるかどうかを確認できなかった（レート制限・
+//                                                Notion側の一時的な不調・タイムアウト等）。
+//                                                conflict と同じく何も書いていない（Finding3）。
+//                                                「見えません」と断定はできないため conflict とは
+//                                                区別し、クライアントには再認可ではなく再試行を促す。
 //   { status: 'ok', settings, hadServerSettings }
 //     hadServerSettings が false の場合、settings は DEFAULT_SETTINGS 相当の土台でしかない
 //     （既存の暗号化設定=settings_encが無かった場合。早期アクセスのフラグだけを持つ行を含む）。
@@ -212,10 +218,17 @@ export async function POST(req: Request) {
     }
     refs.push(r)
   }
-  const unreadable = await findUnreadableDatabases({ token: token.accessToken, refs })
+  const { unreadable, indeterminate } = await findUnreadableDatabases({ token: token.accessToken, refs })
   if (unreadable.length > 0) {
     // 何も書かない。state は completed のまま残すので、選び直してからやり直せる。
     return NextResponse.json({ status: 'conflict', unreadable })
+  }
+  // Finding3: 読めるかどうか確認できなかった（レート制限・Notion側の一時的な不調・
+  // タイムアウト・通信断等）場合は、「見えません」と断定せず、conflict と同じく
+  // 何も書かずに終える。state は completed のままなので、次回の起動時にもう一度
+  // claim が実行される。
+  if (indeterminate.length > 0) {
+    return NextResponse.json({ status: 'check_failed' })
   }
 
   // 書くのは notionToken 系だけ。部署（team）・Algolia・列マッピングには触らない（§10c）。
