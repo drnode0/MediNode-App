@@ -8,9 +8,11 @@
 // 踏まされる余地が残る。心当たりの無いメールが出たら進まないでもらう（§6）。
 
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 import { findStateOwnerEmail } from '@/lib/supabase/oauth-states'
 import { maskEmail } from '@/lib/oauth-state'
+import { rateLimitAsync, clientIpFromHeaders } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,15 @@ export default async function ConnectNotionDonePage({
 }) {
   const { s, e } = await searchParams
 
-  if (e || !s) {
+  // Finding2: このページも公開・無制限で、service-role select に加えて
+  // auth-admin の getUserById まで走る（callback より重い）。callback と同じ
+  // clientIp導出ロジックでIP単位に絞り、超過時は「未完了」の既存表示にそのまま倒す
+  // （新しい文言・ステータスを作ると、それ自体がレート制限のオラクルになる）。
+  const h = await headers()
+  const ip = clientIpFromHeaders(h)
+  const withinLimit = await rateLimitAsync(`notion-connect-done-page:${ip}`, 30, 10 * 60 * 1000)
+
+  if (e || !s || !withinLimit) {
     return (
       <main className="min-h-screen bg-gray-50 dark:bg-gray-900 px-6 py-12">
         <div className="max-w-sm mx-auto space-y-4 text-center">

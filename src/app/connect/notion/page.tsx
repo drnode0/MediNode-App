@@ -9,6 +9,7 @@ import { headers } from 'next/headers'
 import { buildAuthorizeUrl } from '@/lib/notion-oauth'
 import { redirectUriFromHost } from '@/lib/oauth-redirect'
 import { takePendingState } from '@/lib/supabase/oauth-states'
+import { rateLimitAsync, clientIpFromHeaders } from '@/lib/rate-limit'
 import { CopyLink } from './CopyLink'
 
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,18 @@ export default async function ConnectNotionPage({
 }: {
   searchParams: Promise<{ s?: string }>
 }) {
+  // Finding2: このページはセッション無しで誰でも開ける公開ページで、開くたびに
+  // state のDB読み取りが走る。無制限だと callback 自身のレート制限を迂回して
+  // ここで state の有効/無効を総当たりできてしまうため、callback と同じ
+  // clientIp導出ロジック（rate-limit.ts）でIP単位に絞る。超過時は「使えません」の
+  // 既存の失敗表示へそのまま倒し、レート制限による表示だと悟らせない。
+  const h = await headers()
+  const ip = clientIpFromHeaders(h)
+  const withinLimit = await rateLimitAsync(`notion-connect-page:${ip}`, 30, 10 * 60 * 1000)
+
   const { s } = await searchParams
   const state = s || ''
-  const row = state ? await takePendingState(state, Date.now()) : null
+  const row = withinLimit && state ? await takePendingState(state, Date.now()) : null
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID || ''
 
   // client_id 未設定はサーバー側の設定ミスだが、無効な state と同じ「使えません」に
@@ -48,7 +58,7 @@ export default async function ConnectNotionPage({
   // redirect_uri は callback 側が組み立てる値と1文字でも違うと Notion が交換を拒む。
   // 双方が共有ヘルパー（src/lib/oauth-redirect.ts）を通ることで一致を保証する
   // （NEXT_PUBLIC_APP_URL は末尾スラッシュや別ドメインでずれる余地があるので使わない）。
-  const h = await headers()
+  // h は上のレート制限判定で取得済みのものを使い回す。
   const host = h.get('host') || ''
   const redirectUri = redirectUriFromHost({ host, forwardedProto: h.get('x-forwarded-proto') })
   const authorizeUrl = buildAuthorizeUrl({ clientId, redirectUri, state })

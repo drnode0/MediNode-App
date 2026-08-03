@@ -99,13 +99,25 @@ export async function rateLimitAsync(key: string, limit: number, windowMs: numbe
 // 別IPを名乗ればレート制限のバケットを回避できてしまう。Vercel はプラットフォーム側で
 // x-real-ip を実接続元に設定する（クライアント値を上書き）ため、こちらを優先する。
 // フォールバックの x-forwarded-for も、末尾（最も信頼できるプロキシが付与する側）を採る。
-export function clientIp(req: Request): string {
-  const realIp = req.headers.get('x-real-ip')
+//
+// ヘッダーの読み取りだけをここへ切り出す。Route Handler の Request と、Server Component の
+// next/headers() が返す ReadonlyHeaders は、どちらも get(name) を持つだけで型が異なるため、
+// この最小の形（HeaderReader）で受けることで両方の呼び出し元が同じ優先順位ロジックを
+// 共有できる（判定を複製しない）。
+type HeaderReader = { get(name: string): string | null }
+
+export function clientIpFromHeaders(headers: HeaderReader): string {
+  const realIp = headers.get('x-real-ip')
   if (realIp) return realIp.trim()
-  const fwd = req.headers.get('x-forwarded-for')
+  const fwd = headers.get('x-forwarded-for')
   if (fwd) {
     const parts = fwd.split(',').map((s) => s.trim()).filter(Boolean)
     if (parts.length > 0) return parts[parts.length - 1]
   }
   return 'unknown'
+}
+
+// Route Handler（Request を直接持つ経路）用の薄いラッパー。
+export function clientIp(req: Request): string {
+  return clientIpFromHeaders(req.headers)
 }
