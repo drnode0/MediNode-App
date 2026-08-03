@@ -105,6 +105,7 @@ describe('calloutRole', () => {
     expect(calloutRole('🤖')).toBe('stamp')
     expect(calloutRole('📚')).toBe('evidence')
     expect(calloutRole('⚠️')).toBe('disclaimer')
+    expect(calloutRole('📝')).toBe('note')
     expect(calloutRole('💡')).toBe('plain')
     expect(calloutRole(null)).toBe('plain')
   })

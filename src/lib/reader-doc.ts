@@ -137,7 +137,7 @@ export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?:
   }
 }
 
-export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'plain'
+export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'note' | 'plain'
 
 // アイコン絵文字は異体字セレクタ/ZWJ を含みうるため includes で判定する。
 export function calloutRole(icon: string | null): CalloutRole {
@@ -147,6 +147,7 @@ export function calloutRole(icon: string | null): CalloutRole {
   if (icon.includes('🤖')) return 'stamp'
   if (icon.includes('📚')) return 'evidence'
   if (icon.includes('⚠')) return 'disclaimer'
+  if (icon.includes('📝')) return 'note' // 「このページの背景」等のメモ枠
   return 'plain'
 }
 

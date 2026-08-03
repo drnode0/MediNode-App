@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
 import { digestSections, type DigestSection, type ReaderViewMode } from '@/lib/reader-digest'
 import {
   calloutRole,
@@ -194,28 +194,29 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   return 'text-gray-900 dark:text-gray-100'
 }
 
-// 役割が既知の callout は先頭アイコンを lucide に寄せる（目次バーの⚡と同じ字にする）。
-// 未知の絵文字は執筆側が意図して置いたものなので生のまま残す — title-display.tsx が
-// セクション見出しで採っている方針と同じ。
+// callout の先頭アイコンは lucide に寄せる（目次バーの⚡と同じ字にする）。
+// 未知のアイコンも生の絵文字では出さず、中立の Info に倒す。
+// 「知らない絵文字は残す」にしておくと、テンプレートに新しい絵文字が入るたびに
+// 本文へ絵文字が漏れる（📝『このページの背景』で実際に起きた）。ここを既定で
+// 塞いでおけば、マッピングの追加漏れは「見慣れないアイコン」で済み、事故にならない。
+const CALLOUT_FALLBACK = { Icon: Info, color: 'text-gray-400 dark:text-gray-500' }
 const CALLOUT_ICON: Partial<Record<CalloutRole, { Icon: LucideIcon; color: string }>> = {
   conclusion: { Icon: Zap, color: 'text-amber-500 dark:text-amber-400' },
   evidence: { Icon: BookText, color: 'text-amber-600 dark:text-amber-400' },
   disclaimer: { Icon: TriangleAlert, color: 'text-amber-600 dark:text-amber-400' },
+  note: { Icon: NotebookPen, color: 'text-gray-500 dark:text-gray-400' },
 }
 
 function CalloutIcon({ role, icon }: { role: CalloutRole; icon: string | null }) {
-  const def = CALLOUT_ICON[role]
-  if (def) {
-    const { Icon, color } = def
-    // 高さ 1.5em の箱＝絵文字が占めていた行送りと同じ。1行目の中心に揃う。
-    return (
-      <span className="shrink-0 inline-flex items-center h-[1.5em]">
-        <Icon className={`h-[1.05em] w-[1.05em] ${color}`} aria-hidden="true" />
-      </span>
-    )
-  }
-  if (!icon) return null
-  return <span className="shrink-0 text-[1em] leading-[1.5]">{icon}</span>
+  // アイコン未設定の callout はアイコン欄そのものを出さない（枠だけで足りる）。
+  if (!icon && !CALLOUT_ICON[role]) return null
+  const { Icon, color } = CALLOUT_ICON[role] ?? CALLOUT_FALLBACK
+  // 高さ 1.5em の箱＝絵文字が占めていた行送りと同じ。1行目の中心に揃う。
+  return (
+    <span className="shrink-0 inline-flex items-center h-[1.5em]">
+      <Icon className={`h-[1.05em] w-[1.05em] ${color}`} aria-hidden="true" />
+    </span>
+  )
 }
 
 function CalloutBlock({

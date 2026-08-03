@@ -21,6 +21,10 @@ const DOC: ReaderDoc = {
       { kind: 'list_item', ordered: false, inlines: t('意義があるのは、抗菌薬を中止する判断だけである。中止基準は 0.5 µg/L 未満、または80%以上の減少である。') },
       { kind: 'list_item', ordered: false, inlines: t('診断の確定と抗菌薬の開始判断には使わない。AUC 0.85・感度0.77・特異度0.79では確定にも除外にも足りない。') },
     ] },
+    { kind: 'callout', icon: '📝', color: 'gray_background', blocks: [
+      { kind: 'paragraph', inlines: b('このページの背景') },
+      { kind: 'paragraph', inlines: t('MediNode の臨床疑問受付に寄せられた、現場からの疑問です。') },
+    ] },
     { kind: 'heading', level: 2, inlines: t('1. 診断名を決める目的では測定しない') },
     { kind: 'paragraph', inlines: t('PCTは細菌感染で上昇するが、外傷・手術・熱傷でも上昇する。単独で診断を確定する検査ではない。') },
     { kind: 'table', rows: [[t('指標'), t('AUC')], [t('PCT'), t('0.85')], [t('CRP'), t('0.73')]] },

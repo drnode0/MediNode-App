@@ -10,5 +10,8 @@
 // それに続く空白をまとめて除去する。中身のテキストはそのまま残す。
 export function stripLeadingEmoji(label: string | null | undefined): string {
   if (!label) return ''
-  return label.replace(/^(?:\p{Extended_Pictographic}|️|‍)+\s*/u, '').trim()
+  // 先頭の空白も食わせてから絵文字を照合する。アイコン判定側（title-display の
+  // iconForTitleEmoji）は trimStart してから照合するので、ここが行頭固定のままだと
+  // 「先頭に空白が1つ」あるタイトルでアイコンが出たうえ絵文字も残る＝二重表示になる。
+  return label.replace(/^\s*(?:\p{Extended_Pictographic}|️|‍)+\s*/u, '').trim()
 }
