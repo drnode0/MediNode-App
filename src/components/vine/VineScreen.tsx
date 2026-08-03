@@ -14,7 +14,7 @@ import { sceneryMarks } from '@/lib/vine-scenery'
 import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine, indexHeading, sampleLabel, INTRO_LINES } from '@/lib/vine-copy'
-import { leafY, markPositions, splitByJoin } from '@/lib/vine-scroll'
+import { leafY, markPositions, splitByJoin, sceneOffset, RHIZOME_DEPTH } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -33,8 +33,9 @@ function loadAllQuizStats(): Record<string, import('@/lib/quiz-srs').QuizStat> {
 const INTRO_KEY = 'medinode_vine_intro_seen_v1'
 // 見本は20枚（48枚は多すぎた＝オーナーFB）。カタツムリ（18枚）までの4つの背くらべが入る
 const DEMO_TOTAL = 20
-// 段2の「駆け上がり」用＝育ちきった見本。500枚でヒト（1.7m）まで越えている
-const DEMO_TALL = 500
+// 段2の「駆け上がり」用。500枚は「他人の巨木を見せてから0枚を渡す」約束違反だった——
+// 60枚＝12cmで湯のみ(7cm)を越える＝背くらべが1回起きれば口上の目的は足りる（2026-08-04）
+const DEMO_TALL = 60
 const DEMO_KINDS = ['recall', 'read', 'wrote', 'recall', 'recall', 'repolish'] as const
 
 export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
@@ -136,10 +137,15 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
   const aboveLeaves = useMemo(() => leafSteps(split.above), [split.above])
   const buds = useMemo(() => pendingBudIds(split.above), [split.above])
   const rereads = useMemo(() => loadRereads(), [])
-  const marks = useMemo(() => markPositions(to), [to])
+  // カメラの余白。VineScene と同じ値を使わないと、目次の飛び先が全部ズレる
+  const offset = useMemo(
+    () => sceneOffset(to, split.underground.length > 0 ? RHIZOME_DEPTH : 0, viewportH),
+    [to, split.underground.length, viewportH],
+  )
+  const marks = useMemo(() => markPositions(to, offset), [to, offset])
   const nowIso = useMemo(() => new Date().toISOString(), [])
   // 時間の点景（正典§7）。実時間に紐づく小さな出会い。通知はしない——開いたとき見つけるもの
-  const scenery = useMemo(() => sceneryMarks(aboveLeaves, nowIso), [aboveLeaves, nowIso])
+  const scenery = useMemo(() => sceneryMarks(aboveLeaves, nowIso, offset), [aboveLeaves, nowIso, offset])
   const stats = useMemo(() => loadAllQuizStats(), [])
   const visuals = useMemo(() => buildLeafVisuals(aboveLeaves, stats, nowIso, rereads), [aboveLeaves, stats, nowIso, rereads])
   const spotlight = useMemo(() => spotlightFaded(aboveLeaves, stats, nowIso), [aboveLeaves, stats, nowIso])
@@ -158,19 +164,21 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     const el = scrollRef.current
     if (!el) return
     const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
-    el.scrollTop = Math.max(0, leafY(revealIndex, to) - viewportH * 0.55)
-  }, [engine.running, leavesNow, to, viewportH])
+    el.scrollTop = Math.max(0, leafY(revealIndex, to, offset) - viewportH * 0.55)
+  }, [engine.running, leavesNow, to, viewportH, offset])
 
   const openLeaf = leafOpen != null ? aboveLeaves[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
 
   // 和紙の3段トーン（昼・夕・夜）。アプリのダーク設定は夜トーン優先。
   // 初期値は昼の和紙のまま、マウント後に切り替える＝「行灯が灯る」800msフェード。
+  // ⚠️ 夜は #CBB58C だったが、昼からの輝度落差が-42%で「和紙が夜になる」ではなく
+  // 「和紙が汚れる」だった。-17%に浅くする。ダークモードは時刻分岐を共有し、
+  // 常時最濃を出さない（ダーク常用者が昼も夜トーンを見ていた・2026-08-04）。
   const [tone, setTone] = useState('#f2ead6')
   useEffect(() => {
     const h = new Date().getHours()
-    const dark = document.documentElement.classList.contains('dark')
-    setTone(dark ? '#CBB58C' : h >= 5 && h < 16 ? '#F2EAD6' : h < 19 ? '#E4D6B8' : '#CBB58C')
+    setTone(h >= 5 && h < 16 ? '#F2EAD6' : h < 19 ? '#EBDFC4' : '#E3D6B6')
   }, [])
 
   // ── 初回の口上（オンボーディング）: タップで進む4段（オーナーFBで段階式に・2026-08-03）。
@@ -198,7 +206,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
   useEffect(() => {
     if (introStep !== 1) return
     if (reduced) { setIntroLeaves(DEMO_TOTAL); return }
-    const DUR = 6000
+    const DUR = 3000
     let raf = 0
     const t0 = performance.now()
     const tick = (t: number) => {
@@ -231,7 +239,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     if (!el) return
     if (introStep === 0) { el.scrollTop = el.scrollHeight; return }
     const reveal = Math.max(0, Math.min(DEMO_TOTAL, Math.floor(introLeaves)))
-    el.scrollTop = Math.max(0, leafY(reveal, DEMO_TOTAL) - viewportH * 0.55)
+    el.scrollTop = Math.max(0, leafY(reveal, DEMO_TOTAL, sceneOffset(DEMO_TOTAL, 0, viewportH)) - viewportH * 0.55)
   }, [intro, introStep, introLeaves, viewportH])
   // 段2: 育ちきった見本を地面から穂先まで駆け上がる——アリ→ネコ→ヒトの印を通過する旅の予告
   useEffect(() => {
@@ -241,7 +249,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     const max = () => Math.max(0, el.scrollHeight - el.clientHeight)
     if (reduced) { el.scrollTop = 0; return }
     el.scrollTop = max()
-    const DUR = 5200
+    const DUR = 2000
     let raf = 0
     const t0 = performance.now()
     const tick = (t: number) => {
@@ -257,7 +265,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
   return (
     <div
       className={`fixed inset-0 z-50 overflow-y-auto ${styles.frame}`}
-      style={{ backgroundColor: tone, transition: 'background-color 800ms ease' }}
+      style={{ ['--washi' as string]: tone, backgroundColor: tone, transition: 'background-color 800ms ease' }}
       onClick={() => engine.running && engine.skip()}
     >
       <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(14px+env(safe-area-inset-top))]">
@@ -335,41 +343,41 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
                   {sampleLabel()}
                 </div>
               )}
-              {/* 蔓に重なっても読めるよう、和紙の帯を敷く（短冊と同じ流儀） */}
-              <div
-                key={introStep}
-                className={`absolute inset-x-0 ${introStep === 3 ? 'bottom-24' : 'bottom-9'} flex justify-center px-4 ${styles.fadeIn}`}
-              >
-                <p className={`max-w-[22em] rounded-sm px-3 py-1.5 text-center text-[14px] leading-relaxed text-[#4c4536] ${styles.obi}`}>
-                  {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
-                </p>
-              </div>
-              {introStep < 3 ? (
-                <div className="absolute inset-x-0 bottom-2 text-center text-[10px] text-[#a39678]">
-                  タップでつぎへ
-                </div>
-              ) : (
-                // 出口: 最初の一枚をすぐ生やせる道と、まず自分の蔓を眺める道
-                <div className={`absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-8 ${styles.fadeIn}`}>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); finishIntro(true) }}
-                    className="w-full max-w-[260px] rounded-full border border-[#b3a37e] bg-[#faf5e8] py-2.5 text-[13px] font-semibold text-[#4c4536] shadow-sm"
-                  >
-                    今日の1問にこたえて 最初の葉をひらく
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); finishIntro(false) }}
-                    className="text-[11px] text-[#8b8272] underline underline-offset-4 decoration-[#cbbf9f]"
-                  >
-                    じぶんの蔓を見る
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
+
+        {/* 口上の詞書は絵の外（フッター）に置く。絵の上に文字を重ねないので帯も光も要らない
+            ——地面の線に文字が乗る問題も、これで構造的に起きなくなる（2026-08-04） */}
+        {intro && (
+          <div className="mt-3" onClick={introTap}>
+            <p key={introStep} className={`px-2 text-center text-[14px] leading-relaxed ${styles.kotoba} ${styles.fadeIn}`}>
+              {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
+            </p>
+            {introStep < 3 ? (
+              <div className="mt-2 text-center text-[10px] text-[#a39678]">タップでつぎへ</div>
+            ) : (
+              // 出口: 最初の一枚をすぐ生やせる道と、まず自分の蔓を眺める道
+              <div className={`mt-3 flex flex-col items-center gap-2 px-8 ${styles.fadeIn}`}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); finishIntro(true) }}
+                  className="w-full max-w-[260px] rounded-full border border-[#b3a37e] py-2.5 text-[13px] font-semibold text-[#4c4536]"
+                  style={{ background: 'rgba(255,255,255,.35)' }}
+                >
+                  今日の1問にこたえて 最初の葉をひらく
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); finishIntro(false) }}
+                  className="text-[11px] text-[#8b8272] underline underline-offset-4 decoration-[#cbbf9f]"
+                >
+                  じぶんの蔓を見る
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 越えた印の目次（§4）。ラダーは全24段しかないので、これがそのまま目次になる。
             タップでその位置へスクロール。1つだけなら目次にならないので出さない。 */}
@@ -396,6 +404,18 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
             <p>今日の葉：<span className="font-semibold">{todayLeaf.title || 'ひとつの知識'}</span></p>
           )}
           {/* 説明は1行に詰め込まず、しおり（シート）へ。案内＝口上の再生 */}
+          {/* 蔓を伸ばす行為への常設の入口。これが無いと、葉0枚の人は画面から
+              次の一手へ行けなかった（初見レビュー2026-08-04）。眺める場所を、戻る場所にする */}
+          {!intro && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onGoQuiz() }}
+              className="mt-2 w-full rounded-full border border-[#cbbf9f] py-2 text-[12px] text-[#5c5340]"
+              style={{ background: 'rgba(255,255,255,.3)' }}
+            >
+              {to > 0 ? '今日の1問にこたえる' : '今日の1問にこたえて 最初の葉をひらく'}
+            </button>
+          )}
           <div className="flex gap-4 pt-1 text-[11px] text-[#8b8272]">
             <button type="button" className="underline underline-offset-4 decoration-[#cbbf9f]" onClick={(e) => { e.stopPropagation(); setShioriOpen(true) }}>
               しおり（この画面の説明）

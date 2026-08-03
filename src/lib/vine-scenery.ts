@@ -48,7 +48,7 @@ export type SceneryMark = { kind: string; label: string; at: string; leafIndex: 
 // 最初の葉より前は置かない（蔓の記録が始まる前は蔓に無い）。
 // 最後の葉より新しい分は穂先の上1葉ぶんに圧縮する——止まった人にも何かが起きる。
 // ⚠️ leaves は leafSteps 済み（地上・attempt抜き）が契約。
-export function sceneryMarks(leaves: Step[], nowIso: string): SceneryMark[] {
+export function sceneryMarks(leaves: Step[], nowIso: string, offset = 0): SceneryMark[] {
   const total = leaves.length
   if (total === 0) return []
   const times = leaves.map((s) => Date.parse(s.at)).filter(Number.isFinite).sort((a, b) => a - b)
@@ -69,6 +69,6 @@ export function sceneryMarks(leaves: Step[], nowIso: string): SceneryMark[] {
       fraction = span > 0 ? (t - times[k - 1]) / span : 0.5
     }
     const kIndex = Math.min(k, total)
-    return { kind: e.kind, label: e.label, at: e.at, leafIndex: kIndex, y: leafY(kIndex, total) - fraction * PX_PER_LEAF }
+    return { kind: e.kind, label: e.label, at: e.at, leafIndex: kIndex, y: leafY(kIndex, total, offset) - fraction * PX_PER_LEAF }
   })
 }

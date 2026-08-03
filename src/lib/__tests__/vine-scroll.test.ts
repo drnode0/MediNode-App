@@ -143,12 +143,18 @@ describe('右レーンの統合（laneMarks・地雷2/4/5）', () => {
   it('目次（markPositions）は間引かれず全件（8件）残る', () => {
     expect(markPositions(200).length).toBe(8)
   })
-  it('密集した組では古いほう（アリ）のラベルが落ち、新しいほう（テントウムシ）が残る', () => {
+  it('最初の実物（アリ）のラベルは無条件で残る——序盤唯一のご褒美を消さない', () => {
+    const byLabel = (total: number, label: string) =>
+      laneMarks(total, [], null)
+        .find((m) => m.type === 'milestone' && m.milestone.label === label) as { withLabel: boolean }
+    // 葉4枚（テントウムシ到達）でアリが押し出されないこと
+    expect(byLabel(4, 'アリ').withLabel).toBe(true)
+    expect(byLabel(200, 'アリ').withLabel).toBe(true)
+  })
+  it('アリに近すぎるテントウムシのラベルは落ちる（密集の間引きは効いている）', () => {
     const lane = laneMarks(200, [], null)
-    const byLabel = (label: string) =>
-      lane.find((m) => m.type === 'milestone' && m.milestone.label === label) as { withLabel: boolean }
-    expect(byLabel('アリ').withLabel).toBe(false)
-    expect(byLabel('テントウムシ').withLabel).toBe(true)
+    const tentou = lane.find((m) => m.type === 'milestone' && m.milestone.label === 'テントウムシ') as { withLabel: boolean }
+    expect(tentou.withLabel).toBe(false)
   })
   it('ラベル付きの実物の印どうしはMIN_MARK_GAP以上あく', () => {
     const labeled = laneMarks(200, [], null).filter((m) => m.type === 'milestone' && m.withLabel)
