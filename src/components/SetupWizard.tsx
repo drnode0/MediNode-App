@@ -331,8 +331,8 @@ function DbIdStatus({ value }: { value: string | undefined }) {
 // 詳しい説明書（📘 セットアップ＆運用ガイド）。ヘルプシート内から別タブで開く。
 const SETUP_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd756737081a2bc23f1acb5f3a4bc'
 
-// かんたん接続（OAuth）の表示フラグ。iOSのユニバーサルリンク横取り問題の再設計まで既定OFF。
-// 判定は easy-connect-flag.ts に1本化（設定画面・OAuth帰還の受け口・APIルートと同じ値を使う）。
+// かんたん接続（OAuth）の表示フラグ。端末に同期済みの earlyAccessFeatures で制御される。
+// 判定は easy-connect-flag.ts に1本化。正はサーバー側（sessionHasFeature('easy_connect')）。
 const EASY_CONNECT_ON = isEasyConnectVisible()
 
 // ステップごとのヘルプ内容
@@ -1612,10 +1612,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Notionとつなぐ</h2>
               </div>
 
-              {/* かんたん接続（OAuth）。iOSでNotionアプリが認可URLをユニバーサルリンクとして
-                  横取りし認可画面に到達できない問題が実機で判明したため、再設計（段B-2の
-                  アプリ側引き取り）が済むまで isEasyConnectVisible() は常に false を返す
-                  （既定=非表示）。 */}
+              {/* かんたん接続（OAuth）。表示は earlyAccessFeatures で決定される。
+                  ここでのチェックは表示制御のみ。アカウント側が許可すると表示される。 */}
               {EASY_CONNECT_ON && (
               <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2 bg-brand-50/50 dark:bg-brand-900/20">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">かんたん接続 <span className="ml-1 text-[10px] align-middle bg-brand-600 text-white rounded-full px-2 py-0.5">推奨</span></p>
