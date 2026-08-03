@@ -14,6 +14,7 @@ const {
   selectEqCalls,
   deleteEqMock,
   deleteLtMock,
+  getUserByIdMock,
 } = vi.hoisted(() => ({
   insertMock: vi.fn(),
   maybeSingleMock: vi.fn(),
@@ -24,6 +25,8 @@ const {
   selectEqCalls: [] as unknown[][],
   deleteEqMock: vi.fn(),
   deleteLtMock: vi.fn(),
+  // findStateOwnerEmail が使う auth.admin.getUserById。他のモックと同じ引数記録の作法に倣う。
+  getUserByIdMock: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -61,6 +64,7 @@ vi.mock('@/lib/supabase/server', () => ({
         },
       }),
     }),
+    auth: { admin: { getUserById: getUserByIdMock } },
   }),
 }))
 
@@ -72,6 +76,7 @@ import {
   markClaimed,
   purgeExpired,
   retireOtherCompleted,
+  findStateOwnerEmail,
 } from '../supabase/oauth-states'
 import { PENDING_TTL_MS, CLAIM_WINDOW_MS } from '../oauth-state'
 
@@ -88,6 +93,7 @@ beforeEach(() => {
   selectEqCalls.length = 0
   deleteEqMock.mockReset()
   deleteLtMock.mockReset().mockResolvedValue({ error: null })
+  getUserByIdMock.mockReset()
 })
 
 describe('createPendingState', () => {
@@ -216,5 +222,49 @@ describe('retireOtherCompleted', () => {
   it('更新に失敗しても例外を投げずfalseを返す', async () => {
     updateNeqMock.mockResolvedValue({ error: { message: 'boom' } })
     expect(await retireOtherCompleted('u1', 'st-claimed')).toBe(false)
+  })
+})
+
+describe('findStateOwnerEmail', () => {
+  it('completedの行なら持ち主のメールを返す', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { user_id: 'u1', status: 'completed' }, error: null })
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: 'owner@example.com' } }, error: null })
+    const email = await findStateOwnerEmail('s')
+    expect(email).toBe('owner@example.com')
+    expect(selectEqCalls).toContainEqual(['state', 's'])
+    expect(getUserByIdMock).toHaveBeenCalledWith('u1')
+  })
+  it('pendingの行なら null（getUserByIdは呼ばない）', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { user_id: 'u1', status: 'pending' }, error: null })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+    expect(getUserByIdMock).not.toHaveBeenCalled()
+  })
+  it('claimedの行なら null（すでに引き取り済みのstateを覗かせない）', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { user_id: 'u1', status: 'claimed' }, error: null })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+    expect(getUserByIdMock).not.toHaveBeenCalled()
+  })
+  it('行が無ければ null', async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: null })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+  })
+  it('selectが失敗したら null（stateの存在を漏らさない）', async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+  })
+  it('getUserByIdが失敗したら null', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { user_id: 'u1', status: 'completed' }, error: null })
+    getUserByIdMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+  })
+  it('ユーザーにメールが無ければ null', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { user_id: 'u1', status: 'completed' }, error: null })
+    getUserByIdMock.mockResolvedValue({ data: { user: { email: null } }, error: null })
+    expect(await findStateOwnerEmail('s')).toBeNull()
+  })
+  it('空文字のstateは問い合わせせずに null', async () => {
+    expect(await findStateOwnerEmail('')).toBeNull()
+    expect(maybeSingleMock).not.toHaveBeenCalled()
+    expect(getUserByIdMock).not.toHaveBeenCalled()
   })
 })
