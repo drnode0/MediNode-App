@@ -8,7 +8,14 @@
 -- 本人のログイン済みセッションからの claim を経て初めて設定へ入る（セッション固定対策）。
 --
 -- status の遷移は pending → completed → claimed の一方向のみ。
--- token_enc は claim 済み・期限切れの行では null に落とす。
+-- token_enc は claim 済みの行では claim 時に null へ落とす。
+-- 猶予切れ（claimの猶予=CLAIM_WINDOW_MSを過ぎたcompleted行）のtoken_encも
+-- oauth-states.ts の purgeExpired が同じユーザーのstart/claim呼び出し時にnullへ落とすが、
+-- これは cron ではなく「そのユーザーが次に何か触ったとき」にしか走らない。
+-- つまり、認可だけして二度とアプリへ戻らなかったユーザーの行は、その人が次にstart/claimを
+-- 叩くまでtoken_encを保持し続ける（最終的には行自体の削除cutoffで消えるが、それは
+-- もっと先である）。cronを持たない前提でのbest-effortな設計であり、無期限の残留を
+-- 完全には防げないことを明記しておく。
 
 create table if not exists public.oauth_states (
   state        text primary key,

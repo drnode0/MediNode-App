@@ -2,9 +2,10 @@
 // 成功してもトークンは user_settings に入らず oauth_states に暗号化して置かれる。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { takePendingMock, markCompletedMock, exchangeMock, isCryptoReadyMock, rateLimitMock } = vi.hoisted(() => ({
+const { takePendingMock, markCompletedMock, purgeExpiredMock, exchangeMock, isCryptoReadyMock, rateLimitMock } = vi.hoisted(() => ({
   takePendingMock: vi.fn(),
   markCompletedMock: vi.fn(),
+  purgeExpiredMock: vi.fn(),
   exchangeMock: vi.fn(),
   isCryptoReadyMock: vi.fn(() => true),
   rateLimitMock: vi.fn(async () => true),
@@ -13,6 +14,7 @@ const { takePendingMock, markCompletedMock, exchangeMock, isCryptoReadyMock, rat
 vi.mock('@/lib/supabase/oauth-states', () => ({
   takePendingState: takePendingMock,
   markCompleted: markCompletedMock,
+  purgeExpired: purgeExpiredMock,
 }))
 vi.mock('@/lib/crypto', () => ({
   isCryptoReady: isCryptoReadyMock,
@@ -54,6 +56,7 @@ const TOKEN = {
 beforeEach(() => {
   takePendingMock.mockReset().mockResolvedValue(ROW)
   markCompletedMock.mockReset().mockResolvedValue(true)
+  purgeExpiredMock.mockReset().mockResolvedValue(undefined)
   exchangeMock.mockReset().mockResolvedValue(TOKEN)
   isCryptoReadyMock.mockReset().mockReturnValue(true)
   rateLimitMock.mockReset().mockResolvedValue(true)
@@ -120,6 +123,32 @@ describe('GET /api/notion/oauth/callback（v2）', () => {
     expect(loc(res).searchParams.get('e')).toBe('1')
     expect(takePendingMock).not.toHaveBeenCalled()
     expect(exchangeMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: 成功時はmarkCompleted成功直後に、state行の持ち主(user_id)でpurgeExpiredを呼ぶ', async () => {
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('s')).toBe('st')
+    expect(purgeExpiredMock).toHaveBeenCalledWith('u1', expect.any(Number))
+  })
+
+  it('Finding1: state が無効なら（交換に進まない）purgeExpiredは呼ばない', async () => {
+    takePendingMock.mockResolvedValue(null)
+    await GET(req('code=c1&state=nope'))
+    expect(purgeExpiredMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: markCompletedが失敗したらpurgeExpiredは呼ばない', async () => {
+    markCompletedMock.mockResolvedValue(false)
+    await GET(req('code=c1&state=st'))
+    expect(purgeExpiredMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: purgeExpiredが失敗しても成功応答は変わらない（oauth-states.tsは例外を投げない前提）', async () => {
+    purgeExpiredMock.mockResolvedValue(undefined)
+    const res = await GET(req('code=c1&state=st'))
+    expect(res.status).toBe(307)
+    expect(loc(res).searchParams.get('s')).toBe('st')
+    expect(loc(res).searchParams.get('e')).toBeNull()
   })
 })
 
@@ -195,6 +224,7 @@ describe('GET /api/notion/oauth/callback（v2）— 失敗経路の応答は完�
       // 各ケースの前提を毎回まっさらに戻してから、そのケードだけの条件を足す。
       takePendingMock.mockReset().mockResolvedValue(ROW)
       markCompletedMock.mockReset().mockResolvedValue(true)
+      purgeExpiredMock.mockReset().mockResolvedValue(undefined)
       exchangeMock.mockReset().mockResolvedValue(TOKEN)
       isCryptoReadyMock.mockReset().mockReturnValue(true)
       rateLimitMock.mockReset().mockResolvedValue(true)

@@ -137,14 +137,42 @@ export async function retireOtherCompleted(userId: string, exceptState: string):
 }
 
 // 自分の古い行の掃除。best-effort（失敗しても主処理は続ける）。cronは足さない。
+//
+// Finding1: token_enc に入っているのは無期限に有効なNotionのOAuthアクセストークンなので、
+// 「行が消えるまで残る」では足りない。認可だけして二度と戻らなかった行（＝claimの猶予を
+// 過ぎたcompleted行）は、行削除のcutoff（PENDING_TTL_MS+CLAIM_WINDOW_MS、もっと先）を
+// 待たずに、ここでtoken_encだけ先に落とす。ただしこの掃除自体が「同じユーザーが次にstartか
+// claimを叩いたとき」にしか走らないため、そのユーザーが二度と戻ってこなければ、行削除の
+// cutoffに達するまではtoken_encが残る（0022のコメント参照）。
 export async function purgeExpired(userId: string, nowMs: number): Promise<void> {
+  let admin: ReturnType<typeof createAdminClient>
   try {
-    const admin = createAdminClient()
+    admin = createAdminClient()
+  } catch {
+    return
+  }
+
+  try {
     // created_at起点で見て、その行がまだ引き取り可能でありうる最遅時刻は
     // 「pendingの猶予を使い切ってからcompletedになり、そこからさらにclaimの猶予を使い切る」
     // ケース（PENDING_TTL_MS + CLAIM_WINDOW_MS）。これより古い行だけを不要と判断する。
-    const cutoff = new Date(nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS)).toISOString()
-    await admin.from('oauth_states').delete().eq('user_id', userId).lt('created_at', cutoff)
+    const deleteCutoff = new Date(nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS)).toISOString()
+    await admin.from('oauth_states').delete().eq('user_id', userId).lt('created_at', deleteCutoff)
+  } catch {
+    // 掃除の失敗は無視してよい
+  }
+
+  try {
+    // completedのままclaimの猶予（CLAIM_WINDOW_MS）を過ぎた行は、上の行削除cutoffより
+    // ずっと早い時点でtoken_encだけ落とす。findClaimableはcompleted_at起点で猶予切れを
+    // 判定して既に使わせないが、DB上のtoken_encはこの掃除が来るまで残ってしまうため。
+    const claimCutoff = new Date(nowMs - CLAIM_WINDOW_MS).toISOString()
+    await admin
+      .from('oauth_states')
+      .update({ token_enc: null })
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .lt('completed_at', claimCutoff)
   } catch {
     // 掃除の失敗は無視してよい
   }

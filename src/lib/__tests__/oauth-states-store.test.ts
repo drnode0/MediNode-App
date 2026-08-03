@@ -11,10 +11,12 @@ const {
   updateEqMock,
   updateSelectMock,
   updateNeqMock,
+  updateLtMock,
   selectEqCalls,
   deleteEqMock,
   deleteLtMock,
   getUserByIdMock,
+  createAdminClientMock,
 } = vi.hoisted(() => ({
   insertMock: vi.fn(),
   maybeSingleMock: vi.fn(),
@@ -22,50 +24,57 @@ const {
   updateEqMock: vi.fn(),
   updateSelectMock: vi.fn(),
   updateNeqMock: vi.fn(),
+  // Finding1: purgeExpiredが追加したupdate().eq().eq().lt()チェーンの末尾を記録する。
+  updateLtMock: vi.fn(),
   selectEqCalls: [] as unknown[][],
   deleteEqMock: vi.fn(),
   deleteLtMock: vi.fn(),
   // findStateOwnerEmail が使う auth.admin.getUserById。他のモックと同じ引数記録の作法に倣う。
   getUserByIdMock: vi.fn(),
+  // vi.fn()で包み、createAdminClient自体が失敗するケースをテストから差し替えられるようにする。
+  createAdminClientMock: vi.fn(),
+}))
+
+createAdminClientMock.mockImplementation(() => ({
+  from: () => ({
+    insert: insertMock,
+    select: () => {
+      const chain = {
+        eq: (...args: unknown[]) => {
+          selectEqCalls.push(args)
+          return chain
+        },
+        order: () => chain,
+        limit: () => chain,
+        maybeSingle: maybeSingleMock,
+      }
+      return chain
+    },
+    update: (payload: unknown) => {
+      updateMock(payload)
+      const chain = {
+        eq: (...args: unknown[]) => {
+          updateEqMock(args)
+          return chain
+        },
+        neq: (...args: unknown[]) => updateNeqMock(args),
+        select: (cols: string) => updateSelectMock(cols),
+        lt: (...args: unknown[]) => updateLtMock(args),
+      }
+      return chain
+    },
+    delete: () => ({
+      eq: (...args: unknown[]) => {
+        deleteEqMock(args)
+        return { lt: deleteLtMock }
+      },
+    }),
+  }),
+  auth: { admin: { getUserById: getUserByIdMock } },
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
-  createAdminClient: () => ({
-    from: () => ({
-      insert: insertMock,
-      select: () => {
-        const chain = {
-          eq: (...args: unknown[]) => {
-            selectEqCalls.push(args)
-            return chain
-          },
-          order: () => chain,
-          limit: () => chain,
-          maybeSingle: maybeSingleMock,
-        }
-        return chain
-      },
-      update: (payload: unknown) => {
-        updateMock(payload)
-        const chain = {
-          eq: (...args: unknown[]) => {
-            updateEqMock(args)
-            return chain
-          },
-          neq: (...args: unknown[]) => updateNeqMock(args),
-          select: (cols: string) => updateSelectMock(cols),
-        }
-        return chain
-      },
-      delete: () => ({
-        eq: (...args: unknown[]) => {
-          deleteEqMock(args)
-          return { lt: deleteLtMock }
-        },
-      }),
-    }),
-    auth: { admin: { getUserById: getUserByIdMock } },
-  }),
+  createAdminClient: createAdminClientMock,
 }))
 
 import {
@@ -90,6 +99,7 @@ beforeEach(() => {
   updateEqMock.mockReset()
   updateSelectMock.mockReset().mockResolvedValue({ data: [{ state: 's' }], error: null })
   updateNeqMock.mockReset().mockResolvedValue({ error: null })
+  updateLtMock.mockReset().mockResolvedValue({ error: null })
   selectEqCalls.length = 0
   deleteEqMock.mockReset()
   deleteLtMock.mockReset().mockResolvedValue({ error: null })
@@ -207,6 +217,42 @@ describe('purgeExpired', () => {
   it('cutoffは nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS) のISO文字列', async () => {
     await purgeExpired('u1', NOW)
     expect(deleteLtMock).toHaveBeenCalledWith('created_at', iso(NOW - (PENDING_TTL_MS + CLAIM_WINDOW_MS)))
+  })
+
+  // Finding1: 行削除のcutoffとは独立に、claimの猶予を過ぎたcompleted行のtoken_encを
+  // ここで先に落とす。無期限に有効なNotionのOAuthアクセストークンを、行が消えるまで
+  // （行削除のcutoffはもっと先）残さないための追加の掃除。
+  describe('Finding1: claim猶予切れのcompleted行のtoken_encを行削除とは別に落とす', () => {
+    it('user_id・status=completedで絞り込み、token_encをnullへ更新する', async () => {
+      await purgeExpired('u1', NOW)
+      expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
+      expect(updateEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
+      expect(updateEqMock).toHaveBeenCalledWith(['status', 'completed'])
+    })
+    it('cutoffは nowMs - CLAIM_WINDOW_MS のISO文字列（行削除cutoffより早い）', async () => {
+      await purgeExpired('u1', NOW)
+      expect(updateLtMock).toHaveBeenCalledWith(['completed_at', iso(NOW - CLAIM_WINDOW_MS)])
+    })
+    it('削除（delete）と掃除（update）の両方が実行される', async () => {
+      await purgeExpired('u1', NOW)
+      expect(deleteEqMock).toHaveBeenCalled()
+      expect(updateMock).toHaveBeenCalled()
+    })
+    it('削除側が失敗しても、token_encを落とす側は実行される（例外を投げず・best-effortが独立に効く）', async () => {
+      deleteLtMock.mockRejectedValue(new Error('boom'))
+      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+      expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
+    })
+    it('token_enc掃除側が失敗しても例外を投げない', async () => {
+      updateLtMock.mockRejectedValue(new Error('boom'))
+      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+    })
+    it('createAdminClient自体が失敗しても例外を投げない', async () => {
+      createAdminClientMock.mockImplementationOnce(() => {
+        throw new Error('boom')
+      })
+      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+    })
   })
 })
 
