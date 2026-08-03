@@ -16,7 +16,7 @@ function mkSteps(n: number): Step[] {
 }
 const mk = (count: number, seen: number): TowerState => ({
   steps: mkSteps(count), lastSeenSteps: seen, lastSeenAt: '', backfilledAt: 'dev',
-  joinedAt: '', undergroundClearedAt: '', // joinedAt空＝分割しない（既存3シナリオは全部地上のまま）
+  joinedAt: '', undergroundClearedAt: '', levels: {}, // joinedAt空＝分割しない（既存3シナリオは全部地上のまま）
 })
 
 // 地下シナリオ用: joined より古い wrote（持ち込み）と、joined 後の read（芽を出した分）
@@ -42,17 +42,17 @@ const SCENARIOS: Record<string, TowerState> = {
   '大量バックフィル（+80枚）': mk(200, 120),
   '持ち込みの朝（地下274・地上0）': {
     steps: mkOld(274), lastSeenSteps: 0, lastSeenAt: '', backfilledAt: 'dev',
-    joinedAt: JOINED, undergroundClearedAt: '',
+    joinedAt: JOINED, undergroundClearedAt: '', levels: {},
   },
   '地下から芽吹く（地上8・+5枚）': {
     steps: [...mkOld(40), ...mkSurfaced(['old-0', 'old-1', 'old-2', 'old-3', 'old-4', 'old-5', 'old-6', 'old-7'])],
     lastSeenSteps: 3, lastSeenAt: '', backfilledAt: 'dev',
-    joinedAt: JOINED, undergroundClearedAt: '',
+    joinedAt: JOINED, undergroundClearedAt: '', levels: {},
   },
   '地下が尽きた日': {
     steps: [...mkOld(6), ...mkSurfaced(['old-0', 'old-1', 'old-2', 'old-3', 'old-4', 'old-5'])],
     lastSeenSteps: 5, lastSeenAt: '', backfilledAt: 'dev',
-    joinedAt: JOINED, undergroundClearedAt: new Date(new Date(JOINED).getTime() + 6 * 3_600_000).toISOString(),
+    joinedAt: JOINED, undergroundClearedAt: new Date(new Date(JOINED).getTime() + 6 * 3_600_000).toISOString(), levels: {},
   },
 }
 

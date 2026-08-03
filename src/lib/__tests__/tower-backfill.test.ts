@@ -3,7 +3,7 @@ import { buildBackfillRequest, applyBackfill } from '../tower-backfill'
 import type { TowerState } from '../tower-steps'
 import type { AppSettings } from '../settings'
 
-const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
+const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '', levels: {} }
 
 const settings = (over: Partial<AppSettings> = {}): AppSettings =>
   ({

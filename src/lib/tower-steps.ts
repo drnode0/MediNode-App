@@ -4,7 +4,7 @@
 import type { QuizStat } from './quiz-srs'
 import { splitByJoin, dormantIds } from './vine-scroll'
 
-export type StepKind = 'read' | 'wrote' | 'recall' | 'repolish'
+export type StepKind = 'read' | 'wrote' | 'recall' | 'repolish' | 'resolved' | 'attempt'
 export type Step = { id: string; kind: StepKind; at: string; genre: string; title: string }
 export type TowerState = {
   steps: Step[]; lastSeenSteps: number; lastSeenAt: string; backfilledAt: string
@@ -12,6 +12,8 @@ export type TowerState = {
   joinedAt: string
   // 地下が尽きた日＝持ち込んだ知識がすべて地上に芽を出した日。一度きり。''は未到来。
   undergroundClearedAt: string
+  // id→最後に見た知識レベル。❓CQ→💡ナレッジの遷移検出（resolved）に使う。レベル未設定の人には何も溜まらない。
+  levels: Record<string, string>
 }
 
 export const TOWER_KEY = 'medinode_tower_v1'
@@ -20,7 +22,13 @@ export const TOWER_EVENT = 'medinode:tower-step'
 export const DULL_DAYS = 90
 const MAX_STEPS = 20000 // 暴走ガード。超えたら古い順に間引く（通常運用では届かない）
 
-const KINDS: readonly StepKind[] = ['read', 'wrote', 'recall', 'repolish']
+const KINDS: readonly StepKind[] = ['read', 'wrote', 'recall', 'repolish', 'resolved', 'attempt']
+
+// 葉＝高さを持つ歩。attempt（まだの芽）は台帳には居るが、葉ではない——
+// 高さ・リプレイ・目次・枚数はすべてこの結果で数える（正典§9）。
+export function leafSteps(steps: Step[]): Step[] {
+  return steps.filter((s) => s.kind !== 'attempt')
+}
 
 function dayOf(iso: string): string {
   return iso.slice(0, 10)
@@ -79,8 +87,17 @@ export function ingestRecords(state: TowerState, hits: IngestHit[]): TowerState 
   return next
 }
 
+function sanitizeLevels(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string') out[k] = v
+  }
+  return out
+}
+
 function sanitize(raw: unknown): TowerState {
-  const emptyState: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
+  const emptyState: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '', levels: {} }
   if (!raw || typeof raw !== 'object') return emptyState
   const o = raw as Partial<TowerState>
   const steps = Array.isArray(o.steps)
@@ -99,6 +116,7 @@ function sanitize(raw: unknown): TowerState {
     backfilledAt: typeof o.backfilledAt === 'string' ? o.backfilledAt : '',
     joinedAt: typeof o.joinedAt === 'string' ? o.joinedAt : '',
     undergroundClearedAt: typeof o.undergroundClearedAt === 'string' ? o.undergroundClearedAt : '',
+    levels: sanitizeLevels(o.levels),
   }
 }
 
@@ -107,7 +125,7 @@ export function loadTowerState(): TowerState {
   try {
     state = sanitize(JSON.parse(localStorage.getItem(TOWER_KEY) || 'null'))
   } catch {
-    return { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
+    return { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '', levels: {} }
   }
   // 初回移行: 利用開始日は「移行を実行した日」（最も古い歩の翌日ではない＝正典§12）。
   // 既存の歩はこの瞬間すべて地下になるので、リプレイの水位も0へ戻す。
@@ -131,8 +149,8 @@ export function saveTowerState(state: TowerState): void {
 // 「見た」の水位。リプレイ完走時に「見せたところまで」をコミットする（v1.2）。
 // マウント時に全件seenにすると、リプレイ中断でその日の成長が永遠に見られなくなる。
 export function markSeen(state: TowerState, uptoCount: number): TowerState {
-  // 水位は地上の葉数で数える。地下の歩（持ち込み）は「見た」の対象ではない。
-  const aboveCount = splitByJoin(state.steps, state.joinedAt).above.length
+  // 水位は地上の葉数で数える。地下の歩（持ち込み）とattempt（芽）は「見た」の対象ではない。
+  const aboveCount = leafSteps(splitByJoin(state.steps, state.joinedAt).above).length
   const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, aboveCount))
   return { ...state, lastSeenSteps: upto, lastSeenAt: new Date().toISOString() }
 }
@@ -140,8 +158,8 @@ export function markSeen(state: TowerState, uptoCount: number): TowerState {
 // リプレイのゲート。葉数の比較だけで決める——「同じ成長は二度と再生しない」が数で保証されるため、
 // 日付比較（UTC境界のバグ温床）は不要。リプレイ中に積まれた新イベントは from..to の外なので次回へ回る。
 export function planReplay(state: TowerState): { from: number; to: number; play: boolean } {
-  // 伸びるのは地上だけ（正典§7）。地下の歩はリプレイに乗せない。
-  const to = splitByJoin(state.steps, state.joinedAt).above.length
+  // 伸びるのは地上の葉だけ（正典§7・§9）。地下の歩とattempt（芽）はリプレイに乗せない。
+  const to = leafSteps(splitByJoin(state.steps, state.joinedAt).above).length
   const from = Math.min(state.lastSeenSteps, to)
   return { from, to, play: to > from }
 }
