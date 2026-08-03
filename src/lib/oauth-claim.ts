@@ -17,6 +17,9 @@ export type ClaimResponse =
       hadServerSettings?: boolean
     }
   | { status: 'conflict'; unreadable: Array<{ role: string; id: string }> }
+  // Finding3: 見えるかどうかを確認できなかった場合（読めないと断定しない）。
+  // conflict と同じく何も書かれていないが、原因が違うため呼び出し側は区別して案内する。
+  | { status: 'check_failed' }
   | { status: 'none' }
 
 // 接続そのものを表す項目。サーバーに実体が無い場合でも、ここだけは必ず新しい値を採る

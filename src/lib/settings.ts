@@ -284,6 +284,16 @@ export function formatLastSynced(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// DB ID比較用の正規化（OAuthFinishのrepickプリフィル比較で使用）。
+// extractNotionDbId は手入力を「ハイフン無し32桁・小文字」に揃えるが、list-databases API が
+// 返すIDはNotionのsearch応答そのまま（ハイフン付きUUID）。表記が違う2つのIDが同じDBを
+// 指しているかどうかを判定するには、双方をこの正規化（ハイフン除去＋小文字化）にかけてから
+// 比較する必要がある。生の文字列比較のままだと、手入力でDBを登録したユーザー全員が
+// repick のプリフィルから漏れる（Finding 1）。
+export function normalizeNotionId(id: string): string {
+  return id.trim().toLowerCase().replace(/-/g, '')
+}
+
 // NotionのURLからDB IDを抽出
 export function extractNotionDbId(input: string): string {
   const trimmed = input.trim()

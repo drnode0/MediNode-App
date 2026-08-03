@@ -9,10 +9,14 @@
 // Medical だけで再試行し、どちらが読めないのかを名指しする。それ以外（レート制限・Notion側の
 // 一時的な不調・通信断など）は「確認できなかった」扱いにして再試行を促す（読めないと断定しない）。
 // 「列を推定できなかった」場合だけ既定名で先へ進む。
+//
+// claim段階（mode='claim' の引き取り時）のreadabilityチェックも同じ原則。findUnreadableDatabases
+// が「見えない」と「確認できなかった」を区別して返し、後者は conflict と同じく何も書かずに
+// claimCheckFailed へ回す（再認可ではなく再試行を促す。Finding3）。
 
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
-import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
+import { getSettings, saveSettings, normalizeNotionId, type AppSettings } from '@/lib/settings'
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
 import { inferPropMap } from '@/lib/prop-infer'
 import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
@@ -20,7 +24,19 @@ import { PropMapEditor } from './PropMapEditor'
 import { Spinner } from './Spinner'
 
 type DbItem = { id: string; title: string }
-type Phase = 'claiming' | 'pick' | 'columns' | 'unreadable' | 'checkFailed' | 'conflict' | 'saving' | 'done' | 'error'
+type Phase =
+  | 'claiming'
+  | 'pick'
+  | 'columns'
+  | 'unreadable'
+  | 'checkFailed'
+  // Finding3: claim段階（引き取り時のreadabilityチェック）で「見えるかどうか確認できなかった」
+  // 場合。conflict（見えないと確認できた）とは案内文とアクションを変えるため別フェーズにする。
+  | 'claimCheckFailed'
+  | 'conflict'
+  | 'saving'
+  | 'done'
+  | 'error'
 type Mode = 'claim' | 'repick'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -51,6 +67,12 @@ export function OAuthFinish({
   const [workspace, setWorkspace] = useState('')
   const [unreadableRole, setUnreadableRole] = useState<string>('medical')
   const [conflictRoles, setConflictRoles] = useState<string[]>([])
+  // repick で「今の設定にIDはあるが、今回の一覧には見当たらない」ロール（Finding 2）。
+  // 代入はせず、事実だけを伝えるための表示専用フラグ。
+  const [missingStoredDb, setMissingStoredDb] = useState<{ medical: boolean; reference: boolean }>({
+    medical: false,
+    reference: false,
+  })
   // done フェーズで張るタイマー。画面を離れたあとに onComplete が呼ばれないよう、
   // unmount 時にクリアする（Minor fix）。
   const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -73,22 +95,33 @@ export function OAuthFinish({
     setDbs(list)
     if (mode === 'repick') {
       // 選び直し画面の目的は「今の選択を変える」ことなので、現在の設定を引き継ぐ。
-      // ただし今回の一覧に実在するIDだけを使う（見つからない＝この認可では見えない、
-      // という状態なので、<select> の値が選択肢の外に出ないよう空のままにする＝
-      // Finding 3。見つからなかった場合にユーザーへ何かを名指しで警告することはしない
-      // （それは「保存前のcheck-props」の役目であり、ここは一覧を出すだけの段階のため）。
+      // ただし list-databases が返すIDはハイフン付きUUID（Notionのsearch応答そのまま）な
+      // のに対し、手入力で登録したIDは extractNotionDbId によりハイフン無し32桁へ正規化
+      // されている。生の文字列比較だと手入力ユーザーの分が必ず外れるため、双方を
+      // normalizeNotionId にかけて突き合わせる（Finding 1）。<select> にセットする値は
+      // 必ず一覧側のid（list由来の表記）にする——<select> の value は options のどれかと
+      // 一致していなければならないため。
       const stored = getSettings()
-      const ids = new Set(list.map((d) => d.id))
+      const byNormalizedId = new Map(list.map((d) => [normalizeNotionId(d.id), d]))
       const storedMedical = stored?.notionMedicalDbId || ''
       const storedReference = stored?.notionReferenceDbId || ''
-      const medicalToSet = storedMedical && ids.has(storedMedical)
-        ? storedMedical
-        : (list.length === 1 ? list[0].id : '')
-      const referenceToSet = storedReference && ids.has(storedReference) && storedReference !== medicalToSet
-        ? storedReference
-        : ''
+      const medicalMatch = storedMedical ? byNormalizedId.get(normalizeNotionId(storedMedical)) : undefined
+      const referenceMatch = storedReference ? byNormalizedId.get(normalizeNotionId(storedReference)) : undefined
+
+      // claimにある「候補が1件だけなら自動選択」という親切機能は、ここ（repick）では
+      // 発火させない（Finding 2）。repick は既に接続済みのユーザーが対象で、
+      // 「今の設定のDBが一覧に無い」こと自体が重要な情報であり、別のDBへ黙って
+      // 差し替えるとその情報を握りつぶしてしまう。空のまま出し、下の注記で伝える。
+      const medicalToSet = medicalMatch ? medicalMatch.id : ''
+      const referenceToSet = referenceMatch && referenceMatch.id !== medicalToSet ? referenceMatch.id : ''
       if (medicalToSet) setMedicalId(medicalToSet)
       if (referenceToSet) setReferenceId(referenceToSet)
+      // Finding 2: IDが設定されているのに一覧に見つからなかった場合だけ知らせる
+      // （そもそも設定されていなければ知らせることは何もない）。
+      setMissingStoredDb({
+        medical: !!storedMedical && !medicalMatch,
+        reference: !!storedReference && !referenceMatch,
+      })
     } else if (list.length === 1) {
       setMedicalId(list[0].id)
     }
@@ -96,69 +129,84 @@ export function OAuthFinish({
     setPhase('pick')
   }
 
-  useEffect(() => {
-    const start = async () => {
-      const local = getSettings()
-      // claim（トークンの引き取り）まで済んだかどうか。済んだ後にDB一覧取得が失敗した場合は
-      // 「クレームからやり直し」ではなく「設定から選び直し」を案内する（Minor fix）。
-      let claimed = false
-      try {
-        if (mode === 'repick') {
-          if (!local?.notionToken) {
-            setError('接続情報が見つかりません。もう一度かんたん接続からお試しください。')
-            setPhase('error')
-            return
-          }
-          setWorkspace(local.notionWorkspaceName || '')
-          await loadDbs(local.notionToken)
-          return
-        }
-
-        // 端末が持っているDB IDも一緒に送り、可読性検査の対象を広げる（§20a）。
-        const res = await fetch('/api/notion/oauth/claim', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            notionMedicalDbId: local?.notionMedicalDbId || '',
-            notionReferenceDbId: local?.notionReferenceDbId || '',
-            notionManualDbId: local?.notionManualDbId || '',
-          }),
-        })
-        const data = (await res.json()) as ClaimResponse & { error?: string }
-        if (!res.ok) {
-          setError('接続の引き取りに失敗しました。通信環境を確認して、もう一度お試しください。')
+  // claim（トークンの引き取り）〜DB一覧取得までの一連の処理。mount時に自動で走るほか、
+  // claimCheckFailed フェーズの「もう一度確認する」からも同じ関数を呼び直す
+  // （Finding3: 確認できなかっただけで何も書かれていないため、再試行は最初からやり直せる）。
+  const start = async () => {
+    const local = getSettings()
+    // claim（トークンの引き取り）まで済んだかどうか。済んだ後にDB一覧取得が失敗した場合は
+    // 「クレームからやり直し」ではなく「設定から選び直し」を案内する（Minor fix）。
+    let claimed = false
+    try {
+      if (mode === 'repick') {
+        if (!local?.notionToken) {
+          setError('接続情報が見つかりません。もう一度かんたん接続からお試しください。')
           setPhase('error')
           return
         }
-        if (data.status === 'none') { onAbort(); return }
-        if (data.status === 'conflict') {
-          setConflictRoles(data.unreadable.map((u) => u.role))
-          setPhase('conflict')
-          return
-        }
-        // status が 'ok' でも settings が欠けた不整合な応答は、成功として扱わない
-        // （settings を素通りさせると undefined を保存してしまう。Minor fix：runtime guard）。
-        if (data.status !== 'ok' || !data.settings) {
-          setError('接続の引き取りに失敗しました。通信環境を確認して、もう一度お試しください。')
-          setPhase('error')
-          return
-        }
-
-        const next = resolveClaimedSettings(data.settings, data.hadServerSettings === true, local)
-        saveSettings(next)
-        claimed = true
-        setWorkspace(next.notionWorkspaceName || '')
-        await loadDbs(next.notionToken)
-      } catch {
-        if (claimed) {
-          setError('接続は完了しています。データベースの一覧だけ取得できませんでした。設定の「読み取るDBを選び直す」から、もう一度お試しください。')
-        } else {
-          setError('データベースの一覧を取得できませんでした。通信環境を確認して、もう一度お試しください。')
-        }
-        setPhase('error')
+        setWorkspace(local.notionWorkspaceName || '')
+        await loadDbs(local.notionToken)
+        return
       }
+
+      // 端末が持っているDB IDも一緒に送り、可読性検査の対象を広げる（§20a）。
+      const res = await fetch('/api/notion/oauth/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notionMedicalDbId: local?.notionMedicalDbId || '',
+          notionReferenceDbId: local?.notionReferenceDbId || '',
+          notionManualDbId: local?.notionManualDbId || '',
+        }),
+      })
+      const data = (await res.json()) as ClaimResponse & { error?: string }
+      if (!res.ok) {
+        setError('接続の引き取りに失敗しました。通信環境を確認して、もう一度お試しください。')
+        setPhase('error')
+        return
+      }
+      if (data.status === 'none') { onAbort(); return }
+      if (data.status === 'conflict') {
+        setConflictRoles(data.unreadable.map((u) => u.role))
+        setPhase('conflict')
+        return
+      }
+      // Finding3: 見えるかどうか確認できなかった（読めないとは断定できない）。
+      // 何も書かれていないので、再認可ではなく再試行を促す別フェーズへ。
+      if (data.status === 'check_failed') {
+        setPhase('claimCheckFailed')
+        return
+      }
+      // status が 'ok' でも settings が欠けた不整合な応答は、成功として扱わない
+      // （settings を素通りさせると undefined を保存してしまう。Minor fix：runtime guard）。
+      // これは通信の問題ではなくサーバー応答の形が想定と違う場合なので、通信環境のせいには
+      // しない。
+      if (data.status !== 'ok' || !data.settings) {
+        setError('接続の引き取りに失敗しました。時間をおいてから、もう一度お試しください。')
+        setPhase('error')
+        return
+      }
+
+      const next = resolveClaimedSettings(data.settings, data.hadServerSettings === true, local)
+      saveSettings(next)
+      claimed = true
+      setWorkspace(next.notionWorkspaceName || '')
+      await loadDbs(next.notionToken)
+    } catch {
+      if (claimed) {
+        setError('接続は完了しています。データベースの一覧だけ取得できませんでした。設定の「読み取るDBを選び直す」から、もう一度お試しください。')
+      } else {
+        setError('データベースの一覧を取得できませんでした。通信環境を確認して、もう一度お試しください。')
+      }
+      setPhase('error')
     }
+  }
+
+  useEffect(() => {
     void start()
+    // start は毎レンダーで作り直されるが、参照するのはその時点の mode に閉じた
+    // getSettings() の結果だけなので、依存配列に含める必要はない（無限再実行を避ける）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   // DBを決めて列を確認する。読めないDBは保存しない（§20c）。
@@ -293,6 +341,28 @@ export function OAuthFinish({
           </div>
         )}
 
+        {phase === 'claimCheckFailed' && (
+          <div className="space-y-4">
+            <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
+              <span>接続の確認が完了しませんでした。</span>
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              通信状況やNotion側の一時的な不調によることがあります。時間をおいてから、もう一度お試しください。保存はしていないので、今の設定はそのままです。
+            </p>
+            <button
+              type="button"
+              onClick={() => { setPhase('claiming'); void start() }}
+              className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold"
+            >
+              もう一度確認する
+            </button>
+            <button type="button" onClick={onAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+              このままの接続を続ける
+            </button>
+          </div>
+        )}
+
         {phase === 'pick' && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -313,6 +383,11 @@ export function OAuthFinish({
               <>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Medical DB（必須）</label>
+                  {missingStoredDb.medical && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+                      今設定している{ROLE_LABEL.medical}は、この一覧に見当たりません。このまま進めると使われなくなります。
+                    </p>
+                  )}
                   <select value={medicalId} onChange={(e) => { const v = e.target.value; setMedicalId(v); if (referenceId === v) setReferenceId('') }} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
                     <option value="">選んでください</option>
                     {dbs.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
@@ -320,6 +395,11 @@ export function OAuthFinish({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Reference DB（文献・任意）</label>
+                  {missingStoredDb.reference && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+                      今設定している{ROLE_LABEL.reference}は、この一覧に見当たりません。このまま進めると使われなくなります。
+                    </p>
+                  )}
                   <select value={referenceId} onChange={(e) => setReferenceId(e.target.value)} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
                     <option value="">使わない</option>
                     {dbs.filter((d) => d.id !== medicalId).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
@@ -361,7 +441,7 @@ export function OAuthFinish({
               <span>データベースの確認が完了しませんでした。</span>
             </p>
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              通信状況やNotion側の一時的な不調によることがあります。保存はしていないので、今の設定はそのままです。
+              通信状況やNotion側の一時的な不調によることがあります。時間をおいてから、もう一度お試しください。保存はしていないので、今の設定はそのままです。
             </p>
             <button type="button" onClick={() => void confirmDbs()} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
               もう一度確認する
