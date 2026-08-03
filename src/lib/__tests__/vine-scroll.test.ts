@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD, MIN_MARK_GAP,
   sceneHeightPx, leafY, groundY, visibleRange, markPositions, sceneMarks,
-  splitByJoin, dormantIds,
+  splitByJoin, dormantIds, RHIZOME_DEPTH,
 } from '../vine-scroll'
 import type { Step } from '../tower-steps'
 
@@ -81,6 +81,18 @@ describe('越えた印', () => {
   })
   it('まだ越えていない実物は含めない', () => {
     expect(markPositions(2)).toEqual([])
+  })
+})
+
+describe('地下の深さ', () => {
+  it('地下があるときだけ、その深さぶんシーンが下へ伸びる', () => {
+    expect(sceneHeightPx(100, RHIZOME_DEPTH)).toBe(sceneHeightPx(100) + RHIZOME_DEPTH)
+    expect(sceneHeightPx(100, 0)).toBe(sceneHeightPx(100))
+  })
+  it('地下ぶん深くスクロールしても窓は地面ぎわの葉を保持する', () => {
+    const deep = sceneHeightPx(50, RHIZOME_DEPTH) - 700
+    const r = visibleRange(deep, 700, 50, RHIZOME_DEPTH)
+    expect(r.from).toBe(1)
   })
 })
 

@@ -23,19 +23,23 @@ export function groundY(aboveTotal: number): number {
   return SCENE_TOP_PAD + Math.max(0, aboveTotal - 1) * PX_PER_LEAF + GROUND_GAP
 }
 
-export function sceneHeightPx(aboveTotal: number): number {
-  return groundY(aboveTotal) + SCENE_BOTTOM_PAD
+// 地下茎ゾーンの深さ（持ち込みがあるときだけシーンの下端に足す）。
+// 深さでは測らない——地下に目盛りは打たない（正典§7）。定数なのは件数に比例させないため。
+export const RHIZOME_DEPTH = 150
+
+export function sceneHeightPx(aboveTotal: number, undergroundDepth = 0): number {
+  return groundY(aboveTotal) + SCENE_BOTTOM_PAD + undergroundDepth
 }
 
 // DOMに載せる葉の範囲。ビューポートの前後1画面分を余白に取る
 // （スクロール中に葉が現れる瞬間が見えないようにするため）。
 export function visibleRange(
-  scrollTop: number, viewportH: number, aboveTotal: number,
+  scrollTop: number, viewportH: number, aboveTotal: number, undergroundDepth = 0,
 ): { from: number; to: number } {
   if (aboveTotal <= 0) return { from: 1, to: 0 }
   // 実DOMの scrollTop が取りうる範囲へ丸める。片側だけ守ると、極端な値のとき
   // from/to が同じ端に張り付いて窓が1枚に潰れる（両端を独立に丸めているため）。
-  const maxScroll = Math.max(0, sceneHeightPx(aboveTotal) - viewportH)
+  const maxScroll = Math.max(0, sceneHeightPx(aboveTotal, undergroundDepth) - viewportH)
   const s = Math.min(Math.max(0, scrollTop), maxScroll)
   const yTop = s - viewportH
   const yBottom = s + viewportH * 2
