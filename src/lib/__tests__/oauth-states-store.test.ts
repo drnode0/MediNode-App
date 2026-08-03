@@ -13,7 +13,6 @@ const {
   updateNeqMock,
   updateLtMock,
   selectEqCalls,
-  deleteEqMock,
   deleteLtMock,
   getUserByIdMock,
   createAdminClientMock,
@@ -24,10 +23,12 @@ const {
   updateEqMock: vi.fn(),
   updateSelectMock: vi.fn(),
   updateNeqMock: vi.fn(),
-  // Finding1: purgeExpiredが追加したupdate().eq().eq().lt()チェーンの末尾を記録する。
+  // Finding1: purgeExpiredStatesが使うupdate().eq().lt()チェーンの末尾を記録する。
   updateLtMock: vi.fn(),
   selectEqCalls: [] as unknown[][],
-  deleteEqMock: vi.fn(),
+  // Finding1: purgeExpiredStatesはuser_idで絞らずdelete().lt()を直接呼ぶ。
+  // ここに .eq を生やさないことで、実装がうっかりuser_id等でeqを挟んだ場合に
+  // 「delete(...).eq is not a function」で即座に失敗させる（回帰の網）。
   deleteLtMock: vi.fn(),
   // findStateOwnerEmail が使う auth.admin.getUserById。他のモックと同じ引数記録の作法に倣う。
   getUserByIdMock: vi.fn(),
@@ -64,10 +65,7 @@ createAdminClientMock.mockImplementation(() => ({
       return chain
     },
     delete: () => ({
-      eq: (...args: unknown[]) => {
-        deleteEqMock(args)
-        return { lt: deleteLtMock }
-      },
+      lt: deleteLtMock,
     }),
   }),
   auth: { admin: { getUserById: getUserByIdMock } },
@@ -83,7 +81,7 @@ import {
   markCompleted,
   findClaimable,
   markClaimed,
-  purgeExpired,
+  purgeExpiredStates,
   retireOtherCompleted,
   findStateOwnerEmail,
 } from '../supabase/oauth-states'
@@ -101,7 +99,6 @@ beforeEach(() => {
   updateNeqMock.mockReset().mockResolvedValue({ error: null })
   updateLtMock.mockReset().mockResolvedValue({ error: null })
   selectEqCalls.length = 0
-  deleteEqMock.mockReset()
   deleteLtMock.mockReset().mockResolvedValue({ error: null })
   getUserByIdMock.mockReset()
 })
@@ -209,13 +206,17 @@ describe('markClaimed', () => {
   })
 })
 
-describe('purgeExpired', () => {
-  it('指定したuser_idだけを削除対象にする', async () => {
-    await purgeExpired('u1', NOW)
-    expect(deleteEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
-  })
-  it('cutoffは nowMs - (PENDING_TTL_MS + CLAIM_WINDOW_MS) のISO文字列', async () => {
-    await purgeExpired('u1', NOW)
+describe('purgeExpiredStates', () => {
+  // Finding1: 以前はuser_id単位でしか掃除できず、認可だけして二度と戻らなかった
+  // ユーザーの行を誰も掃除できなかった（掃除自体がその人のセッション由来でしか
+  // 走らないため）。呼び出したユーザーが誰かに関わらずoauth_states全体を
+  // 対象にすることで、他の誰かが次にstart/claim/callbackを叩いた時点で
+  // 一緒に掃除されるようにする。
+  it('user_idで絞り込まず、created_at起点のcutoffだけで削除する', async () => {
+    await purgeExpiredStates(NOW)
+    // deleteのモックチェーンには.eqを生やしていないため、実装がuser_id等でeqを
+    // 挟んでいれば「delete(...).eq is not a function」で例外になり、
+    // purgeExpiredStatesは例外を握りつぶすのでdeleteLtMockが呼ばれずこのテストが落ちる。
     expect(deleteLtMock).toHaveBeenCalledWith('created_at', iso(NOW - (PENDING_TTL_MS + CLAIM_WINDOW_MS)))
   })
 
@@ -223,35 +224,54 @@ describe('purgeExpired', () => {
   // ここで先に落とす。無期限に有効なNotionのOAuthアクセストークンを、行が消えるまで
   // （行削除のcutoffはもっと先）残さないための追加の掃除。
   describe('Finding1: claim猶予切れのcompleted行のtoken_encを行削除とは別に落とす', () => {
-    it('user_id・status=completedで絞り込み、token_encをnullへ更新する', async () => {
-      await purgeExpired('u1', NOW)
+    it('user_idでは絞り込まず、status=completedだけで絞り込んでtoken_encをnullへ更新する', async () => {
+      await purgeExpiredStates(NOW)
       expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
-      expect(updateEqMock).toHaveBeenCalledWith(['user_id', 'u1'])
       expect(updateEqMock).toHaveBeenCalledWith(['status', 'completed'])
+      expect(updateEqMock).not.toHaveBeenCalledWith(['user_id', expect.anything()])
     })
     it('cutoffは nowMs - CLAIM_WINDOW_MS のISO文字列（行削除cutoffより早い）', async () => {
-      await purgeExpired('u1', NOW)
+      await purgeExpiredStates(NOW)
       expect(updateLtMock).toHaveBeenCalledWith(['completed_at', iso(NOW - CLAIM_WINDOW_MS)])
     })
     it('削除（delete）と掃除（update）の両方が実行される', async () => {
-      await purgeExpired('u1', NOW)
-      expect(deleteEqMock).toHaveBeenCalled()
+      await purgeExpiredStates(NOW)
+      expect(deleteLtMock).toHaveBeenCalled()
       expect(updateMock).toHaveBeenCalled()
     })
     it('削除側が失敗しても、token_encを落とす側は実行される（例外を投げず・best-effortが独立に効く）', async () => {
       deleteLtMock.mockRejectedValue(new Error('boom'))
-      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+      await expect(purgeExpiredStates(NOW)).resolves.toBeUndefined()
       expect(updateMock).toHaveBeenCalledWith({ token_enc: null })
     })
     it('token_enc掃除側が失敗しても例外を投げない', async () => {
       updateLtMock.mockRejectedValue(new Error('boom'))
-      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+      await expect(purgeExpiredStates(NOW)).resolves.toBeUndefined()
     })
     it('createAdminClient自体が失敗しても例外を投げない', async () => {
       createAdminClientMock.mockImplementationOnce(() => {
         throw new Error('boom')
       })
-      await expect(purgeExpired('u1', NOW)).resolves.toBeUndefined()
+      await expect(purgeExpiredStates(NOW)).resolves.toBeUndefined()
+    })
+  })
+
+  // 境界値: 「引き取り可能でありうる最遅時刻」ちょうどの行を消してしまわないこと。
+  // .lt()は狭義未満なので、cutoffちょうどのcreated_at/completed_atを持つ行はどちらの
+  // クエリにもヒットせず残る。これは isPendingExpired/isClaimExpired（oauth-state.ts）が
+  // 「elapsed > 猶予」を条件にしている＝elapsedが猶予ちょうどならまだ有効、と判定する境界と
+  // 一致する。つまり「まだ使えるかもしれない」と判定される行を、掃除側が先に消してしまう
+  // ことはない。
+  describe('境界: cutoffちょうどの行はまだ使える可能性があるので触らない（lt=狭義未満）', () => {
+    it('削除cutoffは isPendingExpired+isClaimExpired が「まだ有効」と見なす最遅境界と同じ時刻', async () => {
+      await purgeExpiredStates(NOW)
+      // created_atがこのcutoffちょうどの行は elapsed = PENDING_TTL_MS+CLAIM_WINDOW_MS で
+      // 「lt cutoff」（狭義未満）を満たさないため削除対象にならない。
+      expect(deleteLtMock).toHaveBeenCalledWith('created_at', iso(NOW - (PENDING_TTL_MS + CLAIM_WINDOW_MS)))
+    })
+    it('token_enc消去cutoffは isClaimExpired が「まだ有効」と見なす境界（elapsed=CLAIM_WINDOW_MSちょうど）と同じ時刻', async () => {
+      await purgeExpiredStates(NOW)
+      expect(updateLtMock).toHaveBeenCalledWith(['completed_at', iso(NOW - CLAIM_WINDOW_MS)])
     })
   })
 })

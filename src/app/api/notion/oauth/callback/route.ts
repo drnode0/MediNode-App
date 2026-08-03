@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { encryptSettings, isCryptoReady } from '@/lib/crypto'
 import { exchangeCode } from '@/lib/notion-oauth'
 import { redirectUriFromRequestUrl } from '@/lib/oauth-redirect'
-import { takePendingState, markCompleted, purgeExpired } from '@/lib/supabase/oauth-states'
+import { takePendingState, markCompleted, purgeExpiredStates } from '@/lib/supabase/oauth-states'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 
 function done(req: NextRequest, params: Record<string, string>): NextResponse {
@@ -72,12 +72,13 @@ export async function GET(req: NextRequest) {
   const ok = await markCompleted(state, encryptSettings(JSON.stringify(token)), new Date().toISOString())
   if (!ok) return quietError(req)
 
-  // Finding1: このユーザーの古い行（認可だけして戻らなかった過去の試行など）を掃除する。
-  // start・claimの2箇所だけでは「認可して二度と戻らない」ケースを一切拾えないため、
-  // 新しい認可が成立するたびにも同じ掃除を差し込む。purgeExpiredは例外を投げないので
-  // 応答内容にもタイミング以外は影響しない（成功応答のみに掛かる処理であり、
-  // 失敗経路の一様性には触れない）。
-  await purgeExpired(row.user_id, Date.now())
+  // Finding1: 古い行（認可だけして戻らなかった過去の試行など）を掃除する。
+  // start・claimの2箇所だけでは「認可して二度と戻らない」ユーザー自身のセッションが
+  // 二度と来ないケースを一切拾えないため、新しい認可が成立するたびにも同じ掃除を差し込む
+  // （誰の認可であっても、他ユーザー分も含めて全体をスイープする＝oauth-states.ts参照）。
+  // purgeExpiredStatesは例外を投げないので応答内容にもタイミング以外は影響しない
+  // （成功応答のみに掛かる処理であり、失敗経路の一様性には触れない）。
+  await purgeExpiredStates(Date.now())
 
   return done(req, { s: state })
 }

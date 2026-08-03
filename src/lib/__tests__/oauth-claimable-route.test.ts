@@ -71,13 +71,25 @@ describe('GET /api/notion/oauth/claimable', () => {
     expect(Object.keys(body)).toEqual(['claimable'])
   })
 
-  it('レート制限を超えたら claimable:false（ユーザーID単位・findClaimableは呼ばない）', async () => {
+  it('Finding2: レート制限を超えたらclaimable:falseのみを返す（reasonフィールドを持たず、feature無しの応答と見分けが付かない）', async () => {
     rateLimitMock.mockResolvedValue(false)
     const res = await GET()
     const body = await res.json()
-    expect(body.claimable).toBe(false)
+    expect(body).toEqual({ claimable: false })
+    expect(Object.keys(body)).toEqual(['claimable'])
     expect(findClaimableMock).not.toHaveBeenCalled()
+    // feature判定より先にレート制限で弾かれるため、sessionHasFeatureにすら到達しない。
+    expect(hasFeatureMock).not.toHaveBeenCalled()
     expect(rateLimitMock).toHaveBeenCalledWith(expect.stringContaining('u1'), expect.any(Number), expect.any(Number))
+  })
+
+  it('Finding2: featureを持たない呼び出し元も、feature判定の前にレート制限のバケットを消費する', async () => {
+    hasFeatureMock.mockResolvedValue(false)
+    await GET()
+    expect(rateLimitMock).toHaveBeenCalledWith(expect.stringContaining('u1'), expect.any(Number), expect.any(Number))
+    const rateLimitOrder = rateLimitMock.mock.invocationCallOrder[0]
+    const hasFeatureOrder = hasFeatureMock.mock.invocationCallOrder[0]
+    expect(rateLimitOrder).toBeLessThan(hasFeatureOrder)
   })
 
   it('Supabaseのenvが未設定ならclaimable:falseで何も読み書きしない', async () => {

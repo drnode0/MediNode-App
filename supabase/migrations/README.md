@@ -40,6 +40,7 @@
 | 0020 | cq_reactions | `cq_reactions` | ✅ |
 | 0021 | early_access_features | `user_settings.early_access_features` | ⬜ |
 | 0022 | oauth_states | `oauth_states` | ⬜ |
+| 0023 | oauth_states_purge_indexes | `oauth_states_created_at_idx`, `oauth_states_status_completed_at_idx` | ⬜ |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。

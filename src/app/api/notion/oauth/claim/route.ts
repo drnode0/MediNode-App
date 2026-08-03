@@ -30,7 +30,7 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sessionHasFeature } from '@/lib/supabase/early-access'
-import { findClaimable, markClaimed, purgeExpired, retireOtherCompleted } from '@/lib/supabase/oauth-states'
+import { findClaimable, markClaimed, purgeExpiredStates, retireOtherCompleted } from '@/lib/supabase/oauth-states'
 import { findUnreadableDatabases, type DbRef } from '@/lib/notion-readability'
 import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
 import { rateLimitAsync } from '@/lib/rate-limit'
@@ -77,8 +77,20 @@ async function readClientDbRefs(req: Request): Promise<DbRef[]> {
   }
   if (!body || typeof body !== 'object') return []
 
-  const pick = (v: unknown): string | null =>
-    typeof v === 'string' && v.trim().length > 0 ? v : null
+  // Notionのdatabase_id（UUID系の文字列）にはこれで十分すぎる余裕がある。任意長の文字列を
+  // そのままバッファしてNotionへの取得リクエストに使わせないための上限（Finding4）。
+  const MAX_DB_ID_LENGTH = 128
+
+  const pick = (v: unknown): string | null => {
+    if (typeof v !== 'string') return null
+    // trimした値を検査するだけでなく、そのまま返す。検査だけtrimして値は生のまま返すと、
+    // 前後に空白が付いたIDがバリデーションを通過したうえで、サーバー側の同一IDとの
+    // de-dup（seenIds）に失敗し、空白付きのままNotionへのリクエストに使われてしまう
+    // （Finding4）。
+    const trimmed = v.trim()
+    if (trimmed.length === 0 || trimmed.length > MAX_DB_ID_LENGTH) return null
+    return trimmed
+  }
 
   const b = body as Record<string, unknown>
   const refs: DbRef[] = []
@@ -103,6 +115,20 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
+  // Finding2: レート制限をfeatureチェックより先に置く。逆順だと、機能を持たない呼び出し元は
+  // バケットを一切消費せずに「none」を返し続け、機能を持つ呼び出し元だけが21回目で429に
+  // なるという応答の違いから、20回きっかり叩くだけで機能の有無が判別できてしまう
+  // （callerが「機能が存在すること」自体を知る手段になる）。順序を入れ替え、かつ超過時の
+  // 応答も「引き取り対象なし」と見分けの付かない形にすることで、機能の有無に関わらず
+  // 同じ回数だけ叩けば同じ応答になるようにする。
+  //
+  // アプリ起動時に1回だけ自動で叩かれる想定の経路。本人が数回リトライしても
+  // 絶対に届かない上限にしてある（callbackの30回/10分・IP単位に対して、
+  // こちらはログイン済みユーザーID単位なのでやや絞って20回/10分）。
+  if (!(await rateLimitAsync(`notion-oauth-claim:${user.id}`, 20, 10 * 60 * 1000))) {
+    return NextResponse.json({ status: 'none' })
+  }
+
   // Finding3: 機能を持たない呼び出し元にも「機能が存在すること」自体を教えない。
   // start（ホームへ静かに戻す）・claimable（claimable:falseで判別不能）と同じ扱いにするため、
   // ここも「引き取り対象なし」と見分けの付かない応答にする（403やエラー文言は出さない）。
@@ -110,16 +136,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'none' })
   }
 
-  // アプリ起動時に1回だけ自動で叩かれる想定の経路。本人が数回リトライしても
-  // 絶対に届かない上限にしてある（callbackの30回/10分・IP単位に対して、
-  // こちらはログイン済みユーザーID単位なのでやや絞って20回/10分）。
-  if (!(await rateLimitAsync(`notion-oauth-claim:${user.id}`, 20, 10 * 60 * 1000))) {
-    return NextResponse.json({ error: 'しばらく時間をおいてから試してください' }, { status: 429 })
-  }
-
   const nowMs = Date.now()
-  // 自分の古い行を掃除する（cronを持たないため・§3a）。best-effort。
-  await purgeExpired(user.id, nowMs)
+  // 古い行全般を掃除する（cronを持たないため・§3a）。best-effort。
+  await purgeExpiredStates(nowMs)
 
   const row = await findClaimable(user.id, nowMs)
   if (!row || !row.token_enc) return NextResponse.json({ status: 'none' })

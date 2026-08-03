@@ -9,6 +9,7 @@
 
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import * as Sentry from '@sentry/nextjs'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 import { findStateOwnerEmail } from '@/lib/supabase/oauth-states'
 import { maskEmail } from '@/lib/oauth-state'
@@ -27,9 +28,21 @@ export default async function ConnectNotionDonePage({
   // auth-admin の getUserById まで走る（callback より重い）。callback と同じ
   // clientIp導出ロジックでIP単位に絞り、超過時は「未完了」の既存表示にそのまま倒す
   // （新しい文言・ステータスを作ると、それ自体がレート制限のオラクルになる）。
+  //
+  // Finding3: 上限が低いと、CGNAT配下の共有IPや、x-real-ip・x-forwarded-forが両方
+  // 欠けて全訪問者が'unknown'に集約されるケースで、無関係な訪問者まで「未完了」表示に
+  // 落ちてしまう。ここが守っているのは192bitのstate自体の推測不可能性であり、上限の
+  // 具体的な値はその防御にほぼ寄与しないため、同一IPが通常利用でまず到達しない値へ
+  // 引き上げる。
   const h = await headers()
   const ip = clientIpFromHeaders(h)
-  const withinLimit = await rateLimitAsync(`notion-connect-done-page:${ip}`, 30, 10 * 60 * 1000)
+  const withinLimit = await rateLimitAsync(`notion-connect-done-page:${ip}`, 500, 10 * 60 * 1000)
+  if (!withinLimit) {
+    // Finding3: 訪問者への見え方は変えず（このあと既存の「未完了」表示へそのまま倒れる）、
+    // 診断のためだけにサーバー側へ記録する。
+    console.warn(`[connect/notion/done] レート制限に到達: ip=${ip}`)
+    Sentry.captureMessage('connect/notion/done page レート制限に到達', { level: 'warning', extra: { ip } })
+  }
 
   if (e || !s || !withinLimit) {
     return (

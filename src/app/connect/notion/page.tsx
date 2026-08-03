@@ -6,6 +6,7 @@
 
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import * as Sentry from '@sentry/nextjs'
 import { buildAuthorizeUrl } from '@/lib/notion-oauth'
 import { redirectUriFromHost } from '@/lib/oauth-redirect'
 import { takePendingState } from '@/lib/supabase/oauth-states'
@@ -27,9 +28,24 @@ export default async function ConnectNotionPage({
   // ここで state の有効/無効を総当たりできてしまうため、callback と同じ
   // clientIp導出ロジック（rate-limit.ts）でIP単位に絞る。超過時は「使えません」の
   // 既存の失敗表示へそのまま倒し、レート制限による表示だと悟らせない。
+  //
+  // Finding3: 上限は30回/10分だと、日本のモバイル回線に多いCGNAT配下（同一IPを
+  // 数百〜数千ユーザーが共有しうる）や、x-real-ip・x-forwarded-forが両方欠けたときに
+  // 全訪問者が集約される'unknown'バケットで、無関係な訪問者を巻き込んで締め出しうる。
+  // しかも「使えません」表示は本当に無効なリンクと見分けが付かないため、訪問者は
+  // リトライしてさらにstateを消費し、事態を悪化させかねない。
+  // ここが守っているのは192bitの乱数（randomBytes(24)）であるstate自体の推測不可能性
+  // であり、上限の具体的な値はその防御にほぼ寄与しない。そのため、同一IPが通常の利用で
+  // まず到達しない値まで引き上げる。
   const h = await headers()
   const ip = clientIpFromHeaders(h)
-  const withinLimit = await rateLimitAsync(`notion-connect-page:${ip}`, 30, 10 * 60 * 1000)
+  const withinLimit = await rateLimitAsync(`notion-connect-page:${ip}`, 500, 10 * 60 * 1000)
+  if (!withinLimit) {
+    // Finding3: 訪問者への見え方は変えず（このあと既存の失敗表示へそのまま倒れる）、
+    // 診断のためだけにサーバー側へ記録する。
+    console.warn(`[connect/notion] レート制限に到達: ip=${ip}`)
+    Sentry.captureMessage('connect/notion page レート制限に到達', { level: 'warning', extra: { ip } })
+  }
 
   const { s } = await searchParams
   const state = s || ''

@@ -33,7 +33,7 @@ vi.mock('@/lib/supabase/early-access', () => ({ sessionHasFeature: hasFeatureMoc
 vi.mock('@/lib/supabase/oauth-states', () => ({
   findClaimable: findClaimableMock,
   markClaimed: markClaimedMock,
-  purgeExpired: vi.fn().mockResolvedValue(undefined),
+  purgeExpiredStates: vi.fn().mockResolvedValue(undefined),
   retireOtherCompleted: retireOtherCompletedMock,
 }))
 vi.mock('@/lib/notion-readability', () => ({ findUnreadableDatabases: unreadableMock }))
@@ -105,6 +105,16 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(findClaimableMock).not.toHaveBeenCalled()
   })
 
+  it('Finding2: featureを持たない呼び出し元も、feature判定の前にレート制限のバケットを消費する', async () => {
+    hasFeatureMock.mockResolvedValue(false)
+    await POST(req())
+    expect(rateLimitMock).toHaveBeenCalledWith(expect.stringContaining('u1'), expect.any(Number), expect.any(Number))
+    // レート制限が先に判定されることの確認（呼び出し順序）。
+    const rateLimitOrder = rateLimitMock.mock.invocationCallOrder[0]
+    const hasFeatureOrder = hasFeatureMock.mock.invocationCallOrder[0]
+    expect(rateLimitOrder).toBeLessThan(hasFeatureOrder)
+  })
+
   it('未ログインは401', async () => {
     getUserMock.mockResolvedValue({ data: { user: null } })
     const res = await POST(req())
@@ -125,11 +135,17 @@ describe('POST /api/notion/oauth/claim', () => {
     expect(getUserMock).not.toHaveBeenCalled()
   })
 
-  it('レート制限を超えたら429で何も読み書きしない（ユーザーID単位）', async () => {
+  it('Finding2: レート制限を超えたら「引き取り対象なし」と見分けの付かない応答を返し、feature判定にすら進まない（ユーザーID単位）', async () => {
     rateLimitMock.mockResolvedValue(false)
     const res = await POST(req())
-    expect(res.status).toBe(429)
+    const body = await res.json()
+    // 429やreasonフィールドで超過を示さない。featureを持たない場合と1バイトも違わない応答にする。
+    expect(res.status).toBe(200)
+    expect(body).toEqual({ status: 'none' })
     expect(findClaimableMock).not.toHaveBeenCalled()
+    // feature判定より先にレート制限で弾かれるため、sessionHasFeatureにすら到達しない
+    // （20回叩けば機能の有無に関わらず同じ応答になる＝存在を漏らさない）。
+    expect(hasFeatureMock).not.toHaveBeenCalled()
     expect(rateLimitMock).toHaveBeenCalledWith(expect.stringContaining('u1'), expect.any(Number), expect.any(Number))
   })
 
@@ -411,6 +427,69 @@ describe('Finding4: クライアントのローカルDB IDでreadabilityチェ�
         { role: 'medical', id: 'db1' },
         { role: 'reference', id: '' },
         { role: 'manual', id: '' },
+      ],
+    })
+  })
+
+  // Finding4: 検査はtrimした値に対して行うのに、返す値は生のままだった。
+  // これだと ' db1 ' がバリデーションを通過したうえで、サーバー側の同一ID 'db1' との
+  // de-dupに失敗し、前後の空白付きのままNotionへのリクエストに使われてしまう。
+  it('Finding4: 前後に空白があるIDはtrimして使う（サーバー側の同一IDとde-dupされる）', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    await POST(req({ notionMedicalDbId: '  db1  ' }))
+    // trimされて'db1'になり、サーバー側の'db1'と同一とみなされてde-dupされる
+    // （2件に増えない）。
+    expect(unreadableMock).toHaveBeenCalledWith({
+      token: 'ntn_new',
+      refs: [
+        { role: 'medical', id: 'db1' },
+        { role: 'reference', id: '' },
+        { role: 'manual', id: '' },
+      ],
+    })
+  })
+
+  it('Finding4: trimした結果が空文字になるだけの空白は無視する', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    await POST(req({ notionReferenceDbId: '   ' }))
+    expect(unreadableMock).toHaveBeenCalledWith({
+      token: 'ntn_new',
+      refs: [
+        { role: 'medical', id: 'db1' },
+        { role: 'reference', id: '' },
+        { role: 'manual', id: '' },
+      ],
+    })
+  })
+
+  // Finding4: 長さの上限が無いと、任意長の文字列がそのままバッファされ、
+  // Notionへの取得リクエストパスに渡されてしまう。128文字はNotionのdatabase_idに
+  // 十分すぎる余裕がある上限。
+  it('Finding4: 128文字を超えるIDは長すぎるとして無視する', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    const tooLong = 'a'.repeat(129)
+    await POST(req({ notionReferenceDbId: tooLong }))
+    expect(unreadableMock).toHaveBeenCalledWith({
+      token: 'ntn_new',
+      refs: [
+        { role: 'medical', id: 'db1' },
+        { role: 'reference', id: '' },
+        { role: 'manual', id: '' },
+      ],
+    })
+  })
+
+  it('Finding4: ちょうど128文字のIDは上限内として通す', async () => {
+    maybeSingleMock.mockResolvedValue(savedSettings({ notionToken: 'secret_old', notionMedicalDbId: 'db1' }))
+    const exactly128 = 'a'.repeat(128)
+    await POST(req({ notionReferenceDbId: exactly128 }))
+    expect(unreadableMock).toHaveBeenCalledWith({
+      token: 'ntn_new',
+      refs: [
+        { role: 'medical', id: 'db1' },
+        { role: 'reference', id: '' },
+        { role: 'manual', id: '' },
+        { role: 'reference', id: exactly128 },
       ],
     })
   })

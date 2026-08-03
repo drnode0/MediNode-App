@@ -14,7 +14,7 @@ const { takePendingMock, markCompletedMock, purgeExpiredMock, exchangeMock, isCr
 vi.mock('@/lib/supabase/oauth-states', () => ({
   takePendingState: takePendingMock,
   markCompleted: markCompletedMock,
-  purgeExpired: purgeExpiredMock,
+  purgeExpiredStates: purgeExpiredMock,
 }))
 vi.mock('@/lib/crypto', () => ({
   isCryptoReady: isCryptoReadyMock,
@@ -125,10 +125,12 @@ describe('GET /api/notion/oauth/callback（v2）', () => {
     expect(exchangeMock).not.toHaveBeenCalled()
   })
 
-  it('Finding1: 成功時はmarkCompleted成功直後に、state行の持ち主(user_id)でpurgeExpiredを呼ぶ', async () => {
+  it('Finding1: 成功時はmarkCompleted成功直後にpurgeExpiredStatesを呼ぶ（user_id等では絞らずnowMsだけを渡す＝全体スイープ）', async () => {
     const res = await GET(req('code=c1&state=st'))
     expect(loc(res).searchParams.get('s')).toBe('st')
-    expect(purgeExpiredMock).toHaveBeenCalledWith('u1', expect.any(Number))
+    // 引数は now の1個だけ。以前のように state 行の持ち主(user_id)を渡さない
+    // （渡していれば呼び出しは2引数になり、この単一引数マッチには一致しない）。
+    expect(purgeExpiredMock).toHaveBeenCalledWith(expect.any(Number))
   })
 
   it('Finding1: state が無効なら（交換に進まない）purgeExpiredは呼ばない', async () => {

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sessionHasFeature } from '@/lib/supabase/early-access'
-import { createPendingState, purgeExpired } from '@/lib/supabase/oauth-states'
+import { createPendingState, purgeExpiredStates } from '@/lib/supabase/oauth-states'
 
 function home(req: NextRequest): NextResponse {
   return NextResponse.redirect(new URL('/', req.url))
@@ -25,8 +25,9 @@ export async function GET(req: NextRequest) {
   if (!(await sessionHasFeature('easy_connect'))) return home(req)
 
   const nowMs = Date.now()
-  // 自分の古い行を掃除してから発行する（cronを持たないため・§3a）。
-  await purgeExpired(user.id, nowMs)
+  // 古い行全般を掃除してから発行する（cronを持たないため・§3a。ユーザー横断でスイープする
+  // 理由はFinding1参照＝oauth-states.tsのpurgeExpiredStates）。
+  await purgeExpiredStates(nowMs)
 
   const state = await createPendingState(user.id, nowMs)
   if (!state) return home(req)

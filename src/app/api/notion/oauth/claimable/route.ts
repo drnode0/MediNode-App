@@ -35,14 +35,20 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ claimable: false })
 
-  if (!(await sessionHasFeature('easy_connect'))) return NextResponse.json({ claimable: false })
-
+  // Finding2: レート制限をfeatureチェックより先に置く。逆順だと、機能を持たない呼び出し元は
+  // バケットを消費せず claimable:false を返し続け、機能を持つ呼び出し元だけが31回目で
+  // rate_limited になるという応答の違いから機能の有無が判別できてしまう。順序を入れ替え、
+  // 超過時の応答も reason フィールドを持たない同じ claimable:false にすることで、
+  // 機能の有無に関わらず同じ回数叩けば同じ応答になるようにする。
+  //
   // アプリ起動時に毎回叩かれる想定の経路（claimより先に呼ばれ、claimより高頻度になりうる）。
   // authコール・台帳読み取り・行クエリの3つを毎回行うため、claim（20回/10分）と同様に
   // ユーザーID単位で絞るが、通常の起動を絶対に締め出さないよう余裕を持たせる。
   if (!(await rateLimitAsync(`notion-oauth-claimable:${user.id}`, 30, 10 * 60 * 1000))) {
-    return NextResponse.json({ claimable: false, reason: 'rate_limited' })
+    return NextResponse.json({ claimable: false })
   }
+
+  if (!(await sessionHasFeature('easy_connect'))) return NextResponse.json({ claimable: false })
 
   const row = await findClaimable(user.id, Date.now())
   return NextResponse.json({ claimable: !!row?.token_enc })

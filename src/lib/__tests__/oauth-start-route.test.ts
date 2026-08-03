@@ -13,7 +13,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { g
 vi.mock('@/lib/supabase/early-access', () => ({ sessionHasFeature: hasFeatureMock }))
 vi.mock('@/lib/supabase/oauth-states', () => ({
   createPendingState: createStateMock,
-  purgeExpired: purgeMock,
+  purgeExpiredStates: purgeMock,
 }))
 
 import { NextRequest } from 'next/server'

@@ -10,12 +10,13 @@
 -- status の遷移は pending → completed → claimed の一方向のみ。
 -- token_enc は claim 済みの行では claim 時に null へ落とす。
 -- 猶予切れ（claimの猶予=CLAIM_WINDOW_MSを過ぎたcompleted行）のtoken_encも
--- oauth-states.ts の purgeExpired が同じユーザーのstart/claim呼び出し時にnullへ落とすが、
--- これは cron ではなく「そのユーザーが次に何か触ったとき」にしか走らない。
--- つまり、認可だけして二度とアプリへ戻らなかったユーザーの行は、その人が次にstart/claimを
--- 叩くまでtoken_encを保持し続ける（最終的には行自体の削除cutoffで消えるが、それは
--- もっと先である）。cronを持たない前提でのbest-effortな設計であり、無期限の残留を
--- 完全には防げないことを明記しておく。
+-- oauth-states.ts の purgeExpiredStates が start/claim/callback の呼び出し時に
+-- nullへ落とす。cron ではなく「誰かが何かを触ったとき」にしか走らないが、
+-- ここで言う「誰か」は呼び出し元本人に限らず oauth_states 全体が対象（Finding1）。
+-- 認可だけして二度とアプリへ戻らなかったユーザーの行も、他の誰かが次に
+-- start/claim/callback のいずれかを叩いた時点で一緒に掃除される。
+-- それでも「その誰か」が現れるまでの間は無期限にtoken_encが残りうるため、
+-- cronを持たない前提でのbest-effortな設計であることに変わりはない。
 
 create table if not exists public.oauth_states (
   state        text primary key,
