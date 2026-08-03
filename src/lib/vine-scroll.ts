@@ -25,7 +25,8 @@ export function groundY(aboveTotal: number): number {
 
 // 地下茎ゾーンの深さ（持ち込みがあるときだけシーンの下端に足す）。
 // 深さでは測らない——地下に目盛りは打たない（正典§7）。定数なのは件数に比例させないため。
-export const RHIZOME_DEPTH = 150
+// 150→90: オーナー実機FB「地下が広すぎる」（2026-08-03）。地下は気配でよく、主役は地上。
+export const RHIZOME_DEPTH = 90
 
 export function sceneHeightPx(aboveTotal: number, undergroundDepth = 0): number {
   return groundY(aboveTotal) + SCENE_BOTTOM_PAD + undergroundDepth

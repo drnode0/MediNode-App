@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { crossedLine, grewLine, leafCountLine, nextObjectLine, indexHeading, undergroundDoneLine, ALL_VINE_COPY } from '../vine-copy'
+import { crossedLine, grewLine, leafCountLine, nextObjectLine, indexHeading, undergroundDoneLine, sampleLabel, ALL_VINE_COPY } from '../vine-copy'
 import { SCENERY_ALMANAC } from '../vine-scenery'
 
 describe('文言', () => {
@@ -12,11 +12,11 @@ describe('文言', () => {
   it('ふえたときは出来事なので漢数字で受ける', () => {
     expect(grewLine('三')).toBe('葉が三枚ふえた')
   })
-  it('測るものは算用数字。中黒でなく空きで区切る', () => {
-    expect(leafCountLine(3, 274)).toBe('あたらしく 3枚　ぜんぶで 274枚')
+  it('葉の総数だけを短く（増分は賛が言う・測るものは算用数字）', () => {
+    expect(leafCountLine(274)).toBe('葉 274枚')
   })
-  it('増分ゼロなら増分の分を黙る（催促にしない）', () => {
-    expect(leafCountLine(0, 274)).toBe('ぜんぶで 274枚')
+  it('見本のラベルは一語（実データと偽装しない）', () => {
+    expect(sampleLabel()).toBe('見本')
   })
   it('次の実物は名前と実寸だけを並べる（測り方も「あと」の数字も乗せない）', () => {
     expect(nextObjectLine('スズメ', '10cm')).toBe('スズメ 10cm')

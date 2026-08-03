@@ -17,11 +17,15 @@ export function grewLine(kanjiCount: string): string {
   return `葉が${kanjiCount}枚ふえた`
 }
 
-// newLeaves は今回この画面を見てからの増分（前回視聴からの差分）であって、直近7日の「今週」ではない。
-// ゼロのときは増分の分を黙る。「あたらしく 0枚」は止まっている人への催促になる。
-export function leafCountLine(newLeaves: number, total: number): string {
-  const all = `ぜんぶで ${total}枚`
-  return newLeaves > 0 ? `あたらしく ${newLeaves}枚　${all}` : all
+// 葉の総数だけを短く。増分は賛（「葉が◯枚ふえた」）が言うので、ここで繰り返さない
+// （旧「あたらしく1枚　ぜんぶで3枚」はオーナー実機FBで不自然と判定・2026-08-03）。
+export function leafCountLine(total: number): string {
+  return `葉 ${total}枚`
+}
+
+// 初回の口上（見本の蔓）に添えるラベル。見本を実データと偽装しないための一語。
+export function sampleLabel(): string {
+  return '見本'
 }
 
 // 次の実物（穂先の上に淡く置く）。名前と実寸だけを並べる——測り方の添え書きも
@@ -48,8 +52,8 @@ export const ALL_VINE_COPY: string[] = [
   ...LADDER.map((m) => crossedLine(m.label)),
   crossedLine(FAR_DREAM.label),
   grewLine('三'),
-  leafCountLine(3, 274),
-  leafCountLine(0, 274),
+  leafCountLine(274),
+  sampleLabel(),
   ...LADDER.map((m) => nextObjectLine(m.label, m.sizeLabel)),
   nextObjectLine(FAR_DREAM.label, FAR_DREAM.sizeLabel),
   indexHeading(),
