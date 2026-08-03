@@ -3,7 +3,7 @@ import { RotateCcw, Check, ExternalLink, BookOpen } from 'lucide-react'
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
 import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
-import { recordTowerEvent, recallKind } from '@/lib/tower-steps'
+import { recordTowerEvent, recallKindFor, loadTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordCqView } from '@/lib/cq-views'
 import { stripLeadingEmoji } from '@/lib/labels'
@@ -21,8 +21,9 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const answer = (ok: boolean) => {
     if (isTowerEnabled()) {
       if (ok) {
-        // 知の塔: recordQuizResultより先に判定する（記録後だと「いま初めてok」が読めない）
-        const kind = recallKind(getQuizStat(hit.objectID), new Date().toISOString())
+        // 知の塔: recordQuizResultより先に判定する（記録後だと「いま初めてok」が読めない）。
+        // 台帳を見る版＝地下に沈んだ知識もクイズで思い出せば生まれ直す（正典§7）
+        const kind = recallKindFor(loadTowerState(), hit.objectID, getQuizStat(hit.objectID), new Date().toISOString())
         if (kind) recordTowerEvent({ id: hit.objectID, kind, genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
       } else {
         // 知の蔓: 「まだ」は芽（高さなし・正典§9）。(id,'attempt')は一生に1回＝連打で増えない
