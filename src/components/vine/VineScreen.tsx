@@ -33,6 +33,8 @@ function loadAllQuizStats(): Record<string, import('@/lib/quiz-srs').QuizStat> {
 const INTRO_KEY = 'medinode_vine_intro_seen_v1'
 // 見本は20枚（48枚は多すぎた＝オーナーFB）。カタツムリ（18枚）までの4つの背くらべが入る
 const DEMO_TOTAL = 20
+// 段2の「駆け上がり」用＝育ちきった見本。500枚でヒト（1.7m）まで越えている
+const DEMO_TALL = 500
 const DEMO_KINDS = ['recall', 'read', 'wrote', 'recall', 'recall', 'repolish'] as const
 
 export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
@@ -186,6 +188,12 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     })), [],
   )
   const demoVisuals = useMemo(() => buildLeafVisuals(demoSteps, {}, nowIso), [demoSteps, nowIso])
+  const demoTallSteps = useMemo<import('@/lib/tower-steps').Step[]>(
+    () => Array.from({ length: DEMO_TALL }, (_, i) => ({
+      id: `demot-${i}`, kind: DEMO_KINDS[i % DEMO_KINDS.length], at: '', genre: '', title: '',
+    })), [],
+  )
+  const demoTallVisuals = useMemo(() => buildLeafVisuals(demoTallSteps, {}, nowIso), [demoTallSteps, nowIso])
   // 段1: 見本がゆっくり伸びる（6秒・溜めてから）。reduced-motionは一息で
   useEffect(() => {
     if (introStep !== 1) return
@@ -219,15 +227,35 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
       return s >= 0 && s < 3 ? s + 1 : s
     })
   }, [])
-  // 口上のあいだは見本の穂先を追う（段0は地面の芽）
+  // 口上のあいだは見本の穂先を追う（段0は地面の芽・段2は駆け上がりが受け持つ）
   useEffect(() => {
-    if (!intro) return
+    if (!intro || introStep >= 2) return
     const el = scrollRef.current
     if (!el) return
     if (introStep === 0) { el.scrollTop = el.scrollHeight; return }
     const reveal = Math.max(0, Math.min(DEMO_TOTAL, Math.floor(introLeaves)))
     el.scrollTop = Math.max(0, leafY(reveal, DEMO_TOTAL) - viewportH * 0.55)
   }, [intro, introStep, introLeaves, viewportH])
+  // 段2: 育ちきった見本を地面から穂先まで駆け上がる——アリ→ネコ→ヒトの印を通過する旅の予告
+  useEffect(() => {
+    if (introStep !== 2) return
+    const el = scrollRef.current
+    if (!el) return
+    const max = () => Math.max(0, el.scrollHeight - el.clientHeight)
+    if (reduced) { el.scrollTop = 0; return }
+    el.scrollTop = max()
+    const DUR = 5200
+    let raf = 0
+    const t0 = performance.now()
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / DUR)
+      const e = p * p * (3 - 2 * p)
+      el.scrollTop = (1 - e) * max()
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [introStep, reduced])
 
   return (
     <div
@@ -266,15 +294,18 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
             }}
           >
             {intro ? (
-              // 初回の口上: 段0=芽だけ、段1以降=見本の蔓。段3で薄れて自分の蔓へ
+              // 初回の口上: 段0=芽、段1=伸びる見本、段2〜3=育ちきった見本（駆け上がり→薄れて自分の蔓へ）
               <div style={{ opacity: introStep === 3 ? 0 : 1, transition: 'opacity 1300ms ease' }}>
                 <VineScene
-                  leavesNow={introStep === 0 ? 0 : introLeaves} from={0}
-                  to={introStep === 0 ? 0 : DEMO_TOTAL}
-                  visuals={demoVisuals} spotlightIds={[]} steps={demoSteps}
+                  leavesNow={introStep === 0 ? 0 : introStep >= 2 ? DEMO_TALL : introLeaves}
+                  from={introStep >= 2 ? DEMO_TALL : 0}
+                  to={introStep === 0 ? 0 : introStep >= 2 ? DEMO_TALL : DEMO_TOTAL}
+                  visuals={introStep >= 2 ? demoTallVisuals : demoVisuals}
+                  spotlightIds={[]}
+                  steps={introStep >= 2 ? demoTallSteps : demoSteps}
                   crossedNow={false}
                   onLeafTap={() => {}}
-                  scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping
+                  scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={introStep === 1}
                   undergroundCount={0} undergroundClearedAt=""
                   pendingBuds={0}
                   scenery={[]}

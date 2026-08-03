@@ -7,11 +7,11 @@
 import { useMemo, type CSSProperties } from 'react'
 import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
-import { formatHeight, heightMmFromLeaves } from '@/lib/vine-ladder'
+import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
 import { leafY, groundY, sceneHeightPx, visibleRange, laneMarks, RHIZOME_DEPTH } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
-import { undergroundDoneLine } from '@/lib/vine-copy'
+import { undergroundDoneLine, nextObjectLine } from '@/lib/vine-copy'
 import styles from './vine.module.css'
 
 const VINE_SEED = 42
@@ -38,8 +38,10 @@ const smooth = (a: number, b: number, t: number) => {
 }
 
 // 実物の絵（手元にある分だけ）。無い実物は朱線と文字のまま——絵が揃うたびここに足す。
-// 残り: アリ・テントウムシ（2026-08-03時点で未生成）
+// 序盤8実物はこれで全部そろった（2026-08-03）
 const MILESTONE_ART: Record<string, { src: string; h: number }> = {
+  'アリ': { src: '/vine/object_ari.png', h: 13 },
+  'テントウムシ': { src: '/vine/object_tentoumushi.png', h: 14 },
   'ドングリ': { src: '/vine/object_donguri.png', h: 22 },
   'カタツムリ': { src: '/vine/object_katatsumuri.png', h: 22 },
   '湯のみ': { src: '/vine/object_yunomi.png', h: 30 },
@@ -106,6 +108,10 @@ export function VineScene({
   const doneY = undergroundClearedAt && undergroundCount > 0 ? gY + 18 : null
   const lane = useMemo(() => laneMarks(to, scenery, doneY), [to, scenery, doneY])
   const newLeaves = to - from
+  // 次の実物（伸びているときだけ・正典§7）。絵があれば穂先の先にうっすら立たせる——旅のつづきの予告
+  const next = nextMilestone(to)
+  const nextArt = MILESTONE_ART[next.label]
+  const showNext = newLeaves > 0 && to > 0
 
   // 葉の番号 → 蔓の中心線上の点
   const stemXAt = (index: number) => pointAtHeight(path, gY - leafY(index, to)).x
@@ -308,6 +314,13 @@ export function VineScene({
             {formatHeight(heightMmFromLeaves(Math.floor(leavesNow)))}
           </text>
         )}
+
+        {/* 次の実物: 穂先の上の空間に名前と実寸だけ淡く（「あと◯◯」の数字は出さない＝追い立てない） */}
+        {showNext && (
+          <text x={stemXAt(to)} y={24} textAnchor="middle" fontSize={10} fill={USUZUMI} opacity={0.55}>
+            {nextObjectLine(next.label, next.sizeLabel)}
+          </text>
+        )}
       </svg>
 
       {/* 手前の葉・穂先・まだの芽 */}
@@ -342,6 +355,18 @@ export function VineScene({
             </div>
           )
         })}
+
+        {/* 次の実物のゴースト: まだ越えていない相手が、穂先の先にうっすら待っている */}
+        {showNext && nextArt && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={nextArt.src} alt=""
+            style={{
+              position: 'absolute', height: nextArt.h * 1.3, left: stemXAt(to) + 34,
+              top: Math.max(2, 46 - nextArt.h * 1.3), opacity: 0.3,
+            }}
+          />
+        )}
 
         {/* 実物の絵（比較対象を絵で立たせる）。絵が手元にある実物だけ、印の線の上に置く */}
         {lane.map((m, i) => {
