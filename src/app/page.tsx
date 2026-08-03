@@ -91,7 +91,7 @@ const OAuthFinish = dynamicImport(
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
 import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
-import { isEasyConnectOn } from '@/lib/easy-connect-flag'
+import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -2679,13 +2679,20 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search)
     // フラグOFF（＝かんたん接続は調整中）のときは受け口ごと閉じる。
     // 前回の試行で残ったマーカーがあると仕上げシートが開きっぱなしになるため、ここで掃除する。
-    if (!isEasyConnectOn()) {
+    if (!isEasyConnectVisible()) {
       try { sessionStorage.removeItem(OAUTH_FINISH_MARKER) } catch {}
       if (params.get('oauth') || params.get('oauthError')) {
         window.history.replaceState(null, '', window.location.pathname)
       }
       return
     }
+    // 注: このoauth==='notion-done'分岐はv1（Cookie/セッション方式）向けの受け口で、
+    // v2のcallback（/api/notion/oauth/callback）はもう ?oauth=notion-done を発行しない
+    // （v2はセッションを持たないブラウザでも完走できるよう、/connect/notion/done へ
+    // ?s=<state> を付けてリダイレクトする方式に変わったため）。今のところ現実には
+    // 到達しない分岐だが、次のクライアント配線（claim/claimableの呼び出し）を実装する
+    // 段でこの受け口ごと書き直す前提で、あえて残してある。ここを「生きているコード」だと
+    // 誤読しないこと。
     if (params.get('oauth') === 'notion-done') {
       try { sessionStorage.setItem(OAUTH_FINISH_MARKER, '1') } catch {}
       window.history.replaceState(null, '', window.location.pathname)

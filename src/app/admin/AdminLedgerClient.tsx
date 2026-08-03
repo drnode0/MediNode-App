@@ -116,14 +116,13 @@ const PREMIUM_ELIGIBLE_KINDS: MemberKind[] = ['premium', 'stripe_trial', 'trial'
 
 // 先行体験の機能ラベル。何が開くのか読み取れるよう、省略せずに書く。
 // note はタッチ端末でも読める可視サブテキスト（title属性はタップでは出ないため）。
-// 該当する機能が無ければ省略してよい。将来 easy_connect の配線が終わったら、この note を
-// 削除するだけで下の表示ロジックには手を入れずに済む。
+// 該当する機能が無ければ省略してよい。
 const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: string; note?: string }> = [
   {
     key: 'easy_connect',
     label: 'かんたん接続（OAuth検証）',
-    hint: 'Notionの認可でつなぐ新方式。実機検証用。このトグル自体はまだ配線されておらず、実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
-    note: 'このトグルはまだ配線されていない。実際のゲートは環境変数 NEXT_PUBLIC_EASY_CONNECT のまま',
+    hint: 'Notionの認可でつなぐ新方式。実機検証用。表示可否はこのトグル（台帳）が正で、ビルド時の環境変数フラグは廃止済み',
+    note: 'このトグルが実際のゲート。ビルド時の環境変数フラグは廃止済み',
   },
   { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
   { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },

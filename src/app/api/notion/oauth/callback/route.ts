@@ -1,106 +1,84 @@
-// かんたん接続の出口。state検証→コードをトークンに交換→既存の暗号化設定保存
-// （user_settings）へ notionToken としてマージ→アプリへ戻す。
-// クライアントは既存のSettingsSync（サーバー優先のlast-write-wins）で受け取るため、
-// ここで updated_at を now にすることが「復元される」ための条件になる。
+// かんたん接続の出口。v1と違い Cookie もセッションも見ない。
+//
+// なぜか: スタンドアロンPWAのストレージはSafari本体と別なので、PWAから認可へ出ると
+// その先のブラウザに MediNode のセッションが無い。v1はここでユーザーを特定していたため、
+// 認可がどこで完了してもログイン扱いにならず完走できなかった（設計書§1の原因②）。
+//
+// 代わりに state が唯一の鍵になる。だから無効な state は理由を出し分けず、すべて同じ
+// 静かなエラーへ倒す（列挙攻撃に情報を返さない・§6）。応答の「内容」（status・headers・
+// location）はすべての失敗経路で同一にしてある。ただし「レイテンシ」は同一ではない。
+// 無効な state は takePendingState 1回のDB読み取りだけで返る（実測 ~1ms）。有効な state
+// は Notion への実HTTP交換まで進んでから同じ失敗に倒れる（実測 ~150〜500ms）。
+// これは意図して許容している差である。唯一の外部副作用（トークン交換）を state 検証
+// の後ろに置くのが正しい順序であり、state 自体は192bit（randomBytes(24)）のCSPRNGな
+// ので、この時間差は「有効な state が存在した」ことを裏付けるだけで、総当たりによる
+// 列挙には使えない。今後この一様性を「内容もレイテンシも完全に同一」と誤解しないこと。
+//
+// そして成功してもトークンは user_settings には入れない。oauth_states に暗号化して置き、
+// 本人のログイン済みセッションからの claim を経て初めて設定へ入る（セッション固定対策）。
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
-import { exchangeCode, STATE_COOKIE } from '@/lib/notion-oauth'
-import { isEasyConnectOn } from '@/lib/easy-connect-flag'
+import { encryptSettings, isCryptoReady } from '@/lib/crypto'
+import { exchangeCode } from '@/lib/notion-oauth'
+import { redirectUriFromRequestUrl } from '@/lib/oauth-redirect'
+import { takePendingState, markCompleted, purgeExpiredStates } from '@/lib/supabase/oauth-states'
+import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 
-// サーバーに設定行がまだ無いユーザー向けの土台（クライアントのsaveSection既定と同型）。
-const DEFAULT_SETTINGS = {
-  searchMode: 'notion',
-  notionToken: '', notionMedicalDbId: '', notionReferenceDbId: '', notionManualDbId: '',
-  algoliaAppId: '', algoliaSearchKey: '', algoliaAdminKey: '', algoliaIndex: 'medical_knowledge',
-  teamLabel: '', teamNotionToken: '', teamNotionMedicalDbId: '', teamNotionReferenceDbId: '', teamNotionManualDbId: '',
-  subscriptionSearchKey: '', subscriptionAppId: '', subscriptionIndex: '',
-  propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '',
+function done(req: NextRequest, params: Record<string, string>): NextResponse {
+  const url = new URL('/connect/notion/done', req.url)
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  return NextResponse.redirect(url)
 }
 
-function back(req: NextRequest, query: string): NextResponse {
-  const res = NextResponse.redirect(new URL(`/?${query}`, req.url))
-  res.cookies.set(STATE_COOKIE, '', { httpOnly: true, maxAge: 0, path: '/' })
-  return res
+// 失敗はすべてこの1本に集約する。理由をURLに出さない。
+function quietError(req: NextRequest): NextResponse {
+  return done(req, { e: '1' })
 }
 
 export async function GET(req: NextRequest) {
-  // 調整中は認可応答も受け取らない。保存済み設定を書き換えないことを最優先にする。
-  if (!isEasyConnectOn()) {
-    return back(req, '')
+  // この経路はセッション不要＝実質だれでも叩ける唯一の入口なので、まずIP単位で絞る。
+  // 超過時も quietError と同じ静かなリダイレクトを返す。429等の別ステータスにすると、
+  // それ自体が「stateを尽きるまで叩けた／叩けなかった」を示すオラクルになり、
+  // このルート全体が拠って立つ「無効stateは何も語らない」という前提を崩してしまう。
+  // 上限は本人が数回やり直しても絶対に引っかからない値にしてある
+  // （他の未認証公開ルートである /api/referral と同じ 30回/10分を踏襲）。
+  if (!(await rateLimitAsync(`notion-oauth-callback:${clientIp(req)}`, 30, 10 * 60 * 1000))) {
+    return quietError(req)
   }
 
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   const clientSecret = process.env.NOTION_OAUTH_CLIENT_SECRET
-  if (!clientId || !clientSecret || !isCryptoReady()) {
-    return back(req, 'oauthError=unconfigured')
-  }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return back(req, 'oauthError=login')
+  if (!clientId || !clientSecret || !isCryptoReady()) return quietError(req)
 
   const params = req.nextUrl.searchParams
-  if (params.get('error')) {
-    // ユーザーが認可画面で「キャンセル」した場合など。エラー扱いにせず静かに戻す。
-    return back(req, 'oauthError=denied')
-  }
+  // 認可画面でキャンセルした場合もここに来る。エラー扱いにはするが理由は出さない。
+  if (params.get('error')) return quietError(req)
+
   const code = params.get('code') || ''
   const state = params.get('state') || ''
-  const cookieState = req.cookies.get(STATE_COOKIE)?.value || ''
-  if (!code || !state || !cookieState || state !== cookieState) {
-    return back(req, 'oauthError=state')
-  }
+  if (!code || !state) return quietError(req)
+
+  const row = await takePendingState(state, Date.now())
+  if (!row) return quietError(req)
 
   let token
   try {
-    const redirectUri = new URL('/api/notion/oauth/callback', req.url).toString()
+    const redirectUri = redirectUriFromRequestUrl(req.url, req.headers.get('x-forwarded-proto'))
     token = await exchangeCode({ code, redirectUri, clientId, clientSecret })
   } catch {
-    return back(req, 'oauthError=exchange')
+    return quietError(req)
   }
 
-  // 既存のサーバー設定を読み、notionToken系だけ差し替えて保存する（他項目は温存）。
-  // 「行が無い」場合だけDEFAULTからの新規作成を許可する。読み取り自体の失敗（DB一時エラー等）や
-  // 既存行の復号失敗（鍵ローテーション窓など）でDEFAULTへフォールバックすると、
-  // 既存の全設定をDEFAULTで上書きしたまま「成功」扱いになってしまうため、その場合は書き込まず中断する。
-  const admin = createAdminClient()
-  let base: Record<string, unknown> = { ...DEFAULT_SETTINGS }
-  const { data, error: readError } = await admin
-    .from('user_settings')
-    .select('settings_enc')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (readError) return back(req, 'oauthError=save')
-  if (data?.settings_enc) {
-    try {
-      const { json } = decryptSettingsDetailed(data.settings_enc)
-      base = { ...DEFAULT_SETTINGS, ...JSON.parse(json) }
-    } catch {
-      // 復号できない既存行をDEFAULTで上書きすると全設定を失う。書き込まずに中断する。
-      return back(req, 'oauthError=save')
-    }
-  }
+  // トークン一式をそのまま暗号化して置く（claim 側で復号して設定へマージする）。
+  const ok = await markCompleted(state, encryptSettings(JSON.stringify(token)), new Date().toISOString())
+  if (!ok) return quietError(req)
 
-  const merged = {
-    ...base,
-    notionToken: token.accessToken,
-    notionAuthKind: 'oauth',
-    notionWorkspaceName: token.workspaceName,
-    ...(token.duplicatedTemplateId ? { notionDuplicatedTemplateId: token.duplicatedTemplateId } : {}),
-  }
+  // Finding1: 古い行（認可だけして戻らなかった過去の試行など）を掃除する。
+  // start・claimの2箇所だけでは「認可して二度と戻らない」ユーザー自身のセッションが
+  // 二度と来ないケースを一切拾えないため、新しい認可が成立するたびにも同じ掃除を差し込む
+  // （誰の認可であっても、他ユーザー分も含めて全体をスイープする＝oauth-states.ts参照）。
+  // purgeExpiredStatesは例外を投げないので応答内容にもタイミング以外は影響しない
+  // （成功応答のみに掛かる処理であり、失敗経路の一様性には触れない）。
+  await purgeExpiredStates(Date.now())
 
-  try {
-    const { error } = await admin
-      .from('user_settings')
-      .upsert(
-        { user_id: user.id, settings_enc: encryptSettings(JSON.stringify(merged)), updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' },
-      )
-    if (error) return back(req, 'oauthError=save')
-  } catch {
-    return back(req, 'oauthError=save')
-  }
-
-  return back(req, 'oauth=notion-done')
+  return done(req, { s: state })
 }

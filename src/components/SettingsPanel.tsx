@@ -17,7 +17,7 @@ import {
 import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
-import { isEasyConnectOn } from '@/lib/easy-connect-flag'
+import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
 import { parseErrorMessage } from '@/lib/connection-errors'
@@ -1084,7 +1084,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               {(() => {
                 const authSettings = getSettings()
                 if (authSettings?.notionAuthKind !== 'oauth') return null
-                if (!isEasyConnectOn()) {
+                if (!isEasyConnectVisible()) {
                   return (
                     <div className="bg-amber-50 dark:bg-amber-900/25 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-1.5 text-xs text-amber-800 dark:text-amber-200">
                       <p className="font-semibold">かんたん接続は調整中のため止めています</p>

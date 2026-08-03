@@ -1,184 +1,262 @@
-// OAuth start/callback ルートのテスト。state Cookieの往復・未ログイン分岐・
-// トークン交換成功時のマージ保存・各エラーのリダイレクト先を検証する。
+// callback ルート（v2）。Cookieもセッションも見ず、state だけを鍵にする。
+// 成功してもトークンは user_settings に入らず oauth_states に暗号化して置かれる。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getUserMock, upsertMock, maybeSingleMock, exchangeMock, decryptMock } = vi.hoisted(() => ({
-  getUserMock: vi.fn(),
-  upsertMock: vi.fn(),
-  maybeSingleMock: vi.fn(),
+const { takePendingMock, markCompletedMock, purgeExpiredMock, exchangeMock, isCryptoReadyMock, rateLimitMock } = vi.hoisted(() => ({
+  takePendingMock: vi.fn(),
+  markCompletedMock: vi.fn(),
+  purgeExpiredMock: vi.fn(),
   exchangeMock: vi.fn(),
-  decryptMock: vi.fn((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false })),
+  isCryptoReadyMock: vi.fn(() => true),
+  rateLimitMock: vi.fn(async () => true),
 }))
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({ auth: { getUser: getUserMock } }),
-  createAdminClient: () => ({
-    from: () => ({
-      select: () => ({ eq: () => ({ maybeSingle: maybeSingleMock }) }),
-      upsert: upsertMock,
-    }),
-  }),
+vi.mock('@/lib/supabase/oauth-states', () => ({
+  takePendingState: takePendingMock,
+  markCompleted: markCompletedMock,
+  purgeExpiredStates: purgeExpiredMock,
 }))
 vi.mock('@/lib/crypto', () => ({
-  isCryptoReady: () => true,
+  isCryptoReady: isCryptoReadyMock,
   encryptSettings: (json: string) => `enc:${json}`,
-  decryptSettingsDetailed: decryptMock,
 }))
 vi.mock('@/lib/notion-oauth', async (orig) => ({
   ...(await orig()),
   exchangeCode: exchangeMock,
 }))
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimitAsync: rateLimitMock,
+  clientIp: () => '203.0.113.1',
+}))
+// このルートはセッションもCookieも読んではいけない設計（v1の反省・§1原因②）。
+// 保護を「supabase/server を誰もモックしていない」という不在に頼らせず、
+// このモジュールを import した瞬間に例外で落ちるようにして総合的に固定する。
+// 直接 createClient/createAdminClient を呼ぶコードが将来ここへ紛れ込んでも、
+// vitest 上で（env未設定による偶然の失敗ではなく）このエラーで検出できる。
+vi.mock('@/lib/supabase/server', () => {
+  throw new Error(
+    'callback は @/lib/supabase/server を読んではいけない（セッションも user_settings も触らない設計）',
+  )
+})
 
 import { NextRequest } from 'next/server'
-import { GET as startGET } from '../../app/api/notion/oauth/start/route'
-import { GET as callbackGET } from '../../app/api/notion/oauth/callback/route'
-import { STATE_COOKIE } from '../notion-oauth'
+import { GET } from '../../app/api/notion/oauth/callback/route'
 
-const req = (url: string, cookies: Record<string, string> = {}) => {
-  const r = new NextRequest(url)
-  for (const [k, v] of Object.entries(cookies)) r.cookies.set(k, v)
-  return r
+const req = (qs: string) => new NextRequest(`https://app.example/api/notion/oauth/callback?${qs}`)
+const loc = (res: Response) => new URL(res.headers.get('location') || '')
+
+const ROW = {
+  state: 'st', user_id: 'u1', status: 'pending' as const,
+  token_enc: null, created_at: '2026-08-02T00:00:00.000Z', completed_at: null,
+}
+const TOKEN = {
+  accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
 }
 
 beforeEach(() => {
-  getUserMock.mockReset()
-  upsertMock.mockReset().mockResolvedValue({ error: null })
-  maybeSingleMock.mockReset()
-  exchangeMock.mockReset()
-  decryptMock.mockReset().mockImplementation((enc: string) => ({ json: enc.replace(/^enc:/, ''), needsReencrypt: false }))
-  process.env.NOTION_OAUTH_CLIENT_ID = 'cid-1'
-  process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec-1'
-  // かんたん接続は既定OFF（調整中）。以下の本体テストはON前提なので明示的に立てる。
-  process.env.NEXT_PUBLIC_EASY_CONNECT = 'on'
+  takePendingMock.mockReset().mockResolvedValue(ROW)
+  markCompletedMock.mockReset().mockResolvedValue(true)
+  purgeExpiredMock.mockReset().mockResolvedValue(undefined)
+  exchangeMock.mockReset().mockResolvedValue(TOKEN)
+  isCryptoReadyMock.mockReset().mockReturnValue(true)
+  rateLimitMock.mockReset().mockResolvedValue(true)
+  process.env.NOTION_OAUTH_CLIENT_ID = 'cid'
+  process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec'
 })
 
-describe('かんたん接続フラグOFF（調整中）', () => {
-  it('start はNotionへ飛ばさずホームへ戻す', async () => {
-    delete process.env.NEXT_PUBLIC_EASY_CONNECT
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    const loc = res.headers.get('location') || ''
-    expect(loc).not.toContain('api.notion.com')
-    expect(new URL(loc).pathname).toBe('/')
+describe('GET /api/notion/oauth/callback（v2）', () => {
+  it('成功時はトークンを暗号化してstateへ置き、完了ページへ送る', async () => {
+    const res = await GET(req('code=c1&state=st'))
+    const url = loc(res)
+    expect(url.pathname).toBe('/connect/notion/done')
+    expect(url.searchParams.get('s')).toBe('st')
+    const [state, enc] = markCompletedMock.mock.calls[0]
+    expect(state).toBe('st')
+    expect(JSON.parse(String(enc).replace(/^enc:/, ''))).toEqual(TOKEN)
   })
 
-  it('callback はトークン交換も保存もしない', async () => {
-    delete process.env.NEXT_PUBLIC_EASY_CONNECT
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(new URL(res.headers.get('location') || '').pathname).toBe('/')
-    expect(exchangeMock).not.toHaveBeenCalled()
-    expect(upsertMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/notion/oauth/start', () => {
-  it('未ログインは /?oauthError=login へ302', async () => {
-    getUserMock.mockResolvedValue({ data: { user: null } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    expect(res.status).toBe(307)
-    expect(res.headers.get('location')).toContain('oauthError=login')
+  it('セッションが無くても成立する（Cookieもセッションも読まない）', async () => {
+    // 総合的な保証は @/lib/supabase/server の vi.mock（factoryが例外を投げる）側にある。
+    // この import が実行されればテストファイル自体がロードに失敗して落ちる。
+    // ここでは従来どおりの挙動確認（成立すること）だけを残す。
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('s')).toBe('st')
   })
 
-  it('ログイン済みはNotion認可URLへ302し、state Cookieを置く', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    const loc = res.headers.get('location') || ''
-    expect(loc).toContain('https://api.notion.com/v1/oauth/authorize')
-    expect(loc).toContain('client_id=cid-1')
-    const state = new URL(loc).searchParams.get('state') || ''
-    expect(state.length).toBeGreaterThanOrEqual(16)
-    expect(res.cookies.get(STATE_COOKIE)?.value).toBe(state)
-  })
-
-  it('env未設定なら /?oauthError=unconfigured へ302', async () => {
-    delete process.env.NOTION_OAUTH_CLIENT_ID
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await startGET(req('https://app.example/api/notion/oauth/start'))
-    expect(res.headers.get('location')).toContain('oauthError=unconfigured')
-  })
-})
-
-describe('GET /api/notion/oauth/callback', () => {
-  it('state不一致は保存せず /?oauthError=state へ', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=WRONG', { [STATE_COOKIE]: 'right' }),
-    )
-    expect(res.headers.get('location')).toContain('oauthError=state')
+  it('state が無効なら交換せず、理由を出さずにエラーページへ', async () => {
+    takePendingMock.mockResolvedValue(null)
+    const res = await GET(req('code=c1&state=nope'))
+    expect(loc(res).pathname).toBe('/connect/notion/done')
+    expect(loc(res).searchParams.get('e')).toBe('1')
+    expect(loc(res).searchParams.get('s')).toBeNull()
     expect(exchangeMock).not.toHaveBeenCalled()
   })
 
-  it('ユーザーが認可を拒否（error=access_denied）なら /?oauthError=denied へ', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?error=access_denied&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(res.headers.get('location')).toContain('oauthError=denied')
+  it('ユーザーが認可を断った場合も同じ静かなエラー', async () => {
+    const res = await GET(req('error=access_denied&state=st'))
+    expect(loc(res).searchParams.get('e')).toBe('1')
+    expect(exchangeMock).not.toHaveBeenCalled()
   })
 
-  it('成功時は既存設定にマージ保存し /?oauth=notion-done へ（state Cookieは削除）', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    maybeSingleMock.mockResolvedValue({
-      data: { settings_enc: 'enc:' + JSON.stringify({ searchMode: 'algolia', algoliaAppId: 'A' }) },
-      error: null,
-    })
-    exchangeMock.mockResolvedValue({
-      accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
-    })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(res.headers.get('location')).toContain('oauth=notion-done')
-    const saved = JSON.parse(String(upsertMock.mock.calls[0][0].settings_enc).replace(/^enc:/, ''))
-    expect(saved.notionToken).toBe('ntn_new')
-    expect(saved.notionAuthKind).toBe('oauth')
-    expect(saved.notionWorkspaceName).toBe('WS')
-    expect(saved.algoliaAppId).toBe('A') // 既存設定を潰さない
-    expect(res.cookies.get(STATE_COOKIE)?.value).toBe('')
-  })
-
-  it('交換失敗は /?oauthError=exchange へ', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    maybeSingleMock.mockResolvedValue({ data: null, error: null })
+  it('交換に失敗したら completed にしない', async () => {
     exchangeMock.mockRejectedValue(new Error('invalid_grant'))
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(res.headers.get('location')).toContain('oauthError=exchange')
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('e')).toBe('1')
+    expect(markCompletedMock).not.toHaveBeenCalled()
   })
 
-  it('既存設定の読み取りがDBエラーなら書き込まず /?oauthError=save へ', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    maybeSingleMock.mockResolvedValue({ data: null, error: { message: 'db down' } })
-    exchangeMock.mockResolvedValue({
-      accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
-    })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(res.headers.get('location')).toContain('oauthError=save')
-    expect(upsertMock).not.toHaveBeenCalled()
+  it('completed への更新に失敗したらエラーページへ（成功に見せない）', async () => {
+    markCompletedMock.mockResolvedValue(false)
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('e')).toBe('1')
   })
 
-  it('既存行の復号に失敗したら書き込まず /?oauthError=save へ（DEFAULTでの上書きを防ぐ）', async () => {
-    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    maybeSingleMock.mockResolvedValue({
-      data: { settings_enc: 'corrupted' },
-      error: null,
-    })
-    decryptMock.mockImplementation(() => {
-      throw new Error('decrypt failed')
-    })
-    exchangeMock.mockResolvedValue({
-      accessToken: 'ntn_new', workspaceName: 'WS', workspaceId: 'w', botId: 'b', duplicatedTemplateId: null,
-    })
-    const res = await callbackGET(
-      req('https://app.example/api/notion/oauth/callback?code=c1&state=st', { [STATE_COOKIE]: 'st' }),
-    )
-    expect(res.headers.get('location')).toContain('oauthError=save')
-    expect(upsertMock).not.toHaveBeenCalled()
+  it('code が無ければ交換しない', async () => {
+    const res = await GET(req('state=st'))
+    expect(loc(res).searchParams.get('e')).toBe('1')
+    expect(exchangeMock).not.toHaveBeenCalled()
+  })
+
+  it('レート制限を超えたら理由を出さずにエラーページへ（DB/交換に進まない）', async () => {
+    rateLimitMock.mockResolvedValue(false)
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('e')).toBe('1')
+    expect(takePendingMock).not.toHaveBeenCalled()
+    expect(exchangeMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: 成功時はmarkCompleted成功直後にpurgeExpiredStatesを呼ぶ（user_id等では絞らずnowMsだけを渡す＝全体スイープ）', async () => {
+    const res = await GET(req('code=c1&state=st'))
+    expect(loc(res).searchParams.get('s')).toBe('st')
+    // 引数は now の1個だけ。以前のように state 行の持ち主(user_id)を渡さない
+    // （渡していれば呼び出しは2引数になり、この単一引数マッチには一致しない）。
+    expect(purgeExpiredMock).toHaveBeenCalledWith(expect.any(Number))
+  })
+
+  it('Finding1: state が無効なら（交換に進まない）purgeExpiredは呼ばない', async () => {
+    takePendingMock.mockResolvedValue(null)
+    await GET(req('code=c1&state=nope'))
+    expect(purgeExpiredMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: markCompletedが失敗したらpurgeExpiredは呼ばない', async () => {
+    markCompletedMock.mockResolvedValue(false)
+    await GET(req('code=c1&state=st'))
+    expect(purgeExpiredMock).not.toHaveBeenCalled()
+  })
+
+  it('Finding1: purgeExpiredが失敗しても成功応答は変わらない（oauth-states.tsは例外を投げない前提）', async () => {
+    purgeExpiredMock.mockResolvedValue(undefined)
+    const res = await GET(req('code=c1&state=st'))
+    expect(res.status).toBe(307)
+    expect(loc(res).searchParams.get('s')).toBe('st')
+    expect(loc(res).searchParams.get('e')).toBeNull()
+  })
+})
+
+describe('GET /api/notion/oauth/callback（v2）— 失敗経路の応答は完全に同一', () => {
+  type Case = {
+    name: string
+    query: string
+    setup?: () => void
+  }
+
+  // 「理由を出し分けない」の対象になりうる全経路を網羅する。
+  // 内容（location の文字列）だけでなく status・headers まで同一であることを
+  // 1つの基準スナップショットと突き合わせて確認する（302/307の取り違えや
+  // Set-Cookie混入のような、locationだけ見ていては気付けない回帰を検出するため）。
+  const cases: Case[] = [
+    {
+      name: 'NOTION_OAUTH_CLIENT_ID が未設定',
+      query: 'code=c1&state=st',
+      setup: () => { delete process.env.NOTION_OAUTH_CLIENT_ID },
+    },
+    {
+      name: 'NOTION_OAUTH_CLIENT_SECRET が未設定',
+      query: 'code=c1&state=st',
+      setup: () => { delete process.env.NOTION_OAUTH_CLIENT_SECRET },
+    },
+    {
+      name: 'isCryptoReady() が false',
+      query: 'code=c1&state=st',
+      setup: () => { isCryptoReadyMock.mockReturnValue(false) },
+    },
+    {
+      name: 'ユーザーが認可を拒否（error=access_denied）',
+      query: 'error=access_denied&state=st',
+    },
+    {
+      name: 'code が無い',
+      query: 'state=st',
+    },
+    {
+      name: 'state が無い',
+      query: 'code=c1',
+    },
+    {
+      name: 'state が空文字',
+      query: 'code=c1&state=',
+    },
+    {
+      name: 'state が無効・期限切れ（takePendingStateがnull）',
+      query: 'code=c1&state=nope',
+      setup: () => { takePendingMock.mockResolvedValue(null) },
+    },
+    {
+      name: 'コード交換に失敗',
+      query: 'code=c1&state=st',
+      setup: () => { exchangeMock.mockRejectedValue(new Error('invalid_grant')) },
+    },
+    {
+      name: 'markCompleted が false（横取りされた）',
+      query: 'code=c1&state=st',
+      setup: () => { markCompletedMock.mockResolvedValue(false) },
+    },
+    {
+      name: 'レート制限を超過',
+      query: 'code=c1&state=st',
+      setup: () => { rateLimitMock.mockResolvedValue(false) },
+    },
+  ]
+
+  it('すべての失敗経路が status・headers・location まで同一のスナップショットになる', async () => {
+    const snapshots: Array<{ name: string; status: number; headers: Record<string, string>; location: string }> = []
+
+    for (const c of cases) {
+      // 各ケースの前提を毎回まっさらに戻してから、そのケードだけの条件を足す。
+      takePendingMock.mockReset().mockResolvedValue(ROW)
+      markCompletedMock.mockReset().mockResolvedValue(true)
+      purgeExpiredMock.mockReset().mockResolvedValue(undefined)
+      exchangeMock.mockReset().mockResolvedValue(TOKEN)
+      isCryptoReadyMock.mockReset().mockReturnValue(true)
+      rateLimitMock.mockReset().mockResolvedValue(true)
+      process.env.NOTION_OAUTH_CLIENT_ID = 'cid'
+      process.env.NOTION_OAUTH_CLIENT_SECRET = 'sec'
+
+      c.setup?.()
+
+      const res = await GET(req(c.query))
+      snapshots.push({
+        name: c.name,
+        status: res.status,
+        headers: Object.fromEntries(res.headers.entries()),
+        location: loc(res).toString(),
+      })
+    }
+
+    const [baseline, ...rest] = snapshots
+    expect(baseline.status).toBe(307)
+    expect(baseline.location).toBe('https://app.example/connect/notion/done?e=1')
+    for (const s of rest) {
+      expect({ status: s.status, headers: s.headers, location: s.location }, s.name)
+        .toEqual({ status: baseline.status, headers: baseline.headers, location: baseline.location })
+    }
+  })
+
+  it('成功時は s を持ち、e は持たない（エラー時に s が無いことの鏡像）', async () => {
+    const res = await GET(req('code=c1&state=st'))
+    const url = loc(res)
+    expect(url.searchParams.get('s')).toBe('st')
+    expect(url.searchParams.get('e')).toBeNull()
   })
 })

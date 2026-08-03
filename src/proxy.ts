@@ -38,7 +38,10 @@ function withPolicyCookie(res: NextResponse): NextResponse {
 
 // REQUIRE_LOGIN 有効時でもログイン無しでアクセスを許可するパス。
 // /login 自身・認証コールバック・法務ページ等（無限リダイレクト防止＆規約閲覧の確保）。
-const PUBLIC_PREFIXES = ['/login', '/auth', '/privacy', '/terms', '/legal']
+// /connect はかんたん接続の中間ページと完了ページ。完了ページは「PWAで始めてSafariで
+// 認可を終える」経路で開かれるため、そのブラウザにセッションが無いのが普通（§1）。
+// ここでログインへ飛ばすと完了を見せられなくなる。
+const PUBLIC_PREFIXES = ['/login', '/auth', '/privacy', '/terms', '/legal', '/connect']
 
 function isPublicPath(pathname: string): boolean {
   // トップ（'/'）は REQUIRE_LOGIN=true でも公開する（オーナー決定 2026-07-15）。
