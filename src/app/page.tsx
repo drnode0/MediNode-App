@@ -90,7 +90,6 @@ const OAuthFinish = dynamicImport(
 )
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
-import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
@@ -2671,50 +2670,38 @@ export default function Home() {
       })
   }, [])
 
-  // かんたん接続（OAuth）から戻ったときの受け口。クエリを消してからシートを開く。
-  // OAuth帰還直後はローカル設定がまだ古く、直後にSettingsSyncが復元→reloadすることがある
-  // （＝このuseEffectがもう一度最初から走る）。その時点でURLからクエリは既に剥がされているため、
-  // クエリだけを頼りにするとシートが二度と開かない。sessionStorageにマーカーを残し、
-  // クエリが無い場合でもマーカーがあれば開き直す（OAuthFinish側が保存成功/明示close時に消す）。
+  // かんたん接続の引き取り。認可はどのブラウザで終わっていてもよく、ここで初めて
+  // 「本人のログイン済みセッション」として預けてある接続を受け取る（設計書§3c）。
+  //
+  // v1はクエリ（?oauth=notion-done）とsessionStorageのマーカーで復帰していたが、
+  // v2のcallbackはセッションを持たないブラウザでも完走するため、そもそもこの端末に
+  // 戻ってくるとは限らない。サーバーに預かりがあるかを聞く方式に変える。
+  // 設定の同期が決着してから聞く（機能一覧が届く前だと自分の資格が分からないため）。
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    // フラグOFF（＝かんたん接続は調整中）のときは受け口ごと閉じる。
-    // 前回の試行で残ったマーカーがあると仕上げシートが開きっぱなしになるため、ここで掃除する。
-    if (!isEasyConnectVisible()) {
-      try { sessionStorage.removeItem(OAUTH_FINISH_MARKER) } catch {}
-      if (params.get('oauth') || params.get('oauthError')) {
-        window.history.replaceState(null, '', window.location.pathname)
+    let cancelled = false
+    const ask = async () => {
+      if (!isEasyConnectVisible()) return
+      try {
+        const res = await fetch('/api/notion/oauth/claimable', { cache: 'no-store' })
+        const data = await res.json()
+        if (!cancelled && data?.claimable) {
+          setOauthFinishMode('claim')
+          setShowOauthFinish(true)
+        }
+      } catch {
+        // 引き取りは次回の起動でも拾えるので、失敗しても何も出さない
       }
-      return
     }
-    // 注: このoauth==='notion-done'分岐はv1（Cookie/セッション方式）向けの受け口で、
-    // v2のcallback（/api/notion/oauth/callback）はもう ?oauth=notion-done を発行しない
-    // （v2はセッションを持たないブラウザでも完走できるよう、/connect/notion/done へ
-    // ?s=<state> を付けてリダイレクトする方式に変わったため）。今のところ現実には
-    // 到達しない分岐だが、次のクライアント配線（claim/claimableの呼び出し）を実装する
-    // 段でこの受け口ごと書き直す前提で、あえて残してある。ここを「生きているコード」だと
-    // 誤読しないこと。
-    if (params.get('oauth') === 'notion-done') {
-      try { sessionStorage.setItem(OAUTH_FINISH_MARKER, '1') } catch {}
-      window.history.replaceState(null, '', window.location.pathname)
-      setShowOauthFinish(true)
-    } else {
-      let marked = false
-      try { marked = sessionStorage.getItem(OAUTH_FINISH_MARKER) === '1' } catch {}
-      if (marked) setShowOauthFinish(true)
-    }
-    const oauthErr = params.get('oauthError')
-    if (oauthErr) {
-      window.history.replaceState(null, '', window.location.pathname)
-      const msg = oauthErr === 'login'
-        ? 'かんたん接続には、先にメールアドレスでのログインが必要です。'
-        : oauthErr === 'denied'
-        ? 'Notionでの許可がキャンセルされました。もう一度お試しください。'
-        : oauthErr === 'unconfigured'
-        ? 'かんたん接続は現在準備中です。手動接続をご利用ください。'
-        : 'かんたん接続に失敗しました。もう一度お試しください。'
-      window.alert(msg)
-    }
+    if (isSettingsSyncSettled()) { void ask(); return () => { cancelled = true } }
+    const off = onSettingsSyncSettled(() => { void ask() })
+    return () => { cancelled = true; off() }
+  }, [])
+
+  // 設定画面の「読み取るDBを選び直す」から開く（§19b・再認可なし）。
+  useEffect(() => {
+    const open = () => { setOauthFinishMode('repick'); setShowOauthFinish(true) }
+    window.addEventListener('medinode:open-db-repick', open)
+    return () => window.removeEventListener('medinode:open-db-repick', open)
   }, [])
 
   useEffect(() => {
@@ -2753,6 +2740,8 @@ export default function Home() {
   const [showOnboardingFromSetup, setShowOnboardingFromSetup] = useState(false)
   // かんたん接続（OAuth）から戻った直後だけ立てる。オンボーディング/セットアップより優先して開く。
   const [showOauthFinish, setShowOauthFinish] = useState(false)
+  // 'claim'=預かりを引き取ってから、'repick'=引き取り済みでDB選択だけやり直す（§19b）
+  const [oauthFinishMode, setOauthFinishMode] = useState<'claim' | 'repick'>('claim')
 
   const completeOnboarding = () => {
     localStorage.setItem(ONBOARDING_DONE_KEY, '1')
@@ -2805,6 +2794,7 @@ export default function Home() {
   if (showOauthFinish) {
     return (
       <OAuthFinish
+        mode={oauthFinishMode}
         onComplete={() => { setShowOauthFinish(false); setSetupDone(true); setShowSettings(false); setSetupInitialStep('entry'); if (!isFeatureTourDone()) setShowTour(true) }}
         onAbort={() => { setShowOauthFinish(false) }}
       />

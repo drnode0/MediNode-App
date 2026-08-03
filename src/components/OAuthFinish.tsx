@@ -1,29 +1,41 @@
 'use client'
 
-// かんたん接続の仕上げ。OAuth認可から戻った直後に開き、
-// ①サーバー設定の復元を待つ → ②DBを選ぶ → ③列の読み取りを確認 → ④保存して完了。
-// トークンはSettingsSyncが復元済みの settings.notionToken を使う（このコンポーネントは受け取らない）。
+// かんたん接続の仕上げ。
+//
+// mode='claim'  : 預けてある接続を引き取ってから、DB選択→列確認→保存
+// mode='repick' : 引き取りは済んでいる。保存済みトークンでDB選択だけをやり直す（§19b）
+//
+// 読めないDBは保存しない（§20c）。check-props が失敗したら Medical だけで再試行し、
+// どちらが読めないのかを名指しする。「列を推定できなかった」場合だけ既定名で先へ進む。
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Loader2 } from 'lucide-react'
-import { getSettings, saveSettings } from '@/lib/settings'
-import { isSettingsSyncSettled, onSettingsSyncSettled } from './auth/SettingsSync'
+import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
+import { getSettings, saveSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
+import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
 import { inferPropMap } from '@/lib/prop-infer'
-import { OAUTH_FINISH_MARKER } from '@/lib/oauth-finish'
 import { PropMapEditor } from './PropMapEditor'
 import { Spinner } from './Spinner'
 
 type DbItem = { id: string; title: string }
-type Phase = 'restoring' | 'pick' | 'columns' | 'saving' | 'done' | 'error'
+type Phase = 'claiming' | 'pick' | 'columns' | 'unreadable' | 'conflict' | 'saving' | 'done' | 'error'
+type Mode = 'claim' | 'repick'
 
-// 保存成功／エラー画面を明示的に閉じたときにマーカーを消す（reload自体では消さない。
-// reload後に再び本コンポーネントを開き直すのがこのマーカーの目的のため）。
-function clearOauthFinishMarker() {
-  try { sessionStorage.removeItem(OAUTH_FINISH_MARKER) } catch {}
+const ROLE_LABEL: Record<string, string> = {
+  medical: '知識本体のデータベース',
+  reference: '文献のデータベース',
+  manual: 'マニュアルのデータベース',
 }
 
-export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; onAbort: () => void }) {
-  const [phase, setPhase] = useState<Phase>('restoring')
+export function OAuthFinish({
+  mode,
+  onComplete,
+  onAbort,
+}: {
+  mode: Mode
+  onComplete: () => void
+  onAbort: () => void
+}) {
+  const [phase, setPhase] = useState<Phase>(mode === 'claim' ? 'claiming' : 'pick')
   const [error, setError] = useState('')
   const [dbs, setDbs] = useState<DbItem[]>([])
   const [medicalId, setMedicalId] = useState('')
@@ -31,91 +43,144 @@ export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; o
   const [schema, setSchema] = useState<Array<{ name: string; type: string }> | null>(null)
   const [propMap, setPropMap] = useState({ propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '' })
   const [workspace, setWorkspace] = useState('')
+  const [unreadableRole, setUnreadableRole] = useState<string>('medical')
+  const [conflictRoles, setConflictRoles] = useState<string[]>([])
 
-  // ① SettingsSyncの決着を待ってからDB一覧を取りに行く
+  const loadDbs = async (token: string) => {
+    const res = await fetch('/api/notion/list-databases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notionToken: token }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || '')
+    const list: DbItem[] = data.databases || []
+    setDbs(list)
+    if (list.length === 1) setMedicalId(list[0].id)
+    setPhase('pick')
+  }
+
   useEffect(() => {
     const start = async () => {
-      const s = getSettings()
-      if (!s?.notionToken) {
-        setError('接続情報の受け取りに失敗しました。もう一度「かんたん接続」からやり直してください。')
-        setPhase('error')
-        return
-      }
-      setWorkspace(s.notionWorkspaceName || '')
+      const local = getSettings()
       try {
-        const res = await fetch('/api/notion/list-databases', {
+        if (mode === 'repick') {
+          if (!local?.notionToken) {
+            setError('接続情報が見つかりません。もう一度かんたん接続からお試しください。')
+            setPhase('error')
+            return
+          }
+          setWorkspace(local.notionWorkspaceName || '')
+          await loadDbs(local.notionToken)
+          return
+        }
+
+        // 端末が持っているDB IDも一緒に送り、可読性検査の対象を広げる（§20a）。
+        const res = await fetch('/api/notion/oauth/claim', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notionToken: s.notionToken }),
+          body: JSON.stringify({
+            notionMedicalDbId: local?.notionMedicalDbId || '',
+            notionReferenceDbId: local?.notionReferenceDbId || '',
+            notionManualDbId: local?.notionManualDbId || '',
+          }),
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || '')
-        const list: DbItem[] = data.databases || []
-        setDbs(list)
-        if (list.length === 1) setMedicalId(list[0].id)
-        setPhase('pick')
+        const data = (await res.json()) as ClaimResponse & { error?: string }
+        if (!res.ok) {
+          setError('接続の引き取りに失敗しました。通信環境を確認して、もう一度お試しください。')
+          setPhase('error')
+          return
+        }
+        if (data.status === 'none') { onAbort(); return }
+        if (data.status === 'conflict') {
+          setConflictRoles(data.unreadable.map((u) => u.role))
+          setPhase('conflict')
+          return
+        }
+
+        const next = resolveClaimedSettings(data.settings, data.hadServerSettings === true, local)
+        saveSettings(next)
+        setSettingsUpdatedAt(new Date().toISOString())
+        setWorkspace(next.notionWorkspaceName || '')
+        await loadDbs(next.notionToken)
       } catch {
         setError('データベースの一覧を取得できませんでした。通信環境を確認して、もう一度お試しください。')
         setPhase('error')
       }
     }
-    if (isSettingsSyncSettled()) { void start(); return }
-    return onSettingsSyncSettled(() => { void start() })
-  }, [])
+    void start()
+  }, [mode])
 
-  // ② DB決定 → 列スキーマを取得して確認フェーズへ（全exactならそのまま保存へ）
+  // DBを決めて列を確認する。読めないDBは保存しない（§20c）。
   const confirmDbs = async () => {
     const s = getSettings()
     if (!s || !medicalId) return
     setPhase('columns')
-    try {
-      const res = await fetch('/api/notion/check-props', {
+
+    const check = async (withReference: boolean) =>
+      fetch('/api/notion/check-props', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notionToken: s.notionToken,
           notionMedicalDbId: medicalId,
-          notionReferenceDbId: referenceId || undefined,
+          notionReferenceDbId: withReference && referenceId ? referenceId : undefined,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || '')
-      const sc = (data.medical?.schema as Array<{ name: string; type: string }>) || null
-      setSchema(sc)
-      if (!sc) { await save({}); return }
-      const inf = inferPropMap(sc)
-      const allExact = (['summary', 'keywords', 'genre', 'knowledgeLevel'] as const)
-        .every((k) => inf[k].confidence === 'exact' || inf[k].confidence === 'none')
-      if (allExact) { await save({}) ; return }
-      setPropMap({
-        propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || '' : '',
-        propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : '',
-        propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || '' : '',
-        propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : '',
-      })
+
+    let data: { medical?: { schema?: Array<{ name: string; type: string }> } } | null = null
+    try {
+      const res = await check(true)
+      if (res.ok) {
+        data = await res.json()
+      } else if (referenceId) {
+        // Medical だけで通るなら、読めないのは Reference（check-props は最初の失敗で
+        // 500 を返すため、切り分けはクライアント側で行う）。
+        const retry = await check(false)
+        if (retry.ok) { setUnreadableRole('reference'); setPhase('unreadable'); return }
+        setUnreadableRole('medical'); setPhase('unreadable'); return
+      } else {
+        setUnreadableRole('medical'); setPhase('unreadable'); return
+      }
     } catch {
-      // スキーマが取れなくても接続は成立させる（列は既定名で読む）
-      await save({})
+      setUnreadableRole('medical'); setPhase('unreadable'); return
     }
+
+    // ここから先は「DBは読めた」ことが確定している。列が推定できないだけなら既定名で進む。
+    const sc = data?.medical?.schema || null
+    setSchema(sc)
+    if (!sc) { await save({}); return }
+    const inf = inferPropMap(sc)
+    const allExact = (['summary', 'keywords', 'genre', 'knowledgeLevel'] as const)
+      .every((k) => inf[k].confidence === 'exact' || inf[k].confidence === 'none')
+    if (allExact) { await save({}); return }
+    setPropMap({
+      propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || '' : '',
+      propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : '',
+      propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || '' : '',
+      propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : '',
+    })
   }
 
-  // ③ 保存して完了
   const save = async (patch: Partial<typeof propMap>) => {
     setPhase('saving')
     const s = getSettings()
-    if (!s) { setPhase('error'); setError('設定の読み込みに失敗しました。'); return }
+    if (!s) { setError('設定の読み込みに失敗しました。'); setPhase('error'); return }
     const finalMap = { ...propMap, ...patch }
-    saveSettings({
+    const next: AppSettings = {
       ...s,
       searchMode: s.searchMode || 'notion',
       notionMedicalDbId: medicalId,
       notionReferenceDbId: referenceId,
       ...finalMap,
-    })
-    clearOauthFinishMarker()
+    }
+    saveSettings(next)
+    setSettingsUpdatedAt(new Date().toISOString())
     setPhase('done')
     setTimeout(onComplete, 1200)
   }
+
+  const restart = () => { window.location.href = '/api/notion/oauth/start' }
 
   return (
     <div className="fixed inset-0 z-[80] bg-white dark:bg-gray-900 overflow-y-auto">
@@ -124,10 +189,30 @@ export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; o
           かんたん接続{workspace ? `：${workspace}` : ''}
         </h1>
 
-        {phase === 'restoring' && (
+        {phase === 'claiming' && (
           <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Spinner className="w-4 h-4" />Notionから接続情報を受け取っています…
           </p>
+        )}
+
+        {phase === 'conflict' && (
+          <div className="space-y-4">
+            <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
+              <span>
+                いま使っている{conflictRoles.map((r) => ROLE_LABEL[r] || r).join('・')}が、今回の接続では見えません。
+              </span>
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              Notionの画面でそのページも選び直すと、続けられます。設定はまだ変えていないので、このまま閉じれば今の接続のままです。
+            </p>
+            <button type="button" onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+              Notionでページを選び直す
+            </button>
+            <button type="button" onClick={onAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+              このままの接続を続ける
+            </button>
+          </div>
         )}
 
         {phase === 'pick' && (
@@ -137,8 +222,8 @@ export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; o
             </p>
             {dbs.length === 0 ? (
               <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300">
-                データベースが見つかりませんでした。Notionの認可画面で、DBのあるページを選び直してください。
-                <button type="button" onClick={() => { window.location.href = '/api/notion/oauth/start' }} className="mt-2 w-full border border-amber-400 rounded-lg py-2 font-semibold">
+                データベースが見つかりませんでした。Notionの認可画面で、データベースのあるページを選び直してください。
+                <button type="button" onClick={restart} className="mt-2 w-full border border-amber-400 rounded-lg py-2 font-semibold">
                   ページを選び直す
                 </button>
               </div>
@@ -163,12 +248,26 @@ export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; o
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => { clearOauthFinishMarker(); onAbort() }}
-              className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1"
-            >
+            <button type="button" onClick={onAbort} className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1">
               あとで設定する
+            </button>
+          </div>
+        )}
+
+        {phase === 'unreadable' && (
+          <div className="space-y-4">
+            <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
+              <span>選んだ{ROLE_LABEL[unreadableRole]}が見えません。</span>
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              Notionの認可画面で、そのデータベースがあるページを選び直してください。保存はしていないので、今の設定はそのままです。
+            </p>
+            <button type="button" onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+              Notionでページを選び直す
+            </button>
+            <button type="button" onClick={() => setPhase('pick')} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+              別のデータベースを選ぶ
             </button>
           </div>
         )}
@@ -199,7 +298,7 @@ export function OAuthFinish({ onComplete, onAbort }: { onComplete: () => void; o
         {phase === 'error' && (
           <div className="space-y-3">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            <button type="button" onClick={() => { clearOauthFinishMarker(); onAbort() }} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">閉じる</button>
+            <button type="button" onClick={onAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">閉じる</button>
           </div>
         )}
       </div>
