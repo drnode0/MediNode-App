@@ -154,8 +154,21 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const openLeaf = leafOpen != null ? aboveLeaves[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
 
+  // 和紙の3段トーン（昼・夕・夜）。アプリのダーク設定は夜トーン優先。
+  // 初期値は昼の和紙のまま、マウント後に切り替える＝「行灯が灯る」800msフェード。
+  const [tone, setTone] = useState('#f2ead6')
+  useEffect(() => {
+    const h = new Date().getHours()
+    const dark = document.documentElement.classList.contains('dark')
+    setTone(dark ? '#CBB58C' : h >= 5 && h < 16 ? '#F2EAD6' : h < 19 ? '#E4D6B8' : '#CBB58C')
+  }, [])
+
   return (
-    <div className={`fixed inset-0 z-50 overflow-y-auto ${styles.frame}`} onClick={() => engine.running && engine.skip()}>
+    <div
+      className={`fixed inset-0 z-50 overflow-y-auto ${styles.frame}`}
+      style={{ backgroundColor: tone, transition: 'background-color 800ms ease' }}
+      onClick={() => engine.running && engine.skip()}
+    >
       <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(14px+env(safe-area-inset-top))]">
         <div className="mb-1 flex items-start justify-between">
           <div>

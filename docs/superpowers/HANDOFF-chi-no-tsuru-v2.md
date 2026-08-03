@@ -13,7 +13,16 @@
 | 3 | 地下茎（`splitByJoin` / `joinedAt` / 薄墨の地下描画 / 地下が尽きた日） | ✅ 完了（2026-08-03） |
 | 4 | 葉の生え方（`resolved` / `attempt` / 読み返しの濃度） | ✅ 完了（2026-08-03） |
 | 5 | 時間の点景（暦12項目・`sceneryMarks`・右レーン統合） | ✅ 完了（2026-08-03） |
-| — | アセット差し替え（筆致PNG・空と住人の絵）・雲の先（§8） | 未着手 |
+| A1 | **アセット第1波**: 葉=leaf_singleマスク彩色・芽=leaf_young_furled・地下茎=rhizome_a・穂先=vine_tip・和紙3段トーン | ✅ 完了（2026-08-03） |
+| — | アセット後続波（双葉leaf_futaba＝**未発注**・葉の形違いb/c・実物の絵・住人・点景の絵・題字落款）・雲の先（§8＝地雷3） | 素材待ち／未着手 |
+
+### アセット第1波の要点（2026-08-03）
+
+- 葉はSVGからHTMLレイヤーの**CSSマスク彩色**へ（`vine.module.css` の leafArt/leafLine。polish demoの実測値を移植: アンカー20.3%/81.3%・黄金角・決定成長・寝る角度・輪郭=マスク3乗）。層の順=奥の葉→SVG（蔓線・地面・右レーン・朱）→手前の葉・芽・穂先
+- PNGは `public/vine/` に**縮小版**（leaf 512・bud 384・tip 512・rhizome 1024幅＝計451KB）。原本は specs/assets/generated/alpha/
+- 双葉は leaf_single の小さな一対で代役（**leaf_futaba発注が残**）。地上0は蔓ストロークと根元の茂みを描かず vine_tip の芽だけ
+- 和紙3段トーン: 昼#F2EAD6（5-16時）・夕#E4D6B8（16-19時）・夜#CBB58C（19-5時・アプリのダーク設定は夜優先）・800ms「行灯が灯る」フェード（VineScreen）
+- 蔓の線はコード描画のまま（蔓節PNGの連結切り口は本番一式発注の検証待ち）
 
 計画は `docs/superpowers/plans/2026-08-02-chi-no-tsuru-v2-phase1.md`・`-phase2.md`・`2026-08-03-chi-no-tsuru-v2-phase3.md`・`-phase4.md`・`-phase5.md`。
 
