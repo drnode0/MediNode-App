@@ -11,7 +11,8 @@ import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
-import { crossedLine, grewLine, leafCountLine } from '@/lib/vine-copy'
+import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
+import { markPositions } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -116,6 +117,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     return () => window.removeEventListener('resize', measure)
   }, [to])
 
+  const marks = useMemo(() => markPositions(to), [to])
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const stats = useMemo(() => loadAllQuizStats(), [])
   const visuals = useMemo(() => buildLeafVisuals(state.steps, stats, nowIso), [state.steps, stats, nowIso])
@@ -172,6 +174,26 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             </div>
           )}
         </div>
+
+        {/* 越えた印の目次（§4）。ラダーは全24段しかないので、これがそのまま目次になる。
+            タップでその位置へスクロール。1つだけなら目次にならないので出さない。 */}
+        {marks.length > 1 && (
+          <div className="mt-2 px-3">
+            <div className="mb-1 text-[10px] tracking-[.25em] text-[#7d6f52]">{indexHeading()}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[...marks].reverse().map((m) => (
+                <button
+                  key={m.milestone.label}
+                  type="button"
+                  onClick={() => { const el = scrollRef.current; if (el) el.scrollTop = Math.max(0, m.y - 120) }}
+                  className="rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-2.5 py-1 text-[11px] text-[#5c5340]"
+                >
+                  {m.milestone.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-2 space-y-1 text-[11px] text-[#5f5a4c]">
           {todayLeaf && !engine.running && (

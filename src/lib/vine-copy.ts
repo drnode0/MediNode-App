@@ -29,6 +29,11 @@ export function nextObjectLine(label: string, sizeLabel: string): string {
   return `${label} ${sizeLabel}`
 }
 
+// 目次の見出し。動詞で促さず、名詞だけを置く。
+export function indexHeading(): string {
+  return '越えたもの'
+}
+
 // 六つの禁をテストで走査するための一覧。文言を足したらここにも足す。
 // ラダー（LADDER・FAR_DREAM）の全ラベルを crossedLine() に通し、実際に画面へ出うる
 // 「越えた」文言を漏れなく含める。ラベルを足す／直すたびに自動でここへ反映される。
@@ -40,4 +45,5 @@ export const ALL_VINE_COPY: string[] = [
   leafCountLine(0, 274),
   ...LADDER.map((m) => nextObjectLine(m.label, m.sizeLabel)),
   nextObjectLine(FAR_DREAM.label, FAR_DREAM.sizeLabel),
+  indexHeading(),
 ]

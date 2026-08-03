@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { crossedLine, grewLine, leafCountLine, nextObjectLine, ALL_VINE_COPY } from '../vine-copy'
+import { crossedLine, grewLine, leafCountLine, nextObjectLine, indexHeading, ALL_VINE_COPY } from '../vine-copy'
 
 describe('文言', () => {
   it('越えたときは常体で、溜めの読点を置かない', () => {
     expect(crossedLine('ネコ')).toBe('ネコを越えた')
+  })
+  it('目次の見出しは名詞だけ置く', () => {
+    expect(indexHeading()).toBe('越えたもの')
   })
   it('ふえたときは出来事なので漢数字で受ける', () => {
     expect(grewLine('三')).toBe('葉が三枚ふえた')
