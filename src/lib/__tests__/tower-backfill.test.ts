@@ -54,6 +54,13 @@ describe('applyBackfill', () => {
     expect(next.backfilledAt).toBe('2026-08-01T10:00:00.000Z')
   })
 
+  it('持ち込み分は地下に入るので、水位は地上の葉数のまま（0）', () => {
+    const withJoin: TowerState = { ...empty, joinedAt: '2026-08-01T00:00:00.000Z' }
+    const next = applyBackfill(withJoin, [hit({ createdAt: '2026-07-01T00:00:00.000Z' })], '2026-08-02T00:00:00.000Z')
+    expect(next.steps).toHaveLength(1)
+    expect(next.lastSeenSteps).toBe(0)
+  })
+
   it('新規0件でもbackfilledAtは刻む（開くたびの再フェッチを防ぐ）', () => {
     const next = applyBackfill(empty, [], '2026-08-01T10:00:00.000Z')
     expect(next.backfilledAt).toBe('2026-08-01T10:00:00.000Z')
