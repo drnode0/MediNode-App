@@ -197,6 +197,40 @@ describe('地下と水位・リプレイ（§7）', () => {
   })
 })
 
+describe('resolved の検出（§9: ❓CQ→💡ナレッジ）', () => {
+  const hit = (level: string) => [{
+    objectID: 'cq1', title: '昇圧薬の選択', genre: '循環器',
+    createdAt: '2026-07-01T00:00:00.000Z', owner: 'personal', knowledgeLevel: level,
+  }]
+  const now = '2026-08-02T09:00:00.000Z'
+
+  it('初見が❓CQ→次に💡ナレッジで resolved を1歩積む（atは検出時刻）', () => {
+    const s1 = ingestRecords(empty, hit('❓CQ'), now)
+    expect(s1.steps.filter((s) => s.kind === 'resolved')).toHaveLength(0)
+    expect(s1.levels['cq1']).toBe('❓CQ')
+    const s2 = ingestRecords(s1, hit('💡ナレッジ'), '2026-08-03T09:00:00.000Z')
+    const resolved = s2.steps.filter((s) => s.kind === 'resolved')
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0].at).toBe('2026-08-03T09:00:00.000Z')
+    expect(s2.levels['cq1']).toBe('💡ナレッジ')
+  })
+  it('初見からナレッジなら積まない（遷移を観測していない）', () => {
+    const s1 = ingestRecords(empty, hit('💡ナレッジ'), now)
+    expect(s1.steps.filter((s) => s.kind === 'resolved')).toHaveLength(0)
+  })
+  it('二度目のナレッジ観測では積み直さない（(id,resolved)は一生に1回）', () => {
+    let s = ingestRecords(empty, hit('❓CQ'), now)
+    s = ingestRecords(s, hit('💡ナレッジ'), now)
+    s = ingestRecords(s, hit('💡ナレッジ'), now)
+    expect(s.steps.filter((k) => k.kind === 'resolved')).toHaveLength(1)
+  })
+  it('レベル未設定の人には何も起きない・何も溜まらない', () => {
+    const s = ingestRecords(empty, [{ objectID: 'x', owner: 'personal', createdAt: '2026-07-01T00:00:00.000Z' }], now)
+    expect(s.levels).toEqual({})
+    expect(s.steps.every((k) => k.kind === 'wrote')).toBe(true)
+  })
+})
+
 describe('joinedAt の移行スタンプ', () => {
   it('joinedAtが無い保存データには移行を実行した日を刻み、水位を0へ戻して保存する', () => {
     localStorage.setItem(TOWER_KEY, JSON.stringify({

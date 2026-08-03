@@ -73,11 +73,30 @@ export function recallKind(prev: QuizStat | undefined, nowIso: string): 'recall'
 // 自分が書いた知識だけを積むので allowlist 方式（owner==='personal' のみ）。
 // 検索APIは自分のレコードに必ず owner:'personal' を付ける（route.ts:87）。
 // team はもちろん、クライアントに混ざって流れてくるサブスク由来（owner==='subscription'）も弾く。
-type IngestHit = { objectID: string; title?: string; genre?: string; createdAt?: string; owner?: string }
-export function ingestRecords(state: TowerState, hits: IngestHit[]): TowerState {
+// 併せて knowledgeLevel を levels に記憶し、前回❓CQ→今回💡ナレッジの遷移を見つけたら
+// resolved（CQを育てて解決した＝+2mm）を積む（正典§9）。遷移の瞬間は観測できないので
+// at は検出した今——アプリで再会した時が地上に出る時（正典§7と同じ思想）。
+type IngestHit = {
+  objectID: string; title?: string; genre?: string; createdAt?: string
+  owner?: string; knowledgeLevel?: string
+}
+export function ingestRecords(
+  state: TowerState, hits: IngestHit[], nowIso: string = new Date().toISOString(),
+): TowerState {
   let next = state
   for (const h of hits) {
     if (!h.objectID || h.owner !== 'personal') continue
+    const prevLevel = next.levels[h.objectID]
+    const curLevel = h.knowledgeLevel || ''
+    if (prevLevel && prevLevel.includes('CQ') && curLevel.includes('ナレッジ')) {
+      next = addStep(next, {
+        id: h.objectID, kind: 'resolved', at: nowIso,
+        genre: h.genre || '', title: h.title || '',
+      })
+    }
+    if (curLevel && curLevel !== prevLevel) {
+      next = { ...next, levels: { ...next.levels, [h.objectID]: curLevel } }
+    }
     if (!h.createdAt) continue
     next = addStep(next, {
       id: h.objectID, kind: 'wrote', at: h.createdAt,
