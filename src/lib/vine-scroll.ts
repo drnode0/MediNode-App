@@ -5,6 +5,7 @@
 // ⚠️ 幾何の契約: このモジュールの aboveTotal は「地上の葉数」。地面の位置はこれで決まる。
 // 地下茎（利用開始前の日付の歩）は含めない——含めると全y座標が静かにズレる。
 import { passedMilestones, type Milestone } from './vine-ladder'
+import type { Step } from './tower-steps'
 
 // 1葉あたりの縦幅。葉身（約24px）に対する節間の比は14/24≒0.58。
 // ⚠️ 何枚あっても縮めない——縮めた瞬間に「葉が潰れて塊になる」旧構造に戻る。
@@ -55,6 +56,32 @@ export function markPositions(
   return passedMilestones(aboveTotal)
     .filter((m) => m.leaves <= aboveTotal)
     .map((m) => ({ milestone: m, leafIndex: m.leaves, y: leafY(m.leaves, aboveTotal) }))
+}
+
+// 地下茎と地上部の分割（正典§7）。利用開始日より前の日付の歩は地下、それ以降が地上。
+// 高さ・リプレイ・幾何はすべて above だけで測る。joinedIso が空なら分割しない
+// （旧データとdevハーネスの互換）。日付は Date で比較する——Notion由来のオフセット付きISOと
+// toISOString が混在するため、文字列比較は使えない。
+export function splitByJoin(steps: Step[], joinedIso: string): { underground: Step[]; above: Step[] } {
+  if (!joinedIso) return { underground: [], above: steps }
+  const joined = new Date(joinedIso).getTime()
+  const underground: Step[] = []
+  const above: Step[] = []
+  for (const s of steps) {
+    const t = new Date(s.at).getTime()
+    // 解釈できない日付は地上へ倒す（見えなくなる側に倒さない）
+    if (Number.isFinite(t) && t < joined) underground.push(s)
+    else above.push(s)
+  }
+  return { underground, above }
+}
+
+// まだ地上に芽を出していない知識のid（地下で眠っている分）。
+// ⚠️ 件数をUIに出さない——「未読200件」は負債台帳そのもの（正典§7の必須条件2）。
+export function dormantIds(steps: Step[], joinedIso: string): string[] {
+  const { underground, above } = splitByJoin(steps, joinedIso)
+  const surfaced = new Set(above.map((s) => s.id))
+  return [...new Set(underground.map((s) => s.id))].filter((id) => !surfaced.has(id))
 }
 
 // 印は1つにつき2行の文字を持つので、これ未満に近づくと重なる。
