@@ -9,9 +9,10 @@ import {
 } from '@/lib/tower-steps'
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
-import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
+import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
-import { crossedLine, grewLine, leafCountLine } from '@/lib/vine-copy'
+import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
+import { leafY, markPositions } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -32,6 +33,11 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const [state, setState] = useState<TowerState>(() => initialState ?? loadTowerState())
   const [leafOpen, setLeafOpen] = useState<number | null>(null)
   const backfilled = useRef(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const lastCommittedScroll = useRef(0) // 量子化の基準（前回stateに反映した値）
+  const [viewportH, setViewportH] = useState(700)
+  const [viewportW, setViewportW] = useState(358)
   useBodyScrollLock()
 
   // 開いた瞬間のスナップショット（リプレイ中の新イベントは次回へ）
@@ -87,17 +93,53 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 開いた直後は穂先（＝今日）を見せる。下へスクロールすると過去へ遡る（§3）。
+  // 幅・高さの実測はResizeObserverで追随させる——[to]は開いた瞬間のスナップショット
+  // （useRef由来で以後変わらない）なのでeffect自体は初回しか走らないが、
+  // 横→縦の回転などスクロール容器のサイズ変化はResizeObserverのコールバックが拾い続ける。
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = 0
+    const measure = () => {
+      setViewportH(el.clientHeight || 700)
+      setViewportW(el.clientWidth || 358)
+    }
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+    // ResizeObserver非対応環境向けのフォールバック。対象は古いSafari/WebViewのみで
+    // window.resizeだけでもカバーできる（回転時は多くの環境でこれも発火する）。
+    // 専用のvisualViewport購読までは、非対応環境の実利用が確認できるまで見送る。
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [to])
+
+  const marks = useMemo(() => markPositions(to), [to])
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const stats = useMemo(() => loadAllQuizStats(), [])
   const visuals = useMemo(() => buildLeafVisuals(state.steps, stats, nowIso), [state.steps, stats, nowIso])
   const spotlight = useMemo(() => spotlightFaded(state.steps, stats, nowIso), [state.steps, stats, nowIso])
 
   const leavesNow = engine.leavesNow
-  const next = nextMilestone(to)
   const hMm = heightMmFromLeaves(leavesNow)
   const newLeaves = to - from
   const todayLeaf = state.steps[to - 1]
   const showSan = !engine.running || engine.phaseName === 'yoin'
+
+  // リプレイ中だけ穂先を追う（§ 開始位置は穂先だが成長は根元から始まるため、
+  // from=0のような久しぶりの再開では伸びる様子がビューポートの外で起きてしまう）。
+  // リプレイが終わったら何もしない＝ユーザーのスクロールを邪魔しない。
+  useEffect(() => {
+    if (!engine.running) return
+    const el = scrollRef.current
+    if (!el) return
+    const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
+    el.scrollTop = Math.max(0, leafY(revealIndex, to) - viewportH * 0.55)
+  }, [engine.running, leavesNow, to, viewportH])
 
   const openLeaf = leafOpen != null ? state.steps[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
@@ -111,24 +153,36 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>
             <div className="mt-0.5 text-[11px] text-[#8b8272]">{leafCountLine(newLeaves, to)}</div>
           </div>
-          <div className="flex items-start gap-2">
-            <div className="text-right text-[10px] leading-relaxed text-[#a39678]">
-              つぎは<br /><span className="text-[#2c2a22] font-semibold">{next.label} {next.sizeLabel}</span>
-            </div>
-            <button type="button" onClick={(e) => { e.stopPropagation(); onClose() }} aria-label="閉じる" className="rounded-full p-2 text-[#8b8272]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          {/* 「つぎは◯◯」はVineScene側の穂先の上に一本化（正典§7＝二重表示の禁止）。
+              ここではボタンだけを置く。 */}
+          <button type="button" onClick={(e) => { e.stopPropagation(); onClose() }} aria-label="閉じる" className="rounded-full p-2 text-[#8b8272]">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="relative">
-          <VineScene
-            leavesNow={leavesNow} from={from} to={to}
-            visuals={visuals} spotlightIds={spotlight} steps={state.steps}
-            crossed={crossed && { label: crossed.label, sizeLabel: crossed.sizeLabel, mm: crossed.mm }}
-            crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
-            onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
-          />
+          <div
+            ref={scrollRef}
+            className="relative overflow-y-auto overscroll-contain"
+            style={{ maxHeight: '70vh' }}
+            onScroll={(e) => {
+              // 量子化: 窓は前後1画面分の余裕を持つので、viewportH/4以上動いたときだけ
+              // stateを更新する（毎イベントの再描画を間引く。窓の余裕内なので葉が消えることはない）。
+              const top = (e.target as HTMLDivElement).scrollTop
+              if (Math.abs(top - lastCommittedScroll.current) >= viewportH / 4) {
+                lastCommittedScroll.current = top
+                setScrollTop(top)
+              }
+            }}
+          >
+            <VineScene
+              leavesNow={leavesNow} from={from} to={to}
+              visuals={visuals} spotlightIds={spotlight} steps={state.steps}
+              crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
+              onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
+              scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={engine.running}
+            />
+          </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
           {showSan && play && (crossed || newLeaves > 0) && (
             <div className={`absolute right-3 top-4 text-[21px] leading-[1.9] ${styles.san} ${styles.fadeIn}`}>
@@ -136,6 +190,26 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             </div>
           )}
         </div>
+
+        {/* 越えた印の目次（§4）。ラダーは全24段しかないので、これがそのまま目次になる。
+            タップでその位置へスクロール。1つだけなら目次にならないので出さない。 */}
+        {marks.length > 1 && (
+          <div className="mt-2 px-3">
+            <div className="mb-1 text-[10px] tracking-[.25em] text-[#7d6f52]">{indexHeading()}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[...marks].reverse().map((m) => (
+                <button
+                  key={m.milestone.label}
+                  type="button"
+                  onClick={() => { const el = scrollRef.current; if (el) el.scrollTop = Math.max(0, m.y - 120) }}
+                  className="rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-2.5 py-1 text-[11px] text-[#5c5340]"
+                >
+                  {m.milestone.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-2 space-y-1 text-[11px] text-[#5f5a4c]">
           {todayLeaf && !engine.running && (

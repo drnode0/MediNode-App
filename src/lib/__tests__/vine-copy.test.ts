@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { crossedLine, grewLine, leafCountLine, ALL_VINE_COPY } from '../vine-copy'
+import { crossedLine, grewLine, leafCountLine, nextObjectLine, indexHeading, ALL_VINE_COPY } from '../vine-copy'
 
 describe('文言', () => {
   it('越えたときは常体で、溜めの読点を置かない', () => {
     expect(crossedLine('ネコ')).toBe('ネコを越えた')
+  })
+  it('目次の見出しは名詞だけ置く', () => {
+    expect(indexHeading()).toBe('越えたもの')
   })
   it('ふえたときは出来事なので漢数字で受ける', () => {
     expect(grewLine('三')).toBe('葉が三枚ふえた')
@@ -13,6 +16,9 @@ describe('文言', () => {
   })
   it('増分ゼロなら増分の分を黙る（催促にしない）', () => {
     expect(leafCountLine(0, 274)).toBe('ぜんぶで 274枚')
+  })
+  it('次の実物は名前と実寸だけを並べる（測り方も「あと」の数字も乗せない）', () => {
+    expect(nextObjectLine('スズメ', '10cm')).toBe('スズメ 10cm')
   })
 })
 
