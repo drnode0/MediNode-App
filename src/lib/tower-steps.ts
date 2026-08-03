@@ -2,6 +2,7 @@
 // 再読・再回答は積まない（量の水増しを構造で防ぐ）。塔は縮まない。
 // サーバー同期はしない（quiz-srs と同じ端末ローカル方針。PERSONAL_DEVICE_KEYS 登録済み）。
 import type { QuizStat } from './quiz-srs'
+import { splitByJoin, dormantIds } from './vine-scroll'
 
 export type StepKind = 'read' | 'wrote' | 'recall' | 'repolish'
 export type Step = { id: string; kind: StepKind; at: string; genre: string; title: string }
@@ -38,7 +39,16 @@ export function addStep(state: TowerState, step: Step): TowerState {
   if (isDuplicate(state.steps, step)) return state
   const steps = [...state.steps, step]
   if (steps.length > MAX_STEPS) steps.splice(0, steps.length - MAX_STEPS)
-  return { ...state, steps }
+  // 地下が尽きた日: 持ち込んだ知識がすべて地上に芽を出した瞬間を一度だけ刻む（正典§7の節目）。
+  // 持ち込みゼロの人には起きない（hadDormantが常にfalse）。刻み直しもしない（一度きり）。
+  let undergroundClearedAt = state.undergroundClearedAt
+  if (state.joinedAt && !undergroundClearedAt) {
+    const hadDormant = dormantIds(state.steps, state.joinedAt).length > 0
+    if (hadDormant && dormantIds(steps, state.joinedAt).length === 0) {
+      undergroundClearedAt = step.at
+    }
+  }
+  return { ...state, steps, undergroundClearedAt }
 }
 
 // 想起の遷移判定。初めてのok=recall／最終申告がDULL_DAYS以上前=repolish／それ以外=null。
@@ -121,14 +131,17 @@ export function saveTowerState(state: TowerState): void {
 // 「見た」の水位。リプレイ完走時に「見せたところまで」をコミットする（v1.2）。
 // マウント時に全件seenにすると、リプレイ中断でその日の成長が永遠に見られなくなる。
 export function markSeen(state: TowerState, uptoCount: number): TowerState {
-  const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, state.steps.length))
+  // 水位は地上の葉数で数える。地下の歩（持ち込み）は「見た」の対象ではない。
+  const aboveCount = splitByJoin(state.steps, state.joinedAt).above.length
+  const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, aboveCount))
   return { ...state, lastSeenSteps: upto, lastSeenAt: new Date().toISOString() }
 }
 
 // リプレイのゲート。葉数の比較だけで決める——「同じ成長は二度と再生しない」が数で保証されるため、
 // 日付比較（UTC境界のバグ温床）は不要。リプレイ中に積まれた新イベントは from..to の外なので次回へ回る。
 export function planReplay(state: TowerState): { from: number; to: number; play: boolean } {
-  const to = state.steps.length
+  // 伸びるのは地上だけ（正典§7）。地下の歩はリプレイに乗せない。
+  const to = splitByJoin(state.steps, state.joinedAt).above.length
   const from = Math.min(state.lastSeenSteps, to)
   return { from, to, play: to > from }
 }
