@@ -6,6 +6,12 @@
 .leafPop { transform-box: fill-box; transform-origin: 8% 60%; animation: pop 320ms cubic-bezier(.34,1.56,.64,1); }
 @keyframes pop { from { transform: scale(0); } 70% { transform: scale(1.16); } to { transform: scale(1); } }
 .san { writing-mode: vertical-rl; letter-spacing: .14em; color: rgba(44,42,34,.85); }
+/* 口上の帯。蔓に重なっても読めるように、和紙をうっすら敷く（枠は付けない） */
+.obi {
+  background: linear-gradient(90deg, rgba(250,246,235,0) 0%, rgba(250,246,235,.93) 14%,
+              rgba(250,246,235,.93) 86%, rgba(250,246,235,0) 100%);
+  box-shadow: 0 0 16px 10px rgba(250,246,235,.5);
+}
 /* 賛の短冊。短い蔓では右レーンの文字と重なるため、和紙の紙片に載せて読めるようにする */
 .tanzaku { background: rgba(250,246,235,.92); border: 1px solid rgba(139,130,114,.35);
            border-radius: 2px; padding: 12px 7px; box-shadow: 0 1px 4px rgba(60,50,30,.12); }

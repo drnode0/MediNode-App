@@ -335,11 +335,14 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
                   {sampleLabel()}
                 </div>
               )}
+              {/* 蔓に重なっても読めるよう、和紙の帯を敷く（短冊と同じ流儀） */}
               <div
                 key={introStep}
-                className={`absolute inset-x-0 ${introStep === 3 ? 'bottom-24' : 'bottom-9'} px-6 text-center text-[15px] leading-relaxed text-[#4c4536] ${styles.fadeIn}`}
+                className={`absolute inset-x-0 ${introStep === 3 ? 'bottom-24' : 'bottom-9'} flex justify-center px-4 ${styles.fadeIn}`}
               >
-                {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
+                <p className={`max-w-[22em] rounded-sm px-3 py-1.5 text-center text-[14px] leading-relaxed text-[#4c4536] ${styles.obi}`}>
+                  {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
+                </p>
               </div>
               {introStep < 3 ? (
                 <div className="absolute inset-x-0 bottom-2 text-center text-[10px] text-[#a39678]">
