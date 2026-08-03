@@ -13,6 +13,7 @@ import {
   clearBookmarks as clearBookmarksStorage,
   toggleBookmark as toggleBookmarkList,
   pushRead,
+  touchReread,
   type BookmarkEntry,
 } from '@/lib/reader-marks'
 import { useAuth } from '@/components/auth/AuthProvider'
@@ -58,6 +59,7 @@ export function ReaderMarksProvider({ children }: { children: React.ReactNode })
 
   const markRead = useCallback((id: string) => {
     recordRead(id)
+    touchReread(id, new Date().toISOString()) // 読み返しの濃度（歩は積まない・正典§9）
     if (isTowerEnabled()) recordTowerEvent({ id, kind: 'read' }) // 知の塔: 初めて読んだ知識は1歩（重複は台帳側で弾く）
     setReads((prev) => {
       if (prev[0] === id) return prev

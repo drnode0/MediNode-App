@@ -1,8 +1,26 @@
 import { describe, it, expect } from 'vitest'
 import {
   pushRead, toggleBookmark, isBookmarked, sanitizeReads, sanitizeBookmarks,
-  MAX_READS, MAX_BOOKMARKS, type BookmarkEntry,
+  MAX_READS, MAX_BOOKMARKS, nextReread, type BookmarkEntry,
 } from '../reader-marks'
+
+describe('読み返しの濃度（§9: 90日以上あけた再読だけ数える・歩は積まない）', () => {
+  it('初読は count 0 で日付だけ持つ', () => {
+    expect(nextReread(undefined, '2026-08-01T00:00:00.000Z')).toEqual({ count: 0, lastAt: '2026-08-01T00:00:00.000Z' })
+  })
+  it('90日未満の再読は日付だけ更新（濃くならない）', () => {
+    const r = nextReread({ count: 0, lastAt: '2026-08-01T00:00:00.000Z' }, '2026-09-01T00:00:00.000Z')
+    expect(r).toEqual({ count: 0, lastAt: '2026-09-01T00:00:00.000Z' })
+  })
+  it('90日以上あけた再読で1段濃くなる', () => {
+    const r = nextReread({ count: 0, lastAt: '2026-01-01T00:00:00.000Z' }, '2026-08-01T00:00:00.000Z')
+    expect(r.count).toBe(1)
+  })
+  it('3で頭打ち（3段階=1・2・3以上）', () => {
+    const r = nextReread({ count: 3, lastAt: '2025-01-01T00:00:00.000Z' }, '2026-08-01T00:00:00.000Z')
+    expect(r.count).toBe(3)
+  })
+})
 
 const bm = (id: string): BookmarkEntry => ({
   objectID: id, title: `T${id}`, notionUrl: `https://n/${id}`, at: '2026-07-23T00:00:00.000Z',
