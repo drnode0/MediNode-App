@@ -88,23 +88,9 @@ export default function ReaderOverlay({
     setReaderViewMode(m)
   }, [])
 
-  // 要点モードの「この節を全文で読む」：全文へ切り替え、描画コミット後に該当節へ飛ぶ。
-  // 好みの保存は明示的なトグル操作（changeViewMode）だけ — 一時的な切替では上書きしない
-  // （次の記事は再び要点から入れる）。
-  // スクロールは effect で行う（rAF だと React のコミット前に走って空振りすることがある）。
-  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null)
-  const readSectionInFull = useCallback((anchor: string) => {
-    setViewMode('full')
-    setPendingAnchor(anchor)
-  }, [])
-  useEffect(() => {
-    if (viewMode !== 'full' || pendingAnchor == null) return
-    scrollRef.current
-      ?.querySelector<HTMLElement>(`[data-section="${pendingAnchor}"]`)
-      ?.scrollIntoView({ block: 'start' })
-    setPendingAnchor(null)
-  }, [viewMode, pendingAnchor])
-
+  // 「この節を全文で読む」は ReaderBody 側で節ごとに開く（表示モードは要点のまま）。
+  // 文書全体を全文へ倒すと、開いた後に要点へ戻る道が画面上から消えてしまう。
+  //
   // 記事内検索は本文全体が対象。要点モードのまま検索すると隠れた本文のヒットが
   // 拾えないため、検索を開いたら表示だけ全文へ切り替える（保存は上書きしない）。
   useEffect(() => {
@@ -416,7 +402,6 @@ export default function ReaderOverlay({
                   active={active}
                   scaleEm={SCALE_EM[fontScale]}
                   mode={viewMode}
-                  onReadSection={readSectionInFull}
                 />
               </ReaderSearchCtx.Provider>
               <ReaderHelpful objectID={hit.objectID} />
