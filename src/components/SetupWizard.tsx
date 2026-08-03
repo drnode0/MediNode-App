@@ -1629,7 +1629,6 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   Notionでページを選んで接続する
                 </button>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">先にメールアドレスでのログインが必要です（未ログインの場合は案内が出ます）。</p>
               </div>
               )}
 
