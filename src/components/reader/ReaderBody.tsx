@@ -1,12 +1,13 @@
 'use client'
-import { createContext, useContext } from 'react'
-import { CircleCheck, ExternalLink, BookOpenText } from 'lucide-react'
-import { digestItems, type ReaderViewMode } from '@/lib/reader-digest'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { digestSections, type DigestSection, type ReaderViewMode } from '@/lib/reader-digest'
 import {
   calloutRole,
   parseSectionHeading,
   sectionAnchor,
   isRecapText,
+  type CalloutRole,
   type ReaderDoc,
   type ReaderBlock,
   type ReaderInline,
@@ -177,6 +178,30 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   return 'text-gray-900 dark:text-gray-100'
 }
 
+// 役割が既知の callout は先頭アイコンを lucide に寄せる（目次バーの⚡と同じ字にする）。
+// 未知の絵文字は執筆側が意図して置いたものなので生のまま残す — title-display.tsx が
+// セクション見出しで採っている方針と同じ。
+const CALLOUT_ICON: Partial<Record<CalloutRole, { Icon: LucideIcon; color: string }>> = {
+  conclusion: { Icon: Zap, color: 'text-amber-500 dark:text-amber-400' },
+  evidence: { Icon: BookText, color: 'text-amber-600 dark:text-amber-400' },
+  disclaimer: { Icon: TriangleAlert, color: 'text-amber-600 dark:text-amber-400' },
+}
+
+function CalloutIcon({ role, icon }: { role: CalloutRole; icon: string | null }) {
+  const def = CALLOUT_ICON[role]
+  if (def) {
+    const { Icon, color } = def
+    // 高さ 1.5em の箱＝絵文字が占めていた行送りと同じ。1行目の中心に揃う。
+    return (
+      <span className="shrink-0 inline-flex items-center h-[1.5em]">
+        <Icon className={`h-[1.05em] w-[1.05em] ${color}`} aria-hidden="true" />
+      </span>
+    )
+  }
+  if (!icon) return null
+  return <span className="shrink-0 text-[1em] leading-[1.5]">{icon}</span>
+}
+
 function CalloutBlock({
   block,
   index,
@@ -197,7 +222,7 @@ function CalloutBlock({
         className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4"
       >
         <div className="flex gap-2">
-          {block.icon && <span className="shrink-0 text-[1em] leading-[1.5]">{block.icon}</span>}
+          <CalloutIcon role={role} icon={block.icon} />
           <div className="min-w-0">
             <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
           </div>
@@ -252,7 +277,7 @@ function CalloutBlock({
   return (
     <div className={`border-l-4 rounded-r-lg px-4 py-3.5 my-4 ${tone}`}>
       <div className="flex gap-2">
-        {block.icon && <span className="shrink-0 text-[1em] leading-[1.5]">{block.icon}</span>}
+        <CalloutIcon role={role} icon={block.icon} />
         <div className="min-w-0">
           <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
         </div>
@@ -411,10 +436,15 @@ function RenderedBlocks({
   blocks,
   onImageClick,
   active,
+  offset = 0,
 }: {
   blocks: ReaderBlock[]
   onImageClick: (u: string) => void
   active: Set<Confidence>
+  // blocks が doc 全体の一部（節・epilogue）のときの元配列上の開始位置。
+  // Block に渡す index が doc 全体と一致し、番号なしH2の data-section アンカー（i<index>）が
+  // 目次バーの計算とズレなくなる。
+  offset?: number
 }) {
   const grouped = groupBlocks(blocks)
   return (
@@ -442,45 +472,106 @@ function RenderedBlocks({
             </Tag>
           )
         }
-        return <Block key={i} block={g.block} index={g.index} onImageClick={onImageClick} active={active} />
+        return <Block key={i} block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
       })}
     </>
   )
 }
 
-// 要点モードの本文。結論・節見出し・recapだけを出し、節ごとに全文への入口を置く。
+// 要点モードの1節。折りたたみ時は要点行だけ、展開時はその節の全文だけを描く。
+// 「差し替え」であって「追記」ではないので、要点行と全文が二重に出ることはない。
+function DigestSectionView({
+  section,
+  blocks,
+  onImageClick,
+  active,
+}: {
+  section: DigestSection
+  blocks: ReaderBlock[]
+  onImageClick: (u: string) => void
+  active: Set<Confidence>
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  // 閉じると上の余白が一気に縮み、読んでいた位置が画面外へ飛ぶ。節の頭へ戻して着地させる。
+  // スクロールは effect で行う（rAF だと React のコミット前に走り、まだ展開されたままの
+  // レイアウトを測って空振りする — ReaderOverlay が以前に踏んだのと同じ罠）。
+  const closingRef = useRef(false)
+  useEffect(() => {
+    if (open || !closingRef.current) return
+    closingRef.current = false
+    ref.current?.scrollIntoView({ block: 'start' })
+  }, [open])
+
+  const toggle = () => {
+    if (open) closingRef.current = true
+    setOpen((v) => !v)
+  }
+
+  return (
+    <div ref={ref}>
+      {open ? (
+        <RenderedBlocks
+          blocks={blocks.slice(section.start, section.end)}
+          offset={section.start}
+          onImageClick={onImageClick}
+          active={active}
+        />
+      ) : (
+        section.items.map((p) => (
+          <Block key={p.index} block={p.block} index={p.index} onImageClick={onImageClick} active={active} />
+        ))
+      )}
+      <p className="my-3">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1.5 min-h-[44px] text-[0.9em] text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200"
+        >
+          <BookOpenText className="w-[1.1em] h-[1.1em] shrink-0" aria-hidden="true" />
+          {open ? 'この節を閉じる' : 'この節を全文で読む'}
+        </button>
+      </p>
+    </div>
+  )
+}
+
+// 要点モードの本文。⚡結論・節見出し・recap・図解・末尾の署名／査読スタンプだけを出し、
+// 全文は節ごとにその場で開く（文書全体は要点のまま＝いつでも同じボタンで戻れる）。
 // Block を使い回すことで全文モードと見た目（アンカー・スタイル）を完全に揃える。
 function DigestBlocks({
   blocks,
   onImageClick,
   active,
-  onReadSection,
 }: {
   blocks: ReaderDoc['blocks']
   onImageClick: (u: string) => void
   active: Set<Confidence>
-  onReadSection?: (anchor: string) => void
 }) {
-  const items = digestItems(blocks)
+  const { preamble, sections, epilogue } = useMemo(() => digestSections(blocks), [blocks])
   return (
     <>
-      {items.map((it, i) => {
-        if (it.kind === 'section-link') {
-          return (
-            <p key={`sl-${i}`} className="my-3">
-              <button
-                type="button"
-                onClick={() => onReadSection?.(it.anchor)}
-                className="inline-flex items-center gap-1.5 min-h-[44px] text-[0.9em] text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200"
-              >
-                <BookOpenText className="w-[1.1em] h-[1.1em] shrink-0" aria-hidden="true" />
-                この節を全文で読む
-              </button>
-            </p>
-          )
-        }
-        return <Block key={it.index} block={it.block} index={it.index} onImageClick={onImageClick} active={active} />
-      })}
+      {preamble.map((p) => (
+        <Block key={p.index} block={p.block} index={p.index} onImageClick={onImageClick} active={active} />
+      ))}
+      {sections.map((s) => (
+        <DigestSectionView
+          key={s.anchor}
+          section={s}
+          blocks={blocks}
+          onImageClick={onImageClick}
+          active={active}
+        />
+      ))}
+      {epilogue.length > 0 && (
+        <RenderedBlocks
+          blocks={epilogue}
+          offset={blocks.length - epilogue.length}
+          onImageClick={onImageClick}
+          active={active}
+        />
+      )}
     </>
   )
 }
@@ -491,7 +582,6 @@ export function ReaderBody({
   active = new Set(),
   scaleEm,
   mode = 'full',
-  onReadSection,
 }: {
   doc: ReaderDoc
   onImageClick: (url: string) => void
@@ -500,8 +590,6 @@ export function ReaderBody({
   scaleEm?: string
   // 全文｜要点（ReaderOverlay の切替から渡る）。既定は従来どおり全文。
   mode?: ReaderViewMode
-  // 要点モードの「この節を全文で読む」。全文へ切り替えて該当節へスクロールする。
-  onReadSection?: (anchor: string) => void
 }) {
   return (
     // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
@@ -525,12 +613,14 @@ export function ReaderBody({
             <img src={doc.cover} alt="" className="w-full rounded-lg" />
           </button>
         )}
+        {/* ページアイコンは生の絵文字で出さず、種別ヒントとして KnowledgeTitle に渡す
+            （タイトル先頭の絵文字は剥がされ lucide アイコンに置き換わる＝二重に出ない）。
+            iconForLevel は includes 判定なので、画像アイコン（URL）は渡さない。 */}
         <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
-          {doc.icon && !doc.icon.startsWith('http') && <span className="mr-1">{doc.icon}</span>}
-          <KnowledgeTitle title={doc.title} />
+          <KnowledgeTitle title={doc.title} level={doc.icon?.startsWith('http') ? null : doc.icon} />
         </h2>
         {mode === 'digest' ? (
-          <DigestBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} onReadSection={onReadSection} />
+          <DigestBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
         ) : (
           <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
         )}

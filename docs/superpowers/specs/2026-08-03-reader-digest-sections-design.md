@@ -63,8 +63,15 @@ type DigestLayout = {
 }
 ```
 
-epilogue は末尾から後方走査で決める。`callout` かつ role が signature / stamp / disclaimer のもの、
-および `divider` が連続する範囲。これにより最終節の展開範囲が署名を巻き込まない。
+epilogue は末尾から後方走査で決める。`callout` かつ role が signature / stamp / disclaimer / evidence の
+もの、および `divider` が連続する範囲。これにより最終節の展開範囲が署名を巻き込まない。
+
+evidence（📚）を含めるのは実装中の目視で判明した。外すと、署名と査読スタンプの間に📚が挟まっただけで
+後方走査がそこで止まり、署名が最終節の中に取り残されて「この節を閉じる」が署名の後ろに出る。
+後に本文が続かない位置にある📚は締めの一部なので epilogue に入れる。
+
+`section-link` は `digestItems` から出さない。ボタンは開閉状態を持つコンポーネントの責務であり、
+抽出関数は純粋な「拾う／拾わない」に留める。`digestItems` は `DigestPick[]`（`{ block, index }`）を返す。
 
 `DigestBlocks` が展開中アンカーの `Set<string>` を state で持ち、節ごとに
 
@@ -73,6 +80,11 @@ epilogue は末尾から後方走査で決める。`callout` かつ role が sig
 
 を描き、末尾に「この節を全文で読む」⇄「この節を閉じる」ボタンを置く。閉じたときは節見出しへ
 `scrollIntoView` して読んでいた位置を見失わせない。
+
+このスクロールは `useEffect`（`open` を依存に、閉じたときだけ走るフラグつき）で行う。
+`requestAnimationFrame` だと React のコミット前に走り、まだ展開されたままのレイアウトを測って
+着地位置がずれる。実装中に実測で確認した（節見出しが上端から -257px の位置に落ちた）。
+`ReaderOverlay.tsx` に元からあった注意書きと同じ罠。
 
 要点⇄全文のモード自体は動かないので、`ReaderOverlay` の `readSectionInFull` / `pendingAnchor` /
 `onReadSection`、および `ReaderBody` の `onReadSection` prop は削除する。
