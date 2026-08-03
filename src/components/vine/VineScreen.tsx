@@ -41,6 +41,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
 }) {
   const [state, setState] = useState<TowerState>(() => initialState ?? loadTowerState())
   const [leafOpen, setLeafOpen] = useState<number | null>(null)
+  const [shioriOpen, setShioriOpen] = useState(false) // しおり＝この画面の説明書（アプリの領分）
   const backfilled = useRef(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -345,11 +346,60 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
           {todayLeaf && !engine.running && (
             <p>今日の葉：<span className="font-semibold">{todayLeaf.title || 'ひとつの知識'}</span></p>
           )}
-          <p className="text-[10px] text-[#a39678]">
-            葉＝学びのひとつ（読んだ・書いた・解決した・即答できた・磨き直した）・色＝いま即答できるか
-          </p>
+          {/* 説明は1行に詰め込まず、しおり（シート）へ。案内＝口上の再生 */}
+          <div className="flex gap-4 pt-1 text-[11px] text-[#8b8272]">
+            <button type="button" className="underline underline-offset-4 decoration-[#cbbf9f]" onClick={(e) => { e.stopPropagation(); setShioriOpen(true) }}>
+              しおり（この画面の説明）
+            </button>
+            <button
+              type="button" className="underline underline-offset-4 decoration-[#cbbf9f]"
+              onClick={(e) => { e.stopPropagation(); setIntroLeaves(0); setIntroStep(0) }}
+            >
+              案内をもう一度
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* しおり＝この画面の説明書。ここはアプリの領分なので、蔓の中では禁じている「説明」をしてよい */}
+      {shioriOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/25" onClick={(e) => { e.stopPropagation(); setShioriOpen(false) }}>
+          <div
+            className={`w-full max-w-md overflow-y-auto rounded-t-2xl p-5 pb-[calc(20px+env(safe-area-inset-bottom))] ${styles.frame}`}
+            style={{ maxHeight: '78vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 text-[11px] tracking-[.3em] text-[#7d6f52]">し　お　り</div>
+            <div className="space-y-4 text-[13px] leading-relaxed text-[#4c4536]">
+              <section>
+                <div className="mb-1 text-[11px] text-[#8b8272]">葉のかたち</div>
+                <p>線だけの葉は「読んだ」。双葉は「書いた」。ひらいた緑の葉は「思い出せた」か「CQを解決した」。照りのある葉は、一度忘れて磨き直した葉——いちばん強い。</p>
+                <p className="mt-1">巻いたままの小さな芽は、クイズで「まだ」だった知識。思い出せた日にひらく。</p>
+              </section>
+              <section>
+                <div className="mb-1 text-[11px] text-[#8b8272]">色</div>
+                <p>緑は、いま即答できる知識。しばらく想起していないと銀鼠に褪せる。読み返すと色が半分戻り、思い出すと戻る。褪せは失敗ではなく、再学習の合図。</p>
+              </section>
+              <section>
+                <div className="mb-1 text-[11px] text-[#8b8272]">しるし</div>
+                <p>朱の破線は、越えた実物との背くらべ。葉が一枚ひらくと蔓は2mm伸びる。アリにはじまり、ずっと先に富士山がいる。</p>
+                <p className="mt-1">右端の小さな点は季節の点景——蛍や名月のような、実時間の出来事。葉が増えなかった季節にも、時間は流れている。</p>
+              </section>
+              <section>
+                <div className="mb-1 text-[11px] text-[#8b8272]">地面の下</div>
+                <p>使い始める前に書きためた知識は、地下で眠っている。アプリで読み返す・クイズで思い出すたび、地上に生まれ直して葉になる。</p>
+              </section>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShioriOpen(false)}
+              className="mt-5 w-full rounded-full border border-[#cbbf9f] bg-[#faf5e8] py-2 text-xs text-[#5c5340]"
+            >
+              とじる
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 葉の中身（タイトル・日付・行為の一言だけ。数字は出さない） */}
       {openLeaf && openVisual && (
