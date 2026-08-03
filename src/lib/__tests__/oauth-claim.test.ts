@@ -1,5 +1,7 @@
-// claim応答を端末へ書くときの判断。サーバーに設定の実体が無いときは
-// ローカルを主にマージする（丸ごと置き換えると端末の設定を空で潰すため）。
+// claim応答を端末へ書くときの判断。どちらの分岐も「丸ごと置き換え」ではなくマージにする
+// （置き換えると端末の設定を空で潰すため）。サーバーに設定の実体が無いときはローカルを
+// 主に、実体があるときはサーバーを主にマージするが、いずれの向きでも「空の側」が
+// 「非空の側」を潰さない（2026-08-03 訂正・設計書§10d）。
 import { describe, it, expect } from 'vitest'
 import { resolveClaimedSettings } from '../oauth-claim'
 import type { AppSettings } from '../settings'
@@ -15,11 +17,27 @@ const base = {
 const withOverrides = (o: Record<string, unknown>) => ({ ...base, ...o }) as AppSettings
 
 describe('resolveClaimedSettings', () => {
-  it('サーバーに設定の実体があれば応答をそのまま採る', () => {
+  it('サーバーに設定の実体があれば、サーバーを主にマージする（衝突すればサーバーが勝つ）', () => {
     const claimed = withOverrides({ notionToken: 'ntn_new', algoliaAppId: 'FROM_SERVER' })
     const local = withOverrides({ algoliaAppId: 'FROM_LOCAL', propSummary: 'サマリー' })
     const out = resolveClaimedSettings(claimed, true, local)
     expect(out.algoliaAppId).toBe('FROM_SERVER')
+    expect(out.notionToken).toBe('ntn_new')
+    // サーバー側に無い（claimed側が既定の空文字のままの）項目は、端末の値を残す。
+    expect(out.propSummary).toBe('サマリー')
+  })
+
+  it('サーバーに設定の実体があっても、サーバー側が空の項目は端末の非空の値を潰さない（2026-08-03 訂正）', () => {
+    const claimed = withOverrides({ notionToken: 'ntn_new', algoliaAppId: '' })
+    const local = withOverrides({
+      algoliaAppId: 'FROM_LOCAL', algoliaAdminKey: 'ADMIN',
+      teamNotionToken: 'team_tok', propKeywords: 'キーワードのマッピング',
+    })
+    const out = resolveClaimedSettings(claimed, true, local)
+    expect(out.algoliaAppId).toBe('FROM_LOCAL')
+    expect(out.algoliaAdminKey).toBe('ADMIN')
+    expect(out.teamNotionToken).toBe('team_tok')
+    expect(out.propKeywords).toBe('キーワードのマッピング')
     expect(out.notionToken).toBe('ntn_new')
   })
 

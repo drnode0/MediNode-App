@@ -204,7 +204,9 @@ QR生成は依存追加なしで実装（軽量な自前SVG生成 or `api.qrserv
 
 **ただし丸ごと置き換えてはいけない場合がある（2026-08-03 追記）。** claim の応答には `hadServerSettings: boolean` を含める。サーバーに設定行が無い、または `settings_enc` が空だったときは `false` になる。
 
-- `hadServerSettings === true` → 応答の設定をそのまま `saveSettings()` で書いてよい（サーバーが正）
+- `hadServerSettings === true` → **サーバーを主にマージする**（`mergeSettings(claimed, local)`）。値が衝突したらサーバーが勝つが、**サーバー側が空の項目を端末の値で潰さない**
+  - **訂正（2026-08-03）**：当初ここは「応答をそのまま書いてよい」としていた。しかし端末からサーバーへの設定保存は fire-and-forget で、失敗しても画面には出ない（`SESSION_LOST_EVENT` が想定している状態）。その端末でかんたん接続を使うと、未同期のAlgoliaキー・部署接続・列マッピングが端末とサーバーの両方から消える。claim の応答は `saveSettings` 経由でサーバーへも書き戻されるため、消失が確定する
+  - 代償として、**別端末で意図的に空にした変更はこの端末に伝わらず、古い値が復活する**。設定を消すより復活するほうが害が小さいと判断した
 - `hadServerSettings === false` → **`mergeSettings` でローカルを主にマージしてから書く。丸ごと置き換えない**
 
 `false` は珍しい状態ではない。/admin から `easy_connect` を付与すると `user_settings` に**機能フラグだけの行**ができるため、テスターは「行はあるが `settings_enc` は空」で claim に来る。ここで丸ごと置き換えると、端末に持っているAlgoliaキー・部署接続・列マッピングを空で潰す。`POST /api/user-settings` が失敗し続けている端末（`SESSION_LOST_EVENT` が想定している状態）でも同じことが起きる。
