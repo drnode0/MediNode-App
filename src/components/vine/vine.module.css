@@ -8,6 +8,31 @@
 .san { writing-mode: vertical-rl; letter-spacing: .14em; color: rgba(44,42,34,.85); }
 .fadeIn { animation: fadeIn 600ms ease both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* ── 筆致の葉（HTMLレイヤー・マスク彩色）──
+   方式は specs/assets/2026-08-02-vine-growth-polish.html で実証済み（iOS Safari実機合格）。
+   型 = leaf_single.png のアルファ。葉柄の先（実測 20.3% / 81.3%）を節に吸着させる。
+   leafLine = 同じ型を3枚重ねてアルファを掛け合わせ、淡彩を消して墨の輪郭と葉脈だけ残す
+   （実測 線α.867→.651・葉身α.298→.026。4乗だと線まで消えるので3乗が上限）。 */
+.leafLayer { position: absolute; inset: 0; pointer-events: none; }
+.leafPos { position: absolute; pointer-events: auto; cursor: pointer; }
+.htmlSway { width: 100%; height: 100%; transform-origin: 20.3% 81.3%; animation: sway 4.2s ease-in-out infinite alternate; }
+.htmlPop { width: 100%; height: 100%; position: relative; transform-origin: 20.3% 81.3%; }
+.htmlPop.popping { animation: pop 340ms cubic-bezier(.34,1.56,.64,1); }
+.layer { position: absolute; inset: 0; }
+.leafArt { -webkit-mask-image: url(/vine/leaf_single.png); mask-image: url(/vine/leaf_single.png);
+           -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.leafLine { -webkit-mask-image: url(/vine/leaf_single.png), url(/vine/leaf_single.png), url(/vine/leaf_single.png);
+            mask-image: url(/vine/leaf_single.png), url(/vine/leaf_single.png), url(/vine/leaf_single.png);
+            -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+            -webkit-mask-composite: source-in, source-in;
+            mask-composite: intersect, intersect; }
+.budArt { -webkit-mask-image: url(/vine/leaf_young_furled.png); mask-image: url(/vine/leaf_young_furled.png);
+          -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.tipArt { -webkit-mask-image: url(/vine/vine_tip.png); mask-image: url(/vine/vine_tip.png);
+          -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.tipSway { transform-origin: 50% 96%; animation: tipSway 5.2s ease-in-out infinite alternate; }
+@keyframes tipSway { from { transform: rotate(-2.6deg); } to { transform: rotate(2.4deg); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .leafSway, .leafPop { animation: none; }
+  .leafSway, .leafPop, .htmlSway, .htmlPop.popping, .tipSway { animation: none; }
 }
