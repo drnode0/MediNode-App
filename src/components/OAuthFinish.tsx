@@ -80,6 +80,10 @@ export function OAuthFinish({
   const mountedRef = useRef(true)
 
   useEffect(() => {
+    // Strict Mode（app routerの既定）は mount→cleanup→再mount を行う。cleanupで
+    // false にした値を再mount時にここで true へ戻さないと、以後ずっと「unmount済み」
+    // 扱いのままになり、busy解除のfinallyが黙って効かなくなる（Finding 2）。
+    mountedRef.current = true
     return () => {
       mountedRef.current = false
       if (completeTimeoutRef.current) clearTimeout(completeTimeoutRef.current)
@@ -146,18 +150,30 @@ export function OAuthFinish({
     // 「候補が1件だけなら自動選択」という親切機能は、何もプリフィルされなかった時だけ
     // 発火させる。保存済みの選択が引き継げているのに、1件しか無いからと黙って別の
     // DBへ差し替えるのは避ける。
+    //
+    // この自動選択が、たまたま保存済みの Reference と同じDBを Medical に選んでしまう
+    // ことがある。Reference の<select>は Medical と同じidを候補から除外するだけなので、
+    // 表示上は「使わない」に見えるのに、保存すると両方が同じidになる（Finding 3）。
+    // 自動選択の瞬間に限り、衝突するならReferenceを空へ戻す。
     if (!medicalToSet && list.length === 1) {
-      setMedicalId(list[0].id)
+      const autoMedicalId = list[0].id
+      setMedicalId(autoMedicalId)
+      if (referenceToSet === autoMedicalId) setReferenceId('')
     }
 
-    // 列マッピングも同時にシードする。ここで空のまま次工程（confirmDbs）へ渡すと、
-    // 「列を推定できなかった＝全て既定名で確定」の分岐で、保存済みのカスタム
-    // マッピングを黙って空欄に上書きしてしまう（Finding 3）。
+    // 列マッピングは、それが設定された時の Medical DB と今回選ばれた（引き継がれた）
+    // Medical DB が同じ場合だけシードする（Finding 4）。repickで別のDBを選んだ場合、
+    // そのDBに存在しない列名のマッピングを黙って引き継ぐと、「列を推定できなかった＝
+    // 全て既定名で確定」の分岐で、実在しない列名のまま保存されてしまい、要約が
+    // 静かに空になる。表記ゆれ（ハイフン有無）を無視して比較するため、他所と同じく
+    // normalizeNotionId で正規化してから突き合わせる。
+    const mappingMatchesMedical =
+      !!storedMedical && !!medicalToSet && normalizeNotionId(storedMedical) === normalizeNotionId(medicalToSet)
     setPropMap({
-      propSummary: stored?.propSummary || '',
-      propKeywords: stored?.propKeywords || '',
-      propKnowledgeLevel: stored?.propKnowledgeLevel || '',
-      propGenre: stored?.propGenre || '',
+      propSummary: mappingMatchesMedical ? stored?.propSummary || '' : '',
+      propKeywords: mappingMatchesMedical ? stored?.propKeywords || '' : '',
+      propKnowledgeLevel: mappingMatchesMedical ? stored?.propKnowledgeLevel || '' : '',
+      propGenre: mappingMatchesMedical ? stored?.propGenre || '' : '',
     })
 
     setDbsLoading(false)
@@ -342,7 +358,12 @@ export function OAuthFinish({
     saveSettings(next)
     setPhase('done')
     // unmount後にonCompleteが発火しないよう、IDを控えてクリーンアップで消す（Minor fix）。
-    completeTimeoutRef.current = setTimeout(onComplete, 1200)
+    // すでにunmount済みなら、そもそもタイマーを張らない（Finding 5）。cleanupは一度しか
+    // 走らないため、unmount後に張ったタイマーはclearされず、離脱済みの画面で
+    // onCompleteが発火してしまう。
+    if (mountedRef.current) {
+      completeTimeoutRef.current = setTimeout(onComplete, 1200)
+    }
   }
 
   const restart = () => { window.location.href = '/api/notion/oauth/start' }
@@ -352,14 +373,17 @@ export function OAuthFinish({
   // この時点では何も保存されていない（claim できていない）ので、端末側で戻すものは無い。
   // だがサーバーの completed 行を残したままだと、次回のコールドスタートでも同じ行が
   // claimable と判定され、全画面シートが再び開いてしまう（claim の猶予が尽きるまで）。
-  // discard を叩いて却下してから閉じる。失敗しても画面は閉じる
-  // （閉じられないよりは、次回また出るだけの方がまし）。
-  const discardAndAbort = async () => {
-    try {
-      await fetch('/api/notion/oauth/discard', { method: 'POST' })
-    } catch {
+  // discard は投げっぱなしにして、すぐ閉じる（Finding 1）。以前はawaitしていたが、
+  // モバイルの不安定な回線ではfetchが「失敗」ではなく「何十秒も応答が返らない」
+  // 状態になり得る。ここに直列ガード（busy）がかかっていると、応答が来るまで
+  // 画面上の全ボタンがdisabledのままになり、このシート以外に抜け道が無いため
+  // ユーザーが閉じ込められてしまう。discardは元々ベストエフォート（サーバー側も
+  // 「捨てるものが無い」を成功として扱う）なので、完了を待つ必要はない。keepalive
+  // を付け、onAbort()でこのコンポーネントがunmountされても request が生き残るようにする。
+  const discardAndAbort = () => {
+    fetch('/api/notion/oauth/discard', { method: 'POST', keepalive: true }).catch(() => {
       // 通信失敗は無視。次回起動でまた出るだけ。
-    }
+    })
     onAbort()
   }
 
@@ -390,7 +414,8 @@ export function OAuthFinish({
             <button type="button" disabled={busy} onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               Notionでページを選び直す
             </button>
-            <button type="button" disabled={busy} onClick={() => runGuarded(discardAndAbort)} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm disabled:opacity-50">
+            {/* discardAndAbort はもう待たないため、busyガードは不要（Finding 1）。 */}
+            <button type="button" onClick={discardAndAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
               このままの接続を続ける
             </button>
           </div>
@@ -413,7 +438,8 @@ export function OAuthFinish({
             >
               もう一度確認する
             </button>
-            <button type="button" disabled={busy} onClick={() => runGuarded(discardAndAbort)} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm disabled:opacity-50">
+            {/* discardAndAbort はもう待たないため、busyガードは不要（Finding 1）。 */}
+            <button type="button" onClick={discardAndAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
               このままの接続を続ける
             </button>
           </div>
@@ -466,7 +492,11 @@ export function OAuthFinish({
                 </button>
               </>
             )}
-            <button type="button" onClick={onAbort} className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1">
+            {/* このDBでつなぐ→この設定で完了 の一連（confirmDbs〜save）が走っている間は
+                閉じさせない（Finding 5）。ここで閉じると save が裏で完走し、unmount後に
+                完了タイマーが armed され、離脱済みの画面のはずが完了扱い（ツアー表示等）
+                になってしまう。 */}
+            <button type="button" disabled={busy} onClick={onAbort} className="w-full text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1 disabled:opacity-50">
               あとで設定する
             </button>
           </div>
