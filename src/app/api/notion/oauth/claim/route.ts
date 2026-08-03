@@ -8,12 +8,24 @@
 // （notionTokenPrev）だけは手動Tokenを置き換えるときに限る。
 //
 // レスポンス契約:
-//   { status: 'none' }                          引き取り対象なし
+//   { status: 'none' }                          引き取り対象なし（機能を持たない場合も同じ形にする）
 //   { status: 'conflict', unreadable }           何も書いていない。stateはcompletedのまま残る
 //   { status: 'ok', settings, hadServerSettings }
 //     hadServerSettings が false の場合、settings は DEFAULT_SETTINGS 相当の土台でしかない
 //     （既存の暗号化設定=settings_encが無かった場合。早期アクセスのフラグだけを持つ行を含む）。
 //     クライアントは置き換えではなく、必ずローカル設定とのマージで扱うこと。
+//
+// リクエストボディ（任意・Finding4）:
+//   { notionMedicalDbId?, notionReferenceDbId?, notionManualDbId? }
+//   クライアントが自分のローカル設定として持っている登録済みDBのIDを、そのまま同じ
+//   フィールド名で送ってよい。saveSettings のサーバーへの反映は fire-and-forget で
+//   失敗することがあるため、readability チェックをサーバー側の（古いかもしれない）
+//   設定だけに頼ると、ローカルにだけ存在する未同期のDBが範囲外のまま見逃されうる。
+//   ここで受け取ったIDは readability チェックの対象を広げるためだけに使い、
+//   user_settings への書き込みには一切使わない（書くのは既存どおりサーバー側の base
+//   とトークンだけ）。ボディが無い・空・壊れている場合は今までどおり何も広げず、
+//   チェック自体はスキップしない。次段（クライアント配線）はこの3フィールドを
+//   送ることを前提にしてよい。
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
@@ -45,7 +57,41 @@ function supabaseReady(): boolean {
   )
 }
 
-export async function POST() {
+// Finding4: クライアントが自分のローカル設定として持っているDB IDを読む。
+// 壊れたボディ・空ボディ・ボディ無しはすべて「追加のIDなし」として扱う（例外は投げない・
+// readabilityチェック自体はスキップしない）。文字列以外・空文字は無視する。
+async function readClientDbRefs(req: Request): Promise<DbRef[]> {
+  let raw: string
+  try {
+    raw = await req.text()
+  } catch {
+    return []
+  }
+  if (!raw) return []
+
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!body || typeof body !== 'object') return []
+
+  const pick = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim().length > 0 ? v : null
+
+  const b = body as Record<string, unknown>
+  const refs: DbRef[] = []
+  const medical = pick(b.notionMedicalDbId)
+  const reference = pick(b.notionReferenceDbId)
+  const manual = pick(b.notionManualDbId)
+  if (medical) refs.push({ role: 'medical', id: medical })
+  if (reference) refs.push({ role: 'reference', id: reference })
+  if (manual) refs.push({ role: 'manual', id: manual })
+  return refs
+}
+
+export async function POST(req: Request) {
   if (!supabaseReady()) {
     return NextResponse.json({ error: 'supabase_not_configured' }, { status: 503 })
   }
@@ -57,8 +103,11 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
+  // Finding3: 機能を持たない呼び出し元にも「機能が存在すること」自体を教えない。
+  // start（ホームへ静かに戻す）・claimable（claimable:falseで判別不能）と同じ扱いにするため、
+  // ここも「引き取り対象なし」と見分けの付かない応答にする（403やエラー文言は出さない）。
   if (!(await sessionHasFeature('easy_connect'))) {
-    return NextResponse.json({ error: 'この機能はまだ開放されていません' }, { status: 403 })
+    return NextResponse.json({ status: 'none' })
   }
 
   // アプリ起動時に1回だけ自動で叩かれる想定の経路。本人が数回リトライしても
@@ -122,11 +171,28 @@ export async function POST() {
   // 置き換え元が手動でもOAuthでも、いま登録済みのDBが新トークンで読めるか必ず確かめる。
   // IDが空のロールは findUnreadableDatabases 側でスキップされ即 [] を返すので、
   // 既存DBを持たない新規ユーザーには追加のNotion呼び出しコストが掛からない。
-  const refs: DbRef[] = [
+  //
+  // Finding4: サーバー側の base はここまで settings_enc の読み取り結果でしかなく、
+  // saveSettings のサーバーへの反映が fire-and-forget で失敗していれば古いままでありうる。
+  // クライアントが自分のローカルのIDを併せて送ってきていれば（readClientDbRefs）、
+  // サーバー側の3ロールぶんと合わせてチェック対象を広げる。同じIDが両方に含まれる場合は
+  // 1回しか取得しない（de-dup）。クライアント由来のIDは readability チェックにしか使わず、
+  // mergedやbaseなど書き込み対象には一切混ぜない。
+  const serverRefs: DbRef[] = [
     { role: 'medical', id: String(base.notionMedicalDbId || '') },
     { role: 'reference', id: String(base.notionReferenceDbId || '') },
     { role: 'manual', id: String(base.notionManualDbId || '') },
   ]
+  const clientRefs = await readClientDbRefs(req)
+  const seenIds = new Set<string>()
+  const refs: DbRef[] = []
+  for (const r of [...serverRefs, ...clientRefs]) {
+    if (r.id) {
+      if (seenIds.has(r.id)) continue
+      seenIds.add(r.id)
+    }
+    refs.push(r)
+  }
   const unreadable = await findUnreadableDatabases({ token: token.accessToken, refs })
   if (unreadable.length > 0) {
     // 何も書かない。state は completed のまま残すので、選び直してからやり直せる。
