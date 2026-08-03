@@ -90,22 +90,46 @@ export function dormantIds(steps: Step[], joinedIso: string): string[] {
 
 // 印は1つにつき2行の文字を持つので、これ未満に近づくと重なる。
 export const MIN_MARK_GAP = 28
+// 点景のラベルは1行なので狭くてよい。
+export const MIN_SCENERY_GAP = 12
 
-// 蔓の脇に描く印。近すぎるものは間引く——根元では実物の葉数が詰まっており
-// （アリ=葉3・テントウムシ=葉4）、全件描くと文字が重なって読めなくなるため。
-// 間引くのは描画だけで、目次（markPositions）からは落とさない。
-export function sceneMarks(aboveTotal: number): ReturnType<typeof markPositions> {
-  const marks = markPositions(aboveTotal)
-  // 上（新しい側＝yが小さい側）から順に見て、直前に採った印とのyの差がMIN_MARK_GAP以上の
-  // ものだけを採る。markPositionsはyが大きい順（古い順）に並んでいるので、末尾から遡る。
-  const kept: ReturnType<typeof markPositions> = []
-  let lastKeptY: number | null = null
-  for (let i = marks.length - 1; i >= 0; i--) {
-    const m = marks[i]
-    if (lastKeptY === null || m.y - lastKeptY >= MIN_MARK_GAP) {
-      kept.unshift(m)
-      lastKeptY = m.y
-    }
+export type LaneMark =
+  | { type: 'milestone'; y: number; milestone: Milestone; withLabel: boolean }
+  | { type: 'scenery'; y: number; label: string; withLabel: boolean }
+  | { type: 'undergroundDone'; y: number; withLabel: true }
+
+// 右レーン（蔓の脇の印の帯）を1本で整列する（地雷2の解消）。
+// 実物の印・時間の点景・地下が尽きた日は同じ余白に住むので、置けるラベルをここで一元に決める。
+// 優先度: 地下が尽きた日 ＞ 実物の印（新しい側優先） ＞ 点景（新しい側優先）。
+// ⚠️ 間引くのはラベルだけ。印そのもの（刻み・点）は全件返す——目次から飛んだ先には必ず刻みがある（地雷5）。
+export function laneMarks(
+  aboveTotal: number,
+  scenery: { y: number; label: string }[],
+  undergroundDoneY: number | null,
+): LaneMark[] {
+  const labeledYs: { y: number; gap: number }[] = []
+  const canPlace = (y: number, gap: number) => labeledYs.every((l) => Math.abs(l.y - y) >= Math.max(gap, l.gap))
+  const place = (y: number, gap: number) => labeledYs.push({ y, gap })
+
+  const out: LaneMark[] = []
+  if (undergroundDoneY !== null) {
+    place(undergroundDoneY, MIN_MARK_GAP)
+    out.push({ type: 'undergroundDone', y: undergroundDoneY, withLabel: true })
   }
-  return kept
+  // 実物の印: 新しい側（yが小さい側）からラベルを配る
+  const ms = markPositions(aboveTotal)
+  for (let i = ms.length - 1; i >= 0; i--) {
+    const m = ms[i]
+    const withLabel = canPlace(m.y, MIN_MARK_GAP)
+    if (withLabel) place(m.y, MIN_MARK_GAP)
+    out.push({ type: 'milestone', y: m.y, milestone: m.milestone, withLabel })
+  }
+  // 点景: 新しい側からラベルを配る（実物の印より弱い）
+  const sc = [...scenery].sort((a, b) => a.y - b.y)
+  for (const s of sc) {
+    const withLabel = canPlace(s.y, MIN_SCENERY_GAP)
+    if (withLabel) place(s.y, MIN_SCENERY_GAP)
+    out.push({ type: 'scenery', y: s.y, label: s.label, withLabel })
+  }
+  return out.sort((a, b) => a.y - b.y)
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD, MIN_MARK_GAP,
-  sceneHeightPx, leafY, groundY, visibleRange, markPositions, sceneMarks,
+  PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD, MIN_MARK_GAP, MIN_SCENERY_GAP,
+  sceneHeightPx, leafY, groundY, visibleRange, markPositions, laneMarks,
   splitByJoin, dormantIds, RHIZOME_DEPTH,
 } from '../vine-scroll'
 import type { Step } from '../tower-steps'
@@ -134,20 +134,52 @@ describe('まだ芽を出していない知識（dormantIds）', () => {
   })
 })
 
-describe('シーン描画用の間引き（根元の密集対策）', () => {
-  it('葉200枚のとき、間引いた印どうしのyの差はすべてMIN_MARK_GAP以上になる', () => {
-    const marks = sceneMarks(200)
-    for (let i = 1; i < marks.length; i++) {
-      expect(Math.abs(marks[i].y - marks[i - 1].y)).toBeGreaterThanOrEqual(MIN_MARK_GAP)
-    }
+describe('右レーンの統合（laneMarks・地雷2/4/5）', () => {
+  it('実物の印は全件返る（ラベルを間引いても刻みは消えない）', () => {
+    const lane = laneMarks(200, [], null)
+    const ms = lane.filter((m) => m.type === 'milestone')
+    expect(ms.length).toBe(markPositions(200).length) // 8件全部
   })
   it('目次（markPositions）は間引かれず全件（8件）残る', () => {
     expect(markPositions(200).length).toBe(8)
   })
-  it('密集した組では古いほう（アリ）が落ち、新しいほう（テントウムシ）が残る', () => {
-    const marks = sceneMarks(200)
-    const labels = marks.map((m) => m.milestone.label)
-    expect(labels).not.toContain('アリ')
-    expect(labels).toContain('テントウムシ')
+  it('密集した組では古いほう（アリ）のラベルが落ち、新しいほう（テントウムシ）が残る', () => {
+    const lane = laneMarks(200, [], null)
+    const byLabel = (label: string) =>
+      lane.find((m) => m.type === 'milestone' && m.milestone.label === label) as { withLabel: boolean }
+    expect(byLabel('アリ').withLabel).toBe(false)
+    expect(byLabel('テントウムシ').withLabel).toBe(true)
+  })
+  it('ラベル付きの実物の印どうしはMIN_MARK_GAP以上あく', () => {
+    const labeled = laneMarks(200, [], null).filter((m) => m.type === 'milestone' && m.withLabel)
+    for (let i = 1; i < labeled.length; i++) {
+      expect(Math.abs(labeled[i].y - labeled[i - 1].y)).toBeGreaterThanOrEqual(MIN_MARK_GAP)
+    }
+  })
+  it('点景のラベルは実物の印のラベルに近すぎると落ちる（点は残る）', () => {
+    const suzumeY = leafY(50, 60) // スズメの位置
+    const lane = laneMarks(60, [{ y: suzumeY + 4, label: '蛍' }], null)
+    const sc = lane.find((m) => m.type === 'scenery') as { withLabel: boolean }
+    expect(sc).toBeDefined()
+    expect(sc.withLabel).toBe(false)
+  })
+  it('離れた点景はラベルつき・点景どうしもMIN_SCENERY_GAPで間引く', () => {
+    const lane = laneMarks(60, [
+      { y: 300, label: '蛍' }, { y: 306, label: '蝉しぐれ' }, { y: 340, label: '名月' },
+    ], null)
+    const scs = lane.filter((m) => m.type === 'scenery')
+    expect(scs.map((m) => m.withLabel)).toEqual([true, false, true])
+    expect(MIN_SCENERY_GAP).toBeLessThan(MIN_MARK_GAP)
+  })
+  it('地下が尽きた日のラベルは常に残り、近い点景のラベルが譲る', () => {
+    const lane = laneMarks(10, [{ y: 500, label: '初雪' }], 504)
+    expect(lane.find((m) => m.type === 'undergroundDone')).toBeDefined()
+    const sc = lane.find((m) => m.type === 'scenery') as { withLabel: boolean }
+    expect(sc.withLabel).toBe(false)
+  })
+  it('yの昇順（新しい順）で返る', () => {
+    const lane = laneMarks(60, [{ y: 300, label: '蛍' }], 900)
+    const ys = lane.map((m) => m.y)
+    expect([...ys].sort((a, b) => a - b)).toEqual(ys)
   })
 })
