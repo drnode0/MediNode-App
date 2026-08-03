@@ -12,7 +12,7 @@ import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
-import { leafY, markPositions } from '@/lib/vine-scroll'
+import { leafY, markPositions, splitByJoin } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -118,16 +118,18 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     return () => window.removeEventListener('resize', measure)
   }, [to])
 
+  // 地下茎と地上部（正典§7）。表示・リプレイ・高さはすべて above だけを見る。
+  const split = useMemo(() => splitByJoin(state.steps, state.joinedAt), [state.steps, state.joinedAt])
   const marks = useMemo(() => markPositions(to), [to])
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const stats = useMemo(() => loadAllQuizStats(), [])
-  const visuals = useMemo(() => buildLeafVisuals(state.steps, stats, nowIso), [state.steps, stats, nowIso])
-  const spotlight = useMemo(() => spotlightFaded(state.steps, stats, nowIso), [state.steps, stats, nowIso])
+  const visuals = useMemo(() => buildLeafVisuals(split.above, stats, nowIso), [split.above, stats, nowIso])
+  const spotlight = useMemo(() => spotlightFaded(split.above, stats, nowIso), [split.above, stats, nowIso])
 
   const leavesNow = engine.leavesNow
   const hMm = heightMmFromLeaves(leavesNow)
   const newLeaves = to - from
-  const todayLeaf = state.steps[to - 1]
+  const todayLeaf = split.above[to - 1]
   const showSan = !engine.running || engine.phaseName === 'yoin'
 
   // リプレイ中だけ穂先を追う（§ 開始位置は穂先だが成長は根元から始まるため、
@@ -141,7 +143,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     el.scrollTop = Math.max(0, leafY(revealIndex, to) - viewportH * 0.55)
   }, [engine.running, leavesNow, to, viewportH])
 
-  const openLeaf = leafOpen != null ? state.steps[leafOpen] : null
+  const openLeaf = leafOpen != null ? split.above[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
 
   return (
@@ -150,8 +152,9 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
         <div className="mb-1 flex items-start justify-between">
           <div>
             <div className="text-[11px] tracking-[.35em] text-[#7d6f52]">知　の　蔓</div>
-            <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>
-            <div className="mt-0.5 text-[11px] text-[#8b8272]">{leafCountLine(newLeaves, to)}</div>
+            {/* 地上0のときは数字を出さない——「0mm」「ぜんぶで 0枚」は最初の一画面を0で語ってしまう */}
+            {to > 0 && <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>}
+            {to > 0 && <div className="mt-0.5 text-[11px] text-[#8b8272]">{leafCountLine(newLeaves, to)}</div>}
           </div>
           {/* 「つぎは◯◯」はVineScene側の穂先の上に一本化（正典§7＝二重表示の禁止）。
               ここではボタンだけを置く。 */}
@@ -177,10 +180,11 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           >
             <VineScene
               leavesNow={leavesNow} from={from} to={to}
-              visuals={visuals} spotlightIds={spotlight} steps={state.steps}
+              visuals={visuals} spotlightIds={spotlight} steps={split.above}
               crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
               onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
               scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={engine.running}
+              undergroundCount={split.underground.length} undergroundClearedAt={state.undergroundClearedAt}
             />
           </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
