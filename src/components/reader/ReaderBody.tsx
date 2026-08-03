@@ -160,11 +160,26 @@ function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?
   )
 }
 
+// 色つきボックスの枠。左の太い柱で種別を示し、上下右の細い線で箱の端を定義する。
+// 塗り（*-50 系）は白背景の上ではほとんど沈むので、柱だけだと右端・下端が消えて
+// 「囲い」として成立しない（実機の見え方で確認）。
+// かといって全周を太くすると、節ごとに出る recap（1ページに5〜8個）が結論ボックスと
+// 同じ重さになり、「答え」と「節の持ち帰り」の段差が潰れる。だから太いのは左だけに留める。
+const BOX_FRAME = 'border-l-4 border-y border-r rounded-r-lg'
+const BOX_EDGE: Record<string, string> = {
+  amber: 'border-l-amber-400 dark:border-l-amber-500 border-y-amber-300 border-r-amber-300 dark:border-y-amber-500/40 dark:border-r-amber-500/40',
+  emerald: 'border-l-emerald-500 dark:border-l-emerald-400 border-y-emerald-300 border-r-emerald-300 dark:border-y-emerald-500/40 dark:border-r-emerald-500/40',
+  brand: 'border-l-brand-500 dark:border-l-brand-400 border-y-brand-300 border-r-brand-300 dark:border-y-brand-500/40 dark:border-r-brand-500/40',
+  gray: 'border-l-gray-400 dark:border-l-gray-500 border-y-gray-300 border-r-gray-300 dark:border-y-gray-500/40 dark:border-r-gray-500/40',
+  blue: 'border-l-blue-400 dark:border-l-blue-500 border-y-blue-300 border-r-blue-300 dark:border-y-blue-500/40 dark:border-r-blue-500/40',
+}
+
+// 塗りと枠色の組。キーは Notion の callout color。
 const CALLOUT_TONE: Record<string, string> = {
-  yellow_background: 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 dark:border-amber-500',
-  green_background: 'bg-brand-50 dark:bg-brand-900/30 border-brand-500 dark:border-brand-400',
-  gray_background: 'bg-gray-50 dark:bg-gray-700/40 border-gray-400 dark:border-gray-500',
-  blue_background: 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 dark:border-blue-500',
+  yellow_background: `bg-amber-50 dark:bg-amber-900/20 ${BOX_EDGE.amber}`,
+  green_background: `bg-brand-50 dark:bg-brand-900/30 ${BOX_EDGE.brand}`,
+  gray_background: `bg-gray-50 dark:bg-gray-700/40 ${BOX_EDGE.gray}`,
+  blue_background: `bg-blue-50 dark:bg-blue-900/20 ${BOX_EDGE.blue}`,
 }
 
 // paragraph / list_item の淡色化・recap スタイルを決める共通ロジック。
@@ -173,8 +188,9 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   if (dim) return 'text-gray-500 dark:text-gray-400'
   const text = block.kind === 'paragraph' || block.kind === 'list_item' ? block.inlines.map((x) => x.text).join('') : ''
   // recap（→だから…）は節の持ち帰りポイント。淡色で沈めず、teal の小箱で「面」として立てる。
+  // 柱は3px＝結論ボックス（4px）より一段軽い。数が多いのでここで段差をつける。
   if (isRecapText(text))
-    return 'text-gray-700 dark:text-gray-300 font-medium bg-teal-50/70 dark:bg-teal-900/20 border-l-[3px] border-teal-500 rounded-r-md px-3 py-2'
+    return 'text-gray-700 dark:text-gray-300 font-medium bg-teal-50/70 dark:bg-teal-900/20 border-l-[3px] border-y border-r border-l-teal-500 border-y-teal-300 border-r-teal-300 dark:border-y-teal-500/40 dark:border-r-teal-500/40 rounded-r-md px-3 py-2'
   return 'text-gray-900 dark:text-gray-100'
 }
 
@@ -219,7 +235,7 @@ function CalloutBlock({
     return (
       <div
         data-tldr=""
-        className="rounded-r-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4"
+        className={`${BOX_FRAME} ${BOX_EDGE.amber} bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4`}
       >
         <div className="flex gap-2">
           <CalloutIcon role={role} icon={block.icon} />
@@ -237,7 +253,7 @@ function CalloutBlock({
     const hasHeadingText = first && first.kind === 'paragraph' && first.inlines.some((n) => n.bold)
     return (
       <div
-        className="rounded-r-lg border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3.5 my-4"
+        className={`${BOX_FRAME} ${BOX_EDGE.emerald} bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3.5 my-4`}
       >
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 overflow-hidden">
@@ -275,7 +291,7 @@ function CalloutBlock({
   // evidence / disclaimer / plain: 既存 CALLOUT_TONE 準拠（disclaimer は常に gray）。
   const tone = role === 'disclaimer' ? CALLOUT_TONE.gray_background : (block.color && CALLOUT_TONE[block.color]) || CALLOUT_TONE.gray_background
   return (
-    <div className={`border-l-4 rounded-r-lg px-4 py-3.5 my-4 ${tone}`}>
+    <div className={`${BOX_FRAME} px-4 py-3.5 my-4 ${tone}`}>
       <div className="flex gap-2">
         <CalloutIcon role={role} icon={block.icon} />
         <div className="min-w-0">
