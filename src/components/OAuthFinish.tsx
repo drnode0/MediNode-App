@@ -5,19 +5,22 @@
 // mode='claim'  : 預けてある接続を引き取ってから、DB選択→列確認→保存
 // mode='repick' : 引き取りは済んでいる。保存済みトークンでDB選択だけをやり直す（§19b）
 //
-// 読めないDBは保存しない（§20c）。check-props が失敗したら Medical だけで再試行し、
-// どちらが読めないのかを名指しする。「列を推定できなかった」場合だけ既定名で先へ進む。
+// 読めないDBは保存しない（§20c）。check-props のエラーコードが「見えない」に該当するときだけ
+// Medical だけで再試行し、どちらが読めないのかを名指しする。それ以外（レート制限・Notion側の
+// 一時的な不調・通信断など）は「確認できなかった」扱いにして再試行を促す（読めないと断定しない）。
+// 「列を推定できなかった」場合だけ既定名で先へ進む。
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
-import { getSettings, saveSettings, setSettingsUpdatedAt, type AppSettings } from '@/lib/settings'
+import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
 import { inferPropMap } from '@/lib/prop-infer'
+import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
 import { PropMapEditor } from './PropMapEditor'
 import { Spinner } from './Spinner'
 
 type DbItem = { id: string; title: string }
-type Phase = 'claiming' | 'pick' | 'columns' | 'unreadable' | 'conflict' | 'saving' | 'done' | 'error'
+type Phase = 'claiming' | 'pick' | 'columns' | 'unreadable' | 'checkFailed' | 'conflict' | 'saving' | 'done' | 'error'
 type Mode = 'claim' | 'repick'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -38,6 +41,9 @@ export function OAuthFinish({
   const [phase, setPhase] = useState<Phase>(mode === 'claim' ? 'claiming' : 'pick')
   const [error, setError] = useState('')
   const [dbs, setDbs] = useState<DbItem[]>([])
+  // repick は 'pick' フェーズから始まる（claimをやり直さないため）が、DB一覧はこれから
+  // 取りに行く。一覧が届く前に dbs=[] を「見つかりませんでした」と誤読させないためのフラグ（Finding 2）。
+  const [dbsLoading, setDbsLoading] = useState(mode === 'repick')
   const [medicalId, setMedicalId] = useState('')
   const [referenceId, setReferenceId] = useState('')
   const [schema, setSchema] = useState<Array<{ name: string; type: string }> | null>(null)
@@ -45,6 +51,15 @@ export function OAuthFinish({
   const [workspace, setWorkspace] = useState('')
   const [unreadableRole, setUnreadableRole] = useState<string>('medical')
   const [conflictRoles, setConflictRoles] = useState<string[]>([])
+  // done フェーズで張るタイマー。画面を離れたあとに onComplete が呼ばれないよう、
+  // unmount 時にクリアする（Minor fix）。
+  const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (completeTimeoutRef.current) clearTimeout(completeTimeoutRef.current)
+    }
+  }, [])
 
   const loadDbs = async (token: string) => {
     const res = await fetch('/api/notion/list-databases', {
@@ -56,13 +71,37 @@ export function OAuthFinish({
     if (!res.ok) throw new Error(data.error || '')
     const list: DbItem[] = data.databases || []
     setDbs(list)
-    if (list.length === 1) setMedicalId(list[0].id)
+    if (mode === 'repick') {
+      // 選び直し画面の目的は「今の選択を変える」ことなので、現在の設定を引き継ぐ。
+      // ただし今回の一覧に実在するIDだけを使う（見つからない＝この認可では見えない、
+      // という状態なので、<select> の値が選択肢の外に出ないよう空のままにする＝
+      // Finding 3。見つからなかった場合にユーザーへ何かを名指しで警告することはしない
+      // （それは「保存前のcheck-props」の役目であり、ここは一覧を出すだけの段階のため）。
+      const stored = getSettings()
+      const ids = new Set(list.map((d) => d.id))
+      const storedMedical = stored?.notionMedicalDbId || ''
+      const storedReference = stored?.notionReferenceDbId || ''
+      const medicalToSet = storedMedical && ids.has(storedMedical)
+        ? storedMedical
+        : (list.length === 1 ? list[0].id : '')
+      const referenceToSet = storedReference && ids.has(storedReference) && storedReference !== medicalToSet
+        ? storedReference
+        : ''
+      if (medicalToSet) setMedicalId(medicalToSet)
+      if (referenceToSet) setReferenceId(referenceToSet)
+    } else if (list.length === 1) {
+      setMedicalId(list[0].id)
+    }
+    setDbsLoading(false)
     setPhase('pick')
   }
 
   useEffect(() => {
     const start = async () => {
       const local = getSettings()
+      // claim（トークンの引き取り）まで済んだかどうか。済んだ後にDB一覧取得が失敗した場合は
+      // 「クレームからやり直し」ではなく「設定から選び直し」を案内する（Minor fix）。
+      let claimed = false
       try {
         if (mode === 'repick') {
           if (!local?.notionToken) {
@@ -97,14 +136,25 @@ export function OAuthFinish({
           setPhase('conflict')
           return
         }
+        // status が 'ok' でも settings が欠けた不整合な応答は、成功として扱わない
+        // （settings を素通りさせると undefined を保存してしまう。Minor fix：runtime guard）。
+        if (data.status !== 'ok' || !data.settings) {
+          setError('接続の引き取りに失敗しました。通信環境を確認して、もう一度お試しください。')
+          setPhase('error')
+          return
+        }
 
         const next = resolveClaimedSettings(data.settings, data.hadServerSettings === true, local)
         saveSettings(next)
-        setSettingsUpdatedAt(new Date().toISOString())
+        claimed = true
         setWorkspace(next.notionWorkspaceName || '')
         await loadDbs(next.notionToken)
       } catch {
-        setError('データベースの一覧を取得できませんでした。通信環境を確認して、もう一度お試しください。')
+        if (claimed) {
+          setError('接続は完了しています。データベースの一覧だけ取得できませんでした。設定の「読み取るDBを選び直す」から、もう一度お試しください。')
+        } else {
+          setError('データベースの一覧を取得できませんでした。通信環境を確認して、もう一度お試しください。')
+        }
         setPhase('error')
       }
     }
@@ -128,22 +178,50 @@ export function OAuthFinish({
         }),
       })
 
+    // check-props の500応答から Notion のエラーコードを取り出す（Finding 1）。
+    // 読めなかったのではなく「確認できなかった」場合はコードが無い/未知の値になる。
+    const readErrorCode = async (res: Response): Promise<string | undefined> => {
+      try {
+        const body = await res.json()
+        return typeof body?.code === 'string' ? body.code : undefined
+      } catch {
+        return undefined
+      }
+    }
+
     let data: { medical?: { schema?: Array<{ name: string; type: string }> } } | null = null
     try {
       const res = await check(true)
       if (res.ok) {
         data = await res.json()
-      } else if (referenceId) {
-        // Medical だけで通るなら、読めないのは Reference（check-props は最初の失敗で
-        // 500 を返すため、切り分けはクライアント側で行う）。
-        const retry = await check(false)
-        if (retry.ok) { setUnreadableRole('reference'); setPhase('unreadable'); return }
-        setUnreadableRole('medical'); setPhase('unreadable'); return
       } else {
-        setUnreadableRole('medical'); setPhase('unreadable'); return
+        const code = await readErrorCode(res)
+        if (!isUnreadableDbErrorCode(code)) {
+          // rate_limited・Notion側5xx・その他未知のコード＝一時的な失敗の可能性がある。
+          // 「読めない」と決めつけず、確認できなかった扱いにする。
+          setPhase('checkFailed')
+          return
+        }
+        if (referenceId) {
+          // Medical だけで通るなら、読めないのは Reference（check-props は最初の失敗で
+          // 500 を返すため、切り分けはクライアント側で行う）。
+          const retry = await check(false)
+          if (retry.ok) { setUnreadableRole('reference'); setPhase('unreadable'); return }
+          const retryCode = await readErrorCode(retry)
+          if (!isUnreadableDbErrorCode(retryCode)) {
+            // 再試行側が一時的な失敗だと、Medicalが本当に読めないのか確認できていない。
+            setPhase('checkFailed')
+            return
+          }
+          setUnreadableRole('medical'); setPhase('unreadable'); return
+        } else {
+          setUnreadableRole('medical'); setPhase('unreadable'); return
+        }
       }
     } catch {
-      setUnreadableRole('medical'); setPhase('unreadable'); return
+      // fetch自体が失敗（通信断など）＝Notion側のコードは得られない。読めないと断定しない。
+      setPhase('checkFailed')
+      return
     }
 
     // ここから先は「DBは読めた」ことが確定している。列が推定できないだけなら既定名で進む。
@@ -175,9 +253,9 @@ export function OAuthFinish({
       ...finalMap,
     }
     saveSettings(next)
-    setSettingsUpdatedAt(new Date().toISOString())
     setPhase('done')
-    setTimeout(onComplete, 1200)
+    // unmount後にonCompleteが発火しないよう、IDを控えてクリーンアップで消す（Minor fix）。
+    completeTimeoutRef.current = setTimeout(onComplete, 1200)
   }
 
   const restart = () => { window.location.href = '/api/notion/oauth/start' }
@@ -220,7 +298,11 @@ export function OAuthFinish({
             <p className="text-sm text-gray-600 dark:text-gray-300">
               許可したページの中から、知識本体のデータベース（Medical DB）を選んでください。
             </p>
-            {dbs.length === 0 ? (
+            {dbsLoading ? (
+              <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Spinner className="w-4 h-4" />データベースの一覧を読み込んでいます…
+              </p>
+            ) : dbs.length === 0 ? (
               <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300">
                 データベースが見つかりませんでした。Notionの認可画面で、データベースのあるページを選び直してください。
                 <button type="button" onClick={restart} className="mt-2 w-full border border-amber-400 rounded-lg py-2 font-semibold">
@@ -268,6 +350,24 @@ export function OAuthFinish({
             </button>
             <button type="button" onClick={() => setPhase('pick')} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
               別のデータベースを選ぶ
+            </button>
+          </div>
+        )}
+
+        {phase === 'checkFailed' && (
+          <div className="space-y-4">
+            <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
+              <span>データベースの確認が完了しませんでした。</span>
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              通信状況やNotion側の一時的な不調によることがあります。保存はしていないので、今の設定はそのままです。
+            </p>
+            <button type="button" onClick={() => void confirmDbs()} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+              もう一度確認する
+            </button>
+            <button type="button" onClick={() => setPhase('pick')} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+              データベースの選択に戻る
             </button>
           </div>
         )}

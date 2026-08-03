@@ -1,3 +1,14 @@
+// check-props などNotion API呼び出しが返す APIErrorCode のうち、
+// 「このデータベースは（今の権限では）見えない」ことを意味するもの。
+// rate_limited・5xx・タイムアウト等の一時的な失敗はここに含めない。
+// 呼び出し側は、この集合に入っていないコード（未知のコード・コードなしの
+// 例外を含む）を「確認できなかった」として扱い、「読めない」と断定しない。
+const UNREADABLE_DB_ERROR_CODES = new Set(['object_not_found', 'unauthorized', 'restricted_resource'])
+
+export function isUnreadableDbErrorCode(code: string | undefined | null): boolean {
+  return !!code && UNREADABLE_DB_ERROR_CODES.has(code)
+}
+
 // 接続テスト・同期系の生エラー（英語）を、対処手順つきの日本語に変換する。
 // SetupWizard（セットアップ中のテスト・同期）と設定パネル（接続設定の再テスト）で共用。
 // 文面はセットアップの画面遷移（「← 戻る」で入力画面へ）を前提にしているため、
