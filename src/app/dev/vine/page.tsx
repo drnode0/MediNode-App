@@ -36,6 +36,22 @@ function mkSurfaced(ids: string[]): Step[] {
   }))
 }
 
+// 点景シナリオ用: 途中に長い休みのある記録（空白区間に季節の点が連なるのを見る）
+function mkSpread(spec: { daysAgo: number; n: number }[]): Step[] {
+  const out: Step[] = []
+  let i = 0
+  for (const { daysAgo, n } of spec) {
+    for (let j = 0; j < n; j++) {
+      out.push({
+        id: `sp-${i}`, kind: 'recall',
+        at: new Date(Date.now() - (daysAgo - j) * 86_400_000).toISOString(),
+        genre: 'dev', title: `季節の知識 ${++i}`,
+      })
+    }
+  }
+  return out
+}
+
 const SCENARIOS: Record<string, TowerState> = {
   'ふつうの日（+4枚）': mk(14, 10),
   '追い越しの日（湯のみ35枚越え）': mk(40, 30),
@@ -53,6 +69,11 @@ const SCENARIOS: Record<string, TowerState> = {
     steps: [...mkOld(6), ...mkSurfaced(['old-0', 'old-1', 'old-2', 'old-3', 'old-4', 'old-5'])],
     lastSeenSteps: 5, lastSeenAt: '', backfilledAt: 'dev',
     joinedAt: JOINED, undergroundClearedAt: new Date(new Date(JOINED).getTime() + 6 * 3_600_000).toISOString(), levels: {},
+  },
+  '点景の一年（長い休みつき）': {
+    steps: mkSpread([{ daysAgo: 400, n: 20 }, { daysAgo: 120, n: 15 }]),
+    lastSeenSteps: 35, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: '', undergroundClearedAt: '', levels: {},
   },
   '芽と解決と濃い輪郭': {
     steps: [
