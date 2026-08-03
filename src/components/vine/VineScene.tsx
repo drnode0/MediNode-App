@@ -6,10 +6,11 @@
 import { useMemo } from 'react'
 import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
-import { formatHeight, heightMmFromLeaves } from '@/lib/vine-ladder'
+import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
 import { leafY, groundY, sceneHeightPx, visibleRange, markPositions } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
+import { nextObjectLine } from '@/lib/vine-copy'
 import styles from './vine.module.css'
 
 const VINE_SEED = 42
@@ -47,6 +48,7 @@ export function VineScene({
   const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH, BASE_X])
   const win = visibleRange(scrollTop, viewportH, to)
   const marks = useMemo(() => markPositions(to), [to])
+  const next = nextMilestone(to)
 
   // 葉の番号 → 蔓の中心線上の点（蔓の弧長ではなく、葉の縦位置で引く）
   const stemXAt = (index: number) => pointAtHeight(path, gY - leafY(index, to)).x
@@ -123,6 +125,14 @@ export function VineScene({
       {leavesNow < to && (
         <circle cx={stemXAt(Math.max(1, Math.floor(leavesNow)))} cy={leafY(Math.max(1, Math.floor(leavesNow)), to)} r={5} fill="#4a5537" opacity={0.75} />
       )}
+
+      {/* 次の実物: 穂先の上、まだ何もない空間に淡く置く。伸びしろが在ることだけを見せる
+          （寸法線・「あと◯◯」の数字は出さない＝数字で追い立てない）。スクロールで流れて消えてよい */}
+      <text
+        x={stemXAt(to)} y={36} textAnchor="middle" fontSize={10} fill={USUZUMI} opacity={0.55}
+      >
+        {nextObjectLine(next.label, next.sizeLabel)}
+      </text>
 
       {/* 地面 */}
       <path d={`M20,${gY} C 120,${gY - 4} 260,${gY + 3} 372,${gY - 2}`} stroke={INK} strokeWidth={3} opacity={0.5} fill="none" strokeLinecap="round" />
