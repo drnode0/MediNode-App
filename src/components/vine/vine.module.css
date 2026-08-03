@@ -1,20 +1,23 @@
 /* src/components/vine/vine.module.css */
-/* 常時和紙（設計書§8の明示的例外——.dark分岐を書かない） */
-.frame { background: #f2ead6; color: #2c2a22; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; }
+/* 常時和紙（設計書§8の明示的例外——.dark分岐を書かない）。
+   ⚠️ 紙の色は --washi 一箇所で決める。直書きすると時刻トーンとズレて、
+   夜に帯やシートだけが光る（2026-08-04にオーナー実機で発覚）。 */
+.frame {
+  background: var(--washi, #f2ead6);
+  color: #2c2a22;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
 .leafSway { transform-box: fill-box; transform-origin: 12% 88%; animation: sway 4s ease-in-out infinite alternate; }
 @keyframes sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.6deg); } }
 .leafPop { transform-box: fill-box; transform-origin: 8% 60%; animation: pop 320ms cubic-bezier(.34,1.56,.64,1); }
 @keyframes pop { from { transform: scale(0); } 70% { transform: scale(1.16); } to { transform: scale(1); } }
 .san { writing-mode: vertical-rl; letter-spacing: .14em; color: rgba(44,42,34,.85); }
-/* 口上の帯。蔓に重なっても読めるように、和紙をうっすら敷く（枠は付けない） */
-.obi {
-  background: linear-gradient(90deg, rgba(250,246,235,0) 0%, rgba(250,246,235,.93) 14%,
-              rgba(250,246,235,.93) 86%, rgba(250,246,235,0) 100%);
-  box-shadow: 0 0 16px 10px rgba(250,246,235,.5);
-}
-/* 賛の短冊。短い蔓では右レーンの文字と重なるため、和紙の紙片に載せて読めるようにする */
-.tanzaku { background: rgba(250,246,235,.92); border: 1px solid rgba(139,130,114,.35);
-           border-radius: 2px; padding: 12px 7px; box-shadow: 0 1px 4px rgba(60,50,30,.12); }
+/* 口上の詞書。絵の上に重ねず、絵の外（フッター）に置く——だから帯も光も要らない */
+.kotoba { color: rgba(44,42,34,.9); }
+/* 賛の短冊。右レーンの文字と重なるため、和紙の紙片に載せて読めるようにする。
+   ⚠️ 影は紙の落ち影まで。発光させない——水墨に光源は無い（2026-08-04） */
+.tanzaku { background: var(--washi, #f2ead6); border: 1px solid rgba(139,130,114,.35);
+           border-radius: 2px; padding: 12px 7px; box-shadow: 0 1px 2px rgba(60,50,30,.08); }
 .fadeIn { animation: fadeIn 600ms ease both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 /* ── 筆致の葉（HTMLレイヤー・マスク彩色）──
