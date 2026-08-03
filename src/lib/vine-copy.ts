@@ -34,6 +34,12 @@ export function indexHeading(): string {
   return '越えたもの'
 }
 
+// 地下が尽きた日（持ち込んだ知識がすべて地上に芽を出した）。地下茎の脇に置くので
+// 場所が主語を語る——名詞を足さず、起きたことだけを常体で置く。
+export function undergroundDoneLine(): string {
+  return 'みな芽を出した'
+}
+
 // 六つの禁をテストで走査するための一覧。文言を足したらここにも足す。
 // ラダー（LADDER・FAR_DREAM）の全ラベルを crossedLine() に通し、実際に画面へ出うる
 // 「越えた」文言を漏れなく含める。ラベルを足す／直すたびに自動でここへ反映される。
@@ -46,4 +52,5 @@ export const ALL_VINE_COPY: string[] = [
   ...LADDER.map((m) => nextObjectLine(m.label, m.sizeLabel)),
   nextObjectLine(FAR_DREAM.label, FAR_DREAM.sizeLabel),
   indexHeading(),
+  undergroundDoneLine(),
 ]
