@@ -7,6 +7,7 @@
 // 数字は、測るもの（高さ・葉の総数）が算用数字、出来事が漢数字。
 
 import { LADDER, FAR_DREAM } from './vine-ladder'
+import { SCENERY_ALMANAC } from './vine-scenery'
 
 export function crossedLine(label: string): string {
   return `${label}を越えた`
@@ -53,4 +54,5 @@ export const ALL_VINE_COPY: string[] = [
   nextObjectLine(FAR_DREAM.label, FAR_DREAM.sizeLabel),
   indexHeading(),
   undergroundDoneLine(),
+  ...SCENERY_ALMANAC.map((e) => e.label),
 ]

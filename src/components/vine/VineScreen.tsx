@@ -10,6 +10,7 @@ import {
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded, pendingBudIds } from '@/lib/vine-leaves'
 import { loadRereads } from '@/lib/reader-marks'
+import { sceneryMarks } from '@/lib/vine-scenery'
 import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
@@ -127,6 +128,8 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const rereads = useMemo(() => loadRereads(), [])
   const marks = useMemo(() => markPositions(to), [to])
   const nowIso = useMemo(() => new Date().toISOString(), [])
+  // 時間の点景（正典§7）。実時間に紐づく小さな出会い。通知はしない——開いたとき見つけるもの
+  const scenery = useMemo(() => sceneryMarks(aboveLeaves, nowIso), [aboveLeaves, nowIso])
   const stats = useMemo(() => loadAllQuizStats(), [])
   const visuals = useMemo(() => buildLeafVisuals(aboveLeaves, stats, nowIso, rereads), [aboveLeaves, stats, nowIso, rereads])
   const spotlight = useMemo(() => spotlightFaded(aboveLeaves, stats, nowIso), [aboveLeaves, stats, nowIso])
@@ -191,6 +194,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
               scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={engine.running}
               undergroundCount={split.underground.length} undergroundClearedAt={state.undergroundClearedAt}
               pendingBuds={buds.length}
+              scenery={scenery}
             />
           </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}

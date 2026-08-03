@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { crossedLine, grewLine, leafCountLine, nextObjectLine, indexHeading, undergroundDoneLine, ALL_VINE_COPY } from '../vine-copy'
+import { SCENERY_ALMANAC } from '../vine-scenery'
 
 describe('文言', () => {
   it('越えたときは常体で、溜めの読点を置かない', () => {
@@ -22,6 +23,9 @@ describe('文言', () => {
   })
   it('地下が尽きた日は、起きたことだけを置く（名詞も数字も足さない）', () => {
     expect(undergroundDoneLine()).toBe('みな芽を出した')
+  })
+  it('点景の名前がすべて禁の走査対象に載っている', () => {
+    for (const e of SCENERY_ALMANAC) expect(ALL_VINE_COPY).toContain(e.label)
   })
 })
 

@@ -8,7 +8,7 @@ import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
-import { leafY, groundY, sceneHeightPx, visibleRange, sceneMarks, RHIZOME_DEPTH } from '@/lib/vine-scroll'
+import { leafY, groundY, sceneHeightPx, visibleRange, laneMarks, RHIZOME_DEPTH } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
 import { nextObjectLine, undergroundDoneLine } from '@/lib/vine-copy'
 import styles from './vine.module.css'
@@ -40,13 +40,14 @@ function leafFill(v: LeafVisual): string {
 
 export function VineScene({
   leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width, popping,
-  undergroundCount, undergroundClearedAt, pendingBuds,
+  undergroundCount, undergroundClearedAt, pendingBuds, scenery,
 }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
   crossedNow: boolean; onLeafTap: (index: number) => void
   scrollTop: number; viewportH: number; width: number; popping: boolean
   undergroundCount: number; undergroundClearedAt: string; pendingBuds: number
+  scenery: { y: number; label: string }[]
 }) {
   const W = width
   const BASE_X = W * BASE_X_RATIO
@@ -62,9 +63,10 @@ export function VineScene({
   const vineH = Math.max(1, gY - leafY(to, to))
   const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH, BASE_X])
   const win = visibleRange(scrollTop, viewportH, to, depth)
-  // 描画は間引く（根元は実物の葉数が詰まっており、全件描くと文字が重なるため）。
-  // 目次（VineScreen側）はmarkPositionsのまま全件出す。
-  const marks = useMemo(() => sceneMarks(to), [to])
+  // 右レーンは1本の関数が整列する（地雷2）。実物の印・点景・地下が尽きた日が同じ余白に住む。
+  // ラベルは間引かれても刻み・点は全件描く。目次（VineScreen側）はmarkPositionsのまま全件出す。
+  const doneY = undergroundClearedAt && undergroundCount > 0 ? gY + 18 : null
+  const lane = useMemo(() => laneMarks(to, scenery, doneY), [to, scenery, doneY])
   const next = nextMilestone(to)
   const newLeaves = to - from
 
@@ -99,17 +101,45 @@ export function VineScene({
         <path d={path.d} fill="none" stroke={INK} strokeWidth={2} strokeLinecap="round" opacity={0.5} />
       </g>
 
-      {/* 越えた印＝背比べと目次（§4）。越えた時点の葉の位置に置く */}
-      {marks.map((m) => (
-        <g key={m.milestone.label}>
-          <line x1={24} x2={W - 96} y1={m.y} y2={m.y} stroke={SHU} strokeWidth={1.2} strokeDasharray="5 4" opacity={0.75} />
-          <line x1={24} x2={24} y1={m.y - 5} y2={m.y + 5} stroke={SHU} strokeWidth={2.2} />
-          <text x={W - 92} y={m.y + 3.5} fontSize={10} fill={SHU}>
-            {m.milestone.label} {m.milestone.sizeLabel}
-          </text>
-          <text x={W - 92} y={m.y + 15} fontSize={8} fill={USUZUMI}>{m.milestone.measure}</text>
-        </g>
-      ))}
+      {/* 右レーン: 越えた印（§4）・時間の点景（§7）・地下が尽きた日。laneMarksが一元整列。
+          ラベルは間引かれても刻み・点は全件描く——目次から飛んだ先には必ず何かがある（地雷5）。
+          ラベルは右端アンカー（textAnchor=end）＝長い名前でも右で切れない（地雷4）。 */}
+      {lane.map((m, i) => {
+        if (m.type === 'milestone') {
+          return (
+            <g key={`lane-${i}`}>
+              <line x1={24} x2={24} y1={m.y - 5} y2={m.y + 5} stroke={SHU} strokeWidth={2.2} />
+              {m.withLabel && (
+                <>
+                  <line x1={24} x2={W - 96} y1={m.y} y2={m.y} stroke={SHU} strokeWidth={1.2} strokeDasharray="5 4" opacity={0.75} />
+                  <text x={W - 8} y={m.y + 3.5} fontSize={10} fill={SHU} textAnchor="end">
+                    {m.milestone.label} {m.milestone.sizeLabel}
+                  </text>
+                  <text x={W - 8} y={m.y + 15} fontSize={8} fill={USUZUMI} textAnchor="end">{m.milestone.measure}</text>
+                </>
+              )}
+            </g>
+          )
+        }
+        if (m.type === 'scenery') {
+          return (
+            <g key={`lane-${i}`} opacity={0.8}>
+              <circle cx={W - 14} cy={m.y} r={2} fill={USUZUMI} />
+              {m.withLabel && (
+                <text x={W - 22} y={m.y + 2.5} fontSize={8} fill={USUZUMI} textAnchor="end">{m.label}</text>
+              )}
+            </g>
+          )
+        }
+        return (
+          <g key={`lane-${i}`} opacity={0.85}>
+            <text x={W - 8} y={m.y} fontSize={9} fill={USUZUMI} textAnchor="end">{undergroundDoneLine()}</text>
+            <text x={W - 8} y={m.y + 12} fontSize={8} fill={USUZUMI} textAnchor="end">
+              {kanjiDate(new Date(undergroundClearedAt))}
+            </text>
+          </g>
+        )
+      })}
 
       {/* 葉（窓の中だけ。間引かない） */}
       {Array.from({ length: Math.max(0, win.to - win.from + 1) }, (_, k) => {
@@ -216,20 +246,16 @@ export function VineScene({
             <path d={`M${BASE_X},${gY + 26} C ${BASE_X - 2},${gY + 14} ${BASE_X + 2},${gY + 6} ${BASE_X},${gY - 2}`} fill="none" stroke={INK} strokeWidth={6} strokeLinecap="round" />
           </g>
 
-          {/* 地下が尽きた日（一度きりの節目・正典§7）。朱ではなく薄墨——実物の印とは別種の出来事 */}
-          {undergroundClearedAt && (
-            <g opacity={0.85}>
-              <text x={W - 92} y={gY + 18} fontSize={9} fill={USUZUMI}>{undergroundDoneLine()}</text>
-              <text x={W - 92} y={gY + 30} fontSize={8} fill={USUZUMI}>{kanjiDate(new Date(undergroundClearedAt))}</text>
-            </g>
-          )}
         </>
       )}
 
-      {/* 朱の刻み: 越えた瞬間だけ、いちばん上の印に日付を添える（同時3箇所までの原則） */}
-      {crossedNow && marks.length > 0 && (
+      {/* 朱の刻み: 越えた瞬間だけ、いちばん上の印に日付を添える（同時3箇所までの原則）。
+          laneはy昇順なので、最初のmilestoneが最も新しい＝最上の印 */}
+      {crossedNow && lane.some((m) => m.type === 'milestone') && (
         <text
-          x={18} y={marks[marks.length - 1].y - 8} fontSize={9} fill={SHU}
+          x={18}
+          y={(lane.find((m) => m.type === 'milestone') as { y: number }).y - 8}
+          fontSize={9} fill={SHU}
           style={{ writingMode: 'vertical-rl' as const }}
         >
           {kanjiDate(new Date())}
