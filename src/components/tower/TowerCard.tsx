@@ -5,10 +5,12 @@ import { TrendingUp } from 'lucide-react'
 import { loadTowerState, TOWER_EVENT } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { stepsThisWeek } from '@/lib/tower-ladder'
+import { splitByJoin } from '@/lib/vine-scroll'
 import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 
 export function TowerCard({ onOpen }: { onOpen: () => void }) {
   const [count, setCount] = useState(0)
+  const [underground, setUnderground] = useState(0)
   const [week, setWeek] = useState(0)
   const [popKey, setPopKey] = useState(0)
   const hideTimer = useRef<number | null>(null)
@@ -16,8 +18,11 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
   useEffect(() => {
     const refresh = () => {
       const s = loadTowerState()
-      setCount(s.steps.length)
-      setWeek(stepsThisWeek(s.steps, new Date().toISOString()))
+      // 高さも今週も地上部だけで数える（正典§7。持ち込み分は地下）
+      const split = splitByJoin(s.steps, s.joinedAt)
+      setCount(split.above.length)
+      setUnderground(split.underground.length)
+      setWeek(stepsThisWeek(split.above, new Date().toISOString()))
     }
     refresh()
     const onStep = () => {
@@ -34,7 +39,8 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
     }
   }, [])
 
-  if (!isTowerEnabled() || count === 0) return null // v1はオーナーのみ。葉0の端末でも出さない（初回は取込で積もってから）
+  // v1はオーナーのみ。地上0でも地下（持ち込み）があるなら入口は残す——消すと再会の道が断たれる
+  if (!isTowerEnabled() || (count === 0 && underground === 0)) return null
 
   const next = nextMilestone(count)
   const remainMm = next.mm - heightMmFromLeaves(count)
@@ -46,12 +52,19 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
     >
       <TrendingUp className="h-5 w-5 shrink-0 text-brand dark:text-brand-300" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
-        <span className="font-bold text-gray-900 dark:text-gray-50">{formatHeight(heightMmFromLeaves(count))}</span>
-        <span className="ml-2 text-gray-500 dark:text-gray-400">今週 +{week}</span>
-        {remainMm > 0 && (
-          <span className="ml-2 text-brand dark:text-brand-300">
-            {next.label}まで あと{formatHeight(remainMm)}
-          </span>
+        {count > 0 ? (
+          <>
+            <span className="font-bold text-gray-900 dark:text-gray-50">{formatHeight(heightMmFromLeaves(count))}</span>
+            <span className="ml-2 text-gray-500 dark:text-gray-400">今週 +{week}</span>
+            {remainMm > 0 && (
+              <span className="ml-2 text-brand dark:text-brand-300">
+                {next.label}まで あと{formatHeight(remainMm)}
+              </span>
+            )}
+          </>
+        ) : (
+          // 地上0（移行直後・持ち込みだけの端末）。数字の0を並べず、入口の名前だけ置く
+          <span className="font-bold text-gray-900 dark:text-gray-50">知の蔓</span>
         )}
       </span>
       {popKey > 0 && (

@@ -4,6 +4,7 @@
 // mode:'search'+空keywordは何もfetchせずrecords:[]を返すため使えない。pageSize:1000もNotionの
 // 100/頁上限を超える。'recent'はkeyword不要でNotion側の上限内に収まる。
 import { ingestRecords, markSeen, type TowerState } from './tower-steps'
+import { splitByJoin } from './vine-scroll'
 import type { AppSettings } from './settings'
 
 export type BackfillRequest = { body: Record<string, unknown> }
@@ -30,5 +31,7 @@ export function buildBackfillRequest(settings: AppSettings | null | undefined): 
 // 「組み上げ分は差分ではない」ので、次回openで数百個の落下リプレイが走るのを防ぐためmarkSeen相当まで行う。
 export function applyBackfill(state: TowerState, records: unknown[], nowIso: string): TowerState {
   const ingested = ingestRecords(state, records as Parameters<typeof ingestRecords>[1])
-  return markSeen({ ...ingested, backfilledAt: nowIso }, ingested.steps.length)
+  // 水位は地上の葉数まで。持ち込み分は地下に入るため、地上0ならリプレイも起きない（正典§7）。
+  const above = splitByJoin(ingested.steps, ingested.joinedAt).above.length
+  return markSeen({ ...ingested, backfilledAt: nowIso }, above)
 }

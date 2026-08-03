@@ -3,7 +3,7 @@ import { buildBackfillRequest, applyBackfill } from '../tower-backfill'
 import type { TowerState } from '../tower-steps'
 import type { AppSettings } from '../settings'
 
-const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '' }
+const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
 
 const settings = (over: Partial<AppSettings> = {}): AppSettings =>
   ({
@@ -52,6 +52,13 @@ describe('applyBackfill', () => {
     const next = applyBackfill(empty, [hit({ owner: 'team' }), hit({ owner: 'subscription', objectID: 'r2' })], '2026-08-01T10:00:00.000Z')
     expect(next.steps).toHaveLength(0)
     expect(next.backfilledAt).toBe('2026-08-01T10:00:00.000Z')
+  })
+
+  it('持ち込み分は地下に入るので、水位は地上の葉数のまま（0）', () => {
+    const withJoin: TowerState = { ...empty, joinedAt: '2026-08-01T00:00:00.000Z' }
+    const next = applyBackfill(withJoin, [hit({ createdAt: '2026-07-01T00:00:00.000Z' })], '2026-08-02T00:00:00.000Z')
+    expect(next.steps).toHaveLength(1)
+    expect(next.lastSeenSteps).toBe(0)
   })
 
   it('新規0件でもbackfilledAtは刻む（開くたびの再フェッチを防ぐ）', () => {

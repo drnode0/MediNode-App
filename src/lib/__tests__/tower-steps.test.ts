@@ -18,7 +18,7 @@ vi.stubGlobal('localStorage', {
 vi.stubGlobal('window', new EventTarget())
 
 const at = '2026-08-01T10:00:00.000Z'
-const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '' }
+const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
 const step = (over: Partial<Step> = {}): Step => ({
   id: 'k1', kind: 'read', at, genre: '循環器', title: '敗血症の初期輸液', ...over,
 })
@@ -118,7 +118,7 @@ describe('storage往復とmarkSeen', () => {
 const mkStep = (i: number): Step => ({ id: `s${i}`, kind: 'read', at: '2026-08-01T00:00:00.000Z', genre: '', title: '' })
 const mkState = (count: number, seen: number): TowerState => ({
   steps: Array.from({ length: count }, (_, i) => mkStep(i)),
-  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '',
+  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '',
 })
 
 describe('markSeen(state, uptoCount)', () => {
@@ -130,6 +130,63 @@ describe('markSeen(state, uptoCount)', () => {
   it('steps数を超える値は丸める・後退はしない', () => {
     expect(markSeen(mkState(5, 2), 99).lastSeenSteps).toBe(5)
     expect(markSeen(mkState(5, 4), 1).lastSeenSteps).toBe(4)
+  })
+})
+
+describe('地下と水位・リプレイ（§7）', () => {
+  const joined = '2026-08-01T00:00:00.000Z'
+  const old = (id: string) => step({ id, kind: 'wrote', at: '2026-07-01T00:00:00.000Z' })
+
+  it('地下の歩はリプレイに乗せない（toは地上の葉数）', () => {
+    const s: TowerState = {
+      ...empty, joinedAt: joined,
+      steps: [old('u1'), step({ id: 'u1', kind: 'read', at: '2026-08-02T00:00:00.000Z' })],
+    }
+    expect(planReplay(s)).toEqual({ from: 0, to: 1, play: true })
+  })
+
+  it('markSeen は地上の葉数で丸める', () => {
+    const s: TowerState = { ...empty, joinedAt: joined, steps: [old('u1'), old('u2')] }
+    expect(markSeen(s, 2).lastSeenSteps).toBe(0)
+  })
+
+  it('地下の知識がすべて芽を出した瞬間、undergroundClearedAt を一度だけ刻む', () => {
+    const base: TowerState = { ...empty, joinedAt: joined }
+    let s = addStep(base, old('a'))
+    s = addStep(s, old('b'))
+    s = addStep(s, step({ id: 'a', kind: 'read', at: '2026-08-02T00:00:00.000Z' }))
+    expect(s.undergroundClearedAt).toBe('') // bがまだ地下
+    s = addStep(s, step({ id: 'b', kind: 'read', at: '2026-08-03T00:00:00.000Z' }))
+    expect(s.undergroundClearedAt).toBe('2026-08-03T00:00:00.000Z')
+  })
+
+  it('持ち込みゼロ（地下なし）では刻まない', () => {
+    const s = addStep({ ...empty, joinedAt: joined }, step({ at: '2026-08-02T00:00:00.000Z' }))
+    expect(s.undergroundClearedAt).toBe('')
+  })
+
+  it('一度刻んだら、後から地下に歩が増えても刻み直さない', () => {
+    const cleared: TowerState = { ...empty, joinedAt: joined, undergroundClearedAt: '2026-08-03T00:00:00.000Z' }
+    let s = addStep(cleared, old('late'))
+    s = addStep(s, step({ id: 'late', kind: 'read', at: '2026-08-04T00:00:00.000Z' }))
+    expect(s.undergroundClearedAt).toBe('2026-08-03T00:00:00.000Z')
+  })
+})
+
+describe('joinedAt の移行スタンプ', () => {
+  it('joinedAtが無い保存データには移行を実行した日を刻み、水位を0へ戻して保存する', () => {
+    localStorage.setItem(TOWER_KEY, JSON.stringify({
+      steps: [step()], lastSeenSteps: 1, lastSeenAt: '', backfilledAt: 'x',
+    }))
+    const s1 = loadTowerState()
+    expect(s1.joinedAt).not.toBe('')
+    expect(s1.lastSeenSteps).toBe(0)
+    const s2 = loadTowerState()
+    expect(s2.joinedAt).toBe(s1.joinedAt) // 保存済みなので刻み直さない
+  })
+  it('undergroundClearedAt は既定で空文字に整形される', () => {
+    localStorage.setItem(TOWER_KEY, JSON.stringify({ steps: [] }))
+    expect(loadTowerState().undergroundClearedAt).toBe('')
   })
 })
 

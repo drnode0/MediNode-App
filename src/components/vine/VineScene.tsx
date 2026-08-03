@@ -8,9 +8,9 @@ import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
-import { leafY, groundY, sceneHeightPx, visibleRange, sceneMarks } from '@/lib/vine-scroll'
+import { leafY, groundY, sceneHeightPx, visibleRange, sceneMarks, RHIZOME_DEPTH } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
-import { nextObjectLine } from '@/lib/vine-copy'
+import { nextObjectLine, undergroundDoneLine } from '@/lib/vine-copy'
 import styles from './vine.module.css'
 
 const VINE_SEED = 42
@@ -33,11 +33,13 @@ function leafFill(v: LeafVisual): string {
 
 export function VineScene({
   leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width, popping,
+  undergroundCount, undergroundClearedAt,
 }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
   crossedNow: boolean; onLeafTap: (index: number) => void
   scrollTop: number; viewportH: number; width: number; popping: boolean
+  undergroundCount: number; undergroundClearedAt: string
 }) {
   const W = width
   const BASE_X = W * BASE_X_RATIO
@@ -45,12 +47,14 @@ export function VineScene({
   const groundLeft = 20
   const groundRight = W - 18
   const groundSpan = groundRight - groundLeft
-  const H = sceneHeightPx(to)
+  // 地下茎ぶんの深さ。持ち込みゼロなら0＝地下を描かない（無いものを見せない・正典§7）
+  const depth = undergroundCount > 0 ? RHIZOME_DEPTH : 0
+  const H = sceneHeightPx(to, depth)
   const gY = groundY(to)
   // 蔓は地面から最新の葉まで。パスは高さpxで生成し、y反転して地面基準で置く
   const vineH = Math.max(1, gY - leafY(to, to))
   const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH, BASE_X])
-  const win = visibleRange(scrollTop, viewportH, to)
+  const win = visibleRange(scrollTop, viewportH, to, depth)
   // 描画は間引く（根元は実物の葉数が詰まっており、全件描くと文字が重なるため）。
   // 目次（VineScreen側）はmarkPositionsのまま全件出す。
   const marks = useMemo(() => sceneMarks(to), [to])
@@ -159,6 +163,47 @@ export function VineScene({
       />
       <path d={`M${BASE_X - 26},${gY} C ${BASE_X - 22},${gY - 12} ${BASE_X - 2},${gY - 16} ${BASE_X + 14},${gY - 8} C ${BASE_X + 28},${gY - 2} ${BASE_X + 22},${gY + 4} ${BASE_X},${gY + 4} Z`} fill={INK} opacity={0.7} />
 
+      {/* 地下茎（持ち込んだ知識の寝床・正典§7）。持ち込みゼロなら描かない——無いものを見せない。
+          件数も目盛りも出さない。下端はグラデーションで溶かす（根が切れて見えると図解になる）。
+          地上の蔓は芽の真上（BASE_X）から立つ（正典§12）。淡さ30%・幅はカードの70%＝rhizome-testで決めた値 */}
+      {undergroundCount > 0 && (
+        <>
+          <defs>
+            <linearGradient id="rhizomeFade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0.42" stopColor="#fff" />
+              <stop offset="0.78" stopColor="#444" />
+              <stop offset="1" stopColor="#000" />
+            </linearGradient>
+            <mask id="rhizomeMask">
+              <rect x={0} y={gY} width={W} height={RHIZOME_DEPTH} fill="url(#rhizomeFade)" />
+            </mask>
+          </defs>
+          <g mask="url(#rhizomeMask)" opacity={0.3}>
+            {/* 横に這う本体の帯 */}
+            <path
+              d={`M${BASE_X - W * 0.35},${gY + 30} C ${BASE_X - W * 0.12},${gY + 20} ${BASE_X + W * 0.1},${gY + 36} ${BASE_X + W * 0.35},${gY + 26}`}
+              fill="none" stroke={INK} strokeWidth={14} strokeLinecap="round"
+            />
+            {/* 節（鱗片葉の名残り。地下に本葉は生えない） */}
+            <line x1={BASE_X - W * 0.18} y1={gY + 18} x2={BASE_X - W * 0.18} y2={gY + 32} stroke={INK} strokeWidth={2} />
+            <line x1={BASE_X + W * 0.12} y1={gY + 24} x2={BASE_X + W * 0.12} y2={gY + 38} stroke={INK} strokeWidth={2} />
+            {/* 下へ降りる根 */}
+            <path d={`M${BASE_X - W * 0.2},${gY + 30} C ${BASE_X - W * 0.22},${gY + 60} ${BASE_X - W * 0.16},${gY + 90} ${BASE_X - W * 0.19},${gY + 130}`} fill="none" stroke={INK} strokeWidth={3} strokeLinecap="round" />
+            <path d={`M${BASE_X + W * 0.05},${gY + 34} C ${BASE_X + W * 0.02},${gY + 70} ${BASE_X + W * 0.09},${gY + 100} ${BASE_X + W * 0.06},${gY + 140}`} fill="none" stroke={INK} strokeWidth={3} strokeLinecap="round" />
+            {/* 芽の首（地下茎から地面へ。地上の蔓の真下） */}
+            <path d={`M${BASE_X},${gY + 26} C ${BASE_X - 2},${gY + 14} ${BASE_X + 2},${gY + 6} ${BASE_X},${gY - 2}`} fill="none" stroke={INK} strokeWidth={6} strokeLinecap="round" />
+          </g>
+
+          {/* 地下が尽きた日（一度きりの節目・正典§7）。朱ではなく薄墨——実物の印とは別種の出来事 */}
+          {undergroundClearedAt && (
+            <g opacity={0.85}>
+              <text x={W - 92} y={gY + 18} fontSize={9} fill={USUZUMI}>{undergroundDoneLine()}</text>
+              <text x={W - 92} y={gY + 30} fontSize={8} fill={USUZUMI}>{kanjiDate(new Date(undergroundClearedAt))}</text>
+            </g>
+          )}
+        </>
+      )}
+
       {/* 朱の刻み: 越えた瞬間だけ、いちばん上の印に日付を添える（同時3箇所までの原則） */}
       {crossedNow && marks.length > 0 && (
         <text
@@ -169,10 +214,13 @@ export function VineScene({
         </text>
       )}
 
-      {/* いまの高さ（穂先の脇） */}
-      <text x={W - 92} y={leafY(to, to) - 14} fontSize={11} fill={SHU}>
-        {formatHeight(heightMmFromLeaves(Math.floor(leavesNow)))}
-      </text>
+      {/* いまの高さ（穂先の脇）。地上0のときは出さない——最初の一画面を数字の0で語らない。
+          40pxの蔓の断片がそのまま「地下茎の上の小さな芽」になる（正典§7） */}
+      {to > 0 && (
+        <text x={W - 92} y={leafY(to, to) - 14} fontSize={11} fill={SHU}>
+          {formatHeight(heightMmFromLeaves(Math.floor(leavesNow)))}
+        </text>
+      )}
     </svg>
   )
 }

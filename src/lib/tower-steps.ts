@@ -2,10 +2,17 @@
 // 再読・再回答は積まない（量の水増しを構造で防ぐ）。塔は縮まない。
 // サーバー同期はしない（quiz-srs と同じ端末ローカル方針。PERSONAL_DEVICE_KEYS 登録済み）。
 import type { QuizStat } from './quiz-srs'
+import { splitByJoin, dormantIds } from './vine-scroll'
 
 export type StepKind = 'read' | 'wrote' | 'recall' | 'repolish'
 export type Step = { id: string; kind: StepKind; at: string; genre: string; title: string }
-export type TowerState = { steps: Step[]; lastSeenSteps: number; lastSeenAt: string; backfilledAt: string }
+export type TowerState = {
+  steps: Step[]; lastSeenSteps: number; lastSeenAt: string; backfilledAt: string
+  // 利用開始日。これより古い日付の歩は地下（splitByJoin）。''は「分割しない」＝全部地上（旧データ・devハーネス互換）。
+  joinedAt: string
+  // 地下が尽きた日＝持ち込んだ知識がすべて地上に芽を出した日。一度きり。''は未到来。
+  undergroundClearedAt: string
+}
 
 export const TOWER_KEY = 'medinode_tower_v1'
 export const TOWER_EVENT = 'medinode:tower-step'
@@ -32,7 +39,16 @@ export function addStep(state: TowerState, step: Step): TowerState {
   if (isDuplicate(state.steps, step)) return state
   const steps = [...state.steps, step]
   if (steps.length > MAX_STEPS) steps.splice(0, steps.length - MAX_STEPS)
-  return { ...state, steps }
+  // 地下が尽きた日: 持ち込んだ知識がすべて地上に芽を出した瞬間を一度だけ刻む（正典§7の節目）。
+  // 持ち込みゼロの人には起きない（hadDormantが常にfalse）。刻み直しもしない（一度きり）。
+  let undergroundClearedAt = state.undergroundClearedAt
+  if (state.joinedAt && !undergroundClearedAt) {
+    const hadDormant = dormantIds(state.steps, state.joinedAt).length > 0
+    if (hadDormant && dormantIds(steps, state.joinedAt).length === 0) {
+      undergroundClearedAt = step.at
+    }
+  }
+  return { ...state, steps, undergroundClearedAt }
 }
 
 // 想起の遷移判定。初めてのok=recall／最終申告がDULL_DAYS以上前=repolish／それ以外=null。
@@ -64,7 +80,7 @@ export function ingestRecords(state: TowerState, hits: IngestHit[]): TowerState 
 }
 
 function sanitize(raw: unknown): TowerState {
-  const emptyState: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '' }
+  const emptyState: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
   if (!raw || typeof raw !== 'object') return emptyState
   const o = raw as Partial<TowerState>
   const steps = Array.isArray(o.steps)
@@ -81,15 +97,27 @@ function sanitize(raw: unknown): TowerState {
     lastSeenSteps: typeof o.lastSeenSteps === 'number' ? o.lastSeenSteps : 0,
     lastSeenAt: typeof o.lastSeenAt === 'string' ? o.lastSeenAt : '',
     backfilledAt: typeof o.backfilledAt === 'string' ? o.backfilledAt : '',
+    joinedAt: typeof o.joinedAt === 'string' ? o.joinedAt : '',
+    undergroundClearedAt: typeof o.undergroundClearedAt === 'string' ? o.undergroundClearedAt : '',
   }
 }
 
 export function loadTowerState(): TowerState {
+  let state: TowerState
   try {
-    return sanitize(JSON.parse(localStorage.getItem(TOWER_KEY) || 'null'))
+    state = sanitize(JSON.parse(localStorage.getItem(TOWER_KEY) || 'null'))
   } catch {
-    return { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '' }
+    return { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
   }
+  // 初回移行: 利用開始日は「移行を実行した日」（最も古い歩の翌日ではない＝正典§12）。
+  // 既存の歩はこの瞬間すべて地下になるので、リプレイの水位も0へ戻す。
+  // 保存が効かない環境では joinedAt が毎回進むが、その環境では歩の保存自体も
+  // 効いていない（常に空の台帳）ため実害はない。
+  if (!state.joinedAt) {
+    state = { ...state, joinedAt: new Date().toISOString(), lastSeenSteps: 0 }
+    saveTowerState(state)
+  }
+  return state
 }
 
 export function saveTowerState(state: TowerState): void {
@@ -103,14 +131,17 @@ export function saveTowerState(state: TowerState): void {
 // 「見た」の水位。リプレイ完走時に「見せたところまで」をコミットする（v1.2）。
 // マウント時に全件seenにすると、リプレイ中断でその日の成長が永遠に見られなくなる。
 export function markSeen(state: TowerState, uptoCount: number): TowerState {
-  const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, state.steps.length))
+  // 水位は地上の葉数で数える。地下の歩（持ち込み）は「見た」の対象ではない。
+  const aboveCount = splitByJoin(state.steps, state.joinedAt).above.length
+  const upto = Math.max(state.lastSeenSteps, Math.min(uptoCount, aboveCount))
   return { ...state, lastSeenSteps: upto, lastSeenAt: new Date().toISOString() }
 }
 
 // リプレイのゲート。葉数の比較だけで決める——「同じ成長は二度と再生しない」が数で保証されるため、
 // 日付比較（UTC境界のバグ温床）は不要。リプレイ中に積まれた新イベントは from..to の外なので次回へ回る。
 export function planReplay(state: TowerState): { from: number; to: number; play: boolean } {
-  const to = state.steps.length
+  // 伸びるのは地上だけ（正典§7）。地下の歩はリプレイに乗せない。
+  const to = splitByJoin(state.steps, state.joinedAt).above.length
   const from = Math.min(state.lastSeenSteps, to)
   return { from, to, play: to > from }
 }

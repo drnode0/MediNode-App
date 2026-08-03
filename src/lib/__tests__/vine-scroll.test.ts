@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD, MIN_MARK_GAP,
   sceneHeightPx, leafY, groundY, visibleRange, markPositions, sceneMarks,
+  splitByJoin, dormantIds, RHIZOME_DEPTH,
 } from '../vine-scroll'
+import type { Step } from '../tower-steps'
+
+const st = (id: string, at: string, kind: Step['kind'] = 'wrote'): Step =>
+  ({ id, kind, at, genre: '', title: '' })
 
 describe('葉の縦位置', () => {
   it('いちばん新しい葉が上端の余白の位置に来る', () => {
@@ -76,6 +81,56 @@ describe('越えた印', () => {
   })
   it('まだ越えていない実物は含めない', () => {
     expect(markPositions(2)).toEqual([])
+  })
+})
+
+describe('地下の深さ', () => {
+  it('地下があるときだけ、その深さぶんシーンが下へ伸びる', () => {
+    expect(sceneHeightPx(100, RHIZOME_DEPTH)).toBe(sceneHeightPx(100) + RHIZOME_DEPTH)
+    expect(sceneHeightPx(100, 0)).toBe(sceneHeightPx(100))
+  })
+  it('地下ぶん深くスクロールしても窓は地面ぎわの葉を保持する', () => {
+    const deep = sceneHeightPx(50, RHIZOME_DEPTH) - 700
+    const r = visibleRange(deep, 700, 50, RHIZOME_DEPTH)
+    expect(r.from).toBe(1)
+  })
+})
+
+describe('地下茎と地上部の分割（§7）', () => {
+  const joined = '2026-08-01T00:00:00.000Z'
+  it('利用開始日より前の日付の歩は地下、それ以降が地上', () => {
+    const r = splitByJoin([st('a', '2026-07-01T00:00:00.000Z'), st('b', '2026-08-02T00:00:00.000Z')], joined)
+    expect(r.underground.map((s) => s.id)).toEqual(['a'])
+    expect(r.above.map((s) => s.id)).toEqual(['b'])
+  })
+  it('joinedIsoが空なら分割しない（全部地上＝旧データ・devハーネス互換）', () => {
+    const steps = [st('a', '2026-07-01T00:00:00.000Z')]
+    expect(splitByJoin(steps, '')).toEqual({ underground: [], above: steps })
+  })
+  it('オフセット付きISO（Notion由来）と toISOString が混在しても日付で分ける', () => {
+    const r = splitByJoin([
+      st('n', '2026-07-31T23:00:00.000+09:00'), // = 7/31 14:00Z → 地下
+      st('m', '2026-08-01T09:30:00.000+09:00'), // = 8/1 00:30Z → 地上
+    ], joined)
+    expect(r.underground.map((s) => s.id)).toEqual(['n'])
+    expect(r.above.map((s) => s.id)).toEqual(['m'])
+  })
+  it('解釈できない日付は地上へ倒す（見えなくなる側に倒さない）', () => {
+    expect(splitByJoin([st('x', 'garbage')], joined).above).toHaveLength(1)
+  })
+})
+
+describe('まだ芽を出していない知識（dormantIds）', () => {
+  const joined = '2026-08-01T00:00:00.000Z'
+  it('地下にあり、地上にどのkindの歩も無いidだけを返す', () => {
+    const steps = [
+      st('a', '2026-07-01T00:00:00.000Z'), st('b', '2026-07-02T00:00:00.000Z'),
+      st('a', '2026-08-02T00:00:00.000Z', 'read'), // aは芽を出した
+    ]
+    expect(dormantIds(steps, joined)).toEqual(['b'])
+  })
+  it('地下が無ければ空', () => {
+    expect(dormantIds([st('a', '2026-08-02T00:00:00.000Z')], joined)).toEqual([])
   })
 })
 
