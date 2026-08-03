@@ -21,10 +21,17 @@ export const LEGACY_BOOLEAN_FEATURES: readonly EarlyAccessFeature[] = ['multi_de
 // 機能ごとの env 名。ga=全員開放、emails=指定メールのみ。
 // multi_department と tower が同じ EARLY_ACCESS_EMAILS を見るのは既存挙動の維持
 // （分離前は1つの boolean で両方が開いていた）。
-const FEATURE_ENV: Record<EarlyAccessFeature, { ga: string; emails: string }> = {
+const FEATURE_ENV: Record<EarlyAccessFeature, { ga: string; emails: string; emailsFallback?: string }> = {
   easy_connect: { ga: 'EASY_CONNECT_GA', emails: 'EASY_CONNECT_EMAILS' },
   multi_department: { ga: 'MULTI_DEPARTMENT_GA', emails: 'EARLY_ACCESS_EMAILS' },
-  tower: { ga: 'TOWER_GA', emails: 'EARLY_ACCESS_EMAILS' },
+  // 蔓は専用リストを持つ。共有のままだと、マルチ部署検索を誰かに開いた瞬間に
+  // 蔓まで見えてしまうため。TOWER_EMAILS が空のあいだは分離前の
+  // EARLY_ACCESS_EMAILS に落ちる——置いた瞬間に、そちらだけが効く。
+  tower: { ga: 'TOWER_GA', emails: 'TOWER_EMAILS', emailsFallback: 'EARLY_ACCESS_EMAILS' },
+}
+
+function envListNames(name: string): string[] {
+  return (process.env[name] || '').split(',').map((e) => e.trim()).filter(Boolean)
 }
 
 function envTrue(name: string): boolean {
@@ -50,7 +57,9 @@ export type FeatureInput = {
 export function hasFeature(feature: EarlyAccessFeature, input: FeatureInput): boolean {
   const env = FEATURE_ENV[feature]
   if (envTrue(env.ga)) return true
-  if (emailInEnvList(env.emails, input.email)) return true
+  // 専用リストが空なら移行前のリストを見る（空白だけの値も未設定として扱う）
+  const listName = envListNames(env.emails).length > 0 ? env.emails : (env.emailsFallback ?? env.emails)
+  if (emailInEnvList(listName, input.email)) return true
   if ((input.ledgerFeatures ?? []).includes(feature)) return true
   if (input.ledgerEarlyAccess === true && LEGACY_BOOLEAN_FEATURES.includes(feature)) return true
   return false

@@ -142,3 +142,39 @@ describe('resolveEarlyAccess（既存APIの維持）', () => {
     expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: false })).toBe(false)
   })
 })
+
+// 知の蔓を「オーナーだけ」に閉じるための専用リスト。分離前は multi_department と
+// EARLY_ACCESS_EMAILS を共有していたため、マルチ部署を誰かに開くと蔓まで見えていた。
+describe('TOWER_EMAILS（蔓の専用リスト）', () => {
+  afterEach(() => {
+    delete process.env.TOWER_EMAILS
+    delete process.env.EARLY_ACCESS_EMAILS
+    delete process.env.TOWER_GA
+    delete process.env.MULTI_DEPARTMENT_GA
+  })
+
+  it('TOWER_EMAILS に居れば蔓が開く', () => {
+    process.env.TOWER_EMAILS = 'owner@y.com'
+    expect(hasFeature('tower', { email: 'Owner@Y.com' })).toBe(true)
+  })
+
+  // ここが分離の核。マルチ部署のために誰かを足しても、蔓は開かない。
+  it('TOWER_EMAILS を置いたら、EARLY_ACCESS_EMAILS だけの人には蔓が開かない', () => {
+    process.env.TOWER_EMAILS = 'owner@y.com'
+    process.env.EARLY_ACCESS_EMAILS = 'tester@y.com'
+    expect(hasFeature('tower', { email: 'tester@y.com' })).toBe(false)
+    // マルチ部署のほうは従来どおり開く
+    expect(hasFeature('multi_department', { email: 'tester@y.com' })).toBe(true)
+  })
+
+  it('TOWER_EMAILS 未設定なら EARLY_ACCESS_EMAILS に落ちる（分離前の挙動を保つ）', () => {
+    process.env.EARLY_ACCESS_EMAILS = 'tester@y.com'
+    expect(hasFeature('tower', { email: 'tester@y.com' })).toBe(true)
+  })
+
+  it('空文字や空白だけの TOWER_EMAILS は未設定として扱う', () => {
+    process.env.TOWER_EMAILS = ' , '
+    process.env.EARLY_ACCESS_EMAILS = 'tester@y.com'
+    expect(hasFeature('tower', { email: 'tester@y.com' })).toBe(true)
+  })
+})
