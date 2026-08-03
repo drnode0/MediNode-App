@@ -100,7 +100,7 @@ export default async function ConnectNotionDonePage({
         </Link>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-          MediNodeを開くと、この接続の続きが始まります。読み取るデータベースはそこで選べます。パソコンでここまで進めた場合は、スマホのMediNodeを開いてください。
+          MediNodeを開くと、この接続の続きが始まります。読み取るデータベースはそこで選べます。今このページを見ているブラウザでそのまま開いても構いません。
         </p>
       </div>
     </main>

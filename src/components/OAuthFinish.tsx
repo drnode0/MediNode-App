@@ -76,12 +76,31 @@ export function OAuthFinish({
   // done フェーズで張るタイマー。画面を離れたあとに onComplete が呼ばれないよう、
   // unmount 時にクリアする（Minor fix）。
   const completeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // unmount後にstateを更新しない（React警告防止）ためのフラグ。
+  const mountedRef = useRef(true)
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       if (completeTimeoutRef.current) clearTimeout(completeTimeoutRef.current)
     }
   }, [])
+
+  // 直列の二重実行防止（Finding5）。retry/re-check/confirmの各ボタンから同じ関数が
+  // ほぼ同時に二重に呼ばれると、片方が先に成功（例: claim完了・markClaimed）した後で
+  // もう片方が「引き取り対象なし」等の異常応答を受け取り、シートが不意に閉じてしまう。
+  // 実行中はボタンをdisabledにしつつ、連打がそれをすり抜けても ref で弾く。
+  const busyRef = useRef(false)
+  const [busy, setBusy] = useState(false)
+  const runGuarded = (fn: () => Promise<void>) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    void fn().finally(() => {
+      busyRef.current = false
+      if (mountedRef.current) setBusy(false)
+    })
+  }
 
   const loadDbs = async (token: string) => {
     const res = await fetch('/api/notion/list-databases', {
@@ -93,38 +112,54 @@ export function OAuthFinish({
     if (!res.ok) throw new Error(data.error || '')
     const list: DbItem[] = data.databases || []
     setDbs(list)
-    if (mode === 'repick') {
-      // 選び直し画面の目的は「今の選択を変える」ことなので、現在の設定を引き継ぐ。
-      // ただし list-databases が返すIDはハイフン付きUUID（Notionのsearch応答そのまま）な
-      // のに対し、手入力で登録したIDは extractNotionDbId によりハイフン無し32桁へ正規化
-      // されている。生の文字列比較だと手入力ユーザーの分が必ず外れるため、双方を
-      // normalizeNotionId にかけて突き合わせる（Finding 1）。<select> にセットする値は
-      // 必ず一覧側のid（list由来の表記）にする——<select> の value は options のどれかと
-      // 一致していなければならないため。
-      const stored = getSettings()
-      const byNormalizedId = new Map(list.map((d) => [normalizeNotionId(d.id), d]))
-      const storedMedical = stored?.notionMedicalDbId || ''
-      const storedReference = stored?.notionReferenceDbId || ''
-      const medicalMatch = storedMedical ? byNormalizedId.get(normalizeNotionId(storedMedical)) : undefined
-      const referenceMatch = storedReference ? byNormalizedId.get(normalizeNotionId(storedReference)) : undefined
 
-      // claimにある「候補が1件だけなら自動選択」という親切機能は、ここ（repick）では
-      // 発火させない（Finding 2）。repick は既に接続済みのユーザーが対象で、
-      // 「今の設定のDBが一覧に無い」こと自体が重要な情報であり、別のDBへ黙って
-      // 差し替えるとその情報を握りつぶしてしまう。空のまま出し、下の注記で伝える。
-      const medicalToSet = medicalMatch ? medicalMatch.id : ''
-      const referenceToSet = referenceMatch && referenceMatch.id !== medicalToSet ? referenceMatch.id : ''
-      if (medicalToSet) setMedicalId(medicalToSet)
-      if (referenceToSet) setReferenceId(referenceToSet)
-      // Finding 2: IDが設定されているのに一覧に見つからなかった場合だけ知らせる
-      // （そもそも設定されていなければ知らせることは何もない）。
-      setMissingStoredDb({
-        medical: !!storedMedical && !medicalMatch,
-        reference: !!storedReference && !referenceMatch,
-      })
-    } else if (list.length === 1) {
+    // 保存済みの選択を、正規化IDで突き合わせて引き継ぐ。claim・repick 共通の処理にする
+    // （claim モードだけプリフィルが無いと、サーバーが「今のDBがそのまま読める」ことを
+    // 確認した直後の画面で選択欄が空になり、そのまま進めると Reference DB 等を黙って
+    // 失う事故になる）。claim では、この時点で start() の保存（settings 反映）が
+    // すでに終わっているため getSettings() は最新の値を返す。
+    //
+    // list-databases が返すIDはハイフン付きUUID（Notionのsearch応答そのまま）なのに
+    // 対し、手入力で登録したIDは extractNotionDbId によりハイフン無し32桁へ正規化
+    // されている。生の文字列比較だと手入力ユーザーの分が必ず外れるため、双方を
+    // normalizeNotionId にかけて突き合わせる。<select> にセットする値は必ず一覧側の
+    // id（list由来の表記）にする——<select> の value は options のどれかと一致して
+    // いなければならないため。
+    const stored = getSettings()
+    const byNormalizedId = new Map(list.map((d) => [normalizeNotionId(d.id), d]))
+    const storedMedical = stored?.notionMedicalDbId || ''
+    const storedReference = stored?.notionReferenceDbId || ''
+    const medicalMatch = storedMedical ? byNormalizedId.get(normalizeNotionId(storedMedical)) : undefined
+    const referenceMatch = storedReference ? byNormalizedId.get(normalizeNotionId(storedReference)) : undefined
+
+    const medicalToSet = medicalMatch ? medicalMatch.id : ''
+    const referenceToSet = referenceMatch && referenceMatch.id !== medicalToSet ? referenceMatch.id : ''
+    if (medicalToSet) setMedicalId(medicalToSet)
+    if (referenceToSet) setReferenceId(referenceToSet)
+    // IDが設定されているのに一覧に見つからなかった場合だけ知らせる
+    // （そもそも設定されていなければ知らせることは何もない）。claim・repick共通。
+    setMissingStoredDb({
+      medical: !!storedMedical && !medicalMatch,
+      reference: !!storedReference && !referenceMatch,
+    })
+
+    // 「候補が1件だけなら自動選択」という親切機能は、何もプリフィルされなかった時だけ
+    // 発火させる。保存済みの選択が引き継げているのに、1件しか無いからと黙って別の
+    // DBへ差し替えるのは避ける。
+    if (!medicalToSet && list.length === 1) {
       setMedicalId(list[0].id)
     }
+
+    // 列マッピングも同時にシードする。ここで空のまま次工程（confirmDbs）へ渡すと、
+    // 「列を推定できなかった＝全て既定名で確定」の分岐で、保存済みのカスタム
+    // マッピングを黙って空欄に上書きしてしまう（Finding 3）。
+    setPropMap({
+      propSummary: stored?.propSummary || '',
+      propKeywords: stored?.propKeywords || '',
+      propKnowledgeLevel: stored?.propKnowledgeLevel || '',
+      propGenre: stored?.propGenre || '',
+    })
+
     setDbsLoading(false)
     setPhase('pick')
   }
@@ -203,7 +238,7 @@ export function OAuthFinish({
   }
 
   useEffect(() => {
-    void start()
+    runGuarded(start)
     // start は毎レンダーで作り直されるが、参照するのはその時点の mode に閉じた
     // getSettings() の結果だけなので、依存配列に含める必要はない（無限再実行を避ける）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,12 +315,16 @@ export function OAuthFinish({
     const allExact = (['summary', 'keywords', 'genre', 'knowledgeLevel'] as const)
       .every((k) => inf[k].confidence === 'exact' || inf[k].confidence === 'none')
     if (allExact) { await save({}); return }
-    setPropMap({
-      propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || '' : '',
-      propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || '' : '',
-      propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || '' : '',
-      propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || '' : '',
-    })
+    // 推定が実際に候補を見つけた項目だけを上書きする（Finding 3）。「none」（型に合う
+    // 列が無い）や「guess」（型は合うが名前の手がかりが無い）で確定させると、
+    // loadDbs でシード済みの保存済みカスタムマッピングを黙って空欄に戻してしまう。
+    // 上書きしない項目は prev（＝シード済みの現在値）をそのまま残す。
+    setPropMap((prev) => ({
+      propSummary: inf.summary.confidence === 'likely' ? inf.summary.best || prev.propSummary : prev.propSummary,
+      propKeywords: inf.keywords.confidence === 'likely' ? inf.keywords.best || prev.propKeywords : prev.propKeywords,
+      propGenre: inf.genre.confidence === 'likely' ? inf.genre.best || prev.propGenre : prev.propGenre,
+      propKnowledgeLevel: inf.knowledgeLevel.confidence === 'likely' ? inf.knowledgeLevel.best || prev.propKnowledgeLevel : prev.propKnowledgeLevel,
+    }))
   }
 
   const save = async (patch: Partial<typeof propMap>) => {
@@ -307,6 +346,22 @@ export function OAuthFinish({
   }
 
   const restart = () => { window.location.href = '/api/notion/oauth/start' }
+
+  // conflict / claimCheckFailed で「このままの接続を続ける」を選んだときの処理
+  // （Finding 4・§10b step4「このままの接続を続ける（変更しない）」＝明示的な却下）。
+  // この時点では何も保存されていない（claim できていない）ので、端末側で戻すものは無い。
+  // だがサーバーの completed 行を残したままだと、次回のコールドスタートでも同じ行が
+  // claimable と判定され、全画面シートが再び開いてしまう（claim の猶予が尽きるまで）。
+  // discard を叩いて却下してから閉じる。失敗しても画面は閉じる
+  // （閉じられないよりは、次回また出るだけの方がまし）。
+  const discardAndAbort = async () => {
+    try {
+      await fetch('/api/notion/oauth/discard', { method: 'POST' })
+    } catch {
+      // 通信失敗は無視。次回起動でまた出るだけ。
+    }
+    onAbort()
+  }
 
   return (
     <div className="fixed inset-0 z-[80] bg-white dark:bg-gray-900 overflow-y-auto">
@@ -332,10 +387,10 @@ export function OAuthFinish({
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
               Notionの画面でそのページも選び直すと、続けられます。設定はまだ変えていないので、このまま閉じれば今の接続のままです。
             </p>
-            <button type="button" onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+            <button type="button" disabled={busy} onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               Notionでページを選び直す
             </button>
-            <button type="button" onClick={onAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+            <button type="button" disabled={busy} onClick={() => runGuarded(discardAndAbort)} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm disabled:opacity-50">
               このままの接続を続ける
             </button>
           </div>
@@ -352,12 +407,13 @@ export function OAuthFinish({
             </p>
             <button
               type="button"
-              onClick={() => { setPhase('claiming'); void start() }}
-              className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold"
+              disabled={busy}
+              onClick={() => { setPhase('claiming'); runGuarded(start) }}
+              className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
             >
               もう一度確認する
             </button>
-            <button type="button" onClick={onAbort} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
+            <button type="button" disabled={busy} onClick={() => runGuarded(discardAndAbort)} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm disabled:opacity-50">
               このままの接続を続ける
             </button>
           </div>
@@ -405,7 +461,7 @@ export function OAuthFinish({
                     {dbs.filter((d) => d.id !== medicalId).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
                   </select>
                 </div>
-                <button type="button" disabled={!medicalId} onClick={() => void confirmDbs()} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
+                <button type="button" disabled={!medicalId || busy} onClick={() => runGuarded(confirmDbs)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
                   このDBでつなぐ
                 </button>
               </>
@@ -423,7 +479,7 @@ export function OAuthFinish({
               <span>選んだ{ROLE_LABEL[unreadableRole]}が見えません。</span>
             </p>
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              Notionの認可画面で、そのデータベースがあるページを選び直してください。保存はしていないので、今の設定はそのままです。
+              Notionの認可画面で、そのデータベースがあるページを選び直してください。接続そのものはすでに完了しています。変わっていないのはデータベースの選択だけです。
             </p>
             <button type="button" onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
               Notionでページを選び直す
@@ -441,9 +497,9 @@ export function OAuthFinish({
               <span>データベースの確認が完了しませんでした。</span>
             </p>
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              通信状況やNotion側の一時的な不調によることがあります。時間をおいてから、もう一度お試しください。保存はしていないので、今の設定はそのままです。
+              通信状況やNotion側の一時的な不調によることがあります。時間をおいてから、もう一度お試しください。接続そのものはすでに完了しています。変わっていないのはデータベースの選択だけです。
             </p>
-            <button type="button" onClick={() => void confirmDbs()} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+            <button type="button" disabled={busy} onClick={() => runGuarded(confirmDbs)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               もう一度確認する
             </button>
             <button type="button" onClick={() => setPhase('pick')} className="w-full border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm">
@@ -456,7 +512,7 @@ export function OAuthFinish({
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">列の読み取りを確認してください（あとから設定でも変えられます）。</p>
             <PropMapEditor schema={schema} value={propMap} onChange={(p) => setPropMap((v) => ({ ...v, ...p }))} />
-            <button type="button" onClick={() => void save({})} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
+            <button type="button" disabled={busy} onClick={() => runGuarded(() => save({}))} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               この設定で完了
             </button>
           </div>

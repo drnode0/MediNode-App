@@ -2681,14 +2681,25 @@ export default function Home() {
   // 値でしかなく「決着済み＝最新の資格」という保証にはならない。新規に許可された人はこの
   // 一覧が古いままでも通れないだけで、PremiumSyncが一覧の変化を検知した際にページごと
   // リロードするため、次回起動時には拾えるようになる（許容している挙動）。
+  // showOauthFinish の「今の値」を非同期コールバックから読むためのミラー。
+  // 下のeffectはmount時に一度だけ走る（deps=[]）ため、コールバック内で state を直接
+  // 参照すると mount 時点の値（常に false）に固定されてしまう。レンダーのたびに更新される
+  // ref 経由で読むことで、呼び出し時点の最新値を見られるようにする（Minor fix）。
+  const showOauthFinishRef = useRef(false)
   useEffect(() => {
     let cancelled = false
     const ask = async () => {
       if (!isEasyConnectVisible()) return
+      // すでに仕上げシートが開いている場合はここで割り込まない（Minor fix）。
+      // 例えば設定の「読み取るDBを選び直す」でrepickモードのシートを開いている最中に
+      // このclaimable問い合わせが遅れて届くと、setOauthFinishMode('claim')がそれを
+      // claimモードへ書き換えてしまい、ユーザーが選び直している最中の画面が
+      // 意図しないものに差し替わる。
+      if (showOauthFinishRef.current) return
       try {
         const res = await fetch('/api/notion/oauth/claimable', { cache: 'no-store' })
         const data = await res.json()
-        if (!cancelled && data?.claimable) {
+        if (!cancelled && !showOauthFinishRef.current && data?.claimable) {
           setOauthFinishMode('claim')
           setShowOauthFinish(true)
         }
@@ -2697,7 +2708,12 @@ export default function Home() {
       }
     }
     if (isSettingsSyncSettled()) { void ask(); return () => { cancelled = true } }
-    const off = onSettingsSyncSettled(() => { void ask() })
+    // 決着イベントは複数回発火しうる（例: ログインユーザーが切り替わる等）。ask() は
+    // 一度実行すれば十分なので、実行前に購読解除してから呼ぶ（Minor fix）。
+    // これをしないと、2回目の決着で ask() が再実行され、すでにユーザーが操作している
+    // 仕上げシートに割り込みうる。
+    let off: () => void = () => {}
+    off = onSettingsSyncSettled(() => { off(); void ask() })
     return () => { cancelled = true; off() }
   }, [])
 
@@ -2744,6 +2760,8 @@ export default function Home() {
   const [showOnboardingFromSetup, setShowOnboardingFromSetup] = useState(false)
   // かんたん接続（OAuth）から戻った直後だけ立てる。オンボーディング/セットアップより優先して開く。
   const [showOauthFinish, setShowOauthFinish] = useState(false)
+  // レンダーのたびに最新値をミラーする（上のclaimable問い合わせeffectが非同期に読むため）。
+  showOauthFinishRef.current = showOauthFinish
   // 'claim'=預かりを引き取ってから、'repick'=引き取り済みでDB選択だけやり直す（§19b）
   const [oauthFinishMode, setOauthFinishMode] = useState<'claim' | 'repick'>('claim')
 
