@@ -19,10 +19,41 @@ const mk = (count: number, seen: number): TowerState => ({
   joinedAt: '', undergroundClearedAt: '', // joinedAt空＝分割しない（既存3シナリオは全部地上のまま）
 })
 
+// 地下シナリオ用: joined より古い wrote（持ち込み）と、joined 後の read（芽を出した分）
+const JOINED = new Date(Date.now() - 30 * 86_400_000).toISOString()
+function mkOld(n: number): Step[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `old-${i}`, kind: 'wrote' as const,
+    at: new Date(new Date(JOINED).getTime() - (n - i) * 86_400_000).toISOString(),
+    genre: 'dev', title: `持ち込みの知識 ${i + 1}`,
+  }))
+}
+function mkSurfaced(ids: string[]): Step[] {
+  return ids.map((id, i) => ({
+    id, kind: 'read' as const,
+    at: new Date(new Date(JOINED).getTime() + (i + 1) * 3_600_000).toISOString(),
+    genre: 'dev', title: `芽を出した ${i + 1}`,
+  }))
+}
+
 const SCENARIOS: Record<string, TowerState> = {
   'ふつうの日（+4枚）': mk(14, 10),
   '追い越しの日（湯のみ35枚越え）': mk(40, 30),
   '大量バックフィル（+80枚）': mk(200, 120),
+  '持ち込みの朝（地下274・地上0）': {
+    steps: mkOld(274), lastSeenSteps: 0, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: JOINED, undergroundClearedAt: '',
+  },
+  '地下から芽吹く（地上8・+5枚）': {
+    steps: [...mkOld(40), ...mkSurfaced(['old-0', 'old-1', 'old-2', 'old-3', 'old-4', 'old-5', 'old-6', 'old-7'])],
+    lastSeenSteps: 3, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: JOINED, undergroundClearedAt: '',
+  },
+  '地下が尽きた日': {
+    steps: [...mkOld(6), ...mkSurfaced(['old-0', 'old-1', 'old-2', 'old-3', 'old-4', 'old-5'])],
+    lastSeenSteps: 5, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: JOINED, undergroundClearedAt: new Date(new Date(JOINED).getTime() + 6 * 3_600_000).toISOString(),
+  },
 }
 
 export default function DevVinePage() {
