@@ -13,7 +13,7 @@ import { loadRereads } from '@/lib/reader-marks'
 import { sceneryMarks } from '@/lib/vine-scenery'
 import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
-import { crossedLine, grewLine, leafCountLine, indexHeading, sampleLabel } from '@/lib/vine-copy'
+import { crossedLine, grewLine, leafCountLine, indexHeading, sampleLabel, INTRO_LINES } from '@/lib/vine-copy'
 import { leafY, markPositions, splitByJoin } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
@@ -31,7 +31,8 @@ function loadAllQuizStats(): Record<string, import('@/lib/quiz-srs').QuizStat> {
 
 // 初回の口上（見本の蔓）を見たか。PERSONAL_DEVICE_KEYS 登録済み。
 const INTRO_KEY = 'medinode_vine_intro_seen_v1'
-const DEMO_TOTAL = 48
+// 見本は20枚（48枚は多すぎた＝オーナーFB）。カタツムリ（18枚）までの4つの背くらべが入る
+const DEMO_TOTAL = 20
 const DEMO_KINDS = ['recall', 'read', 'wrote', 'recall', 'recall', 'repolish'] as const
 
 export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
@@ -169,55 +170,63 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     setTone(dark ? '#CBB58C' : h >= 5 && h < 16 ? '#F2EAD6' : h < 19 ? '#E4D6B8' : '#CBB58C')
   }, [])
 
-  // ── 初回の口上: 見本の蔓がグイーンと伸びる（オーナー発案・2026-08-03）。
-  // この画面が何になるかを、説明ではなく成長そのもので見せる。一度きり・「見本」と明記。
-  const [intro, setIntro] = useState(() => {
-    if (initialState) return Boolean(forceIntro)
-    try { return !localStorage.getItem(INTRO_KEY) } catch { return false }
+  // ── 初回の口上（オンボーディング）: タップで進む4段（オーナーFBで段階式に・2026-08-03）。
+  // 0=芽 → 1=見本の蔓がゆっくり伸びる → 2=背くらべ → 3=薄れて自分の蔓へ。-1=終了。
+  // 一瞬のグイーンは「初めて開く人には一瞬にしか映らない」ため廃止。
+  const [introStep, setIntroStep] = useState(() => {
+    if (initialState) return forceIntro ? 0 : -1
+    try { return localStorage.getItem(INTRO_KEY) ? -1 : 0 } catch { return -1 }
   })
+  const intro = introStep >= 0
   const [introLeaves, setIntroLeaves] = useState(0)
-  const [introFading, setIntroFading] = useState(false)
   const demoSteps = useMemo<import('@/lib/tower-steps').Step[]>(
     () => Array.from({ length: DEMO_TOTAL }, (_, i) => ({
       id: `demo-${i}`, kind: DEMO_KINDS[i % DEMO_KINDS.length], at: '', genre: '', title: '',
     })), [],
   )
   const demoVisuals = useMemo(() => buildLeafVisuals(demoSteps, {}, nowIso), [demoSteps, nowIso])
+  // 段1: 見本がゆっくり伸びる（6秒・溜めてから）。reduced-motionは一息で
   useEffect(() => {
-    if (!intro || reduced) {
-      if (intro && reduced) { try { localStorage.setItem(INTRO_KEY, '1') } catch {} ; setIntro(false) }
-      return
-    }
-    const DUR = 3600
+    if (introStep !== 1) return
+    if (reduced) { setIntroLeaves(DEMO_TOTAL); return }
+    const DUR = 6000
     let raf = 0
     const t0 = performance.now()
     const tick = (t: number) => {
       const p = Math.min(1, (t - t0) / DUR)
-      // 溜め（最初の1/4でゆっくり）→ グイーン（残りで一気に）
-      const ease = p < 0.25
-        ? (p / 0.25) * (p / 0.25) * 0.12
-        : 0.12 + 0.88 * (1 - Math.pow(1 - (p - 0.25) / 0.75, 2.2))
+      const ease = p < 0.2
+        ? (p / 0.2) * (p / 0.2) * 0.08
+        : 0.08 + 0.92 * (1 - Math.pow(1 - (p - 0.2) / 0.8, 1.8))
       setIntroLeaves(DEMO_TOTAL * ease)
       if (p < 1) raf = requestAnimationFrame(tick)
-      else {
-        setIntroFading(true)
-        window.setTimeout(() => {
-          if (!initialState) { try { localStorage.setItem(INTRO_KEY, '1') } catch {} } // devハーネスでは保存しない
-          setIntro(false)
-        }, 1500)
-      }
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [intro, reduced])
-  // 口上のあいだは見本の穂先を追う
+  }, [introStep, reduced])
+  // 段3: 薄れて自分の蔓へ
+  useEffect(() => {
+    if (introStep !== 3) return
+    const id = window.setTimeout(() => {
+      if (!initialState) { try { localStorage.setItem(INTRO_KEY, '1') } catch {} } // devハーネスでは保存しない
+      setIntroStep(-1)
+    }, 1400)
+    return () => window.clearTimeout(id)
+  }, [introStep, initialState])
+  const introTap = useCallback(() => {
+    setIntroStep((s) => {
+      if (s === 1) setIntroLeaves(DEMO_TOTAL) // 伸び途中のタップは伸ばし切ってから次へ
+      return s >= 0 && s < 3 ? s + 1 : s
+    })
+  }, [])
+  // 口上のあいだは見本の穂先を追う（段0は地面の芽）
   useEffect(() => {
     if (!intro) return
     const el = scrollRef.current
     if (!el) return
+    if (introStep === 0) { el.scrollTop = el.scrollHeight; return }
     const reveal = Math.max(0, Math.min(DEMO_TOTAL, Math.floor(introLeaves)))
     el.scrollTop = Math.max(0, leafY(reveal, DEMO_TOTAL) - viewportH * 0.55)
-  }, [intro, introLeaves, viewportH])
+  }, [intro, introStep, introLeaves, viewportH])
 
   return (
     <div
@@ -240,7 +249,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
           </button>
         </div>
 
-        <div className="relative">
+        <div className="relative" onClick={intro ? introTap : undefined}>
           <div
             ref={scrollRef}
             className="relative overflow-y-auto overscroll-contain"
@@ -256,10 +265,11 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
             }}
           >
             {intro ? (
-              // 初回の口上: 見本の蔓がグイーンと伸びる。終わったら静かに薄れて、自分の蔓に戻る
-              <div style={{ opacity: introFading ? 0 : 1, transition: 'opacity 1400ms ease', position: 'relative' }}>
+              // 初回の口上: 段0=芽だけ、段1以降=見本の蔓。段3で薄れて自分の蔓へ
+              <div style={{ opacity: introStep === 3 ? 0 : 1, transition: 'opacity 1300ms ease' }}>
                 <VineScene
-                  leavesNow={introLeaves} from={0} to={DEMO_TOTAL}
+                  leavesNow={introStep === 0 ? 0 : introLeaves} from={0}
+                  to={introStep === 0 ? 0 : DEMO_TOTAL}
                   visuals={demoVisuals} spotlightIds={[]} steps={demoSteps}
                   crossedNow={false}
                   onLeafTap={() => {}}
@@ -268,9 +278,6 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
                   pendingBuds={0}
                   scenery={[]}
                 />
-                <div className={`absolute left-3 top-4 text-[13px] ${styles.san}`} style={{ opacity: 0.6 }}>
-                  {sampleLabel()}
-                </div>
               </div>
             ) : (
               <VineScene
@@ -290,6 +297,27 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
             <div className={`absolute right-3 top-4 text-[21px] leading-[1.9] ${styles.san} ${styles.fadeIn} ${styles.tanzaku}`}>
               {crossed ? crossedLine(crossed.label) : grewLine(kanjiNumber(Math.min(newLeaves, 99)))}
             </div>
+          )}
+          {/* 口上のオーバーレイ（スクロールに載せない）。見本の明記＋段ごとの一文＋操作の言葉 */}
+          {intro && (
+            <>
+              {introStep >= 1 && (
+                <div className={`absolute left-3 top-4 text-[13px] ${styles.san}`} style={{ opacity: 0.6 }}>
+                  {sampleLabel()}
+                </div>
+              )}
+              <div
+                key={introStep}
+                className={`absolute inset-x-0 bottom-9 px-6 text-center text-[15px] leading-relaxed text-[#4c4536] ${styles.fadeIn}`}
+              >
+                {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
+              </div>
+              {introStep < 3 && (
+                <div className="absolute inset-x-0 bottom-2 text-center text-[10px] text-[#a39678]">
+                  タップでつぎへ
+                </div>
+              )}
+            </>
           )}
         </div>
 
