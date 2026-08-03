@@ -212,15 +212,12 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [introStep, reduced])
-  // 段3: 薄れて自分の蔓へ
-  useEffect(() => {
-    if (introStep !== 3) return
-    const id = window.setTimeout(() => {
-      if (!initialState) { try { localStorage.setItem(INTRO_KEY, '1') } catch {} } // devハーネスでは保存しない
-      setIntroStep(-1)
-    }, 1400)
-    return () => window.clearTimeout(id)
-  }, [introStep, initialState])
+  // 段3は自動で消えない——「次にやること」への出口を選んでもらう（オーナーFB: 何をしたらいいのか分かるように）
+  const finishIntro = useCallback((goQuiz: boolean) => {
+    if (!initialState) { try { localStorage.setItem(INTRO_KEY, '1') } catch {} } // devハーネスでは保存しない
+    setIntroStep(-1)
+    if (goQuiz) onGoQuiz()
+  }, [initialState, onGoQuiz])
   const introTap = useCallback(() => {
     setIntroStep((s) => {
       if (s === 1) setIntroLeaves(DEMO_TOTAL) // 伸び途中のタップは伸ばし切ってから次へ
@@ -294,8 +291,8 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
             }}
           >
             {intro ? (
-              // 初回の口上: 段0=芽、段1=伸びる見本、段2〜3=育ちきった見本（駆け上がり→薄れて自分の蔓へ）
-              <div style={{ opacity: introStep === 3 ? 0 : 1, transition: 'opacity 1300ms ease' }}>
+              // 初回の口上: 段0=芽、段1=伸びる見本、段2〜3=育ちきった見本（駆け上がり→出口を選ぶ）
+              <div style={{ opacity: introStep === 3 ? 0.45 : 1, transition: 'opacity 900ms ease' }}>
                 <VineScene
                   leavesNow={introStep === 0 ? 0 : introStep >= 2 ? DEMO_TALL : introLeaves}
                   from={introStep >= 2 ? DEMO_TALL : 0}
@@ -340,13 +337,31 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
               )}
               <div
                 key={introStep}
-                className={`absolute inset-x-0 bottom-9 px-6 text-center text-[15px] leading-relaxed text-[#4c4536] ${styles.fadeIn}`}
+                className={`absolute inset-x-0 ${introStep === 3 ? 'bottom-24' : 'bottom-9'} px-6 text-center text-[15px] leading-relaxed text-[#4c4536] ${styles.fadeIn}`}
               >
                 {INTRO_LINES[Math.max(0, Math.min(introStep, INTRO_LINES.length - 1))]}
               </div>
-              {introStep < 3 && (
+              {introStep < 3 ? (
                 <div className="absolute inset-x-0 bottom-2 text-center text-[10px] text-[#a39678]">
                   タップでつぎへ
+                </div>
+              ) : (
+                // 出口: 最初の一枚をすぐ生やせる道と、まず自分の蔓を眺める道
+                <div className={`absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-8 ${styles.fadeIn}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); finishIntro(true) }}
+                    className="w-full max-w-[260px] rounded-full border border-[#b3a37e] bg-[#faf5e8] py-2.5 text-[13px] font-semibold text-[#4c4536] shadow-sm"
+                  >
+                    今日の1問にこたえて 最初の葉をひらく
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); finishIntro(false) }}
+                    className="text-[11px] text-[#8b8272] underline underline-offset-4 decoration-[#cbbf9f]"
+                  >
+                    じぶんの蔓を見る
+                  </button>
                 </div>
               )}
             </>

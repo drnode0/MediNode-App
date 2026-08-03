@@ -27,7 +27,6 @@ const USUZUMI = '#8b8272'
 const LEAF_AX = 0.203 // 葉柄の先（アンカー）
 const LEAF_AY = 0.813
 const GOLDEN = 137.507764 // 葉序＝黄金角
-const LEAF_BASE_PX = 46
 const EXPAND_LEAVES = 5 // 穂先からこの枚数はまだ展開中
 const AOBA = [92, 106, 67] // #5c6a43 苔色
 const GINNEZU = [198, 203, 194] // #c6cbc2 銀鼠〜月白
@@ -38,23 +37,24 @@ const smooth = (a: number, b: number, t: number) => {
 }
 
 // 実物の絵（手元にある分だけ）。無い実物は朱線と文字のまま——絵が揃うたびここに足す。
-// 序盤8実物はこれで全部そろった（2026-08-03）
-const MILESTONE_ART: Record<string, { src: string; h: number }> = {
-  'アリ': { src: '/vine/object_ari.png', h: 13 },
-  'テントウムシ': { src: '/vine/object_tentoumushi.png', h: 14 },
-  'ドングリ': { src: '/vine/object_donguri.png', h: 22 },
-  'カタツムリ': { src: '/vine/object_katatsumuri.png', h: 22 },
-  '湯のみ': { src: '/vine/object_yunomi.png', h: 30 },
-  'スズメ': { src: '/vine/resident_suzume.png', h: 34 },
-  'ネコ': { src: '/vine/object_neko.png', h: 34 },
-  '一升瓶': { src: '/vine/object_isshobin.png', h: 42 },
+// 序盤8実物はこれで全部そろった（2026-08-03）。
+// 大きさはここでは持たない——「越えた葉数×14px」に比例させて描く（実寸感・オーナーFB）。
+const MILESTONE_ART: Record<string, string> = {
+  'アリ': '/vine/object_ari.png',
+  'テントウムシ': '/vine/object_tentoumushi.png',
+  'ドングリ': '/vine/object_donguri.png',
+  'カタツムリ': '/vine/object_katatsumuri.png',
+  '湯のみ': '/vine/object_yunomi.png',
+  'スズメ': '/vine/resident_suzume.png',
+  'ネコ': '/vine/object_neko.png',
+  '一升瓶': '/vine/object_isshobin.png',
 }
-
-// 幹＝蔓節PNGの連結（縄状の筆致）。コード描画の線は「緑のマーカー」に見えるため廃止
-// （オーナー実機FB 2026-08-03）。節の傾きは中心線の局所勾配に合わせる。
-const SEG_W = 84
-const SEG_H = SEG_W * 1.5 // 原画1024×1536
-const SEG_STEP = SEG_H - 24 // 連結の重なり
+// 実物の絵の高さ。頭がその実物の朱線に届く＝「蔓がこの背丈を越えた」絵。
+// 葉数×14pxが実寸（この画面の座標系での真実）。大きすぎる実物だけ挿絵として上限で切る。
+const MILESTONE_ART_CAP = 64
+function milestoneArtH(leaves: number): number {
+  return Math.min(leaves * 14 * 0.85, MILESTONE_ART_CAP)
+}
 
 // 葉の状態→マスク彩色の層（polish demoのmakeLeafを移植）
 function leafLayers(v: LeafVisual): { line: boolean; style: CSSProperties }[] {
@@ -108,6 +108,13 @@ export function VineScene({
   const doneY = undergroundClearedAt && undergroundCount > 0 ? gY + 18 : null
   const lane = useMemo(() => laneMarks(to, scenery, doneY), [to, scenery, doneY])
   const newLeaves = to - from
+  // 株の成長段階（0=芽生え〜1=成木）。アリと背比べする頃の蔓は、アリと変わらない細さのはず——
+  // 幹の太さと葉の大きさを総葉数で育てる（実寸感・オーナーFB 2026-08-03）
+  const stage = smooth(2, 180, to)
+  const segW = 26 + 58 * stage
+  const segH = segW * 1.5 // 原画1024×1536
+  const segStep = segH - (10 + 14 * stage) // 連結の重なり
+  const leafBase = 24 + 22 * stage
   // 次の実物（伸びているときだけ・正典§7）。絵があれば穂先の先にうっすら立たせる——旅のつづきの予告
   const next = nextMilestone(to)
   const nextArt = MILESTONE_ART[next.label]
@@ -126,15 +133,15 @@ export function VineScene({
     const topY = leafY(to, to)
     const yMin = scrollTop - viewportH
     const yMax = scrollTop + viewportH * 2
-    for (let y = gY + 10; y > topY; y -= SEG_STEP) {
-      if (y < yMin || y - SEG_H > yMax) continue
-      const midY = y - SEG_H / 2
+    for (let y = gY + 10; y > topY; y -= segStep) {
+      if (y < yMin || y - segH > yMax) continue
+      const midY = y - segH / 2
       const hMid = Math.max(0, gY - midY)
       const pMid = pointAtHeight(path, hMid)
       const pUp = pointAtHeight(path, Math.min(vineH, hMid + 24))
       const rot = Math.atan2(pUp.x - pMid.x, 24) * 180 / Math.PI
-      // 穂先寄りの1.5節ぶんは若蔓
-      const young = (y - SEG_H) < topY + SEG_H * 0.5
+      // 若い株はぜんぶ若蔓。育った株でも穂先寄りは若蔓
+      const young = to < 30 || (y - segH) < topY + segH * 0.5
       trunkSegs.push({ x: pMid.x, y: midY, rot, young })
     }
   }
@@ -155,7 +162,7 @@ export function VineScene({
     const open = smooth(0, EXPAND_LEAVES, to - n)
     const vigor = 0.70 + 0.46 * smooth(0, 0.52, f)
     const size = vigor * (0.52 + 0.48 * open)
-    const px = LEAF_BASE_PX * size
+    const px = leafBase * size
     const mirror = sxv < 0
     const fore = 0.46 + 0.54 * Math.abs(sxv) // 正面を向いた葉ほど横に縮む（見かけの短縮）
     const rot = 16 - 42 * f + 10 * size // 下の葉ほど寝て、上の葉ほど立つ＋自重のたわみ
@@ -240,7 +247,7 @@ export function VineScene({
             <image
               key={`seg-${i}`}
               href={s.young ? '/vine/vine_seg_young_a.png' : '/vine/vine_seg_mid_a.png'}
-              x={s.x - SEG_W / 2} y={s.y - SEG_H / 2} width={SEG_W} height={SEG_H}
+              x={s.x - segW / 2} y={s.y - segH / 2} width={segW} height={segH}
               transform={`rotate(${s.rot.toFixed(1)} ${s.x.toFixed(1)} ${s.y.toFixed(1)})`}
               opacity={0.95}
             />
@@ -329,7 +336,7 @@ export function VineScene({
         <div
           className={styles.tipSway}
           style={to > 0
-            ? { position: 'absolute', width: 44, height: 44, left: stemXAt(to) - 20, top: leafY(to, to) - 46, opacity: growing ? 0 : 0.9 }
+            ? { position: 'absolute', width: 28 + 16 * stage, height: 28 + 16 * stage, left: stemXAt(to) - (28 + 16 * stage) / 2 + 2, top: leafY(to, to) - 30 - 16 * stage, opacity: growing ? 0 : 0.9 }
             : { position: 'absolute', width: 38, height: 38, left: BASE_X - 17, top: gY - 40, opacity: 0.95 }}
         >
           <div className={`${styles.layer} ${styles.tipArt}`} style={{ background: '#4a5537' }} />
@@ -356,28 +363,34 @@ export function VineScene({
           )
         })}
 
-        {/* 次の実物のゴースト: まだ越えていない相手が、穂先の先にうっすら待っている */}
-        {showNext && nextArt && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={nextArt.src} alt=""
-            style={{
-              position: 'absolute', height: nextArt.h * 1.3, left: stemXAt(to) + 34,
-              top: Math.max(2, 46 - nextArt.h * 1.3), opacity: 0.3,
-            }}
-          />
-        )}
-
-        {/* 実物の絵（比較対象を絵で立たせる）。絵が手元にある実物だけ、印の線の上に置く */}
-        {lane.map((m, i) => {
-          if (m.type !== 'milestone' || !m.withLabel) return null
-          const art = MILESTONE_ART[m.milestone.label]
-          if (!art) return null
+        {/* 次の実物のゴースト: まだ越えていない相手が、穂先の先にうっすら待っている。
+            大きさは「越える葉数×14px」＝この座標系での実寸（頭が届くべき高さぶん） */}
+        {showNext && nextArt && (() => {
+          const hn = milestoneArtH(next.leaves)
           return (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={`art-${i}`} src={art.src} alt=""
-              style={{ position: 'absolute', height: art.h, right: 100, top: m.y - art.h + 2, opacity: 0.9 }}
+              src={nextArt} alt=""
+              style={{
+                position: 'absolute', height: hn, left: stemXAt(to) + 30,
+                top: Math.max(2, 52 - hn), opacity: 0.3,
+              }}
+            />
+          )
+        })()}
+
+        {/* 実物の絵。頭がその朱線に届く高さで、線からぶら下げる——
+            「蔓がこの背丈を越えた」という絵。アリは小さく、湯のみは大きい（葉数×14pxの実寸比） */}
+        {lane.map((m, i) => {
+          if (m.type !== 'milestone' || !m.withLabel) return null
+          const src = MILESTONE_ART[m.milestone.label]
+          if (!src) return null
+          const h = milestoneArtH(m.milestone.leaves)
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`art-${i}`} src={src} alt=""
+              style={{ position: 'absolute', height: h, right: 100, top: m.y + 1, opacity: 0.9 }}
             />
           )
         })}
