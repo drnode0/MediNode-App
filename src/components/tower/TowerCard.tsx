@@ -2,7 +2,7 @@
 // ホームの1行カード。開いて5秒で現在地（当直の合間ルール）。追加API呼び出しゼロ。
 import { useEffect, useRef, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
-import { loadTowerState, TOWER_EVENT } from '@/lib/tower-steps'
+import { loadTowerState, leafSteps, TOWER_EVENT } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { stepsThisWeek } from '@/lib/tower-ladder'
 import { splitByJoin } from '@/lib/vine-scroll'
@@ -18,11 +18,12 @@ export function TowerCard({ onOpen }: { onOpen: () => void }) {
   useEffect(() => {
     const refresh = () => {
       const s = loadTowerState()
-      // 高さも今週も地上部だけで数える（正典§7。持ち込み分は地下）
+      // 高さも今週も「地上の葉」だけで数える（正典§7・§9。持ち込みは地下・attemptは芽）
       const split = splitByJoin(s.steps, s.joinedAt)
-      setCount(split.above.length)
+      const leaves = leafSteps(split.above)
+      setCount(leaves.length)
       setUnderground(split.underground.length)
-      setWeek(stepsThisWeek(split.above, new Date().toISOString()))
+      setWeek(stepsThisWeek(leaves, new Date().toISOString()))
     }
     refresh()
     const onStep = () => {

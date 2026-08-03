@@ -22,6 +22,13 @@ const SHU = '#B33A2B'
 const INK = '#2c2a22'
 const USUZUMI = '#8b8272'
 
+// 輪郭の葉の線。読み返しの回数（0〜3）で薄墨→墨に濃くなる（正典§9の3段階）。
+const LINE_INKS = ['#8b8272', '#6f675a', '#4f483d', '#2c2a22'] as const
+function leafStroke(v: LeafVisual): string {
+  if (v.form !== 'outline') return INK
+  return LINE_INKS[v.line]
+}
+
 function leafFill(v: LeafVisual): string {
   if (v.form === 'outline') return 'none'
   // 青葉→銀鼠へ（茶色禁止）。fadeで補間
@@ -33,13 +40,13 @@ function leafFill(v: LeafVisual): string {
 
 export function VineScene({
   leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width, popping,
-  undergroundCount, undergroundClearedAt,
+  undergroundCount, undergroundClearedAt, pendingBuds,
 }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
   crossedNow: boolean; onLeafTap: (index: number) => void
   scrollTop: number; viewportH: number; width: number; popping: boolean
-  undergroundCount: number; undergroundClearedAt: string
+  undergroundCount: number; undergroundClearedAt: string; pendingBuds: number
 }) {
   const W = width
   const BASE_X = W * BASE_X_RATIO
@@ -126,7 +133,7 @@ export function VineScene({
                 <path d="M3,0 C8,-3 13,-2 16,1" fill="none" stroke="#39442c" strokeWidth={1.6} opacity={0.8} />
                 <path
                   d="M14,0 C21,-11 35,-11 38,-2 C35,8 21,9 14,0 Z"
-                  fill={leafFill(v)} stroke={v.form === 'outline' ? USUZUMI : INK}
+                  fill={leafFill(v)} stroke={leafStroke(v)}
                   strokeWidth={v.form === 'futaba' ? 2.2 : 1.7} opacity={0.92}
                 />
                 {v.form === 'futaba' && (
@@ -144,6 +151,21 @@ export function VineScene({
       {leavesNow < to && (
         <circle cx={stemXAt(Math.max(1, Math.floor(leavesNow)))} cy={leafY(Math.max(1, Math.floor(leavesNow)), to)} r={5} fill="#4a5537" opacity={0.75} />
       )}
+
+      {/* まだの芽（正典§9）。クイズで「まだ」だった知識が穂先の未展開葉として現れる。
+          高さは生まない。数字は出さない——描くのは7個まで（台帳は全部残る）。
+          思い出せたら芽はひらいて葉になる＝ここから消える。 */}
+      {Array.from({ length: Math.min(pendingBuds, 7) }, (_, i) => {
+        const side = i % 2 === 0 ? 1 : -1
+        const y = leafY(to, to) - 12 - i * 11
+        const x = stemXAt(Math.max(1, to)) + side * 7
+        return (
+          <g key={`bud-${i}`} transform={`translate(${x} ${y}) scale(${side} 1)`} opacity={0.75}>
+            <path d="M0,6 C1,2 2,0 4,-1" fill="none" stroke="#39442c" strokeWidth={1.3} />
+            <path d="M4,-1 c5,-4 9,-1 6,3 c-2,3 -6,2 -6,-3" fill="none" stroke="#55603f" strokeWidth={1.8} strokeLinecap="round" />
+          </g>
+        )
+      })}
 
       {/* 次の実物: 穂先の上、まだ何もない空間に淡く置く。伸びしろが在ることだけを見せる
           （寸法線・「あと◯◯」の数字は出さない＝数字で追い立てない）。スクロールで流れて消えてよい。

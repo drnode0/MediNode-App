@@ -5,10 +5,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import {
-  loadTowerState, saveTowerState, markSeen, planReplay, type TowerState,
+  loadTowerState, saveTowerState, markSeen, planReplay, leafSteps, type TowerState,
 } from '@/lib/tower-steps'
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
-import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
+import { buildLeafVisuals, spotlightFaded, pendingBudIds } from '@/lib/vine-leaves'
+import { loadRereads } from '@/lib/reader-marks'
 import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
@@ -120,16 +121,20 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
 
   // 地下茎と地上部（正典§7）。表示・リプレイ・高さはすべて above だけを見る。
   const split = useMemo(() => splitByJoin(state.steps, state.joinedAt), [state.steps, state.joinedAt])
+  // 葉＝attemptを除いた地上の歩（正典§9）。芽（attempt）は枚数・高さに入れない
+  const aboveLeaves = useMemo(() => leafSteps(split.above), [split.above])
+  const buds = useMemo(() => pendingBudIds(split.above), [split.above])
+  const rereads = useMemo(() => loadRereads(), [])
   const marks = useMemo(() => markPositions(to), [to])
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const stats = useMemo(() => loadAllQuizStats(), [])
-  const visuals = useMemo(() => buildLeafVisuals(split.above, stats, nowIso), [split.above, stats, nowIso])
-  const spotlight = useMemo(() => spotlightFaded(split.above, stats, nowIso), [split.above, stats, nowIso])
+  const visuals = useMemo(() => buildLeafVisuals(aboveLeaves, stats, nowIso, rereads), [aboveLeaves, stats, nowIso, rereads])
+  const spotlight = useMemo(() => spotlightFaded(aboveLeaves, stats, nowIso), [aboveLeaves, stats, nowIso])
 
   const leavesNow = engine.leavesNow
   const hMm = heightMmFromLeaves(leavesNow)
   const newLeaves = to - from
-  const todayLeaf = split.above[to - 1]
+  const todayLeaf = aboveLeaves[to - 1]
   const showSan = !engine.running || engine.phaseName === 'yoin'
 
   // リプレイ中だけ穂先を追う（§ 開始位置は穂先だが成長は根元から始まるため、
@@ -143,7 +148,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
     el.scrollTop = Math.max(0, leafY(revealIndex, to) - viewportH * 0.55)
   }, [engine.running, leavesNow, to, viewportH])
 
-  const openLeaf = leafOpen != null ? split.above[leafOpen] : null
+  const openLeaf = leafOpen != null ? aboveLeaves[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
 
   return (
@@ -180,11 +185,12 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
           >
             <VineScene
               leavesNow={leavesNow} from={from} to={to}
-              visuals={visuals} spotlightIds={spotlight} steps={split.above}
+              visuals={visuals} spotlightIds={spotlight} steps={aboveLeaves}
               crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
               onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
               scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={engine.running}
               undergroundCount={split.underground.length} undergroundClearedAt={state.undergroundClearedAt}
+              pendingBuds={buds.length}
             />
           </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}
@@ -220,7 +226,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             <p>今日の葉：<span className="font-semibold">{todayLeaf.title || 'ひとつの知識'}</span></p>
           )}
           <p className="text-[10px] text-[#a39678]">
-            葉＝学びのひとつ（読んだ・書いた・即答できた・磨き直した）・色＝いま即答できるか
+            葉＝学びのひとつ（読んだ・書いた・解決した・即答できた・磨き直した）・色＝いま即答できるか
           </p>
         </div>
       </div>
@@ -232,7 +238,9 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             <div className="text-sm font-semibold">{openLeaf.title || 'ひとつの知識'}</div>
             <div className="mt-1 text-[11px] text-[#8b8272]">
               {openLeaf.at.slice(0, 10)}・
-              {openLeaf.kind === 'read' ? '読んだ' : openLeaf.kind === 'wrote' ? '書いた' : openLeaf.kind === 'recall' ? '即答できた' : '磨き直した'}
+              {openLeaf.kind === 'read' ? '読んだ' : openLeaf.kind === 'wrote' ? '書いた'
+                : openLeaf.kind === 'resolved' ? '解決した'
+                : openLeaf.kind === 'recall' ? '即答できた' : '磨き直した'}
             </div>
             {spotlight.includes(openLeaf.id) && (
               <button
