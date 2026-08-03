@@ -54,3 +54,25 @@ export function markPositions(
     .filter((m) => m.leaves <= total)
     .map((m) => ({ milestone: m, leafIndex: m.leaves, y: leafY(m.leaves, total) }))
 }
+
+// 印は1つにつき2行の文字を持つので、これ未満に近づくと重なる。
+export const MIN_MARK_GAP = 28
+
+// 蔓の脇に描く印。近すぎるものは間引く——根元では実物の葉数が詰まっており
+// （アリ=葉3・テントウムシ=葉4）、全件描くと文字が重なって読めなくなるため。
+// 間引くのは描画だけで、目次（markPositions）からは落とさない。
+export function sceneMarks(total: number): ReturnType<typeof markPositions> {
+  const marks = markPositions(total)
+  // 上（新しい側＝yが小さい側）から順に見て、直前に採った印とのyの差がMIN_MARK_GAP以上の
+  // ものだけを採る。markPositionsはyが大きい順（古い順）に並んでいるので、末尾から遡る。
+  const kept: ReturnType<typeof markPositions> = []
+  let lastKeptY: number | null = null
+  for (let i = marks.length - 1; i >= 0; i--) {
+    const m = marks[i]
+    if (lastKeptY === null || m.y - lastKeptY >= MIN_MARK_GAP) {
+      kept.unshift(m)
+      lastKeptY = m.y
+    }
+  }
+  return kept
+}

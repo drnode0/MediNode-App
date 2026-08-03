@@ -8,7 +8,7 @@ import type { Step } from '@/lib/tower-steps'
 import type { LeafVisual } from '@/lib/vine-leaves'
 import { formatHeight, heightMmFromLeaves, nextMilestone } from '@/lib/vine-ladder'
 import { generateVinePath, pointAtHeight } from '@/lib/vine-path'
-import { leafY, groundY, sceneHeightPx, visibleRange, markPositions } from '@/lib/vine-scroll'
+import { leafY, groundY, sceneHeightPx, visibleRange, sceneMarks } from '@/lib/vine-scroll'
 import { kanjiDate } from '@/lib/kanji-date'
 import { nextObjectLine } from '@/lib/vine-copy'
 import styles from './vine.module.css'
@@ -47,7 +47,9 @@ export function VineScene({
   const vineH = Math.max(1, gY - leafY(to, to))
   const path = useMemo(() => generateVinePath(VINE_SEED, vineH, BASE_X, AMP), [vineH, BASE_X])
   const win = visibleRange(scrollTop, viewportH, to)
-  const marks = useMemo(() => markPositions(to), [to])
+  // 描画は間引く（根元は実物の葉数が詰まっており、全件描くと文字が重なるため）。
+  // 目次（VineScreen側）はmarkPositionsのまま全件出す。
+  const marks = useMemo(() => sceneMarks(to), [to])
   const next = nextMilestone(to)
 
   // 葉の番号 → 蔓の中心線上の点（蔓の弧長ではなく、葉の縦位置で引く）

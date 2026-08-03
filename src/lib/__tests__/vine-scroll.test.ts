@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD,
-  sceneHeightPx, leafY, groundY, visibleRange, markPositions,
+  PX_PER_LEAF, SCENE_TOP_PAD, GROUND_GAP, SCENE_BOTTOM_PAD, MIN_MARK_GAP,
+  sceneHeightPx, leafY, groundY, visibleRange, markPositions, sceneMarks,
 } from '../vine-scroll'
 
 describe('葉の縦位置', () => {
@@ -76,5 +76,23 @@ describe('越えた印', () => {
   })
   it('まだ越えていない実物は含めない', () => {
     expect(markPositions(2)).toEqual([])
+  })
+})
+
+describe('シーン描画用の間引き（根元の密集対策）', () => {
+  it('葉200枚のとき、間引いた印どうしのyの差はすべてMIN_MARK_GAP以上になる', () => {
+    const marks = sceneMarks(200)
+    for (let i = 1; i < marks.length; i++) {
+      expect(Math.abs(marks[i].y - marks[i - 1].y)).toBeGreaterThanOrEqual(MIN_MARK_GAP)
+    }
+  })
+  it('目次（markPositions）は間引かれず全件（8件）残る', () => {
+    expect(markPositions(200).length).toBe(8)
+  })
+  it('密集した組では古いほう（アリ）が落ち、新しいほう（テントウムシ）が残る', () => {
+    const marks = sceneMarks(200)
+    const labels = marks.map((m) => m.milestone.label)
+    expect(labels).not.toContain('アリ')
+    expect(labels).toContain('テントウムシ')
   })
 })
