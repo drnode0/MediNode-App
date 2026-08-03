@@ -28,6 +28,15 @@ export function sampleLabel(): string {
   return '見本'
 }
 
+// 初回の口上の文言（タップで進むオンボーディング・2026-08-03オーナーFBで段階式に）。
+// 添え書きは常体・読点なし（空きで区切る）。順に: 芽→伸びる→背くらべ→自分の蔓へ。
+export const INTRO_LINES: readonly string[] = [
+  'ここは 学びが蔓になる場所',
+  '読んだ・書いた・思い出した——ひとつごとに 葉がひらく',
+  '実物と背くらべしながら 伸びていく',
+  'ここからは 自分の蔓',
+]
+
 // 次の実物（穂先の上に淡く置く）。名前と実寸だけを並べる——測り方の添え書きも
 // 「あと◯◯」の寸法線もここには乗せない（数字で追い立てないため）。
 export function nextObjectLine(label: string, sizeLabel: string): string {
@@ -59,4 +68,5 @@ export const ALL_VINE_COPY: string[] = [
   indexHeading(),
   undergroundDoneLine(),
   ...SCENERY_ALMANAC.map((e) => e.label),
+  ...INTRO_LINES,
 ]

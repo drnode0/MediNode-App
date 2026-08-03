@@ -17,7 +17,8 @@ import styles from './vine.module.css'
 const VINE_SEED = 42
 // 蔓の根元の横位置は容器幅に対する比で出す（実測390pxのとき150pxだった値を比に変換）。
 const BASE_X_RATIO = 150 / 390
-const AMP = 34
+// うねりの振幅。PNG節の連結でも筆致が続いて見えるよう浅め（旧34はコード線時代の値）
+const AMP = 16
 const SHU = '#B33A2B'
 const INK = '#2c2a22'
 const USUZUMI = '#8b8272'
@@ -37,10 +38,21 @@ const smooth = (a: number, b: number, t: number) => {
 }
 
 // 実物の絵（手元にある分だけ）。無い実物は朱線と文字のまま——絵が揃うたびここに足す。
+// 残り: アリ・テントウムシ（2026-08-03時点で未生成）
 const MILESTONE_ART: Record<string, { src: string; h: number }> = {
+  'ドングリ': { src: '/vine/object_donguri.png', h: 22 },
+  'カタツムリ': { src: '/vine/object_katatsumuri.png', h: 22 },
   '湯のみ': { src: '/vine/object_yunomi.png', h: 30 },
   'スズメ': { src: '/vine/resident_suzume.png', h: 34 },
+  'ネコ': { src: '/vine/object_neko.png', h: 34 },
+  '一升瓶': { src: '/vine/object_isshobin.png', h: 42 },
 }
+
+// 幹＝蔓節PNGの連結（縄状の筆致）。コード描画の線は「緑のマーカー」に見えるため廃止
+// （オーナー実機FB 2026-08-03）。節の傾きは中心線の局所勾配に合わせる。
+const SEG_W = 84
+const SEG_H = SEG_W * 1.5 // 原画1024×1536
+const SEG_STEP = SEG_H - 24 // 連結の重なり
 
 // 葉の状態→マスク彩色の層（polish demoのmakeLeafを移植）
 function leafLayers(v: LeafVisual): { line: boolean; style: CSSProperties }[] {
@@ -101,6 +113,25 @@ export function VineScene({
   const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
   const revealH = gY - leafY(revealIndex, to)
   const growing = revealIndex < to
+
+  // 幹の節（窓の近くだけ描く）。中心線上に置き、局所勾配で傾ける
+  const trunkSegs: { x: number; y: number; rot: number; young: boolean }[] = []
+  if (to > 0) {
+    const topY = leafY(to, to)
+    const yMin = scrollTop - viewportH
+    const yMax = scrollTop + viewportH * 2
+    for (let y = gY + 10; y > topY; y -= SEG_STEP) {
+      if (y < yMin || y - SEG_H > yMax) continue
+      const midY = y - SEG_H / 2
+      const hMid = Math.max(0, gY - midY)
+      const pMid = pointAtHeight(path, hMid)
+      const pUp = pointAtHeight(path, Math.min(vineH, hMid + 24))
+      const rot = Math.atan2(pUp.x - pMid.x, 24) * 180 / Math.PI
+      // 穂先寄りの1.5節ぶんは若蔓
+      const young = (y - SEG_H) < topY + SEG_H * 0.5
+      trunkSegs.push({ x: pMid.x, y: midY, rot, young })
+    }
+  }
 
   // ── 筆致の葉（窓の中だけ。間引かない） ──
   const backLeaves: React.ReactNode[] = []
@@ -191,19 +222,24 @@ export function VineScene({
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block" style={{ position: 'relative', zIndex: 1 }} aria-label="知の蔓">
         {growing && (
           <defs>
-            <mask id="vineGrow">
-              <rect x={-40} y={-40} width={W + 80} height={revealH + 40} fill="#fff" />
+            {/* シーン座標の成長マスク（幹はscene座標で置くため、旧・反転群用マスクから置き換え） */}
+            <mask id="vineGrowScene">
+              <rect x={-40} y={gY - revealH} width={W + 80} height={revealH + 70} fill="#fff" />
             </mask>
           </defs>
         )}
-        {/* 蔓（伸びた分だけ描く）。地上0のときは描かない——芽（vine_tip）だけの一画面。
-            淡緑のハロー線は廃止（オーナー実機FB「なぞり線みたいでダサい」2026-08-03）——墨に寄せて締める */}
-        {to > 0 && (
-          <g mask={growing ? 'url(#vineGrow)' : undefined} transform={`translate(0 ${gY}) scale(1 -1)`}>
-            <path d={path.d} fill="none" stroke="#4a5537" strokeWidth={7} strokeLinecap="round" opacity={0.92} />
-            <path d={path.d} fill="none" stroke={INK} strokeWidth={2.4} strokeLinecap="round" opacity={0.55} />
-          </g>
-        )}
+        {/* 幹＝蔓節PNGの連結（縄状の筆致・伸びた分だけ見せる）。地上0のときは芽だけの一画面 */}
+        <g mask={growing ? 'url(#vineGrowScene)' : undefined}>
+          {trunkSegs.map((s, i) => (
+            <image
+              key={`seg-${i}`}
+              href={s.young ? '/vine/vine_seg_young_a.png' : '/vine/vine_seg_mid_a.png'}
+              x={s.x - SEG_W / 2} y={s.y - SEG_H / 2} width={SEG_W} height={SEG_H}
+              transform={`rotate(${s.rot.toFixed(1)} ${s.x.toFixed(1)} ${s.y.toFixed(1)})`}
+              opacity={0.95}
+            />
+          ))}
+        </g>
 
         {/* 右レーン: 越えた印（§4）・時間の点景（§7）・地下が尽きた日。laneMarksが一元整列。
             ラベルは間引かれても刻み・点は全件描く——目次から飛んだ先には必ず何かがある（地雷5）。
