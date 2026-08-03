@@ -75,6 +75,7 @@ const SCENARIOS: Record<string, TowerState> = {
     lastSeenSteps: 35, lastSeenAt: '', backfilledAt: 'dev',
     joinedAt: '', undergroundClearedAt: '', levels: {},
   },
+  '口上（見本のグイーン）': mk(3, 3),
   '芽と解決と濃い輪郭': {
     steps: [
       ...mkSteps(10),
@@ -104,7 +105,11 @@ export default function DevVinePage() {
         ))}
       </div>
       {key && state && (
-        <VineScreen key={key + Date.now()} initialState={state} onClose={() => setKey(null)} onGoQuiz={() => alert('クイズへ（dev）')} />
+        <VineScreen
+          key={key + Date.now()} initialState={state}
+          forceIntro={key.includes('口上')}
+          onClose={() => setKey(null)} onGoQuiz={() => alert('クイズへ（dev）')}
+        />
       )}
     </div>
   )

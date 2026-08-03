@@ -36,6 +36,12 @@ const smooth = (a: number, b: number, t: number) => {
   return x * x * (3 - 2 * x)
 }
 
+// 実物の絵（手元にある分だけ）。無い実物は朱線と文字のまま——絵が揃うたびここに足す。
+const MILESTONE_ART: Record<string, { src: string; h: number }> = {
+  '湯のみ': { src: '/vine/object_yunomi.png', h: 30 },
+  'スズメ': { src: '/vine/resident_suzume.png', h: 34 },
+}
+
 // 葉の状態→マスク彩色の層（polish demoのmakeLeafを移植）
 function leafLayers(v: LeafVisual): { line: boolean; style: CSSProperties }[] {
   if (v.form === 'outline') {
@@ -155,8 +161,9 @@ export function VineScene({
     ;(front ? frontLeaves : backLeaves).push(node)
   }
 
-  // 地下茎PNGの配置（rhizome-testの決定値: 幅70%・淡さ30%・本体上端y45.2%を地面直下・芽x49.8%をBASE_Xへ）
-  const rhW = W * 0.7
+  // 地下茎PNGの配置（淡さ30%・本体上端y45.2%を地面直下・芽x49.8%をBASE_Xへ）。
+  // 幅は70%→52%（オーナー実機FB「地下が広すぎる」2026-08-03——地下は気配でよい）
+  const rhW = W * 0.52
   const rhH = rhW * (683 / 1024)
 
   return (
@@ -189,12 +196,12 @@ export function VineScene({
             </mask>
           </defs>
         )}
-        {/* 蔓（伸びた分だけ描く）。地上0のときは描かない——芽（vine_tip）だけの一画面 */}
+        {/* 蔓（伸びた分だけ描く）。地上0のときは描かない——芽（vine_tip）だけの一画面。
+            淡緑のハロー線は廃止（オーナー実機FB「なぞり線みたいでダサい」2026-08-03）——墨に寄せて締める */}
         {to > 0 && (
           <g mask={growing ? 'url(#vineGrow)' : undefined} transform={`translate(0 ${gY}) scale(1 -1)`}>
-            <path d={path.d} fill="none" stroke="#96a67e" strokeWidth={16} strokeLinecap="round" opacity={0.42} />
-            <path d={path.d} fill="none" stroke="#55603f" strokeWidth={9} strokeLinecap="round" opacity={0.88} />
-            <path d={path.d} fill="none" stroke={INK} strokeWidth={2} strokeLinecap="round" opacity={0.5} />
+            <path d={path.d} fill="none" stroke="#4a5537" strokeWidth={7} strokeLinecap="round" opacity={0.92} />
+            <path d={path.d} fill="none" stroke={INK} strokeWidth={2.4} strokeLinecap="round" opacity={0.55} />
           </g>
         )}
 
@@ -299,6 +306,20 @@ export function VineScene({
             >
               <div className={`${styles.layer} ${styles.budArt}`} style={{ background: '#39442c' }} />
             </div>
+          )
+        })}
+
+        {/* 実物の絵（比較対象を絵で立たせる）。絵が手元にある実物だけ、印の線の上に置く */}
+        {lane.map((m, i) => {
+          if (m.type !== 'milestone' || !m.withLabel) return null
+          const art = MILESTONE_ART[m.milestone.label]
+          if (!art) return null
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`art-${i}`} src={art.src} alt=""
+              style={{ position: 'absolute', height: art.h, right: 100, top: m.y - art.h + 2, opacity: 0.9 }}
+            />
           )
         })}
 
