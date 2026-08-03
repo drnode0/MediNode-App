@@ -16,6 +16,7 @@ function mkSteps(n: number): Step[] {
 }
 const mk = (count: number, seen: number): TowerState => ({
   steps: mkSteps(count), lastSeenSteps: seen, lastSeenAt: '', backfilledAt: 'dev',
+  joinedAt: '', undergroundClearedAt: '', // joinedAt空＝分割しない（既存3シナリオは全部地上のまま）
 })
 
 const SCENARIOS: Record<string, TowerState> = {

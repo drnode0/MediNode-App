@@ -18,7 +18,7 @@ vi.stubGlobal('localStorage', {
 vi.stubGlobal('window', new EventTarget())
 
 const at = '2026-08-01T10:00:00.000Z'
-const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '' }
+const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
 const step = (over: Partial<Step> = {}): Step => ({
   id: 'k1', kind: 'read', at, genre: '循環器', title: '敗血症の初期輸液', ...over,
 })
@@ -118,7 +118,7 @@ describe('storage往復とmarkSeen', () => {
 const mkStep = (i: number): Step => ({ id: `s${i}`, kind: 'read', at: '2026-08-01T00:00:00.000Z', genre: '', title: '' })
 const mkState = (count: number, seen: number): TowerState => ({
   steps: Array.from({ length: count }, (_, i) => mkStep(i)),
-  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '',
+  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '',
 })
 
 describe('markSeen(state, uptoCount)', () => {
@@ -130,6 +130,23 @@ describe('markSeen(state, uptoCount)', () => {
   it('steps数を超える値は丸める・後退はしない', () => {
     expect(markSeen(mkState(5, 2), 99).lastSeenSteps).toBe(5)
     expect(markSeen(mkState(5, 4), 1).lastSeenSteps).toBe(4)
+  })
+})
+
+describe('joinedAt の移行スタンプ', () => {
+  it('joinedAtが無い保存データには移行を実行した日を刻み、水位を0へ戻して保存する', () => {
+    localStorage.setItem(TOWER_KEY, JSON.stringify({
+      steps: [step()], lastSeenSteps: 1, lastSeenAt: '', backfilledAt: 'x',
+    }))
+    const s1 = loadTowerState()
+    expect(s1.joinedAt).not.toBe('')
+    expect(s1.lastSeenSteps).toBe(0)
+    const s2 = loadTowerState()
+    expect(s2.joinedAt).toBe(s1.joinedAt) // 保存済みなので刻み直さない
+  })
+  it('undergroundClearedAt は既定で空文字に整形される', () => {
+    localStorage.setItem(TOWER_KEY, JSON.stringify({ steps: [] }))
+    expect(loadTowerState().undergroundClearedAt).toBe('')
   })
 })
 
