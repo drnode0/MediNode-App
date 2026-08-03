@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { QuizStat } from '../quiz-srs'
 import type { Step } from '../tower-steps'
-import { fadeLevel, buildLeafVisuals, spotlightFaded } from '../vine-leaves'
+import { fadeLevel, buildLeafVisuals, spotlightFaded, pendingBudIds } from '../vine-leaves'
 
 const NOW = '2026-08-01T12:00:00.000Z'
 const daysAgo = (d: number) => new Date(Date.parse(NOW) - d * 86_400_000).toISOString()
@@ -36,10 +36,14 @@ describe('buildLeafVisuals（導出表: read=輪郭不褪／wrote=双葉不褪�
     const steps = [step('a', 'read'), step('b', 'wrote'), step('c', 'recall'), step('d', 'repolish')]
     const stats = { c: ok(1), d: ok(1) }
     const v = buildLeafVisuals(steps, stats, NOW)
-    expect(v[0]).toEqual({ form: 'outline', fade: 0, teri: false })
-    expect(v[1]).toEqual({ form: 'futaba', fade: 0, teri: false })
-    expect(v[2]).toEqual({ form: 'green', fade: 0, teri: false })
-    expect(v[3]).toEqual({ form: 'green', fade: 0, teri: true }) // 磨き直した葉は照る
+    expect(v[0]).toEqual({ form: 'outline', fade: 0, teri: false, line: 0 })
+    expect(v[1]).toEqual({ form: 'futaba', fade: 0, teri: false, line: 0 })
+    expect(v[2]).toEqual({ form: 'green', fade: 0, teri: false, line: 0 })
+    expect(v[3]).toEqual({ form: 'green', fade: 0, teri: true, line: 0 }) // 磨き直した葉は照る
+  })
+  it('resolved は緑・褪せない・照りなし（生成行為の完成形）', () => {
+    const v = buildLeafVisuals([step('r', 'resolved')], {}, NOW)
+    expect(v[0]).toMatchObject({ form: 'green', fade: 0, teri: false })
   })
   it('同じidのrecall葉も、repolish歴があれば照る（idごとの履歴で判定）', () => {
     const steps = [step('x', 'recall'), step('x', 'repolish')]
@@ -49,6 +53,39 @@ describe('buildLeafVisuals（導出表: read=輪郭不褪／wrote=双葉不褪�
   it('色褪せ中は照らない', () => {
     const v = buildLeafVisuals([step('y', 'repolish')], { y: ok(100) }, NOW)
     expect(v[0]).toMatchObject({ form: 'green', fade: 1, teri: false })
+  })
+})
+
+describe('読み返しの濃度と半戻り（§9）', () => {
+  it('輪郭の線は再読回数で濃くなる（0〜3）', () => {
+    const rereads = { a: { count: 2, lastAt: NOW } }
+    const v = buildLeafVisuals([step('a', 'read')], {}, NOW, rereads)
+    expect(v[0].line).toBe(2)
+    expect(buildLeafVisuals([step('a', 'read')], {}, NOW)[0].line).toBe(0)
+  })
+  it('褪せた青葉は最後のクイズより新しい再読で色が半分戻る・照りは出ない', () => {
+    const stats = { a: ok(200) }
+    const faded = buildLeafVisuals([step('a', 'recall')], stats, NOW)[0]
+    expect(faded.fade).toBe(1)
+    const rereads = { a: { count: 1, lastAt: daysAgo(5) } }
+    const half = buildLeafVisuals([step('a', 'recall')], stats, NOW, rereads)[0]
+    expect(half.fade).toBe(0.5)
+    expect(half.teri).toBe(false)
+  })
+  it('最後のクイズより古い再読では戻らない', () => {
+    const stats = { a: ok(200) }
+    const rereads = { a: { count: 1, lastAt: daysAgo(300) } }
+    expect(buildLeafVisuals([step('a', 'recall')], stats, NOW, rereads)[0].fade).toBe(1)
+  })
+})
+
+describe('まだの芽（§9: attemptは穂先の未展開葉）', () => {
+  it('attemptだけのidが芽。recall/repolishが来たら開いた（=芽から消える）', () => {
+    const steps = [step('a', 'attempt'), step('b', 'attempt'), step('b', 'recall'), step('c', 'read')]
+    expect(pendingBudIds(steps)).toEqual(['a'])
+  })
+  it('同じidの芽は1つ', () => {
+    expect(pendingBudIds([step('a', 'attempt'), step('a', 'attempt')])).toEqual(['a'])
   })
 })
 

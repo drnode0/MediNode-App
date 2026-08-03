@@ -104,9 +104,14 @@ export function DailyQuestionCard() {
   }
 
   const answer = (ok: boolean) => {
-    if (ok && isTowerEnabled()) {
-      const kind = recallKind(getQuizStat(q.objectID), new Date().toISOString())
-      if (kind) recordTowerEvent({ id: q.objectID, kind, genre: Array.isArray(q.genre) ? q.genre[0] : q.genre || '', title: q.title })
+    if (isTowerEnabled()) {
+      if (ok) {
+        const kind = recallKind(getQuizStat(q.objectID), new Date().toISOString())
+        if (kind) recordTowerEvent({ id: q.objectID, kind, genre: Array.isArray(q.genre) ? q.genre[0] : q.genre || '', title: q.title })
+      } else {
+        // 知の蔓: 「まだ」は芽（高さなし・正典§9）。(id,'attempt')は一生に1回＝連打で増えない
+        recordTowerEvent({ id: q.objectID, kind: 'attempt', genre: Array.isArray(q.genre) ? q.genre[0] : q.genre || '', title: q.title })
+      }
     }
     recordQuizResult(q.objectID, ok)
     // 回答した日付だけをサーバーへ（未ログイン・失敗は黙って流す）。

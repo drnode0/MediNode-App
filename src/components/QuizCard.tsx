@@ -19,10 +19,15 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
 
   const answer = (ok: boolean) => {
-    if (ok && isTowerEnabled()) {
-      // 知の塔: recordQuizResultより先に判定する（記録後だと「いま初めてok」が読めない）
-      const kind = recallKind(getQuizStat(hit.objectID), new Date().toISOString())
-      if (kind) recordTowerEvent({ id: hit.objectID, kind, genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
+    if (isTowerEnabled()) {
+      if (ok) {
+        // 知の塔: recordQuizResultより先に判定する（記録後だと「いま初めてok」が読めない）
+        const kind = recallKind(getQuizStat(hit.objectID), new Date().toISOString())
+        if (kind) recordTowerEvent({ id: hit.objectID, kind, genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
+      } else {
+        // 知の蔓: 「まだ」は芽（高さなし・正典§9）。(id,'attempt')は一生に1回＝連打で増えない
+        recordTowerEvent({ id: hit.objectID, kind: 'attempt', genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
+      }
     }
     recordQuizResult(hit.objectID, ok)
     setAnswered(ok ? 'ok' : 'ng')

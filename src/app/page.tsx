@@ -1433,6 +1433,7 @@ function useNotionSearch(mode: Tab) {
             genre: getHitGenres(h)[0],
             createdAt: h.createdAt,
             owner: h.owner,
+            knowledgeLevel: h.knowledgeLevel, // ❓CQ→💡ナレッジの解決検出（resolved）用
           }))
           const next = ingestRecords(prev, ingestHits)
           if (next !== prev) saveTowerState(next)

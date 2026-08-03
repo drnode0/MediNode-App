@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   addStep, recallKind, ingestRecords, loadTowerState, saveTowerState,
-  recordTowerEvent, markSeen, planReplay, TOWER_KEY, DULL_DAYS,
+  recordTowerEvent, markSeen, planReplay, leafSteps, TOWER_KEY, DULL_DAYS,
   type Step, type TowerState,
 } from '../tower-steps'
 import type { QuizStat } from '../quiz-srs'
@@ -18,7 +18,7 @@ vi.stubGlobal('localStorage', {
 vi.stubGlobal('window', new EventTarget())
 
 const at = '2026-08-01T10:00:00.000Z'
-const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '' }
+const empty: TowerState = { steps: [], lastSeenSteps: 0, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '', levels: {} }
 const step = (over: Partial<Step> = {}): Step => ({
   id: 'k1', kind: 'read', at, genre: '循環器', title: '敗血症の初期輸液', ...over,
 })
@@ -118,7 +118,7 @@ describe('storage往復とmarkSeen', () => {
 const mkStep = (i: number): Step => ({ id: `s${i}`, kind: 'read', at: '2026-08-01T00:00:00.000Z', genre: '', title: '' })
 const mkState = (count: number, seen: number): TowerState => ({
   steps: Array.from({ length: count }, (_, i) => mkStep(i)),
-  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '',
+  lastSeenSteps: seen, lastSeenAt: '', backfilledAt: '', joinedAt: '', undergroundClearedAt: '', levels: {},
 })
 
 describe('markSeen(state, uptoCount)', () => {
@@ -130,6 +130,30 @@ describe('markSeen(state, uptoCount)', () => {
   it('steps数を超える値は丸める・後退はしない', () => {
     expect(markSeen(mkState(5, 2), 99).lastSeenSteps).toBe(5)
     expect(markSeen(mkState(5, 4), 1).lastSeenSteps).toBe(4)
+  })
+})
+
+describe('attempt と葉の数（§9）', () => {
+  it('leafSteps は attempt を除く', () => {
+    const steps: Step[] = [step({ kind: 'wrote' }), step({ id: 'k2', kind: 'attempt' })]
+    expect(leafSteps(steps).map((s) => s.kind)).toEqual(['wrote'])
+  })
+  it('attempt は一生に1回（連打で増えない）', () => {
+    const s1 = addStep(empty, step({ kind: 'attempt' }))
+    const s2 = addStep(s1, step({ kind: 'attempt', at: '2026-08-02T10:00:00.000Z' }))
+    expect(s2).toBe(s1)
+  })
+  it('attempt はリプレイの葉数に入らない', () => {
+    const s: TowerState = { ...empty, steps: [step({ kind: 'attempt' })] }
+    expect(planReplay(s)).toEqual({ from: 0, to: 0, play: false })
+  })
+  it('markSeen は attempt を除いた葉数で丸める', () => {
+    const s: TowerState = { ...empty, steps: [step({ kind: 'wrote' }), step({ id: 'k2', kind: 'attempt' })] }
+    expect(markSeen(s, 5).lastSeenSteps).toBe(1)
+  })
+  it('sanitize: levels は既定で空オブジェクト・文字列以外の値は落とす', () => {
+    localStorage.setItem(TOWER_KEY, JSON.stringify({ steps: [], joinedAt: 'x', levels: { a: '💡ナレッジ', b: 7 } }))
+    expect(loadTowerState().levels).toEqual({ a: '💡ナレッジ' })
   })
 })
 
@@ -170,6 +194,40 @@ describe('地下と水位・リプレイ（§7）', () => {
     let s = addStep(cleared, old('late'))
     s = addStep(s, step({ id: 'late', kind: 'read', at: '2026-08-04T00:00:00.000Z' }))
     expect(s.undergroundClearedAt).toBe('2026-08-03T00:00:00.000Z')
+  })
+})
+
+describe('resolved の検出（§9: ❓CQ→💡ナレッジ）', () => {
+  const hit = (level: string) => [{
+    objectID: 'cq1', title: '昇圧薬の選択', genre: '循環器',
+    createdAt: '2026-07-01T00:00:00.000Z', owner: 'personal', knowledgeLevel: level,
+  }]
+  const now = '2026-08-02T09:00:00.000Z'
+
+  it('初見が❓CQ→次に💡ナレッジで resolved を1歩積む（atは検出時刻）', () => {
+    const s1 = ingestRecords(empty, hit('❓CQ'), now)
+    expect(s1.steps.filter((s) => s.kind === 'resolved')).toHaveLength(0)
+    expect(s1.levels['cq1']).toBe('❓CQ')
+    const s2 = ingestRecords(s1, hit('💡ナレッジ'), '2026-08-03T09:00:00.000Z')
+    const resolved = s2.steps.filter((s) => s.kind === 'resolved')
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0].at).toBe('2026-08-03T09:00:00.000Z')
+    expect(s2.levels['cq1']).toBe('💡ナレッジ')
+  })
+  it('初見からナレッジなら積まない（遷移を観測していない）', () => {
+    const s1 = ingestRecords(empty, hit('💡ナレッジ'), now)
+    expect(s1.steps.filter((s) => s.kind === 'resolved')).toHaveLength(0)
+  })
+  it('二度目のナレッジ観測では積み直さない（(id,resolved)は一生に1回）', () => {
+    let s = ingestRecords(empty, hit('❓CQ'), now)
+    s = ingestRecords(s, hit('💡ナレッジ'), now)
+    s = ingestRecords(s, hit('💡ナレッジ'), now)
+    expect(s.steps.filter((k) => k.kind === 'resolved')).toHaveLength(1)
+  })
+  it('レベル未設定の人には何も起きない・何も溜まらない', () => {
+    const s = ingestRecords(empty, [{ objectID: 'x', owner: 'personal', createdAt: '2026-07-01T00:00:00.000Z' }], now)
+    expect(s.levels).toEqual({})
+    expect(s.steps.every((k) => k.kind === 'wrote')).toBe(true)
   })
 })
 

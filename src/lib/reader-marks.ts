@@ -67,3 +67,45 @@ export function saveBookmarks(list: BookmarkEntry[]): void {
 export function clearBookmarks(): void {
   try { localStorage.removeItem(BOOKMARKS_KEY) } catch {}
 }
+
+// 読み返しの記録（正典§9）。歩は積まない——日付と「90日以上あけた再読の回数」だけを持つ。
+// 蔓側で輪郭の線の濃さ（3段階）と、褪せた青葉の半戻りに使う。
+// lastAt は毎回更新する（recallKind の repolish 判定と同じ流儀＝間隔をあけない読み返しは弱い）。
+export const REREADS_KEY = 'medinode_reader_rereads_v1'
+export const REREAD_GAP_DAYS = 90
+export const MAX_REREADS = 500
+export type Reread = { count: number; lastAt: string }
+
+export function nextReread(cur: Reread | undefined, nowIso: string): Reread {
+  if (!cur) return { count: 0, lastAt: nowIso }
+  const gapMs = Date.parse(nowIso) - Date.parse(cur.lastAt)
+  const qualifies = Number.isFinite(gapMs) && gapMs >= REREAD_GAP_DAYS * 86_400_000
+  return { count: qualifies ? Math.min(3, cur.count + 1) : cur.count, lastAt: nowIso }
+}
+
+export function loadRereads(): Record<string, Reread> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(REREADS_KEY) || '{}')
+    if (!raw || typeof raw !== 'object') return {}
+    const out: Record<string, Reread> = {}
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const r = v as Reread
+      if (r && typeof r === 'object' && typeof r.count === 'number' && typeof r.lastAt === 'string') out[k] = r
+    }
+    return out
+  } catch { return {} }
+}
+
+export function touchReread(id: string, nowIso: string): void {
+  try {
+    const m = loadRereads()
+    m[id] = nextReread(m[id], nowIso)
+    // 暴走ガード: 古い順に間引く（通常運用では届かない）
+    const keys = Object.keys(m)
+    if (keys.length > MAX_REREADS) {
+      keys.sort((a, b) => m[a].lastAt.localeCompare(m[b].lastAt))
+      for (const k of keys.slice(0, keys.length - MAX_REREADS)) delete m[k]
+    }
+    localStorage.setItem(REREADS_KEY, JSON.stringify(m))
+  } catch {}
+}
