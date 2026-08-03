@@ -286,10 +286,8 @@ export function VineScene({
           d={`M${groundLeft},${gY} C ${groundLeft + groundSpan * 0.284},${gY - 4} ${groundLeft + groundSpan * 0.682},${gY + 3} ${groundRight},${gY - 2}`}
           stroke={INK} strokeWidth={3} opacity={0.5} fill="none" strokeLinecap="round"
         />
-        {/* 根元の茂み。地上0のときは描かない（芽より目立つ墨の塊になる） */}
-        {to > 0 && (
-          <path d={`M${BASE_X - 26},${gY} C ${BASE_X - 22},${gY - 12} ${BASE_X - 2},${gY - 16} ${BASE_X + 14},${gY - 8} C ${BASE_X + 28},${gY - 2} ${BASE_X + 22},${gY + 4} ${BASE_X},${gY + 4} Z`} fill={INK} opacity={0.7} />
-        )}
+        {/* 根元の茂み（墨の楕円）は廃止——PNGの幹・地下茎が入った今は「謎の黒い物体」にしか見えない
+            （オーナー実機FB 2026-08-03） */}
 
         {/* 朱の刻み: 越えた瞬間だけ、いちばん上の印に日付を添える（同時3箇所までの原則）。
             laneはy昇順なので、最初のmilestoneが最も新しい＝最上の印 */}
