@@ -4,7 +4,7 @@
 // これにより、どの時期の学びも等しい厚みで辿れる。高さは数字と「越えた印」で示す。
 import { passedMilestones, type Milestone } from './vine-ladder'
 
-// 1葉あたりの縦幅。葉身に対する節間の比が実測の自然な帯（0.22〜0.40）に入る値。
+// 1葉あたりの縦幅。葉身（約24px）に対する節間の比は14/24≒0.58。
 // ⚠️ 何枚あっても縮めない——縮めた瞬間に「葉が潰れて塊になる」旧構造に戻る。
 export const PX_PER_LEAF = 14
 export const SCENE_TOP_PAD = 80     // 穂先の上の余白

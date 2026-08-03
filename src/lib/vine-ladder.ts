@@ -80,17 +80,3 @@ export function nextMilestone(leafCount: number): Milestone {
 export function passedMilestones(leafCount: number): Milestone[] {
   return LADDER.filter((m) => m.leaves <= leafCount)
 }
-
-// シーン（帯）モデル: 1目盛り区間=1シーン。縮尺は「次の実物が画面高の70%」から決める。
-// ラダーは対数線上でほぼ等間隔（隣接比は概ね2.5倍以内。仮置き上段の那智→称名2.63等の例外あり）なので、
-// シーン切替時の縮尺ジャンプも同程度に収まる。
-const NEXT_OBJECT_VIEWPORT_RATIO = 0.7
-
-export function sceneForLeaves(leafCount: number, viewportHeightPx: number): {
-  next: Milestone; prevMm: number; pxPerMm: number
-} {
-  const next = nextMilestone(leafCount)
-  const passed = passedMilestones(leafCount)
-  const prevMm = passed.length ? passed[passed.length - 1].mm : 0
-  return { next, prevMm, pxPerMm: (viewportHeightPx * NEXT_OBJECT_VIEWPORT_RATIO) / next.mm }
-}

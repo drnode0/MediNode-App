@@ -9,10 +9,10 @@ import {
 } from '@/lib/tower-steps'
 import { buildBackfillRequest, applyBackfill } from '@/lib/tower-backfill'
 import { buildLeafVisuals, spotlightFaded } from '@/lib/vine-leaves'
-import { formatHeight, heightMmFromLeaves, nextMilestone, passedMilestones } from '@/lib/vine-ladder'
+import { formatHeight, heightMmFromLeaves, passedMilestones } from '@/lib/vine-ladder'
 import { kanjiNumber } from '@/lib/kanji-date'
 import { crossedLine, grewLine, leafCountLine, indexHeading } from '@/lib/vine-copy'
-import { markPositions } from '@/lib/vine-scroll'
+import { leafY, markPositions } from '@/lib/vine-scroll'
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
@@ -35,6 +35,7 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const backfilled = useRef(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
+  const lastCommittedScroll = useRef(0) // 量子化の基準（前回stateに反映した値）
   const [viewportH, setViewportH] = useState(700)
   const [viewportW, setViewportW] = useState(358)
   useBodyScrollLock()
@@ -124,11 +125,21 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
   const spotlight = useMemo(() => spotlightFaded(state.steps, stats, nowIso), [state.steps, stats, nowIso])
 
   const leavesNow = engine.leavesNow
-  const next = nextMilestone(to)
   const hMm = heightMmFromLeaves(leavesNow)
   const newLeaves = to - from
   const todayLeaf = state.steps[to - 1]
   const showSan = !engine.running || engine.phaseName === 'yoin'
+
+  // リプレイ中だけ穂先を追う（§ 開始位置は穂先だが成長は根元から始まるため、
+  // from=0のような久しぶりの再開では伸びる様子がビューポートの外で起きてしまう）。
+  // リプレイが終わったら何もしない＝ユーザーのスクロールを邪魔しない。
+  useEffect(() => {
+    if (!engine.running) return
+    const el = scrollRef.current
+    if (!el) return
+    const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
+    el.scrollTop = Math.max(0, leafY(revealIndex, to) - viewportH * 0.55)
+  }, [engine.running, leavesNow, to, viewportH])
 
   const openLeaf = leafOpen != null ? state.steps[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
@@ -142,14 +153,11 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             <div className="text-2xl font-semibold">{formatHeight(hMm)}</div>
             <div className="mt-0.5 text-[11px] text-[#8b8272]">{leafCountLine(newLeaves, to)}</div>
           </div>
-          <div className="flex items-start gap-2">
-            <div className="text-right text-[10px] leading-relaxed text-[#a39678]">
-              つぎは<br /><span className="text-[#2c2a22] font-semibold">{next.label} {next.sizeLabel}</span>
-            </div>
-            <button type="button" onClick={(e) => { e.stopPropagation(); onClose() }} aria-label="閉じる" className="rounded-full p-2 text-[#8b8272]">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          {/* 「つぎは◯◯」はVineScene側の穂先の上に一本化（正典§7＝二重表示の禁止）。
+              ここではボタンだけを置く。 */}
+          <button type="button" onClick={(e) => { e.stopPropagation(); onClose() }} aria-label="閉じる" className="rounded-full p-2 text-[#8b8272]">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="relative">
@@ -157,14 +165,22 @@ export function VineScreen({ onClose, onGoQuiz, initialState }: {
             ref={scrollRef}
             className="relative overflow-y-auto overscroll-contain"
             style={{ maxHeight: '70vh' }}
-            onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+            onScroll={(e) => {
+              // 量子化: 窓は前後1画面分の余裕を持つので、viewportH/4以上動いたときだけ
+              // stateを更新する（毎イベントの再描画を間引く。窓の余裕内なので葉が消えることはない）。
+              const top = (e.target as HTMLDivElement).scrollTop
+              if (Math.abs(top - lastCommittedScroll.current) >= viewportH / 4) {
+                lastCommittedScroll.current = top
+                setScrollTop(top)
+              }
+            }}
           >
             <VineScene
               leavesNow={leavesNow} from={from} to={to}
               visuals={visuals} spotlightIds={spotlight} steps={state.steps}
               crossedNow={crossed != null && leavesNow >= (crossed?.leaves ?? Infinity)}
               onLeafTap={(i) => { if (!engine.running) setLeafOpen(i) }}
-              scrollTop={scrollTop} viewportH={viewportH} width={viewportW}
+              scrollTop={scrollTop} viewportH={viewportH} width={viewportW} popping={engine.running}
             />
           </div>
           {/* 賛（縦書きHTMLオーバーレイ・上部余白・蔓先端の対角＝右上。数字は漢数字） */}

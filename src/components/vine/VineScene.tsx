@@ -32,15 +32,19 @@ function leafFill(v: LeafVisual): string {
 }
 
 export function VineScene({
-  leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width,
+  leavesNow, from, to, visuals, spotlightIds, steps, crossedNow, onLeafTap, scrollTop, viewportH, width, popping,
 }: {
   leavesNow: number; from: number; to: number
   visuals: LeafVisual[]; spotlightIds: string[]; steps: Step[]
   crossedNow: boolean; onLeafTap: (index: number) => void
-  scrollTop: number; viewportH: number; width: number
+  scrollTop: number; viewportH: number; width: number; popping: boolean
 }) {
   const W = width
   const BASE_X = W * BASE_X_RATIO
+  // 地面の曲線の左右端（旧固定値20/372は実測390px幅のときの値。以後はWに比例させる）
+  const groundLeft = 20
+  const groundRight = W - 18
+  const groundSpan = groundRight - groundLeft
   const H = sceneHeightPx(to)
   const gY = groundY(to)
   // 蔓は地面から最新の葉まで。パスは高さpxで生成し、y反転して地面基準で置く
@@ -51,6 +55,7 @@ export function VineScene({
   // 目次（VineScreen側）はmarkPositionsのまま全件出す。
   const marks = useMemo(() => sceneMarks(to), [to])
   const next = nextMilestone(to)
+  const newLeaves = to - from
 
   // 葉の番号 → 蔓の中心線上の点（蔓の弧長ではなく、葉の縦位置で引く）
   const stemXAt = (index: number) => pointAtHeight(path, gY - leafY(index, to)).x
@@ -60,16 +65,24 @@ export function VineScene({
   // （二重に変換すると反転する）。leavesNowがtoに達すればrevealHはvineHと一致し全体が見える。
   const revealIndex = Math.max(0, Math.min(to, Math.floor(leavesNow)))
   const revealH = gY - leafY(revealIndex, to)
+  // リプレイが伸び切ったらmask自体を外す。付けたままだとbbox分（葉3000枚で高さ42,000px）の
+  // オフスクリーン面をブラウザが確保し続け、スクロール中ずっとその負荷が乗る。
+  const growing = revealIndex < to
 
   return (
+    // ⚠️ 不変条件: viewBoxとwidth/height（W, H）は必ず同じ数を保つ（拡大率=1）。
+    // ここが崩れるとscrollTop（CSS px）とleafY（viewBox単位）がズレ、深くスクロールするほど葉が消える。
+    // w-full や max-w-* をこの<svg>に足さないこと。
     <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block" aria-label="知の蔓">
-      <defs>
-        <mask id="vineGrow">
-          <rect x={-40} y={-40} width={W + 80} height={revealH + 40} fill="#fff" />
-        </mask>
-      </defs>
+      {growing && (
+        <defs>
+          <mask id="vineGrow">
+            <rect x={-40} y={-40} width={W + 80} height={revealH + 40} fill="#fff" />
+          </mask>
+        </defs>
+      )}
       {/* 蔓（伸びた分だけ描く） */}
-      <g mask="url(#vineGrow)" transform={`translate(0 ${gY}) scale(1 -1)`}>
+      <g mask={growing ? 'url(#vineGrow)' : undefined} transform={`translate(0 ${gY}) scale(1 -1)`}>
         <path d={path.d} fill="none" stroke="#96a67e" strokeWidth={16} strokeLinecap="round" opacity={0.42} />
         <path d={path.d} fill="none" stroke="#55603f" strokeWidth={9} strokeLinecap="round" opacity={0.88} />
         <path d={path.d} fill="none" stroke={INK} strokeWidth={2} strokeLinecap="round" opacity={0.5} />
@@ -105,7 +118,7 @@ export function VineScene({
             style={{ cursor: 'pointer' }}
           >
             <g className={styles.leafSway} style={{ animationDelay: `${-(n % 7) * 0.6}s` }}>
-              <g className={n > from ? styles.leafPop : undefined}>
+              <g className={n > from && popping ? styles.leafPop : undefined}>
                 <path d="M3,0 C8,-3 13,-2 16,1" fill="none" stroke="#39442c" strokeWidth={1.6} opacity={0.8} />
                 <path
                   d="M14,0 C21,-11 35,-11 38,-2 C35,8 21,9 14,0 Z"
@@ -129,15 +142,21 @@ export function VineScene({
       )}
 
       {/* 次の実物: 穂先の上、まだ何もない空間に淡く置く。伸びしろが在ることだけを見せる
-          （寸法線・「あと◯◯」の数字は出さない＝数字で追い立てない）。スクロールで流れて消えてよい */}
-      <text
-        x={stemXAt(to)} y={36} textAnchor="middle" fontSize={10} fill={USUZUMI} opacity={0.55}
-      >
-        {nextObjectLine(next.label, next.sizeLabel)}
-      </text>
+          （寸法線・「あと◯◯」の数字は出さない＝数字で追い立てない）。スクロールで流れて消えてよい。
+          直近に葉が増えているときだけ出す（止まった人への催促にしないため＝正典§7）。 */}
+      {newLeaves > 0 && (
+        <text
+          x={stemXAt(to)} y={36} textAnchor="middle" fontSize={10} fill={USUZUMI} opacity={0.55}
+        >
+          {nextObjectLine(next.label, next.sizeLabel)}
+        </text>
+      )}
 
-      {/* 地面 */}
-      <path d={`M20,${gY} C 120,${gY - 4} 260,${gY + 3} 372,${gY - 2}`} stroke={INK} strokeWidth={3} opacity={0.5} fill="none" strokeLinecap="round" />
+      {/* 地面（実測幅Wに追随。旧固定幅20〜372のままだと狭い実機で右端が切れ、広い画面だと途中で終わる） */}
+      <path
+        d={`M${groundLeft},${gY} C ${groundLeft + groundSpan * 0.284},${gY - 4} ${groundLeft + groundSpan * 0.682},${gY + 3} ${groundRight},${gY - 2}`}
+        stroke={INK} strokeWidth={3} opacity={0.5} fill="none" strokeLinecap="round"
+      />
       <path d={`M${BASE_X - 26},${gY} C ${BASE_X - 22},${gY - 12} ${BASE_X - 2},${gY - 16} ${BASE_X + 14},${gY - 8} C ${BASE_X + 28},${gY - 2} ${BASE_X + 22},${gY + 4} ${BASE_X},${gY + 4} Z`} fill={INK} opacity={0.7} />
 
       {/* 朱の刻み: 越えた瞬間だけ、いちばん上の印に日付を添える（同時3箇所までの原則） */}

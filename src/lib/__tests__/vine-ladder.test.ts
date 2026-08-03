@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MM_PER_LEAF, COMPOUND_START_LEAVES, COMPOUND_RATE,
   heightMmFromLeaves, leavesForHeightMm, formatHeight,
-  LADDER, FAR_DREAM, nextMilestone, passedMilestones, sceneForLeaves,
+  LADDER, FAR_DREAM, nextMilestone, passedMilestones,
 } from '../vine-ladder'
 
 describe('ゴールデン定数（GA後は変更不可。落ちたら定数を疑え、テストを直すな）', () => {
@@ -102,19 +102,5 @@ describe('nextMilestone / passedMilestones', () => {
     const beyond = LADDER[22].leaves
     expect(nextMilestone(beyond).label).toBe('富士山')
     expect(passedMilestones(beyond)).toHaveLength(23)
-  })
-})
-
-describe('sceneForLeaves', () => {
-  it('次の実物が画面高の70%に収まる縮尺', () => {
-    const s = sceneForLeaves(40, 600) // 湯のみは越えた・つぎはスズメ100mm
-    expect(s.next.label).toBe('スズメ')
-    expect(s.pxPerMm).toBeCloseTo((600 * 0.7) / 100, 5)
-    expect(s.prevMm).toBe(70)
-  })
-  it('葉0でもシーンが成立（prevMm=0・つぎはアリ）', () => {
-    const s = sceneForLeaves(0, 600)
-    expect(s.next.label).toBe('アリ')
-    expect(s.prevMm).toBe(0)
   })
 })
