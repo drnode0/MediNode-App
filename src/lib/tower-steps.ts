@@ -36,15 +36,23 @@ function dayOf(iso: string): string {
 
 // 重複判定: read/wrote/recall は (id,kind) で一生に1回。
 // repolish はくすみ→磨き直しの度に起きる本物の学びなので、同一暦日のみ弾く。
-function isDuplicate(steps: Step[], step: Step): boolean {
+// ⚠️ 生まれ直し（正典§7）: 地下の歩は地上への再追加を塞がない——地下に沈んだ知識は
+// 読み返す・思い出すと地上に生まれ直す。「一生に1回」は地上の中で守る。
+// ただし地下に落ちる候補（持ち込みの再取込＝古い日付のwrote等）は全歩に対して1回のまま。
+// これを緩めると、検索のたびに同じwroteが地下へ積み重なる。
+function isDuplicate(state: TowerState, step: Step): boolean {
+  const joined = state.joinedAt ? Date.parse(state.joinedAt) : NaN
+  const t = Date.parse(step.at)
+  const candidateIsUnderground = Number.isFinite(joined) && Number.isFinite(t) && t < joined
+  const pool = candidateIsUnderground ? state.steps : splitByJoin(state.steps, state.joinedAt).above
   if (step.kind === 'repolish') {
-    return steps.some((s) => s.id === step.id && s.kind === 'repolish' && dayOf(s.at) === dayOf(step.at))
+    return pool.some((s) => s.id === step.id && s.kind === 'repolish' && dayOf(s.at) === dayOf(step.at))
   }
-  return steps.some((s) => s.id === step.id && s.kind === step.kind)
+  return pool.some((s) => s.id === step.id && s.kind === step.kind)
 }
 
 export function addStep(state: TowerState, step: Step): TowerState {
-  if (isDuplicate(state.steps, step)) return state
+  if (isDuplicate(state, step)) return state
   const steps = [...state.steps, step]
   if (steps.length > MAX_STEPS) steps.splice(0, steps.length - MAX_STEPS)
   // 地下が尽きた日: 持ち込んだ知識がすべて地上に芽を出した瞬間を一度だけ刻む（正典§7の節目）。
@@ -67,6 +75,20 @@ export function recallKind(prev: QuizStat | undefined, nowIso: string): 'recall'
   const staleMs = DULL_DAYS * 24 * 60 * 60 * 1000
   const since = new Date(nowIso).getTime() - new Date(prev.last).getTime()
   return since >= staleMs ? 'repolish' : null
+}
+
+// 台帳を見る版の想起判定（正典§7の生まれ直し）。クイズ統計は移行で消えないため、
+// 統計だけを見ると「もう覚えている」扱いで何も積まれず、地下に沈んだ知識が
+// 永遠に生まれ直せない。地上にrecallがまだ無ければ、それはこの蔓での初回の即答。
+// 地上にrecall済みなら従来どおり統計の鮮度でrepolishを判定する。
+export function recallKindFor(
+  state: TowerState, id: string, prev: QuizStat | undefined, nowIso: string,
+): 'recall' | 'repolish' | null {
+  const above = splitByJoin(state.steps, state.joinedAt).above
+  if (!above.some((s) => s.id === id && s.kind === 'recall')) return 'recall'
+  if (!prev || !prev.last) return null
+  const staleMs = DULL_DAYS * 24 * 60 * 60 * 1000
+  return new Date(nowIso).getTime() - new Date(prev.last).getTime() >= staleMs ? 'repolish' : null
 }
 
 // 検索やタブに流れてきた自分のレコードを「書いた」として取り込む（作成日で遡って積める）。

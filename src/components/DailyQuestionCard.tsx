@@ -8,7 +8,7 @@ import { BookOpen, Check, ChevronRight, ExternalLink, Sun } from 'lucide-react'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { KnowledgeTitle } from '@/lib/title-display'
 import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
-import { recordTowerEvent, recallKind } from '@/lib/tower-steps'
+import { recordTowerEvent, recallKindFor, loadTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
@@ -106,7 +106,8 @@ export function DailyQuestionCard() {
   const answer = (ok: boolean) => {
     if (isTowerEnabled()) {
       if (ok) {
-        const kind = recallKind(getQuizStat(q.objectID), new Date().toISOString())
+        // 台帳を見る版＝地下に沈んだ知識もクイズで思い出せば生まれ直す（正典§7）
+        const kind = recallKindFor(loadTowerState(), q.objectID, getQuizStat(q.objectID), new Date().toISOString())
         if (kind) recordTowerEvent({ id: q.objectID, kind, genre: Array.isArray(q.genre) ? q.genre[0] : q.genre || '', title: q.title })
       } else {
         // 知の蔓: 「まだ」は芽（高さなし・正典§9）。(id,'attempt')は一生に1回＝連打で増えない

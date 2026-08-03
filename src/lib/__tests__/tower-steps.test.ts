@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  addStep, recallKind, ingestRecords, loadTowerState, saveTowerState,
+  addStep, recallKind, recallKindFor, ingestRecords, loadTowerState, saveTowerState,
   recordTowerEvent, markSeen, planReplay, leafSteps, TOWER_KEY, DULL_DAYS,
   type Step, type TowerState,
 } from '../tower-steps'
@@ -130,6 +130,59 @@ describe('markSeen(state, uptoCount)', () => {
   it('steps数を超える値は丸める・後退はしない', () => {
     expect(markSeen(mkState(5, 2), 99).lastSeenSteps).toBe(5)
     expect(markSeen(mkState(5, 4), 1).lastSeenSteps).toBe(4)
+  })
+})
+
+describe('生まれ直し（§7: 地下の歩は再追加を塞がない）', () => {
+  const joined = '2026-08-01T00:00:00.000Z'
+  const buried = (kind: Step['kind']) => step({ kind, at: '2026-07-01T00:00:00.000Z' })
+
+  it('地下に同じ(id,kind)があっても、地上の歩は積める（読み返しで生まれ直す）', () => {
+    const base: TowerState = { ...empty, joinedAt: joined, steps: [buried('read')] }
+    const s = addStep(base, step({ kind: 'read', at: '2026-08-02T00:00:00.000Z' }))
+    expect(s.steps).toHaveLength(2)
+  })
+  it('地上に生まれ直した後は、地上では一生に1回のまま', () => {
+    const base: TowerState = { ...empty, joinedAt: joined, steps: [buried('read')] }
+    const s1 = addStep(base, step({ kind: 'read', at: '2026-08-02T00:00:00.000Z' }))
+    const s2 = addStep(s1, step({ kind: 'read', at: '2026-08-03T00:00:00.000Z' }))
+    expect(s2).toBe(s1)
+  })
+  it('地下に落ちる候補（持ち込みの再取込）は全歩に対して一生に1回のまま', () => {
+    // これを緩めると、検索のたびに同じwroteが地下へ積み重なる
+    const base: TowerState = { ...empty, joinedAt: joined, steps: [buried('wrote')] }
+    const s = addStep(base, step({ kind: 'wrote', at: '2026-07-02T00:00:00.000Z' }))
+    expect(s).toBe(base)
+  })
+  it('joinedAtが無い（旧データ・devハーネス）なら従来どおり全歩で判定', () => {
+    const base: TowerState = { ...empty, steps: [step({ kind: 'read' })] }
+    const s = addStep(base, step({ kind: 'read', at: '2026-08-02T00:00:00.000Z' }))
+    expect(s).toBe(base)
+  })
+})
+
+describe('recallKindFor（§7: 地下の知識はクイズで思い出すと生まれ直す）', () => {
+  const joined = '2026-08-01T00:00:00.000Z'
+  const NOW = '2026-08-03T00:00:00.000Z'
+  const okStat = (lastIso: string): QuizStat => ({ ok: 3, ng: 0, last: lastIso, lastResult: 'ok' })
+
+  it('地上にrecallが無ければ、過去の正解統計があってもrecall（この蔓での初回の即答）', () => {
+    const s: TowerState = {
+      ...empty, joinedAt: joined,
+      steps: [step({ kind: 'recall', at: '2026-07-01T00:00:00.000Z' })], // 地下に沈んだrecall
+    }
+    expect(recallKindFor(s, 'k1', okStat('2026-07-20T00:00:00.000Z'), NOW)).toBe('recall')
+  })
+  it('地上にrecall済みなら、従来どおり統計の鮮度でrepolish/nullを判定', () => {
+    const s: TowerState = {
+      ...empty, joinedAt: joined,
+      steps: [step({ kind: 'recall', at: '2026-08-02T00:00:00.000Z' })],
+    }
+    expect(recallKindFor(s, 'k1', okStat('2026-08-02T00:00:00.000Z'), NOW)).toBeNull()
+    expect(recallKindFor(s, 'k1', okStat('2026-04-01T00:00:00.000Z'), NOW)).toBe('repolish')
+  })
+  it('joinedAtが無くても初回は素直にrecall（新規ユーザーと同じ）', () => {
+    expect(recallKindFor(empty, 'k1', undefined, NOW)).toBe('recall')
   })
 })
 
