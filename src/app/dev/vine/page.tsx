@@ -54,6 +54,17 @@ const SCENARIOS: Record<string, TowerState> = {
     lastSeenSteps: 5, lastSeenAt: '', backfilledAt: 'dev',
     joinedAt: JOINED, undergroundClearedAt: new Date(new Date(JOINED).getTime() + 6 * 3_600_000).toISOString(), levels: {},
   },
+  '芽と解決と濃い輪郭': {
+    steps: [
+      ...mkSteps(10),
+      { id: 'dev-0', kind: 'resolved', at: new Date(Date.now() - 3_600_000).toISOString(), genre: 'dev', title: 'CQを解決した知識' },
+      { id: 'bud-1', kind: 'attempt', at: new Date(Date.now() - 7_200_000).toISOString(), genre: 'dev', title: 'まだの知識 一' },
+      { id: 'bud-2', kind: 'attempt', at: new Date(Date.now() - 3_600_000).toISOString(), genre: 'dev', title: 'まだの知識 二' },
+      { id: 'bud-3', kind: 'attempt', at: new Date(Date.now() - 1_800_000).toISOString(), genre: 'dev', title: 'まだの知識 三' },
+    ],
+    lastSeenSteps: 9, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: '', undergroundClearedAt: '', levels: {},
+  },
 }
 
 export default function DevVinePage() {
