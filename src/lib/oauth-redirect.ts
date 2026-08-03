@@ -7,12 +7,16 @@
 // ここへ集約する。
 //
 // 保証できるのは「両方の呼び出しに同じプロトコル信号を渡した場合、必ず同じ結果になる」
-// ことまでである。redirectUriFromHost は forwardedProto を最優先で使う。
-// redirectUriFromRequestUrl も forwardedProto を渡せば同様にそれを最優先し、渡さなければ
-// requestUrl に埋め込まれたスキームをそのまま使う。したがって、TLS終端リバースプロキシ配下で
-// Node プロセスへの着信が http なのに x-forwarded-proto: https が付くような環境では、
-// callback 側にも同じ x-forwarded-proto を渡さない限り両者は一致しない
-// （呼び出し側がこのヘッダーを読んで渡す責務を持つ）。
+// ことまでである。redirectUriFromHost・redirectUriFromRequestUrl はどちらも forwardedProto を
+// 最優先で使い、渡されなければ同じ guessProtocol（ローカル/社内LANならhttp、それ以外はhttps）
+// にフォールバックする。以前は redirectUriFromRequestUrl だけ requestUrl に埋め込まれた
+// スキームをそのまま使っていたため、x-forwarded-proto を送らないTLS終端リバースプロキシ配下
+// （Node プロセスへの着信は http、外部は https）で、/connect/notion（headers()経由・
+// forwardedProto無し→非ローカルなのでhttps）とcallback（req.url由来・着信のままhttp）が
+// 食い違い、Notionがすべての交換を拒む障害があった。今は両者とも同じフォールバックを
+// 通るため、forwardedProto を渡さない場合でも一致する。TLS終端プロキシがヘッダーを
+// 送ってくる環境では、引き続き callback 側にも同じ x-forwarded-proto を渡せば
+// そちらが優先される（呼び出し側がこのヘッダーを読んで渡す責務を持つ）。
 //
 // 純粋関数のみ。next/headers も Request も扱わない — 呼び出し側が文字列で渡す。
 
@@ -58,9 +62,12 @@ function guessProtocol(host: string, forwardedProto?: string | null): string {
 // forwardedProto を渡した場合はそちらを優先し、requestUrl 側のスキームを上書きする
 // （redirectUriFromHost と同じ優先順位。TLS終端プロキシ配下で着信が http でも、
 // 呼び出し側が x-forwarded-proto を読んで渡せば https 側に揃う）。
+// forwardedProto が無い場合も、requestUrl に埋め込まれたスキームをそのまま使わず、
+// redirectUriFromHost と同じ guessProtocol へフォールバックする（このファイル冒頭の
+// コメント参照。ヘッダーを送らないプロキシ配下で両者を一致させるための是正）。
 export function redirectUriFromRequestUrl(requestUrl: string, forwardedProto?: string | null): string {
   const url = new URL(NOTION_OAUTH_CALLBACK_PATH, requestUrl)
-  if (forwardedProto) url.protocol = `${forwardedProto}:`
+  url.protocol = `${guessProtocol(url.hostname, forwardedProto)}:`
   return url.toString()
 }
 

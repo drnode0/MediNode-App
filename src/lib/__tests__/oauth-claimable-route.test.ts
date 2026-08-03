@@ -33,6 +33,7 @@ beforeEach(() => {
   rateLimitMock.mockReset().mockResolvedValue(true)
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc'
 })
 
 describe('GET /api/notion/oauth/claimable', () => {
@@ -81,6 +82,14 @@ describe('GET /api/notion/oauth/claimable', () => {
 
   it('Supabaseのenvが未設定ならclaimable:falseで何も読み書きしない', async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const res = await GET()
+    const body = await res.json()
+    expect(body.claimable).toBe(false)
+    expect(getUserMock).not.toHaveBeenCalled()
+  })
+
+  it('コメント是正: service role key未設定でもclaimable:false（findClaimableはservice roleを使うため、claimと同じ判定式にする）', async () => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
     const res = await GET()
     const body = await res.json()
     expect(body.claimable).toBe(false)

@@ -7,10 +7,17 @@ import { findClaimable } from '@/lib/supabase/oauth-states'
 import { isCryptoReady } from '@/lib/crypto'
 import { rateLimitAsync } from '@/lib/rate-limit'
 
-// このルートは createClient()（anonキー）だけを使う。/api/user-settings と同じ考え方で、
-// env未設定時の生の throw を漏らさず、静かな claimable:false へ倒す。
+// このルートは createClient()（anonキー・セッション確認用）に加えて、findClaimable経由で
+// createAdminClient()（service role・oauth_states読み取り用）も使う。claimと同じ判定式
+// にしないと、service role未設定時にここだけ「準備OK」と誤判定してfindClaimableが
+// 静かに空振りし続けるだけになる（claimの方は503で早期に気付ける）。
+// 生の throw は漏らさず、静かな claimable:false へ倒す。
 function supabaseReady(): boolean {
-  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  )
 }
 
 export async function GET() {

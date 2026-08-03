@@ -2686,6 +2686,13 @@ export default function Home() {
       }
       return
     }
+    // 注: このoauth==='notion-done'分岐はv1（Cookie/セッション方式）向けの受け口で、
+    // v2のcallback（/api/notion/oauth/callback）はもう ?oauth=notion-done を発行しない
+    // （v2はセッションを持たないブラウザでも完走できるよう、/connect/notion/done へ
+    // ?s=<state> を付けてリダイレクトする方式に変わったため）。今のところ現実には
+    // 到達しない分岐だが、次のクライアント配線（claim/claimableの呼び出し）を実装する
+    // 段でこの受け口ごと書き直す前提で、あえて残してある。ここを「生きているコード」だと
+    // 誤読しないこと。
     if (params.get('oauth') === 'notion-done') {
       try { sessionStorage.setItem(OAUTH_FINISH_MARKER, '1') } catch {}
       window.history.replaceState(null, '', window.location.pathname)

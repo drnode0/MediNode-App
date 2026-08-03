@@ -106,9 +106,15 @@ describe('redirectUriFromRequestUrl', () => {
     ).toBe('https://app.example' + NOTION_OAUTH_CALLBACK_PATH)
   })
 
-  it('forwardedProto を渡さなければ requestUrl のスキームのまま（http維持）', () => {
+  it('forwardedProto を渡さない・非ローカルホストなら guessProtocol と同じくhttpsへ倒す（是正後の挙動。requestUrlのスキームをそのまま信じない）', () => {
     expect(redirectUriFromRequestUrl('http://app.example/api/notion/oauth/callback?code=c1')).toBe(
-      'http://app.example' + NOTION_OAUTH_CALLBACK_PATH,
+      'https://app.example' + NOTION_OAUTH_CALLBACK_PATH,
+    )
+  })
+
+  it('forwardedProto を渡さない・ローカル/プライベートホストならhttpのまま（redirectUriFromHostと同じ判定）', () => {
+    expect(redirectUriFromRequestUrl('http://192.168.1.42:3000/api/notion/oauth/callback?code=c1')).toBe(
+      'http://192.168.1.42:3000' + NOTION_OAUTH_CALLBACK_PATH,
     )
   })
 })
@@ -133,5 +139,16 @@ describe('redirectUriFromRequestUrl と redirectUriFromHost の一致', () => {
       'https',
     )
     expect(fromHeader).toBe(fromReqUrl)
+  })
+
+  // Finding（Minor）: x-forwarded-proto を送らないTLS終端プロキシ配下では、
+  // 以前は /connect/notion（headers()経由・forwardedProto無し→非ローカルなのでhttpsを推測）と
+  // callback（req.url由来・着信のままhttpを維持）が食い違い、Notionの交換がすべて失敗していた。
+  // ここでその一致を固定する（forwardedProtoを渡さない・非ローカルホストのケース）。
+  it('forwardedProto無し・非ローカルホストでも一致する（ヘッダーを送らないプロキシ配下でのフォールバック整合）', () => {
+    const fromHeader = redirectUriFromHost({ host: 'app.example' })
+    const fromReqUrl = redirectUriFromRequestUrl('http://app.example/api/notion/oauth/callback?code=c1&state=st')
+    expect(fromHeader).toBe(fromReqUrl)
+    expect(fromHeader).toBe('https://app.example' + NOTION_OAUTH_CALLBACK_PATH)
   })
 })
