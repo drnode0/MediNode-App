@@ -3,7 +3,7 @@
 // 完走（疾書含む）時に markSeen(state, to) をコミットする——リプレイ中に閉じたら次回また見られる。
 // 禁止事項: 称賛語・感嘆符・色褪せの数字集計・「歩」。祝意は淡墨の賛が述べ、朱は寸法だけを指す。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { BookOpen, ExternalLink, X } from 'lucide-react'
 import {
   loadTowerState, saveTowerState, markSeen, planReplay, leafSteps, type TowerState,
 } from '@/lib/tower-steps'
@@ -18,6 +18,9 @@ import { leafY, markPositions, splitByJoin, sceneOffset, RHIZOME_DEPTH } from '@
 import { useReplayEngine } from './useReplayEngine'
 import { VineScene } from './VineScene'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
+import { leafDestination, notionUrlFor } from '@/lib/vine-open'
+import { hasSubscriptionConfig } from '@/lib/algolia'
+import { useReader } from '@/components/reader/SubscriptionReader'
 import { getSettings } from '@/lib/settings'
 import styles from './vine.module.css'
 
@@ -51,6 +54,8 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
   const lastCommittedScroll = useRef(0) // 量子化の基準（前回stateに反映した値）
   const [viewportH, setViewportH] = useState(700)
   const [viewportW, setViewportW] = useState(358)
+  // 葉→本文。Provider の外（devハーネス）では no-op が返るので、そこでは開かないだけ。
+  const { open: openReader } = useReader()
   useBodyScrollLock()
 
   // 開いた瞬間のスナップショット（リプレイ中の新イベントは次回へ）
@@ -169,6 +174,13 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
 
   const openLeaf = leafOpen != null ? aboveLeaves[leafOpen] : null
   const openVisual = leafOpen != null ? visuals[leafOpen] : null
+  // 葉から知識の本文へ戻る導線。行き先は台帳のidだけで決まる（vine-open）。
+  // 開けない葉（見本・旧データ・プレミアム失効中の配信）では何も出さない——
+  // 押せない導線を置くほうが、無いより悪い。
+  const openDest = useMemo(
+    () => (openLeaf ? leafDestination(openLeaf.id, hasSubscriptionConfig()) : { mode: 'none' as const }),
+    [openLeaf],
+  )
 
   // 和紙の3段トーン（昼・夕・夜）。アプリのダーク設定は夜トーン優先。
   // 初期値は昼の和紙のまま、マウント後に切り替える＝「行灯が灯る」800msフェード。
@@ -481,15 +493,49 @@ export function VineScreen({ onClose, onGoQuiz, initialState, forceIntro }: {
                 : openLeaf.kind === 'resolved' ? '解決した'
                 : openLeaf.kind === 'recall' ? '即答できた' : '磨き直した'}
             </div>
-            {spotlight.includes(openLeaf.id) && (
-              <button
-                type="button"
-                onClick={() => { setLeafOpen(null); onGoQuiz() }}
-                className="mt-3 rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-4 py-1.5 text-xs"
-              >
-                たしかめる
-              </button>
-            )}
+            {/* 記録から記録の中身へ。蔓は閉じない——本文を閉じたらこの画面に戻る。
+                操作の言葉なので vine-copy には入れず、検索カードと同じ語を使う。 */}
+            <div className={`flex flex-wrap items-center gap-2 ${openDest.mode !== 'none' || spotlight.includes(openLeaf.id) ? 'mt-3' : ''}`}>
+              {openDest.mode === 'reader' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLeafOpen(null)
+                    openReader({
+                      objectID: openDest.objectID,
+                      title: openLeaf.title || '',
+                      notionUrl: notionUrlFor(openDest.objectID.replace(/^subscription_/, '')),
+                      owner: 'subscription',
+                    })
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-4 py-1.5 text-xs"
+                >
+                  本文を読む
+                  <BookOpen className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {openDest.mode === 'notion' && (
+                <a
+                  href={openDest.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setLeafOpen(null)}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-4 py-1.5 text-xs"
+                >
+                  Notionで開く
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+              {spotlight.includes(openLeaf.id) && (
+                <button
+                  type="button"
+                  onClick={() => { setLeafOpen(null); onGoQuiz() }}
+                  className="rounded-full border border-[#cbbf9f] bg-[#faf5e8] px-4 py-1.5 text-xs"
+                >
+                  たしかめる
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

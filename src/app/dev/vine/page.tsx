@@ -76,6 +76,19 @@ const SCENARIOS: Record<string, TowerState> = {
     joinedAt: '', undergroundClearedAt: '', levels: {},
   },
   '口上（見本のグイーン）': mk(3, 3),
+  // 葉→本文の導線。行き先はidの owner 接頭辞で決まる（vine-open）ので、
+  // 実データと同じ `${owner}_${pageId}` 形式のidを置く。
+  // ⚠️ devハーネスには ReaderProvider が無いので「本文を読む」は押しても何も起きない
+  //（no-op が返る契約）。ここで見るのは「どの葉にどの導線が出るか」だけ。
+  '本文への導線（配信・個人・見本）': {
+    steps: [
+      { id: 'subscription_1f2e3d4c5b6a7988990a1b2c3d4e5f60', kind: 'read', at: new Date(Date.now() - 10_800_000).toISOString(), genre: 'dev', title: '配信の知識（アプリ内リーダー）' },
+      { id: 'personal_0a1b2c3d4e5f60718293a4b5c6d7e8f9', kind: 'wrote', at: new Date(Date.now() - 7_200_000).toISOString(), genre: 'dev', title: '自分で書いた知識（Notion）' },
+      { id: 'dev-x', kind: 'recall', at: new Date(Date.now() - 3_600_000).toISOString(), genre: 'dev', title: '行き先の無い知識（導線を出さない）' },
+    ],
+    lastSeenSteps: 3, lastSeenAt: '', backfilledAt: 'dev',
+    joinedAt: '', undergroundClearedAt: '', levels: {},
+  },
   '芽と解決と濃い輪郭': {
     steps: [
       ...mkSteps(10),
