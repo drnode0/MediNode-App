@@ -20,6 +20,7 @@ import { getSettings, saveSettings, normalizeNotionId, type AppSettings } from '
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
 import { inferPropMap } from '@/lib/prop-infer'
 import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
+import { track } from '@vercel/analytics'
 import { PropMapEditor } from './PropMapEditor'
 import { Spinner } from './Spinner'
 
@@ -260,6 +261,14 @@ export function OAuthFinish({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
+  // 選んだDBが読めなかった。§14の判定材料なので、3つの分岐から必ずここを通す
+  // （claim側の conflict と同じ event 名で、at で場所を分ける）。
+  const showUnreadable = (role: 'medical' | 'reference') => {
+    try { track('easy_connect_db_unreadable', { at: 'confirm', roles: role }) } catch { /* 計測できないだけ */ }
+    setUnreadableRole(role)
+    setPhase('unreadable')
+  }
+
   // DBを決めて列を確認する。読めないDBは保存しない（§20c）。
   const confirmDbs = async () => {
     const s = getSettings()
@@ -305,16 +314,16 @@ export function OAuthFinish({
           // Medical だけで通るなら、読めないのは Reference（check-props は最初の失敗で
           // 500 を返すため、切り分けはクライアント側で行う）。
           const retry = await check(false)
-          if (retry.ok) { setUnreadableRole('reference'); setPhase('unreadable'); return }
+          if (retry.ok) { showUnreadable('reference'); return }
           const retryCode = await readErrorCode(retry)
           if (!isUnreadableDbErrorCode(retryCode)) {
             // 再試行側が一時的な失敗だと、Medicalが本当に読めないのか確認できていない。
             setPhase('checkFailed')
             return
           }
-          setUnreadableRole('medical'); setPhase('unreadable'); return
+          showUnreadable('medical'); return
         } else {
-          setUnreadableRole('medical'); setPhase('unreadable'); return
+          showUnreadable('medical'); return
         }
       }
     } catch {
@@ -366,7 +375,7 @@ export function OAuthFinish({
     }
   }
 
-  const restart = () => { window.location.href = '/api/notion/oauth/start' }
+  const restart = () => { window.location.href = '/api/notion/oauth/start?from=reauth' }
 
   // conflict / claimCheckFailed で「このままの接続を続ける」を選んだときの処理
   // （Finding 4・§10b step4「このままの接続を続ける（変更しない）」＝明示的な却下）。

@@ -40,6 +40,7 @@ import { findClaimable, markClaimed, purgeExpiredStates, retireOtherCompleted } 
 import { findUnreadableDatabases, type DbRef } from '@/lib/notion-readability'
 import { encryptSettings, decryptSettingsDetailed, isCryptoReady } from '@/lib/crypto'
 import { rateLimitAsync } from '@/lib/rate-limit'
+import { trackEasyConnect } from '@/lib/easy-connect-telemetry'
 import type { NotionOAuthToken } from '@/lib/notion-oauth'
 
 // サーバーに設定行がまだ無いユーザー向けの土台（クライアントの既定と同型）。
@@ -221,6 +222,9 @@ export async function POST(req: Request) {
   const { unreadable, indeterminate } = await findUnreadableDatabases({ token: token.accessToken, refs })
   if (unreadable.length > 0) {
     // 何も書かない。state は completed のまま残すので、選び直してからやり直せる。
+    // 発生数は§14の判定材料（多いなら中間ページの「どのページを選べばいいですか」が
+    // 効いていない）。IDやタイトルは送らず、ロール名だけにする。
+    trackEasyConnect('easy_connect_db_unreadable', { at: 'claim', roles: unreadable.map((u) => u.role).sort().join('+') })
     return NextResponse.json({ status: 'conflict', unreadable })
   }
   // Finding3: 読めるかどうか確認できなかった（レート制限・Notion側の一時的な不調・
@@ -277,5 +281,8 @@ export async function POST(req: Request) {
   // SettingsSync の復元待ちに頼らないので、古いローカル設定と競合しない（§10d）。
   // ただし hadServerSettings が false のときは merged が実データを持たない土台なので、
   // クライアント側は置き換えでなくローカルとのマージで扱うこと。
+  // 完遂率（start→claimed）の分子。手動からの乗り換えかどうかで分けて見る。
+  trackEasyConnect('easy_connect_claimed', { replacing_manual: replacingManual })
+
   return NextResponse.json({ status: 'ok', settings: merged, hadServerSettings })
 }

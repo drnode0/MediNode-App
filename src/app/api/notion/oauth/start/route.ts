@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sessionHasFeature } from '@/lib/supabase/early-access'
 import { createPendingState, purgeExpiredStates } from '@/lib/supabase/oauth-states'
+import { trackEasyConnect, normalizeEntry } from '@/lib/easy-connect-telemetry'
 
 function home(req: NextRequest): NextResponse {
   return NextResponse.redirect(new URL('/', req.url))
@@ -31,6 +32,10 @@ export async function GET(req: NextRequest) {
 
   const state = await createPendingState(user.id, nowMs)
   if (!state) return home(req)
+
+  // 完遂率（start→claimed）の分母。クライアントの入口は4箇所あるので、
+  // どこから来たかは from で受けて種別だけ残す（値は whitelist を通す・§14）。
+  trackEasyConnect('easy_connect_start', { from: normalizeEntry(req.nextUrl.searchParams.get('from')) })
 
   const url = new URL('/connect/notion', req.url)
   url.searchParams.set('s', state)

@@ -1624,7 +1624,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </p>
                 <button
                   type="button"
-                  onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                  onClick={() => { window.location.href = '/api/notion/oauth/start?from=setup' }}
                   className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
                 >
                   Notionでページを選んで接続する

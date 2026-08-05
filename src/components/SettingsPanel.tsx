@@ -1105,7 +1105,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     </p>
                     <button
                       type="button"
-                      onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                      onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings_repick' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
                       Notionでページを選び直す
@@ -1129,7 +1129,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     </p>
                     <button
                       type="button"
-                      onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                      onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
                       かんたん接続に切り替える
