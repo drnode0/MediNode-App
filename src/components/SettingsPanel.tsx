@@ -381,6 +381,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
     teamNotionManualDbId: s0?.teamNotionManualDbId || '',
   })
   const [saveMsg, setSaveMsg] = useState('')
+  // 「元の接続に戻す」の誤タップ防止（一度押してから確定する）。押し間違えると
+  // 動いている接続が切れるので、確認を挟む（§10b step 5）。
+  const [restoreArmed, setRestoreArmed] = useState(false)
   // 追加部署の保存結果（成功／必須未入力）。他の保存と違いフィードバックが無く
   // 「入れたのに保存されない」と誤解されていたため、専用の表示を持たせる。
   const [addTeamMsg, setAddTeamMsg] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null)
@@ -1107,6 +1110,79 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     >
                       Notionでページを選び直す
                     </button>
+                  </div>
+                )
+              })()}
+              {/* 手動Tokenで運用している人の乗り換え入口（§22⑨）。セットアップウィザードは
+                  初回しか通らないため、ここに置かないと既存ユーザーは永久に乗り換えられない。
+                  押しても壊れないのは、claim 側に §10b の保護（旧トークンの退避・可読性検査・
+                  読めなければ設定を書かずに conflict）が入っているから。 */}
+              {(() => {
+                const authSettings = getSettings()
+                if (authSettings?.notionAuthKind === 'oauth') return null
+                if (!isEasyConnectVisible()) return null
+                return (
+                  <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 space-y-2 text-xs text-brand-800 dark:text-brand-200">
+                    <p className="font-semibold">かんたん接続に切り替えられます</p>
+                    <p>
+                      Notionの画面で読ませたいページを選んで許可するだけでつながります。Tokenをコピーして貼り付ける必要はありません。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = '/api/notion/oauth/start' }}
+                      className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
+                    >
+                      かんたん接続に切り替える
+                    </button>
+                    <p className="text-brand-700/80 dark:text-brand-300/80 leading-relaxed">
+                      いまのTokenは預かっておき、切り替えたあとでも「元の接続に戻す」で戻せます。許可したページの中に、いま読んでいるデータベースが入っていないときは、<strong>設定を変えずにその場で止まります</strong>。
+                    </p>
+                  </div>
+                )
+              })()}
+              {/* 差し戻し（§10b step 5）。退避した Token があるあいだだけ出す。 */}
+              {(() => {
+                const authSettings = getSettings()
+                const prevToken = authSettings?.notionTokenPrev
+                if (!prevToken) return null
+                // ここは isEasyConnectVisible() で隠さない。先行体験の付与が外れた人が
+                // 退避したTokenごと閉じ込められると、戻る道が無くなるため。
+                return (
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                    <p className="font-semibold text-gray-800 dark:text-gray-100">元の接続に戻せます</p>
+                    <p>かんたん接続に切り替える前のTokenを預かっています。うまく読めなくなっていたら、こちらへ戻せます。</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!restoreArmed) { setRestoreArmed(true); return }
+                        // フォームの表示値も戻す。ここを戻さないと、画面に残った古い値のまま
+                        // 「保存する」を押されて、いま戻したTokenが上書きされる。
+                        setNotionForm((f) => ({ ...f, notionToken: prevToken }))
+                        saveSection({
+                          notionToken: prevToken,
+                          notionAuthKind: authSettings?.notionAuthKindPrev === 'oauth' ? 'oauth' : 'manual',
+                          notionWorkspaceName: '',
+                          notionTokenPrev: '',
+                          notionAuthKindPrev: '',
+                        })
+                        setRestoreArmed(false)
+                      }}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      {restoreArmed ? 'もう一度押すと戻します' : '元の接続に戻す'}
+                    </button>
+                    {restoreArmed && (
+                      <button
+                        type="button"
+                        onClick={() => setRestoreArmed(false)}
+                        className="w-full text-gray-500 dark:text-gray-400 py-1"
+                      >
+                        やめる
+                      </button>
+                    )}
+                    <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
+                      戻すと、かんたん接続でつないだ接続は使われなくなります（あとからもう一度つなぎ直せます）。読み取るデータベースの指定は変わりません。
+                    </p>
                   </div>
                 )
               })()}
