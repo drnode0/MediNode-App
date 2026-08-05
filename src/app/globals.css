@@ -145,3 +145,18 @@ mark[data-reader-search].reader-search-active {
   --premium-mark-from: #d8b4fe; /* purple-300 */
   --premium-mark-to: #a855f7;   /* purple-500 */
 }
+
+/* ────────────────────────────────────────────────────────────
+   かんたん接続の中間ページ（/connect/notion）: 主役の並び順。
+   スマホでは認可URLをNotionアプリが横取りするため、PCハンドオフを先頭に置く。
+   PC（pointer: fine）で「パソコンで続ける」が先頭に来ると意味を成さないので、
+   そこだけ direct を先に戻す。DOM順は固定したまま、見た目の順だけを入れ替える。
+   ──────────────────────────────────────────────────────────── */
+.ec-choice .ec-direct { order: 1; }
+.ec-choice .ec-handoff { order: 2; }
+.ec-choice--handoff .ec-direct { order: 2; }
+.ec-choice--handoff .ec-handoff { order: 1; }
+@media (pointer: fine) {
+  .ec-choice--handoff .ec-direct { order: 1; }
+  .ec-choice--handoff .ec-handoff { order: 2; }
+}
