@@ -51,7 +51,7 @@ export default async function ConnectNotionDonePage({
           <AlertCircle className="h-8 w-8 mx-auto text-gray-400" aria-hidden />
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">接続を完了できませんでした</h1>
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            時間が経ってやり直しになったか、許可が最後まで終わりませんでした。アプリからもう一度お試しください。
+            時間が経ってやり直しになったか、許可が最後まで終わりませんでした。MediNodeの<strong>設定 →「Notion接続設定」</strong>から、もう一度お試しください。
           </p>
           <Link href="/" className="block w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
             MediNodeに戻る
@@ -69,7 +69,7 @@ export default async function ConnectNotionDonePage({
           <AlertCircle className="h-8 w-8 mx-auto text-gray-400" aria-hidden />
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">この接続は確認できませんでした</h1>
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            アプリからもう一度お試しください。
+            MediNodeの<strong>設定 →「Notion接続設定」</strong>から、もう一度お試しください。
           </p>
           <Link href="/" className="block w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
             MediNodeに戻る

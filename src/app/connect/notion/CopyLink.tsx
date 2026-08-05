@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 import { Copy, Check } from 'lucide-react'
+import { track } from '@vercel/analytics'
 
 export function CopyLink({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
@@ -13,6 +14,9 @@ export function CopyLink({ url }: { url: string }) {
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
+      // PCハンドオフが実際にどれだけ使われているかを見る（§14）。
+      // URLは送らない（state が入っており、これ自体が接続の鍵になるため）。
+      try { track('easy_connect_handoff_copied') } catch { /* 計測できないだけ */ }
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // クリップボードが使えない環境では、下の入力欄から手で選べる

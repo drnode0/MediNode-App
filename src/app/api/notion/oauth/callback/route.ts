@@ -22,6 +22,7 @@ import { exchangeCode } from '@/lib/notion-oauth'
 import { redirectUriFromRequestUrl } from '@/lib/oauth-redirect'
 import { takePendingState, markCompleted, purgeExpiredStates } from '@/lib/supabase/oauth-states'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
+import { trackEasyConnect } from '@/lib/easy-connect-telemetry'
 
 function done(req: NextRequest, params: Record<string, string>): NextResponse {
   const url = new URL('/connect/notion/done', req.url)
@@ -30,7 +31,12 @@ function done(req: NextRequest, params: Record<string, string>): NextResponse {
 }
 
 // 失敗はすべてこの1本に集約する。理由をURLに出さない。
-function quietError(req: NextRequest): NextResponse {
+//
+// ただし理由が「どこにも残らない」のとは違う。訪問者には見せず、テレメトリにだけ
+// 種別を残す（§14）。ここを残さないと、認可したのに戻れなかった人が全部
+// ひとかたまりの沈黙になり、GA判断ができない。
+function quietError(req: NextRequest, reason: string): NextResponse {
+  trackEasyConnect('easy_connect_callback_error', { reason })
   return done(req, { e: '1' })
 }
 
@@ -42,35 +48,35 @@ export async function GET(req: NextRequest) {
   // 上限は本人が数回やり直しても絶対に引っかからない値にしてある
   // （他の未認証公開ルートである /api/referral と同じ 30回/10分を踏襲）。
   if (!(await rateLimitAsync(`notion-oauth-callback:${clientIp(req)}`, 30, 10 * 60 * 1000))) {
-    return quietError(req)
+    return quietError(req, 'rate_limited')
   }
 
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   const clientSecret = process.env.NOTION_OAUTH_CLIENT_SECRET
-  if (!clientId || !clientSecret || !isCryptoReady()) return quietError(req)
+  if (!clientId || !clientSecret || !isCryptoReady()) return quietError(req, 'not_configured')
 
   const params = req.nextUrl.searchParams
   // 認可画面でキャンセルした場合もここに来る。エラー扱いにはするが理由は出さない。
-  if (params.get('error')) return quietError(req)
+  if (params.get('error')) return quietError(req, 'denied')
 
   const code = params.get('code') || ''
   const state = params.get('state') || ''
-  if (!code || !state) return quietError(req)
+  if (!code || !state) return quietError(req, 'missing_params')
 
   const row = await takePendingState(state, Date.now())
-  if (!row) return quietError(req)
+  if (!row) return quietError(req, 'state_invalid')
 
   let token
   try {
     const redirectUri = redirectUriFromRequestUrl(req.url, req.headers.get('x-forwarded-proto'))
     token = await exchangeCode({ code, redirectUri, clientId, clientSecret })
   } catch {
-    return quietError(req)
+    return quietError(req, 'exchange_failed')
   }
 
   // トークン一式をそのまま暗号化して置く（claim 側で復号して設定へマージする）。
   const ok = await markCompleted(state, encryptSettings(JSON.stringify(token)), new Date().toISOString())
-  if (!ok) return quietError(req)
+  if (!ok) return quietError(req, 'mark_completed_failed')
 
   // Finding1: 古い行（認可だけして戻らなかった過去の試行など）を掃除する。
   // start・claimの2箇所だけでは「認可して二度と戻らない」ユーザー自身のセッションが
@@ -79,6 +85,8 @@ export async function GET(req: NextRequest) {
   // purgeExpiredStatesは例外を投げないので応答内容にもタイミング以外は影響しない
   // （成功応答のみに掛かる処理であり、失敗経路の一様性には触れない）。
   await purgeExpiredStates(Date.now())
+
+  trackEasyConnect('easy_connect_callback_ok')
 
   return done(req, { s: state })
 }

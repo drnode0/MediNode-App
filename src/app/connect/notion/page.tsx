@@ -2,7 +2,7 @@
 //
 // なぜ直接飛ばさないか: iPhoneでは認可URLをNotionアプリがユニバーサルリンクとして
 // 横取りし、認可画面に到達できないことが実機で判明している（設計書§1）。ここに
-// 「うまく開かないときは、パソコンで」を常設して、詰まったら逃がせるようにする。
+// 「パソコンで続ける」を常設して、詰まったら逃がせるようにする。
 
 import Link from 'next/link'
 import { headers } from 'next/headers'
@@ -10,13 +10,24 @@ import * as Sentry from '@sentry/nextjs'
 import { buildAuthorizeUrl } from '@/lib/notion-oauth'
 import { redirectUriFromHost } from '@/lib/oauth-redirect'
 import { takePendingState } from '@/lib/supabase/oauth-states'
+import { PENDING_TTL_MS } from '@/lib/oauth-state'
 import { rateLimitAsync, clientIpFromHeaders } from '@/lib/rate-limit'
 import { CopyLink } from './CopyLink'
 
 export const dynamic = 'force-dynamic'
 
-// 認可URLをスマホでそのまま開くか、PCへ逃がすかの既定。実機検証の結果で切り替える（§12）。
-const MOBILE_PRIMARY = process.env.NEXT_PUBLIC_EASY_CONNECT_MOBILE === 'handoff' ? 'handoff' : 'direct'
+// 認可URLをスマホでそのまま開くか、PCへ逃がすかの既定（§12）。
+//
+// 既定を handoff にしてあるのは、iPhoneでNotionアプリの横取りが起きることを実機で
+// 確認したため（§22⑤）。最頻経路を主役の位置に置く。env に 'direct' を入れれば
+// 元に戻せる（Safariに先にNotionをログインさせておけば横取りしないかは未検証で、
+// その結果次第で既定を戻せるようにしてある）。
+//
+// PC（pointer: fine）では常に direct を先に見せる。PCで「パソコンで続ける」が先頭に
+// 来ると意味を成さないため。順序だけをCSSで入れ替える（サーバー側でUAを見ない）。
+const MOBILE_PRIMARY = process.env.NEXT_PUBLIC_EASY_CONNECT_MOBILE === 'direct' ? 'direct' : 'handoff'
+
+const TTL_MINUTES = Math.round(PENDING_TTL_MS / 60_000)
 
 export default async function ConnectNotionPage({
   searchParams,
@@ -61,7 +72,7 @@ export default async function ConnectNotionPage({
         <div className="max-w-sm mx-auto space-y-4 text-center">
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">この接続リンクは使えません</h1>
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            時間が経って無効になったか、すでに使われたリンクです。アプリからもう一度お試しください。
+            時間が経って無効になったか、すでに使われたリンクです。MediNodeの<strong>設定 →「Notion接続設定」</strong>から、もう一度お試しください。
           </p>
           <Link href="/" className="block w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold">
             MediNodeに戻る
@@ -90,13 +101,15 @@ export default async function ConnectNotionPage({
 
   const handoff = (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
-      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">うまく開かないときは、パソコンで</p>
-      <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-        パソコンのブラウザでこのリンクを開くと、そのまま続けられます。終わったらスマホのMediNodeを開いてください。
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">パソコンで続ける</p>
+      <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+        パソコンのブラウザでこのリンクを開くと、Notionの画面がそのまま開きます。許可を終えたら、スマホのMediNodeに戻ってください。
       </p>
       <CopyLink url={authorizeUrl} />
-      <p className="text-[11px] text-gray-400 dark:text-gray-500">
-        このリンクはあなた専用です。他の人に送らないでください。
+      {/* 22③: 「他の人に送らないで」だけだと、自分宛に送っていいのかで迷う。
+          許される渡し方を先に書く。 */}
+      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+        自分のパソコンへ送る分には問題ありません（自分宛のメールやAirDropなど）。他の人には送らないでください。このリンクは約{TTL_MINUTES}分で使えなくなります。
       </p>
     </div>
   )
@@ -105,25 +118,46 @@ export default async function ConnectNotionPage({
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 px-6 py-12">
       <div className="max-w-sm mx-auto space-y-5">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Notionとつなぎます</h1>
+        {/* 22⑥: 押すと突然Notionのブランド画面が出るので、先に何が開くかを言う。 */}
         <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-          次の画面で、MediNodeに読ませたいページを選んで許可してください。既存のページを編集することはありません。
+          次に開くのは<strong>Notionの画面</strong>です。そこでMediNodeに読ませたいページを選んで許可してください。既存のページを編集することはありません。
         </p>
 
-        {MOBILE_PRIMARY === 'direct' ? (
-          <>
-            {primaryButton}
-            {handoff}
-          </>
-        ) : (
-          <>
-            {handoff}
-            {primaryButton}
-          </>
-        )}
+        {/* 22④: どのページを選べばよいかが書かれていなかった。文言は§19cの確定分。
+            「3つのDBを1つのページにまとめてください」とは言わない（Notionの構造を
+            作り直させる指示になるため）。 */}
+        <details className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-800">
+            どのページを選べばいいですか
+          </summary>
+          <div className="p-4 space-y-3 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+            <p>
+              MediNodeに読ませたいデータベースが入っているページを選んでください。権限は親から子へ引き継がれるので、<strong>同じページの下にまとまっているなら、その親ページを1つ選ぶだけ</strong>で足ります。Notionの構造を作り直す必要はありません。
+            </p>
+            <p>
+              このあとの画面で、その中から<strong>どれを知識本体（Medical DB）として使うか</strong>を選びます。<strong>選ばなかったデータベースは読み込まれません。</strong>家計簿でも日記でも、同じページの中にあって構いません。
+            </p>
+            <p>
+              あとからデータベースを増やしたときは、設定の「読み取るDBを選び直す」から変えられます。親ページごと許可しておくと、その下に新しく作ったものは許可をやり直さずに使えます。
+            </p>
+          </div>
+        </details>
 
-        <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
-          Notionアプリが開いてしまった場合は、いったん閉じてこのページに戻り、パソコンでお試しください。
+        {/* 順序は globals.css の .ec-choice が決める（スマホはハンドオフ優先・
+            PCは pointer: fine で direct 優先）。DOM順は固定し、見た目の順だけ入れ替える。 */}
+        <div className={`flex flex-col gap-4 ec-choice${MOBILE_PRIMARY === 'handoff' ? ' ec-choice--handoff' : ''}`}>
+          <div className="ec-direct">{primaryButton}</div>
+          <div className="ec-handoff">{handoff}</div>
+        </div>
+
+        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+          Notionアプリが開いてしまった場合は、いったん閉じてこのページに戻り、「パソコンで続ける」のリンクをパソコンで開いてください。
         </p>
+
+        {/* 22⑩: 正常系に離脱路が無く、認可へ進むしかないように見えていた。 */}
+        <Link href="/" className="block text-center text-xs text-gray-500 dark:text-gray-400 py-1 hover:text-brand-600 dark:hover:text-brand-400">
+          やめてMediNodeに戻る
+        </Link>
       </div>
     </main>
   )
