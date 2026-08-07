@@ -23,14 +23,17 @@ export type SetupTelemetry = {
 const STORAGE_KEY = 'medinode_setup_telemetry'
 
 // ステップの前後関係。furthest の更新判定に使う（数字が大きいほど先）。
-const STEP_ORDER: Record<string, number> = {
+// register は登録先行（かんたん接続 段C）のステップ。保存値はステップ名なので、
+// ここに1つ挟んでも過去データ（entry/start/…）は無効化されない。
+export const STEP_ORDER: Record<string, number> = {
   entry: 0,
-  start: 1,
-  mode: 2,
-  notion: 3,
-  algolia: 4,
-  sync: 5,
-  options: 6,
+  register: 1,
+  start: 2,
+  mode: 3,
+  notion: 4,
+  algolia: 5,
+  sync: 6,
+  options: 7,
 }
 
 export function readSetupTelemetry(): SetupTelemetry | null {
