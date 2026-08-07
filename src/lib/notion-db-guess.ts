@@ -17,6 +17,17 @@ export type DbCandidate = { id: string; title: string }
 export const DB_PICK_HINT =
   '症例メモや勉強ノートなど、検索したい記事が1行1件で並んでいるデータベースを選びます。'
 
+// NotionのDB名は先頭に絵文字が入っていることがある（「📋 マニュアル_DB」など）。
+// 画面では落として表示する。保存するのはIDなので、表示だけの処理でよい。
+// 落とすのは先頭の絵文字と、それに続く空白・中黒だけ。名前の途中や末尾は触らない。
+const LEADING_EMOJI = /^(?:[\p{Extended_Pictographic}\p{Emoji_Presentation}️‍]+)[\s・:：-]*/u
+
+export function displayDbTitle(title: string): string {
+  const stripped = title.replace(LEADING_EMOJI, '').trim()
+  // 絵文字だけの名前を空にしてしまわない。
+  return stripped || title.trim()
+}
+
 // 役割の呼び方は、アプリで見える場所に揃える（Medical DB のような語は画面に出さない）。
 export const DB_ROLE_UI = {
   medical: { label: '知識', where: '検索と新着に出ます', required: true },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { guessDbRoles } from '../notion-db-guess'
+import { guessDbRoles, displayDbTitle } from '../notion-db-guess'
 
 const db = (id: string, title: string) => ({ id, title })
 
@@ -59,5 +59,23 @@ describe('guessDbRoles', () => {
     const list = [db('m', 'My MEDICAL _DB')]
     const r = guessDbRoles(list, { medicalId: 'deadbeef', referenceId: '', manualId: '' })
     expect(r.medicalId).toBe('m')
+  })
+})
+
+describe('displayDbTitle', () => {
+  it('先頭の絵文字と続く空白を落とす', () => {
+    expect(displayDbTitle('📋 マニュアル_DB')).toBe('マニュアル_DB')
+    expect(displayDbTitle('📕マニュアル')).toBe('マニュアル')
+    expect(displayDbTitle('🏥 Medical Knowledge DB')).toBe('Medical Knowledge DB')
+  })
+  it('絵文字が無ければそのまま', () => {
+    expect(displayDbTitle('My MEDICAL _DB')).toBe('My MEDICAL _DB')
+    expect(displayDbTitle('My 参考文献_DB')).toBe('My 参考文献_DB')
+  })
+  it('名前の途中の絵文字は残す', () => {
+    expect(displayDbTitle('当直メモ📝')).toBe('当直メモ📝')
+  })
+  it('絵文字だけの名前は空にしない', () => {
+    expect(displayDbTitle('📋')).toBe('📋')
   })
 })
