@@ -4,6 +4,7 @@ import {
   previewActionFromSearch,
   isRegisterFirstEnabled,
 } from '../easy-connect-preview'
+import { isEasyConnectVisible } from '../easy-connect-flag'
 
 describe('previewActionFromSearch', () => {
   it('?preview=easyconnect で set', () => {
@@ -35,5 +36,26 @@ describe('isRegisterFirstEnabled', () => {
   })
   it('似た名前のCookieを誤検出しない', () => {
     expect(isRegisterFirstEnabled({ cookie: 'xx_mn_ec_preview_old=1' })).toBe(false)
+  })
+})
+
+describe('GA（NEXT_PUBLIC_EASY_CONNECT_GA）', () => {
+  it('ga指定では常に登録先行（?preview=off でも戻らない）', () => {
+    expect(isRegisterFirstEnabled({ ga: true })).toBe(true)
+    expect(isRegisterFirstEnabled({ ga: true, search: '?preview=off', cookie: '' })).toBe(true)
+  })
+  it('ga=false なら従来どおりCookie/URL判定', () => {
+    expect(isRegisterFirstEnabled({ ga: false })).toBe(false)
+    expect(isRegisterFirstEnabled({ ga: false, cookie: `${PREVIEW_COOKIE}=1` })).toBe(true)
+  })
+  it('isEasyConnectVisible は GA env で同期値なしでも true', () => {
+    const prev = process.env.NEXT_PUBLIC_EASY_CONNECT_GA
+    process.env.NEXT_PUBLIC_EASY_CONNECT_GA = 'true'
+    try {
+      expect(isEasyConnectVisible()).toBe(true)
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_EASY_CONNECT_GA
+      else process.env.NEXT_PUBLIC_EASY_CONNECT_GA = prev
+    }
   })
 })

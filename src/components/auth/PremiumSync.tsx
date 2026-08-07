@@ -111,12 +111,24 @@ export function PremiumSync() {
           // JSON.stringify での比較は順序依存だが、resolveFeatures は常に
           // EARLY_ACCESS_FEATURES の正準順で返すため安全。順序をここで揃え直す必要はない
           // （将来「直したくなる」人向けの注記）。
+          //
+          // かんたん接続GA後は、easy_connect の有無だけの差分ではリロードしない。
+          // GAでは全アカウントの features に easy_connect が入るため、新規登録者は
+          // 必ず []→['easy_connect'] の差分を踏む。ここでリロードすると登録先行の
+          // セットアップ途中（登録直後）に画面ごと巻き戻ってしまう。表示判定は
+          // isEasyConnectVisible() が env を直接見るので、同期値の鮮度に依存しない。
+          const ecGa = process.env.NEXT_PUBLIC_EASY_CONNECT_GA === 'true'
+          const forCompare = (arr: string[]) => (ecGa ? arr.filter((f) => f !== 'easy_connect') : arr)
           const featuresChanged =
-            JSON.stringify(current.earlyAccessFeatures ?? []) !== JSON.stringify(nextFeatures)
+            JSON.stringify(forCompare(current.earlyAccessFeatures ?? [])) !== JSON.stringify(forCompare(nextFeatures))
           if (earlyAccessChanged || featuresChanged) {
             saveSettings({ ...current, earlyAccess: nextEarlyAccess, earlyAccessFeatures: nextFeatures })
             window.location.reload()
             return
+          }
+          // リロードは要らないが値の差分はある（easy_connect だけ）→ 静かに保存して揃える。
+          if (JSON.stringify(current.earlyAccessFeatures ?? []) !== JSON.stringify(nextFeatures)) {
+            saveSettings({ ...current, earlyAccess: nextEarlyAccess, earlyAccessFeatures: nextFeatures })
           }
         }
 

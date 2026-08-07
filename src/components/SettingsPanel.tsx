@@ -388,7 +388,11 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   // 登録先行プレビュー（?preview=easyconnect）の解除口。持っている人にだけ出す。
   // マウント後に読むのは、SSRとクライアントで document.cookie が食い違うのを避けるため。
   const [previewOn, setPreviewOn] = useState(false)
-  useEffect(() => { setPreviewOn(readPreviewFlagFromBrowser()) }, [])
+  // GA後は登録先行が正式な順序なので、「元の順序に戻す」枠は出さない
+  // （readPreviewFlagFromBrowser はGAで常にtrueになるため、env を直接見て除外する）。
+  useEffect(() => {
+    setPreviewOn(process.env.NEXT_PUBLIC_EASY_CONNECT_GA !== 'true' && readPreviewFlagFromBrowser())
+  }, [])
   // 追加部署の保存結果（成功／必須未入力）。他の保存と違いフィードバックが無く
   // 「入れたのに保存されない」と誤解されていたため、専用の表示を持たせる。
   const [addTeamMsg, setAddTeamMsg] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null)

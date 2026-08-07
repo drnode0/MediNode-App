@@ -83,6 +83,23 @@ Notion接続を「トークンを自分で作ってコピーする」から「No
 
 確認できていないのは前と同じで、**実機（iPhone）の完走**と、認可を伴う経路の通しだけ。ローカルでは state を発行できないため、認可から先はオーナーの実機でしか通せない。
 
+## GAの手順（コード・文言は準備完了 2026-08-07）
+
+**開く前に実機で見るべき残り2つ**：①iPhone PWA（ホーム画面から起動）で claim が受け取れるか ②登録先行の「登録→検索を開始」の通し。この2つが通れば開けてよい。
+
+1. **Vercelにenvを2つ足す**（[https://vercel.com/dashboard](https://vercel.com/dashboard) → medical-search-public → Settings → Environment Variables → Production）
+   - `EASY_CONNECT_GA` = `true`（サーバー側の全員開放）
+   - `NEXT_PUBLIC_EASY_CONNECT_GA` = `true`（画面側。かんたん接続カード・登録先行が全員に出る）
+   - **必ず両方同時に**入れる。片方だけだと「見えるのに使えない／使えるのに見えない」になる
+   - `NEXT_PUBLIC_` はビルド時に焼き込まれるため、**envを足したら Redeploy が必須**
+2. **LPを出す**：`cd ~/work/medinode-lp && git push origin ga-easy-connect:main`（push即本番）。ブランチ `ga-easy-connect` にかんたん接続主役の文言をコミット済み
+3. **📘ガイド（Notion）は更新済み**（4章冒頭のかんたん接続callout・3-4/4-1の「手動接続の場合」・FAQ・変更履歴）。GA後に「順次公開中」の語を外すだけ（任意）
+4. **ロールバック**：env 2つを削除して Redeploy（登録先行・カード表示・auto-trial遅延が全部プレビュー前の状態に戻る）。LPは `git revert` して push
+
+**GAで変わること**：かんたん接続カードが全員に表示／セットアップが「登録→対象→…」の順に（`?preview=off` でも戻らない・設定の解除枠も消える）／自動トライアルの付与が「登録時」から「セットアップ完了時」に（付与点は `finishWithPremiumBootstrap()` と OAuthFinish の保存時の2箇所）。
+
+**GA後に見る数字**：/admin 離脱ヒストグラムの「登録」通過率、easy_connect の start→claimed 完遂率、`db_unreadable` の発生数（§14）。
+
 ## 次にやること
 
 | # | 内容 | なぜ |

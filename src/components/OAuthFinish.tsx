@@ -380,6 +380,12 @@ export function OAuthFinish({
       ...finalMap,
     }
     saveSettings(next)
+    // 登録先行では自動トライアルの付与をセットアップ完了時まで遅らせている（§11）。
+    // かんたん接続で完了するこの経路は SetupWizard の finishWithPremiumBootstrap() を
+    // 通らず、PremiumSync も（完了前に一度走った後は）このセッション中は再評価しない。
+    // ここで叩いておかないと、付与が次回起動まで持ち越される。対象外・付与済みは
+    // サーバーが no-op なので、無条件で投げてよい（fire-and-forget）。
+    try { void fetch('/api/premium/auto-trial', { method: 'POST' }) } catch { /* 次回起動のPremiumSyncが拾う */ }
     setPhase('done')
     // unmount後にonCompleteが発火しないよう、IDを控えてクリーンアップで消す（Minor fix）。
     // すでにunmount済みなら、そもそもタイマーを張らない（Finding 5）。cleanupは一度しか
