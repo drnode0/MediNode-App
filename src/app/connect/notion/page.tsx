@@ -150,7 +150,7 @@ export default async function ConnectNotionPage({
           <ul className="p-4 space-y-2.5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
             <li className="flex gap-2">
               <span className="text-brand-600 dark:text-brand-400 shrink-0">・</span>
-              <span>データベースが入っているページを<strong>1つ選ぶだけ</strong>。親ページを選ぶと、その中の全部に許可が引き継がれます</span>
+              <span>データベースが入っているページを<strong>1つ選ぶだけ</strong>。ページを選ぶと、<strong>その中に入っているものすべて</strong>に許可が引き継がれます</span>
             </li>
             <li className="flex gap-2">
               <span className="text-brand-600 dark:text-brand-400 shrink-0">・</span>
