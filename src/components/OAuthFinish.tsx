@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
 import { getSettings, saveSettings, normalizeNotionId, type AppSettings } from '@/lib/settings'
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
+import { guessDbRoles, DB_PICK_HINT, DB_ROLE_UI, type DbRoleKey } from '@/lib/notion-db-guess'
 import { inferPropMap } from '@/lib/prop-infer'
 import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
 import { track } from '@vercel/analytics'
@@ -40,8 +41,9 @@ type Phase =
   | 'error'
 type Mode = 'claim' | 'repick'
 
+// conflict / unreadable の文中で使う役割名。画面の他の場所（DB_ROLE_UI）と同じ語に揃える。
 const ROLE_LABEL: Record<string, string> = {
-  medical: '知識本体のデータベース',
+  medical: '知識のデータベース',
   reference: '文献のデータベース',
   manual: 'マニュアルのデータベース',
 }
@@ -63,6 +65,15 @@ export function OAuthFinish({
   const [dbsLoading, setDbsLoading] = useState(mode === 'repick')
   const [medicalId, setMedicalId] = useState('')
   const [referenceId, setReferenceId] = useState('')
+  const [manualId, setManualId] = useState('')
+  // 決まっている役割は確認行で見せ、押されたときだけ選択欄に変える（初心者向けの分量対策）。
+  const [editingRole, setEditingRole] = useState<{ medical: boolean; reference: boolean; manual: boolean }>({
+    medical: false,
+    reference: false,
+    manual: false,
+  })
+  // 任意の2つ（文献・マニュアル）は、既定が決まっていなければ畳んでおく。
+  const [optionalOpen, setOptionalOpen] = useState(false)
   const [schema, setSchema] = useState<Array<{ name: string; type: string }> | null>(null)
   const [propMap, setPropMap] = useState({ propSummary: '', propKeywords: '', propKnowledgeLevel: '', propGenre: '' })
   const [workspace, setWorkspace] = useState('')
@@ -134,33 +145,29 @@ export function OAuthFinish({
     const byNormalizedId = new Map(list.map((d) => [normalizeNotionId(d.id), d]))
     const storedMedical = stored?.notionMedicalDbId || ''
     const storedReference = stored?.notionReferenceDbId || ''
-    const medicalMatch = storedMedical ? byNormalizedId.get(normalizeNotionId(storedMedical)) : undefined
-    const referenceMatch = storedReference ? byNormalizedId.get(normalizeNotionId(storedReference)) : undefined
+    const storedManual = stored?.notionManualDbId || ''
 
-    const medicalToSet = medicalMatch ? medicalMatch.id : ''
-    const referenceToSet = referenceMatch && referenceMatch.id !== medicalToSet ? referenceMatch.id : ''
+    // 保存済みの選択を引き継ぎ、空いた役割はDBの名前から推し当てる（同じDBが2つの
+    // 役割に就くことはない）。かんたん接続で初めて設定する人は保存済みの選択を
+    // 持たないため、名前の手がかりが無いと全欄が空のまま「選んでください」になる。
+    const guessed = guessDbRoles(list, {
+      medicalId: storedMedical,
+      referenceId: storedReference,
+      manualId: storedManual,
+    })
+    const medicalToSet = guessed.medicalId
     if (medicalToSet) setMedicalId(medicalToSet)
-    if (referenceToSet) setReferenceId(referenceToSet)
+    if (guessed.referenceId) setReferenceId(guessed.referenceId)
+    if (guessed.manualId) setManualId(guessed.manualId)
+    // 任意の2つは、既定が決まっていれば開いた状態で見せる（決まっていないなら畳む）。
+    setOptionalOpen(!!guessed.referenceId || !!guessed.manualId)
+
     // IDが設定されているのに一覧に見つからなかった場合だけ知らせる
     // （そもそも設定されていなければ知らせることは何もない）。claim・repick共通。
     setMissingStoredDb({
-      medical: !!storedMedical && !medicalMatch,
-      reference: !!storedReference && !referenceMatch,
+      medical: !!storedMedical && !byNormalizedId.get(normalizeNotionId(storedMedical)),
+      reference: !!storedReference && !byNormalizedId.get(normalizeNotionId(storedReference)),
     })
-
-    // 「候補が1件だけなら自動選択」という親切機能は、何もプリフィルされなかった時だけ
-    // 発火させる。保存済みの選択が引き継げているのに、1件しか無いからと黙って別の
-    // DBへ差し替えるのは避ける。
-    //
-    // この自動選択が、たまたま保存済みの Reference と同じDBを Medical に選んでしまう
-    // ことがある。Reference の<select>は Medical と同じidを候補から除外するだけなので、
-    // 表示上は「使わない」に見えるのに、保存すると両方が同じidになる（Finding 3）。
-    // 自動選択の瞬間に限り、衝突するならReferenceを空へ戻す。
-    if (!medicalToSet && list.length === 1) {
-      const autoMedicalId = list[0].id
-      setMedicalId(autoMedicalId)
-      if (referenceToSet === autoMedicalId) setReferenceId('')
-    }
 
     // 列マッピングは、それが設定された時の Medical DB と今回選ばれた（引き継がれた）
     // Medical DB が同じ場合だけシードする（Finding 4）。repickで別のDBを選んだ場合、
@@ -362,6 +369,11 @@ export function OAuthFinish({
       searchMode: s.searchMode || 'notion',
       notionMedicalDbId: medicalId,
       notionReferenceDbId: referenceId,
+      // マニュアルもこの画面で決められるようにした（2026-08-07）。以前はここで扱わず
+      // 既存値が残るだけだったため、かんたん接続だけで設定した人はマニュアルタブに
+      // たどり着けなかった。候補は list-databases が返した＝今回のトークンで見えた
+      // DBだけなので、追加の読み取り確認は要らない。
+      notionManualDbId: manualId,
       ...finalMap,
     }
     saveSettings(next)
@@ -373,6 +385,66 @@ export function OAuthFinish({
     if (mountedRef.current) {
       completeTimeoutRef.current = setTimeout(onComplete, 1200)
     }
+  }
+
+  // 役割ごとの1枠。既定が決まっていれば「名前 → どこに出るか」の確認行にし、
+  // 押されたときだけ選択欄に変える。決まっていない役割は最初から選択欄を出す。
+  // 同じDBが2つの役割に就かないよう、他の役割で選ばれているものは候補から外す。
+  const roleField = (role: DbRoleKey) => {
+    const ui = DB_ROLE_UI[role]
+    const value = role === 'medical' ? medicalId : role === 'reference' ? referenceId : manualId
+    const setValue = (v: string) => {
+      if (role === 'medical') {
+        setMedicalId(v)
+        if (referenceId === v) setReferenceId('')
+        if (manualId === v) setManualId('')
+      } else if (role === 'reference') {
+        setReferenceId(v)
+        if (manualId === v) setManualId('')
+      } else {
+        setManualId(v)
+      }
+    }
+    const chosen = dbs.find((d) => d.id === value)
+    const editing = editingRole[role] || !chosen
+    const others = [medicalId, referenceId, manualId].filter((id) => id && id !== value)
+    const missing = role === 'medical' ? missingStoredDb.medical : role === 'reference' ? missingStoredDb.reference : false
+
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+        <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+          {ui.label}
+          <span className="text-gray-400 dark:text-gray-500">（{ui.required ? '必須' : '任意'}）</span>
+        </p>
+        {missing && (
+          <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+            今設定している{ui.label}のデータベースは、この一覧に見当たりません。このまま進めると使われなくなります。
+          </p>
+        )}
+        {editing ? (
+          <select
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">{ui.required ? '選んでください' : '使わない'}</option>
+            {dbs.filter((d) => !others.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+          </select>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white break-all">{chosen?.title}</p>
+            <button
+              type="button"
+              onClick={() => setEditingRole((r) => ({ ...r, [role]: true }))}
+              className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline"
+            >
+              別のデータベースを選ぶ
+            </button>
+          </>
+        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ui.where}</p>
+      </div>
+    )
   }
 
   const restart = () => { window.location.href = '/api/notion/oauth/start?from=reauth' }
@@ -456,8 +528,8 @@ export function OAuthFinish({
 
         {phase === 'pick' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              許可したページの中から、知識本体のデータベース（Medical DB）を選んでください。
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+              {DB_PICK_HINT}
             </p>
             {dbsLoading ? (
               <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -472,32 +544,23 @@ export function OAuthFinish({
               </div>
             ) : (
               <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Medical DB（必須）</label>
-                  {missingStoredDb.medical && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
-                      今設定している{ROLE_LABEL.medical}は、この一覧に見当たりません。このまま進めると使われなくなります。
-                    </p>
-                  )}
-                  <select value={medicalId} onChange={(e) => { const v = e.target.value; setMedicalId(v); if (referenceId === v) setReferenceId('') }} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
-                    <option value="">選んでください</option>
-                    {dbs.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Reference DB（文献・任意）</label>
-                  {missingStoredDb.reference && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
-                      今設定している{ROLE_LABEL.reference}は、この一覧に見当たりません。このまま進めると使われなくなります。
-                    </p>
-                  )}
-                  <select value={referenceId} onChange={(e) => setReferenceId(e.target.value)} className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white">
-                    <option value="">使わない</option>
-                    {dbs.filter((d) => d.id !== medicalId).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                  </select>
-                </div>
+                {roleField('medical')}
+                {optionalOpen ? (
+                  <>
+                    {roleField('reference')}
+                    {roleField('manual')}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setOptionalOpen(true)}
+                    className="w-full border border-gray-200 dark:border-gray-600 rounded-xl py-2.5 text-xs text-gray-600 dark:text-gray-300"
+                  >
+                    文献やマニュアルも読み取る
+                  </button>
+                )}
                 <button type="button" disabled={!medicalId || busy} onClick={() => runGuarded(confirmDbs)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
-                  このDBでつなぐ
+                  この内容でつなぐ
                 </button>
               </>
             )}
