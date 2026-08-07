@@ -15,10 +15,10 @@
 // claimCheckFailed へ回す（再認可ではなく再試行を促す。Finding3）。
 
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Loader2, Search, BookMarked, ClipboardList, ChevronDown } from 'lucide-react'
 import { getSettings, saveSettings, normalizeNotionId, type AppSettings } from '@/lib/settings'
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
-import { guessDbRoles, DB_PICK_HINT, DB_ROLE_UI, type DbRoleKey } from '@/lib/notion-db-guess'
+import { guessDbRoles, displayDbTitle, DB_PICK_HINT, DB_ROLE_UI, type DbRoleKey } from '@/lib/notion-db-guess'
 import { inferPropMap } from '@/lib/prop-infer'
 import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
 import { track } from '@vercel/analytics'
@@ -40,6 +40,9 @@ type Phase =
   | 'done'
   | 'error'
 type Mode = 'claim' | 'repick'
+
+// 役割のアイコンは、そのDBの中身が出るタブと同じものを使う（page.tsx の tabs と対応）。
+const ROLE_ICON = { medical: Search, reference: BookMarked, manual: ClipboardList } as const
 
 // conflict / unreadable の文中で使う役割名。画面の他の場所（DB_ROLE_UI）と同じ語に揃える。
 const ROLE_LABEL: Record<string, string> = {
@@ -410,39 +413,80 @@ export function OAuthFinish({
     const others = [medicalId, referenceId, manualId].filter((id) => id && id !== value)
     const missing = role === 'medical' ? missingStoredDb.medical : role === 'reference' ? missingStoredDb.reference : false
 
+    const Icon = ROLE_ICON[role]
+    const filled = !!chosen
+
     return (
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-        <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-          {ui.label}
-          <span className="text-gray-400 dark:text-gray-500">（{ui.required ? '必須' : '任意'}）</span>
-        </p>
-        {missing && (
-          <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
-            今設定している{ui.label}のデータベースは、この一覧に見当たりません。このまま進めると使われなくなります。
-          </p>
-        )}
-        {editing ? (
-          <select
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white"
+      <div
+        className={`rounded-2xl border p-3.5 transition-colors ${
+          filled
+            ? 'border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/15'
+            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40'
+        }`}
+      >
+        <div className="flex gap-3">
+          <span
+            className={`w-9 h-9 rounded-xl grid place-items-center shrink-0 ${
+              filled
+                ? 'bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+            }`}
           >
-            <option value="">{ui.required ? '選んでください' : '使わない'}</option>
-            {dbs.filter((d) => !others.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-          </select>
-        ) : (
-          <>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white break-all">{chosen?.title}</p>
-            <button
-              type="button"
-              onClick={() => setEditingRole((r) => ({ ...r, [role]: true }))}
-              className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline"
-            >
-              別のデータベースを選ぶ
-            </button>
-          </>
-        )}
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ui.where}</p>
+            <Icon className="h-[18px] w-[18px]" aria-hidden />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{ui.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  ui.required
+                    ? 'bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {ui.required ? '必須' : '任意'}
+              </span>
+              <span className="ml-auto shrink-0">
+                {filled && <CheckCircle2 className="h-4 w-4 text-brand-600 dark:text-brand-400" aria-hidden />}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ui.where}</p>
+
+            {missing && (
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1.5 leading-relaxed">
+                今設定している{ui.label}のデータベースは、この一覧に見当たりません。このまま進めると使われなくなります。
+              </p>
+            )}
+
+            {editing ? (
+              <select
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="mt-2 w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">{ui.required ? '選んでください' : '使わない'}</option>
+                {dbs.filter((d) => !others.includes(d.id)).map((d) => (
+                  <option key={d.id} value={d.id}>{displayDbTitle(d.title)}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <p className="text-sm font-bold text-gray-900 dark:text-white break-all min-w-0">
+                  {displayDbTitle(chosen?.title || '')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEditingRole((r) => ({ ...r, [role]: true }))}
+                  className="ml-auto shrink-0 text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  変える
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
@@ -471,9 +515,14 @@ export function OAuthFinish({
   return (
     <div className="fixed inset-0 z-[80] bg-white dark:bg-gray-900 overflow-y-auto">
       <div className="max-w-md mx-auto px-6 py-10 space-y-5">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-          かんたん接続{workspace ? `：${workspace}` : ''}
-        </h1>
+        {/* 見出しは「何をする画面か」を言う。接続方式の名前（かんたん接続）と
+            ワークスペース名は、その下に小さく添える。 */}
+        <div>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Notionとつなぐ</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            かんたん接続{workspace ? `：${workspace}` : ''}
+          </p>
+        </div>
 
         {phase === 'claiming' && (
           <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -528,7 +577,7 @@ export function OAuthFinish({
 
         {phase === 'pick' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
               {DB_PICK_HINT}
             </p>
             {dbsLoading ? (
@@ -554,9 +603,10 @@ export function OAuthFinish({
                   <button
                     type="button"
                     onClick={() => setOptionalOpen(true)}
-                    className="w-full border border-gray-200 dark:border-gray-600 rounded-xl py-2.5 text-xs text-gray-600 dark:text-gray-300"
+                    className="w-full flex items-center justify-center gap-1 border border-dashed border-gray-300 dark:border-gray-600 rounded-2xl py-3 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     文献やマニュアルも読み取る
+                    <ChevronDown className="h-3.5 w-3.5" aria-hidden />
                   </button>
                 )}
                 <button type="button" disabled={!medicalId || busy} onClick={() => runGuarded(confirmDbs)} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
