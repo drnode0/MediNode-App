@@ -17,6 +17,7 @@ import {
 import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
+import { readPreviewFlagFromBrowser, clearPreviewCookie } from '@/lib/easy-connect-preview'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
@@ -384,6 +385,10 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   // 「元の接続に戻す」の誤タップ防止（一度押してから確定する）。押し間違えると
   // 動いている接続が切れるので、確認を挟む（§10b step 5）。
   const [restoreArmed, setRestoreArmed] = useState(false)
+  // 登録先行プレビュー（?preview=easyconnect）の解除口。持っている人にだけ出す。
+  // マウント後に読むのは、SSRとクライアントで document.cookie が食い違うのを避けるため。
+  const [previewOn, setPreviewOn] = useState(false)
+  useEffect(() => { setPreviewOn(readPreviewFlagFromBrowser()) }, [])
   // 追加部署の保存結果（成功／必須未入力）。他の保存と違いフィードバックが無く
   // 「入れたのに保存されない」と誤解されていたため、専用の表示を持たせる。
   const [addTeamMsg, setAddTeamMsg] = useState<{ type: 'ok' | 'warn'; text: string } | null>(null)
@@ -1186,6 +1191,21 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   </div>
                 )
               })()}
+              {/* 登録先行プレビューの解除口（設計書§17）。画面順序だけを元に戻す。 */}
+              {previewOn && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    この端末では、初回セットアップの順序が新しい形（アカウント登録が最初）になっています。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { clearPreviewCookie(); setPreviewOn(false) }}
+                    className="text-xs text-gray-500 dark:text-gray-400 underline"
+                  >
+                    元の順序に戻す
+                  </button>
+                </div>
+              )}
               {/* 初回セットアップと同じ画面つき手順書をここからも開ける */}
               <button
                 type="button"
