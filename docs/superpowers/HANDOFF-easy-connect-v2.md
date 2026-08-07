@@ -2,6 +2,41 @@
 
 最終更新: 2026-08-05
 
+## 🚀 公開当日のチェックリスト（2026-08-08 公開予定）
+
+### 直前の実機確認（15分・オーナーのiPhone）
+
+- [ ] **PWA（ホーム画面のMediNode）**：設定 → Notion接続 →「Notionでページを選び直す」→ 許可 → PWAに戻って仕上げシートが自動で開くか（唯一の未確認経路。横取りされたら「リンクをコピー」→Safari）
+- [ ] **登録→検索開始の通し**：プライベートブラウザで `https://medical-search-public.vercel.app/?preview=easyconnect` → はじめて使う方 → メール登録（副アドレスでよい）→ 対象 → 完了まで
+
+### 公開作業（10分）
+
+1. [ ] **Vercelにenvを2つ追加**（[dashboard](https://vercel.com/dashboard) → medical-search-public → Settings → Environment Variables → Production）
+   - `EASY_CONNECT_GA` = `true`
+   - `NEXT_PUBLIC_EASY_CONNECT_GA` = `true`
+   - **必ず2つ同時**。追加後 Deployments → 最新 → **Redeploy が必須**（NEXT_PUBLIC_ はビルド時に焼き込まれるため）
+2. [ ] **LPを公開**：`cd ~/work/medinode-lp && git push origin ga-easy-connect:main`（push即本番・3コミット）
+3. [ ] 📘ガイド（Notion）は更新済み。「順次公開中」の語を外すだけ（任意・あとでよい）
+
+### 公開後の確認（5分）
+
+- [ ] プライベートブラウザで通常URL（?preview無し）→「はじめて使う方」の1つ目が**「登録」**になっている
+- [ ] 設定 → Notion接続に接続カード（Notionの画面で許可）が出ている
+- ※ 既存ユーザーはService Workerの仕様で**1回目のロードは旧画面**。2回目から新しくなる（正常）
+
+### 公開後に見る数字（当日〜数日）
+
+- /admin 離脱ヒストグラムの**「登録」通過率**（現行の完遂率は9割前後。明確に悪化したらロールバック判断）
+- easy_connect の start→claimed 完遂率・`db_unreadable` の発生数
+- Sentry（かんたん接続系のエラー急増が無いか）
+
+### ロールバック（5分・いつでも）
+
+- アプリ：Vercelの env 2つを**削除 → Redeploy**。カード非表示・登録は最後・auto-trial即時付与、すべて公開前に戻る（すでに認可した人の接続は生きたまま＝壊れない）
+- LP：`cd ~/work/medinode-lp && git revert --no-edit HEAD~3..HEAD && git push origin main`
+
+---
+
 ## 30秒で現在地
 
 Notion接続を「トークンを自分で作ってコピーする」から「Notionの画面でページを選んで許可するだけ」に置き換える仕事。**段B（アプリ側）まで書き終わっている。** 残るのは段C（登録先行）と段D（実機マトリクス→GA）。
