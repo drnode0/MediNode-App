@@ -403,7 +403,7 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-5 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />かんたん接続（推奨）</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />Notionの画面で許可する（標準）</p>
           <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
             「Notionでページを選んで接続する」を押すと、Notionの画面が開きます。読ませたいページを選んで許可し、アプリに戻って読み取るデータベースを確認すれば完了です。トークンの作成もコピーも要りません。以下の説明は、<strong>手動で接続する場合</strong>のものです。
           </p>
@@ -1697,9 +1697,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   ここでのチェックは表示制御のみ。アカウント側が許可すると表示される。 */}
               {easyConnectOn && (
               <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2 bg-brand-50/50 dark:bg-brand-900/20">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">かんたん接続 <span className="ml-1 text-[10px] align-middle bg-brand-600 text-white rounded-full px-2 py-0.5">推奨</span></p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">Notionの画面でページを選んで許可するだけ</p>
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                  Notionの画面でページを選んで許可するだけで、接続が終わります。トークンの作成やコピーは不要です。既存のページを編集することはありません。
+                  トークンの作成やコピーは不要です。既存のページを編集することはありません。
                 </p>
                 <button
                   type="button"

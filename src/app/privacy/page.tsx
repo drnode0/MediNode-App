@@ -53,8 +53,8 @@ export default function PrivacyPage() {
                 「2. データの保存場所」をご覧ください。
               </li>
               <li>
-                <strong>かんたん接続（Notion公式のOAuth認可）情報</strong>：
-                かんたん接続（Notion公式のOAuth認可）をご利用の場合、Notionが発行するアクセストークンと
+                <strong>Notion接続（Notion公式のOAuth認可）情報</strong>：
+                Notion接続（Notion公式のOAuth認可）をご利用の場合、Notionが発行するアクセストークンと
                 ワークスペース名を、暗号化のうえサーバーに保存します。このトークンで当サービスが行うのは、
                 お客様が許可したページの読み取りと、疑問メモの新規作成のみです。既存のページを編集することは
                 ありません。接続はNotion側の設定からいつでも解除できます。

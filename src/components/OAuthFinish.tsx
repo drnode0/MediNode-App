@@ -202,7 +202,7 @@ export function OAuthFinish({
     try {
       if (mode === 'repick') {
         if (!local?.notionToken) {
-          setError('接続情報が見つかりません。もう一度かんたん接続からお試しください。')
+          setError('接続情報が見つかりません。設定 → Notion接続から、もう一度お試しください。')
           setPhase('error')
           return
         }
@@ -525,9 +525,9 @@ export function OAuthFinish({
             ワークスペース名は、その下に小さく添える。 */}
         <div>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Notionとつなぐ</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            かんたん接続{workspace ? `：${workspace}` : ''}
-          </p>
+          {workspace && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">接続先：{workspace}</p>
+          )}
         </div>
 
         {phase === 'claiming' && (

@@ -1102,7 +1102,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 return (
                   <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 space-y-2 text-xs text-brand-800 dark:text-brand-200">
                     <p className="font-semibold">
-                      かんたん接続でつながっています{authSettings.notionWorkspaceName ? `（${authSettings.notionWorkspaceName}）` : ''}
+                      Notionとつながっています{authSettings.notionWorkspaceName ? `（${authSettings.notionWorkspaceName}）` : ''}
                     </p>
                     <p>Tokenの入力は不要です。変えたいときは、この2つだけ。</p>
                     <button
@@ -1132,7 +1132,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 if (!isEasyConnectVisible()) return null
                 return (
                   <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 space-y-2 text-xs text-brand-800 dark:text-brand-200">
-                    <p className="font-semibold">かんたん接続に切り替えられます</p>
+                    <p className="font-semibold">Tokenなしの接続に切り替えられます</p>
                     <p>
                       Notionの画面で読ませたいページを選んで許可するだけでつながります。Tokenをコピーして貼り付ける必要はありません。
                     </p>
@@ -1141,7 +1141,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                       onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
-                      かんたん接続に切り替える
+                      Notionでページを選んで切り替える
                     </button>
                     <p className="text-brand-700/80 dark:text-brand-300/80 leading-relaxed">
                       いまのTokenは預かっておき、切り替えたあとでも「元の接続に戻す」で戻せます。許可したページの中に、いま読んでいるデータベースが入っていないときは、<strong>設定を変えずにその場で止まります</strong>。
@@ -1159,7 +1159,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 return (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 text-xs text-gray-600 dark:text-gray-300">
                     <p className="font-semibold text-gray-800 dark:text-gray-100">元の接続に戻せます</p>
-                    <p>かんたん接続に切り替える前のTokenを預かっています。うまく読めなくなっていたら、こちらへ戻せます。</p>
+                    <p>切り替える前のTokenを預かっています。うまく読めなくなっていたら、こちらへ戻せます。</p>
                     <button
                       type="button"
                       onClick={() => {
@@ -1190,7 +1190,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                       </button>
                     )}
                     <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
-                      戻すと、かんたん接続でつないだ接続は使われなくなります（あとからもう一度つなぎ直せます）。読み取るデータベースの指定は変わりません。
+                      戻すと、Notionの画面で許可した接続は使われなくなります（あとからもう一度つなぎ直せます）。読み取るデータベースの指定は変わりません。
                     </p>
                   </div>
                 )
@@ -1340,7 +1340,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     </summary>
                     <div className="p-3 space-y-4">
                       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                        かんたん接続でつながっている間、ここを入力する必要はありません。Tokenでの接続に切り替えたいときだけ使います（Tokenを入れて保存すると、かんたん接続は使われなくなります）。
+                        いまの接続（Notionの画面で許可）を使っている間、ここを入力する必要はありません。Token接続に切り替えたいとき——部署の共有DBを使う・ゲスト参加のNotionにつなぐ等——だけ使います（Tokenを入れて保存すると、いまの接続は使われなくなります）。
                       </p>
                       {manualBody}
                     </div>
