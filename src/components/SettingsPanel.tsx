@@ -1086,10 +1086,13 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
           {section === 'notion' && (
             <div className="space-y-4">
               {/* 手入力の前に: ログインで復元できることを最初に案内（再インストール後の
-                  「また入れ直し」を防ぐ。実機で最も多い詰まりどころ）。 */}
+                  「また入れ直し」を防ぐ。実機で最も多い詰まりどころ）。かんたん接続で
+                  つながっている間は手入力自体が無いので出さない（2026-08-07 実機FB）。 */}
+              {getSettings()?.notionAuthKind !== 'oauth' && (
               <div className="bg-brand-50 dark:bg-brand-900/25 border border-brand-100 dark:border-brand-800 rounded-xl p-3 text-xs text-brand-800 dark:text-brand-200 leading-relaxed">
                 <Lightbulb className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom mr-1" /><strong>入れ直す前に：</strong>一度ログインしていれば、再インストールや別端末でも<strong>ログインするだけで設定が戻ります</strong>（手入力は不要）。ヘッダー左上の「ログイン」から。復元されない項目だけ、下の各欄を埋めてください。
               </div>
+              )}
               {/* かんたん接続でつながっている場合の表示。DBの選び直しは再認可なしで行える。
                   ページを増やす・減らす必要があるときだけNotionの画面へ出す（§19a・§19b）。 */}
               {(() => {
@@ -1101,7 +1104,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     <p className="font-semibold">
                       かんたん接続でつながっています{authSettings.notionWorkspaceName ? `（${authSettings.notionWorkspaceName}）` : ''}
                     </p>
-                    <p>読み取るデータベースを変えるだけなら、Notionの画面に出る必要はありません。</p>
+                    <p>Tokenの入力は不要です。変えたいときは、この2つだけ。</p>
                     <button
                       type="button"
                       onClick={() => window.dispatchEvent(new Event('medinode:open-db-repick'))}
@@ -1109,15 +1112,12 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     >
                       読み取るDBを選び直す
                     </button>
-                    <p className="text-brand-700/80 dark:text-brand-300/80">
-                      許可していないページのデータベースを使いたいときは、Notionの画面でページを選び直してください。
-                    </p>
                     <button
                       type="button"
                       onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings_repick' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
-                      Notionでページを選び直す
+                      Notionでページを選び直す（許可を増やす・減らす）
                     </button>
                   </div>
                 )
@@ -1210,6 +1210,12 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   </button>
                 </div>
               )}
+              {(() => {
+                // 手動接続（Token）の設定一式。かんたん接続でつながっている間は畳んでおく。
+                // かんたん接続はTokenの置き換えなので、ここを埋める必要はない——出しっぱなしに
+                // すると「まだ何か入力が要るのか」と誤読される（2026-08-07 実機FB）。
+                const easyConnected = getSettings()?.notionAuthKind === 'oauth'
+                const manualBody = (<>
               {/* 初回セットアップと同じ画面つき手順書をここからも開ける */}
               <button
                 type="button"
@@ -1325,6 +1331,22 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
               >
                 保存する
               </button>
+                </>)
+                if (!easyConnected) return manualBody
+                return (
+                  <details className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <summary className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/40">
+                      手動接続（Token）の設定
+                    </summary>
+                    <div className="p-3 space-y-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                        かんたん接続でつながっている間、ここを入力する必要はありません。Tokenでの接続に切り替えたいときだけ使います（Tokenを入れて保存すると、かんたん接続は使われなくなります）。
+                      </p>
+                      {manualBody}
+                    </div>
+                  </details>
+                )
+              })()}
               {/* 解決しないときの出口: アプリ内FAQ検索へ */}
               <button
                 type="button"
