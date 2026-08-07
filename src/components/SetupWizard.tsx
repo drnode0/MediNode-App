@@ -403,7 +403,14 @@ const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
     content: (
       <div className="space-y-5 text-sm">
         <section>
-          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Compass className="inline-block h-4 w-4 align-text-bottom mr-1.5" />全体の流れ</p>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />かんたん接続（推奨）</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+            「Notionでページを選んで接続する」を押すと、Notionの画面が開きます。読ませたいページを選んで許可し、アプリに戻って読み取るデータベースを確認すれば完了です。トークンの作成もコピーも要りません。以下の説明は、<strong>手動で接続する場合</strong>のものです。
+          </p>
+        </section>
+
+        <section>
+          <p className="font-bold text-gray-800 dark:text-gray-100 mb-2"><Compass className="inline-block h-4 w-4 align-text-bottom mr-1.5" />手動接続の全体の流れ</p>
           <ol className="text-xs text-gray-600 dark:text-gray-300 list-decimal list-inside space-y-0.5">
             <li><strong>コネクト（旧称: インテグレーション）を作成</strong> → Tokenを取得</li>
             <li>NotionでDBに <strong>「コネクトを追加」</strong> してアクセス許可</li>
@@ -1474,7 +1481,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               </p>
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
                 {registerFirst
-                  ? '※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定はアカウントに保存されるので、スマホではログインするだけで引き継げます。'
+                  ? '※ Notionとの接続はスマホだけでも完了できます。設定はアカウントに保存され、別の端末でもログインするだけで引き継げます。'
                   : '※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定の最後にアカウント登録すると保存されるので、スマホではログインするだけで引き継げます。'}
               </p>
             </div>
@@ -1645,7 +1652,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <span className="text-xs font-semibold bg-green-600 text-white px-2 py-0.5 rounded-full">まず試す方へ</span>
                 </div>
                 <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
-                  Algoliaアカウント不要、設定は<strong>Notion Tokenのみ</strong>。最短ですぐ使い始められます。<br />
+                  Algoliaアカウント不要、<strong>Notionとつなぐだけ</strong>。最短ですぐ使い始められます。<br />
                   <span className="text-green-600/80 dark:text-green-500">※ 検索のたびNotionへ問い合わせるため、表示まで1〜3秒かかります</span>
                 </p>
               </button>
