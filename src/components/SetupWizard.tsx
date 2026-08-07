@@ -20,10 +20,11 @@ import { PremiumValueProps } from './PremiumValueProps'
 import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
 import { LoginModal } from './auth/LoginModal'
+import { readPreviewFlagFromBrowser } from '@/lib/easy-connect-preview'
 
 // 'entry' はオンボーディング直後の入口分岐（アカウント作成済み / はじめて使う）。
 // 純粋な分岐画面でステップインジケーターには含めない（後述の allSteps は 'start' から）。
-type Step = 'entry' | 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
+type Step = 'entry' | 'register' | 'start' | 'mode' | 'notion' | 'algolia' | 'sync' | 'options'
 type NotionSetupMode = 'choose' | 'after-template' | 'existing'
 
 // セットアップ開始時に「何から始めるか」を選ぶ。1つ以上選べばOK。
@@ -333,6 +334,19 @@ const SETUP_GUIDE_URL = 'https://foregoing-feta-45b.notion.site/MediNode-378fd75
 
 // ステップごとのヘルプ内容
 const STEP_HELP: Record<Step, { title: string; content: React.ReactNode }> = {
+  register: {
+    title: 'アカウントの登録',
+    content: (
+      <div className="space-y-4 text-sm">
+        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          メールアドレスを入力すると6桁のコードが届きます。パスワードは後から任意で設定できます。
+        </p>
+        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          設定はこのアカウントに保存されるので、別の端末ではログインするだけで同じ状態になります。
+        </p>
+      </div>
+    ),
+  },
   entry: {
     title: 'はじめに（アカウントについて）',
     content: (
@@ -671,6 +685,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // settings が更新されても、そのチャンクが最初に評価された時点の値（多くの場合false）に
   // 凍結されたままになり、表示が更新されない。
   const easyConnectOn = isEasyConnectVisible()
+  // 登録先行（設計書§9）。プレビュー鍵を持つブラウザだけ順序が変わる。
+  // マウント時に1回だけ読む（途中でURLが変わっても順序を入れ替えない）。
+  const [registerFirst] = useState(() => readPreviewFlagFromBrowser())
   // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
   const [step, setStep] = useState<Step>(initialStep || 'entry')
   // 「何から始めるか」の選択。最初から通る場合は未選択で始める（モニターFB:
@@ -700,7 +717,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // 'register'        = 設定完了時（options末尾）に行うアカウント登録（成功で設定保存＋完了）
   // 'register-inline' = optionsの途中でトライアルコード利用に必要になった時の登録
   //                     （成功でモーダルを閉じるだけ。ユーザーはコード入力に戻る）
-  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-inline'>('restore')
+  // 'register-first'  = 登録先行の1ステップ目（成功で知識の選択へ進めるだけ）
+  const [loginPurpose, setLoginPurpose] = useState<'restore' | 'register' | 'register-inline' | 'register-first'>('restore')
   // 'restore' ログイン成功後、サーバー設定の取得〜完了判定までの間の表示用。
   const [restoring, setRestoring] = useState(false)
   // optionsステップに直行した場合はプレミアムセクションを自動展開
@@ -1172,7 +1190,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // - personal を含む: モード選択あり。Notion入力が必要。power なら algolia/sync も。
   const skipMode = !targets.personal
   const allSteps: { id: Step; label: string }[] = (() => {
-    const list: { id: Step; label: string }[] = [{ id: 'start', label: '対象' }]
+    const list: { id: Step; label: string }[] = []
+    // 登録も工程として見せる（残り工程数を偽らない・§9c）。
+    if (registerFirst) list.push({ id: 'register', label: '登録' })
+    list.push({ id: 'start', label: '対象' })
     if (skipMode) {
       list.push({ id: 'options', label: '設定' })
       return list
@@ -1433,7 +1454,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   設定の最後に行う（先に登録を求めると説明文言とも食い違い、離脱点になる）。
                   途中でトライアルコードを使う場合のみ、その場でログインを促す（register-inline）。 */}
               <button
-                onClick={() => setStep('start')}
+                onClick={() => setStep(registerFirst ? 'register' : 'start')}
                 className="w-full border-2 border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/20 rounded-xl p-4 text-left hover:border-brand-400 dark:hover:border-brand-600 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -1441,7 +1462,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                   <p className="text-sm font-bold text-brand-800 dark:text-brand-200">はじめて使う方</p>
                 </div>
                 <p className="text-xs text-brand-700 dark:text-brand-300 leading-relaxed pl-7">
-                  使いたい知識を選んでセットアップします。アカウント登録（メール）は、設定の最後に行います。
+                  {registerFirst
+                    ? 'メールアドレスでアカウントを作ってから、使いたい知識を選んで設定します。'
+                    : '使いたい知識を選んでセットアップします。アカウント登録（メール）は、設定の最後に行います。'}
                 </p>
               </button>
 
@@ -1449,8 +1472,56 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 ※ メールアドレスだけで始められます（届く6桁コードで認証）。パスワードは後から任意で設定できます。
               </p>
               <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-                ※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定の最後にアカウント登録すると保存されるので、スマホではログインするだけで引き継げます。
+                {registerFirst
+                  ? '※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定はアカウントに保存されるので、スマホではログインするだけで引き継げます。'
+                  : '※ Notionの初回設定はパソコンのブラウザで行うと簡単です。設定の最後にアカウント登録すると保存されるので、スマホではログインするだけで引き継げます。'}
               </p>
+            </div>
+          )}
+
+          {/* 登録先行（§9）。ゲートではなく持ち物として見せる。スキップは置かないが、
+              「戻る」で入口へは戻れる。入力途中の設定は saveDraft が保持している。 */}
+          {step === 'register' && (
+            <div className="space-y-5">
+              <div>
+                <button
+                  onClick={() => { setError(''); setStep('entry') }}
+                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3"
+                >
+                  ← 戻る
+                </button>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">まず、あなたのアカウントを作ります</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  設定はアカウントに保存されるので、スマホでもパソコンでも同じ状態で使えます。
+                </p>
+              </div>
+
+              {user ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    登録済みです{user.email ? `（${user.email}）` : ''}。
+                  </p>
+                  <button
+                    onClick={() => { setError(''); setStep('start') }}
+                    className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl transition-colors"
+                  >
+                    次へ<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => { setError(''); setLoginPurpose('register-first'); setShowLogin(true) }}
+                    className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl transition-colors"
+                  >
+                    メールアドレスで登録する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" />
+                  </button>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                    メールアドレスだけで登録できます（届く6桁コードで認証）。パスワードは後から任意で設定できます。料金はかかりません。
+                  </p>
+                </div>
+              )}
+              {error && <p className="text-xs text-red-500 leading-relaxed">{error}</p>}
             </div>
           )}
 
@@ -2409,7 +2480,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                             ここに入力欄が並ぶせいで「何か入れないと使えない」と誤解される（モニターFB 2026-07-18）。 */}
                         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 space-y-1">
                           <p className="text-xs font-bold text-green-700 dark:text-green-400"><CheckCircle2 className="inline-block h-4 w-4 align-text-bottom mr-1.5" />ここでの入力は不要です</p>
-                          <p className="text-[11px] text-green-700 dark:text-green-500 leading-relaxed">コード入力もカード登録もいりません。このまま下の「<strong>メールを登録して検索を開始する</strong>」を押すと、<strong>{autoTrialDays()}日間の無料お試し</strong>が自動で始まります。</p>
+                          <p className="text-[11px] text-green-700 dark:text-green-500 leading-relaxed">コード入力もカード登録もいりません。このまま下の「<strong>{registerFirst && user ? '検索を開始する' : 'メールを登録して検索を開始する'}</strong>」を押すと、<strong>{autoTrialDays()}日間の無料お試し</strong>が自動で始まります。</p>
                         </div>
                         {/* プレミアムタブと共通の充実した訴求（串刺し検索・含まれるコンテンツ・こんな方におすすめ） */}
                         <PremiumValueProps />
@@ -2468,7 +2539,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 }}
                 className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
-                {user ? <>設定を保存して検索を開始する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></> : <>メールを登録して検索を開始する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
+                {user
+                  ? <>{registerFirst ? '検索を開始する' : '設定を保存して検索を開始する'}<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>
+                  : <>メールを登録して検索を開始する<ArrowRight className="inline-block h-4 w-4 align-text-bottom ml-1" /></>}
               </button>
               {!user && (
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
@@ -2504,6 +2577,12 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
         <LoginModal
           onClose={() => setShowLogin(false)}
           onSuccess={() => {
+            if (loginPurpose === 'register-first') {
+              // 登録先行。保存も完了もせず、知識の選択へ進めるだけ。
+              setShowLogin(false)
+              setStep('start')
+              return
+            }
             if (loginPurpose === 'register-inline') {
               // トライアルコード／カード登録のための途中登録。保存も完了もせず、元のステップに戻すだけ。
               setShowLogin(false)
@@ -2532,7 +2611,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
           }}
           purpose={loginPurpose === 'restore' ? 'login' : 'register'}
           reason={
-            loginPurpose === 'register-inline'
+            loginPurpose === 'register-first'
+              ? 'メールアドレスでアカウントを登録します。このあとの設定はアカウントに保存され、別の端末でもログインだけで引き継げます。'
+              : loginPurpose === 'register-inline'
               ? 'トライアルコードやカード登録のご利用にはアカウント登録（無料・メールアドレスのみ）が必要です。登録が終わったら、もう一度先ほどのボタンからお進みください。'
               : loginPurpose === 'register'
               ? 'メールアドレスでアカウントを登録します。設定が暗号化のうえ保存され、別の端末でもログインだけで引き継げます。'

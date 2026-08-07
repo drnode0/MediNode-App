@@ -131,6 +131,7 @@ const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: stri
 // セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。
 const STEP_LABEL: Record<string, string> = {
   entry: '入口',
+  register: '登録',
   start: '知識の選択',
   mode: '接続モード',
   notion: 'Notion設定',
@@ -138,7 +139,7 @@ const STEP_LABEL: Record<string, string> = {
   sync: '同期',
   options: 'オプション入力',
 }
-const STEP_ORDER = ['entry', 'start', 'mode', 'notion', 'algolia', 'sync', 'options']
+const STEP_ORDER = ['entry', 'register', 'start', 'mode', 'notion', 'algolia', 'sync', 'options']
 
 const TARGET_LABEL: Record<string, string> = {
   premium: '専門医の知識',

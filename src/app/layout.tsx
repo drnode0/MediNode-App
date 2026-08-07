@@ -9,6 +9,7 @@ import { UsagePing } from '@/components/auth/UsagePing'
 import { SourceCapture } from '@/components/auth/SourceCapture'
 import { AuthNotice } from '@/components/auth/AuthNotice'
 import { ThemeSync } from '@/components/ThemeSync'
+import { EasyConnectPreview } from '@/components/EasyConnectPreview'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsEvents } from '@/components/AnalyticsEvents'
 import { PwaRuntime } from '@/components/PwaRuntime'
@@ -135,6 +136,7 @@ export default function RootLayout({
           <SettingsSync />
           <UsagePing />
           <SourceCapture />
+          <EasyConnectPreview />
           <AuthNotice />
           {children}
         </AuthProvider>
