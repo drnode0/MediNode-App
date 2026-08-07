@@ -29,7 +29,10 @@ function hasPreviewCookie(cookie: string): boolean {
     .some((c) => c.startsWith(`${PREVIEW_COOKIE}=`) && c.slice(PREVIEW_COOKIE.length + 1) === '1')
 }
 
-export function isRegisterFirstEnabled(input: { search?: string; cookie?: string }): boolean {
+export function isRegisterFirstEnabled(input: { search?: string; cookie?: string; ga?: boolean }): boolean {
+  // GA後（NEXT_PUBLIC_EASY_CONNECT_GA=true）は全員が登録先行。?preview=off でも
+  // 戻さない——GA後の「元の順序」はもう存在せず、Cookieはプレビュー期間の名残でしかない。
+  if (input.ga) return true
   const action = previewActionFromSearch(input.search ?? '')
   if (action === 'clear') return false
   if (action === 'set') return true
@@ -38,7 +41,11 @@ export function isRegisterFirstEnabled(input: { search?: string; cookie?: string
 
 export function readPreviewFlagFromBrowser(): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false
-  return isRegisterFirstEnabled({ search: window.location.search, cookie: document.cookie })
+  return isRegisterFirstEnabled({
+    search: window.location.search,
+    cookie: document.cookie,
+    ga: process.env.NEXT_PUBLIC_EASY_CONNECT_GA === 'true',
+  })
 }
 
 export function writePreviewCookie(): void {
