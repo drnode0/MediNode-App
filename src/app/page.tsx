@@ -92,6 +92,7 @@ import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUES
 import { installClientErrorCapture } from '@/lib/client-errors'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
+import { recordSimpleSearchLatency } from '@/lib/power-mode-suggest'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
 import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
@@ -1395,6 +1396,9 @@ function useNotionSearch(mode: Tab) {
       setRefreshing(false)
     }
 
+    // パワーモード誘導のトリガー用に、Notion直読み検索の体感時間を記録する
+    // （power-mode-suggest.ts。5回以上・2秒超3回で初めてバナーが出る）。
+    const searchStartedAt = performance.now()
     try {
       const res = await window.fetch('/api/notion/search', {
         method: 'POST',
@@ -1415,6 +1419,8 @@ function useNotionSearch(mode: Tab) {
         }),
       })
       const data = await res.json()
+      // 破棄されるレスポンスでも所要時間は本物なので、race判定より先に記録する。
+      recordSimpleSearchLatency(performance.now() - searchStartedAt)
       // このレスポンスが最新リクエストでなければ破棄（race condition対策）
       if (reqId !== reqIdRef.current) return
       if (!res.ok) throw new Error(data.error || '検索に失敗しました')

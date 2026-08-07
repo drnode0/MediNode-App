@@ -9,6 +9,7 @@ import { useState, useEffect, useContext } from 'react'
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
+import { shouldSuggestPowerMode, readSearchLatencies } from '@/lib/power-mode-suggest'
 import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, type LucideIcon } from 'lucide-react'
 
 // ============================================================
@@ -247,18 +248,27 @@ export function FeedbackNudgeBanner() {
 }
 
 
-// シンプルモード（Notion直接検索）使用中に、パワーモードへの誘導を出すバナー
+// シンプルモード（Notion直接検索）使用中に、パワーモードへの誘導を出すバナー。
+// 以前は全員に初回から出していたが、「5回以上検索し、うち3回が2秒超」の人にだけ
+// 出すように変更（2026-08-07 オーナー決定。トリガーは power-mode-suggest.ts）。
+// 初回セットアップからモード選択を外したため、このバナーがパワーモードへの主動線になる。
 const POWER_BANNER_DISMISS_KEY = 'medinode_power_banner_dismissed_v1'
 export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [dismissed, setDismissed] = useState(true) // SSR時はちらつき防止のため初期true
+  const [triggered, setTriggered] = useState(false)
   useEffect(() => {
     try {
       setDismissed(localStorage.getItem(POWER_BANNER_DISMISS_KEY) === '1')
     } catch {
       setDismissed(false)
     }
+    const evaluate = () => setTriggered(shouldSuggestPowerMode(readSearchLatencies()))
+    evaluate()
+    // 検索のたびに記録側がイベントを投げる。しきい値を跨いだ瞬間から出せるようにする。
+    window.addEventListener('medinode:simple-search-recorded', evaluate)
+    return () => window.removeEventListener('medinode:simple-search-recorded', evaluate)
   }, [])
-  if (dismissed) return null
+  if (dismissed || !triggered) return null
   return (
     <div className="mb-4 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
       <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />

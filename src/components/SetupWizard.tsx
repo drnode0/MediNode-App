@@ -1206,7 +1206,9 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       list.push({ id: 'options', label: '設定' })
       return list
     }
-    list.push({ id: 'mode', label: 'モード' })
+    // モードは初回セットアップでは選ばせない。「モードを切り替える」の再設定で
+    // 入ったときだけステップとして見せる。
+    if (initialStep === 'mode') list.push({ id: 'mode', label: 'モード' })
     list.push({ id: 'notion', label: 'Notion' })
     if (form.searchMode === 'algolia') {
       list.push({ id: 'algolia', label: 'Algolia' })
@@ -1596,8 +1598,17 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                     setForm((f) => ({ ...f, searchMode: 'notion' }))
                     setOpenSection(targets.team ? 'team' : 'subscription')
                     setStep('options')
-                  } else {
+                  } else if (initialStep === 'mode') {
+                    // 「モードを切り替える」の再設定で入り、startへ戻ってから進み直した場合
+                    // だけモード選択を通す。
                     setStep('mode')
+                  } else {
+                    // 初回はモードを選ばせない（2026-08-07 オーナー決定）。シンプルモードで
+                    // 開始し、パワーモードは「遅さを体感した人向けのアップグレード」に一本化
+                    // （検索タブのバナー＝power-mode-suggest.ts のトリガー＋設定のモード切替）。
+                    // すでにパワーモードの人はこの分岐を通らない（初回セットアップのみ）。
+                    setForm((f) => ({ ...f, searchMode: 'notion' }))
+                    setStep('notion')
                   }
                 }}
                 disabled={!targets.personal && !targets.team && !targets.premium}
