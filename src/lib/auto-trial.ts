@@ -18,3 +18,15 @@ export function isAutoTrialEligible(opts: {
   if (opts.hasSubscriptionRow) return false
   return true
 }
+
+// 付与を叩くタイミングの判定（設計書§11）。
+// 登録先行では登録がセットアップの最初に来るため、ログイン直後に叩くと
+// 設定を終える前に体験日数が減り始める。完了までは叩かない。
+// セットアップ完了時の付与は SetupWizard の finishWithPremiumBootstrap() が行う。
+export function shouldRequestAutoTrial(opts: {
+  registerFirst: boolean
+  setupComplete: boolean
+}): boolean {
+  if (!opts.registerFirst) return true
+  return opts.setupComplete
+}

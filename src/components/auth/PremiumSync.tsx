@@ -12,8 +12,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthProvider'
-import { getSettings, saveSettings, type AppSettings } from '@/lib/settings'
+import { getSettings, saveSettings, isSetupComplete, type AppSettings } from '@/lib/settings'
 import { isSettingsSyncSettled, onSettingsSyncSettled } from './SettingsSync'
+import { shouldRequestAutoTrial } from '@/lib/auto-trial'
+import { readPreviewFlagFromBrowser } from '@/lib/easy-connect-preview'
 
 // Stripe決済から戻ったロード（?premium_session= を verify 処理中）を示すフラグ。
 // page.tsx の verify エフェクトが URL からパラメータを消す前に立て、完了時に消す。
@@ -84,7 +86,12 @@ export function PremiumSync() {
       try {
         // 登録時自動トライアル（3日・コード不要）。対象外・付与済みはサーバーがno-op。
         // statusより先に呼ぶことで、付与直後の初回ログインでもこの後のstatusがactiveになる。
-        try { await fetch('/api/premium/auto-trial', { method: 'POST' }) } catch {}
+        // 登録先行のときだけ、セットアップ完了までは叩かない（設計書§11）。ここは
+        // SettingsSync の決着後にしか来ないため、isSetupComplete() は同期済みの設定を見る。
+        // 完了時の付与は SetupWizard の finishWithPremiumBootstrap() が行う。
+        if (shouldRequestAutoTrial({ registerFirst: readPreviewFlagFromBrowser(), setupComplete: isSetupComplete() })) {
+          try { await fetch('/api/premium/auto-trial', { method: 'POST' }) } catch {}
+        }
 
         const res = await fetch('/api/premium/status', { cache: 'no-store' })
         const data = await res.json()
