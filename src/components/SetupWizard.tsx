@@ -21,6 +21,7 @@ import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
 import { LoginModal } from './auth/LoginModal'
 import { readPreviewFlagFromBrowser } from '@/lib/easy-connect-preview'
+import { DB_PICK_HINT, DB_ROLE_UI } from '@/lib/notion-db-guess'
 
 // 'entry' はオンボーディング直後の入口分岐（アカウント作成済み / はじめて使う）。
 // 純粋な分岐画面でステップインジケーターには含めない（後述の allSteps は 'start' から）。
@@ -1894,10 +1895,16 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                       </div>
 
                       <div className="space-y-3">
+                        {/* 「自分のNotionの何を選べばいいのか分からない」への手がかり。
+                            かんたん接続の仕上げシートと同じ文を出す（2026-08-07）。 */}
+                        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-700/40 rounded-lg p-2.5">
+                          {DB_PICK_HINT}
+                        </p>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Medical DB の URL <span className="text-red-500">*</span>
                           </label>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{DB_ROLE_UI.medical.where}</p>
                           <input
                             type="text"
                             value={form.notionMedicalDbId}
@@ -1915,6 +1922,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Reference DB の URL <span className="text-gray-400 font-normal text-xs">（任意）</span>
                           </label>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{DB_ROLE_UI.reference.where}</p>
                           <input
                             type="text"
                             value={form.notionReferenceDbId}
@@ -1928,6 +1936,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Manual DB の URL <span className="text-gray-400 font-normal text-xs">（マニュアル・お知らせ・任意）</span>
                           </label>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">{DB_ROLE_UI.manual.where}</p>
                           <input
                             type="text"
                             value={form.notionManualDbId}
