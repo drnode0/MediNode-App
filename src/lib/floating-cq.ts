@@ -67,12 +67,6 @@ export type PlacedCq = CqSeed & {
   delaySeconds: number
 }
 
-// objectID は `${owner}_${NotionページID}`（同期・Notion直読みの両方で同じ形）。
-// 書き込みAPIへ渡すのはNotion側のページIDなので、接頭辞を落とす。
-export function notionPageIdOf(objectID: string): string {
-  return objectID.replace(/^(personal|team|subscription)_/, '')
-}
-
 export function isUnresolvedCq(hit: { knowledgeLevel?: string }): boolean {
   const level = (hit.knowledgeLevel || '').trim()
   return (CQ_LEVELS as readonly string[]).includes(level)

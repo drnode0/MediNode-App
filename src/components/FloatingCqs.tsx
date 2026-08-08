@@ -1,8 +1,8 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Undo2, Send } from 'lucide-react'
-import { getSettings, buildPropMap } from '@/lib/settings'
+import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Send } from 'lucide-react'
+import { getSettings } from '@/lib/settings'
 import {
   createSubscriptionSearchClient,
   getSubscriptionIndexName,
@@ -10,7 +10,6 @@ import {
 } from '@/lib/algolia'
 import {
   countNewAnswers,
-  notionPageIdOf,
   pickFloating,
   placeFloating,
   gridFor,
@@ -21,13 +20,11 @@ import {
   type NewAnswerMap,
   type PlacedCq,
 } from '@/lib/floating-cq'
-import { loadUnresolvedCqs, clearUnresolvedCount } from '@/lib/unresolved-cqs'
-import { markLocallyResolved, unmarkLocallyResolved } from '@/lib/locally-resolved'
+import { loadUnresolvedCqs } from '@/lib/unresolved-cqs'
 import {
   readSentCqs,
   buildDispatchStates,
   dispatchLabel,
-  forgetSentCq,
   type DispatchState,
 } from '@/lib/cq-dispatch'
 import type { MyStage } from '@/lib/cq-mine'
@@ -42,9 +39,6 @@ import { CqActionSheet } from '@/components/CqActionSheet'
 // 浮かぶのは自分の Medical DB の「知識レベル = ❓ CQ」だけ。💡ナレッジに育てば消える。
 // 登録日より後にプレミアムへ入ったナレッジが見つかったものだけを、明るく大きく出す。
 // この判定はプレミアムのみ。無料は全件が同じ薄さで静かに漂う。
-
-// 「元に戻す」を出しておく時間。押し間違いに気づく程度の長さに留める。
-const UNDO_MS = 8000
 
 type Loaded = { cqs: CqSeed[]; error: string } | null
 
@@ -65,8 +59,6 @@ export function UnresolvedCqScreen({
   const [loaded, setLoaded] = useState<Loaded>(null)
   const [newAnswers, setNewAnswers] = useState<NewAnswerMap>({})
   const [selected, setSelected] = useState<PlacedCq | null>(null)
-  const [resolving, setResolving] = useState(false)
-  const [undo, setUndo] = useState<CqSeed | null>(null)
   const [showRest, setShowRest] = useState(false)
   // 裏に回っている間はアニメーションを止める（見えない泡を動かし続けない）。
   const [paused, setPaused] = useState(false)
@@ -76,8 +68,6 @@ export function UnresolvedCqScreen({
   const [dispatch, setDispatch] = useState<Record<string, DispatchState>>({})
 
   const settings = getSettings()
-  const personalToken = settings?.notionToken || ''
-  const personalDbId = settings?.notionMedicalDbId || ''
 
   useEffect(() => {
     const sync = () => setPaused(document.hidden)
@@ -185,77 +175,6 @@ export function UnresolvedCqScreen({
   )
   const placed = useMemo(() => placeFloating(floating, newAnswers, grid), [floating, newAnswers, grid])
   const withNewAnswers = placed.filter((p) => p.newAnswerCount > 0).length
-
-  const dropCq = useCallback((objectID: string) => {
-    setLoaded((prev) => (prev ? { ...prev, cqs: prev.cqs.filter((c) => c.objectID !== objectID) } : prev))
-  }, [])
-
-  const writeLevel = useCallback(
-    async (cq: CqSeed, to: 'knowledge' | 'cq') => {
-      const current = getSettings()
-      const res = await fetch('/api/notion/resolve-cq', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notionToken: current?.notionToken,
-          notionMedicalDbId: current?.notionMedicalDbId,
-          pageId: notionPageIdOf(cq.objectID),
-          to,
-          knowledgeLevelProp: buildPropMap(current).knowledgeLevel,
-        }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error || '更新に失敗しました')
-      }
-      // 未解決の数が変わった。ヘッダーの入口の控えを捨てて実態に追従させる。
-      clearUnresolvedCount()
-    },
-    [],
-  )
-
-  const handleResolve = useCallback(
-    async (cq: PlacedCq) => {
-      setResolving(true)
-      try {
-        await writeLevel(cq, 'knowledge')
-        // 同期が追いつくまでこの泡を伏せる。控えないとリロードで戻ってくる
-        // （一覧はAlgoliaから引いており、再同期まで ❓CQ のままのため）。
-        markLocallyResolved(cq.objectID)
-        dropCq(cq.objectID)
-        // 泡が消える以上、投げた記録も残さない（戻したときは押し直しになる）。
-        forgetSentCq(cq.objectID)
-        setDispatch((prev) => {
-          const next = { ...prev }
-          delete next[cq.objectID]
-          return next
-        })
-        setSelected(null)
-        setUndo(cq)
-        window.setTimeout(() => setUndo((u) => (u?.objectID === cq.objectID ? null : u)), UNDO_MS)
-      } catch (e) {
-        setLoaded((prev) =>
-          prev ? { ...prev, error: e instanceof Error ? e.message : '更新に失敗しました' } : prev,
-        )
-      } finally {
-        setResolving(false)
-      }
-    },
-    [writeLevel, dropCq],
-  )
-
-  const handleUndo = useCallback(async () => {
-    if (!undo) return
-    const cq = undo
-    setUndo(null)
-    try {
-      await writeLevel(cq, 'cq')
-      unmarkLocallyResolved(cq.objectID)
-      setLoaded((prev) => (prev ? { ...prev, cqs: [cq, ...prev.cqs] } : prev))
-    } catch {
-      // 戻せなければNotion側で直せる。ここでエラーを重ねて出さない。
-    }
-  }, [undo, writeLevel])
 
   const handleSearch = useCallback(
     (cq: PlacedCq) => {
@@ -378,8 +297,6 @@ export function UnresolvedCqScreen({
       {selected && (
         <CqActionSheet
           cq={selected}
-          resolving={resolving}
-          canResolve={!!(personalToken && personalDbId)}
           dispatch={dispatch[selected.objectID]}
           onClose={() => setSelected(null)}
           onSearch={() => handleSearch(selected)}
@@ -395,24 +312,7 @@ export function UnresolvedCqScreen({
                 }
               : null
           }
-          onResolve={() => handleResolve(selected)}
         />
-      )}
-
-      {undo && (
-        <div className="fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
-          <div className="flex items-center gap-3 rounded-full bg-gray-900 dark:bg-gray-700 text-white text-sm pl-4 pr-2 py-2 shadow-lg">
-            <span>ナレッジにしました</span>
-            <button
-              type="button"
-              onClick={handleUndo}
-              className="inline-flex items-center gap-1 rounded-full bg-white/15 hover:bg-white/25 px-3 py-1 text-xs font-bold"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              元に戻す
-            </button>
-          </div>
-        </div>
       )}
     </div>
   )

@@ -1,5 +1,5 @@
 'use client'
-import { Search, Send, ExternalLink, Check, X, Sparkles } from 'lucide-react'
+import { Search, Send, ExternalLink, X, Sparkles } from 'lucide-react'
 import { formatCqAge, type PlacedCq } from '@/lib/floating-cq'
 import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
 
@@ -10,9 +10,6 @@ export function CqActionSheet({
   onClose,
   onSearch,
   onAsk,
-  onResolve,
-  resolving,
-  canResolve,
   dispatch,
 }: {
   cq: PlacedCq
@@ -20,10 +17,6 @@ export function CqActionSheet({
   onSearch: () => void
   // 届け先（プレミアム）が無いときは null。ボタンごと出さない。
   onAsk: (() => void) | null
-  onResolve: () => void
-  resolving: boolean
-  // 個人Notionが無い＝書き込み先が無いときは false。
-  canResolve: boolean
   // 作者に投げたことがある問いだけ入る。投げていなければ undefined。
   dispatch?: DispatchState
 }) {
@@ -106,21 +99,15 @@ export function CqActionSheet({
               />
             )
           )}
+          {/* 片づけるのもNotionで行う。アプリからページを書き換えないのが元々の線引きで、
+              「解決した」ボタンはそれを跨いでいた（2026-08-08に撤去）。
+              知識レベルを 💡 ナレッジ に変えて再同期すれば、この泡は消える。 */}
           <SheetButton
             Icon={ExternalLink}
-            label="Notionで開く"
-            note="自分で書きに行く"
+            label="Notionで解決しに行く"
+            note="書いて、知識レベルを 💡 ナレッジ に変える"
             onClick={() => window.open(cq.notionUrl, '_blank', 'noopener,noreferrer')}
           />
-          {canResolve && (
-            <SheetButton
-              Icon={Check}
-              label={resolving ? '記録しています…' : '解決した'}
-              note="ナレッジに変えて、この問いを片づける"
-              onClick={onResolve}
-              disabled={resolving}
-            />
-          )}
         </div>
       </div>
     </div>

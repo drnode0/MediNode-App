@@ -29,7 +29,6 @@ export const PERSONAL_DEVICE_KEYS = [
   'medinode_tower_v1', // 知の塔（学びの歩の台帳）
   'medinode_vine_intro_seen_v1', // 知の蔓 初回の口上（見本）の既読
   'medinode_cq_sent_v1', // 未解決の問い: 作者に投げた記録（何を訊いたかが残る）
-  'medinode_locally_resolved_v1', // 未解決の問い: 同期待ちのあいだ伏せる分
 ] as const
 
 // この端末で最後にログインしていたユーザーの id を覚えておくキー（機微でない）。

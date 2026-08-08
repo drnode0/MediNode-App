@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   isUnresolvedCq,
-  notionPageIdOf,
   countNewAnswers,
   pickFloating,
   placeFloating,
@@ -40,23 +39,6 @@ describe('isUnresolvedCq', () => {
   it('知識レベルが無いものは未解決ではない（参考文献などを巻き込まない）', () => {
     expect(isUnresolvedCq({})).toBe(false)
     expect(isUnresolvedCq({ knowledgeLevel: '' })).toBe(false)
-  })
-})
-
-describe('notionPageIdOf', () => {
-  it('owner接頭辞を落としてNotionのページIDだけにする', () => {
-    expect(notionPageIdOf('personal_22a1b2c3-d4e5-4f60-8712-3456789abcde')).toBe(
-      '22a1b2c3-d4e5-4f60-8712-3456789abcde',
-    )
-    expect(notionPageIdOf('team_abc')).toBe('abc')
-  })
-
-  it('接頭辞が無ければそのまま返す', () => {
-    expect(notionPageIdOf('abc')).toBe('abc')
-  })
-
-  it('落とすのは先頭の1回だけ（ID中の同じ並びを削らない）', () => {
-    expect(notionPageIdOf('personal_personal_abc')).toBe('personal_abc')
   })
 })
 
