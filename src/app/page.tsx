@@ -100,6 +100,8 @@ import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, typ
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
+import { takePendingQuery } from '@/lib/pending-query'
 import { ReaderProvider } from '@/components/reader/SubscriptionReader'
 import { ReaderMarksProvider } from '@/components/reader/ReaderMarksProvider'
 import { HelpFaq } from '@/components/HelpFaq'
@@ -156,6 +158,22 @@ function PersonalQueryRelay() {
     if (!ctx) return
     if (ctx.query !== query) ctx.setQuery(query)
   }, [query, ctx])
+  return null
+}
+
+// 未解決の問いの画面（/cq）から渡されたキーワードを、マウント時に一度だけ検索欄へ流す。
+// 0件画面の例示キーワードと同じ refine 経由なので、入力欄にもそのまま反映される。
+function PendingQueryApplier({ onApply }: { onApply: (q: string) => void }) {
+  const { refine } = useSearchBox()
+  const applied = useRef(false)
+  useEffect(() => {
+    if (applied.current) return
+    applied.current = true
+    const pending = takePendingQuery()
+    if (!pending) return
+    refine(pending)
+    onApply(pending)
+  }, [refine, onApply])
   return null
 }
 
@@ -1285,6 +1303,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
     <>
       <Configure hitsPerPage={20} filters={personalFilter || undefined} />
       <PersonalQueryRelay />
+      <PendingQueryApplier onApply={(q) => { addHistory(q); setHasSearched(true) }} />
       <PersonalHitsCollector onHits={setPersonalHits} />
       <TowerCard onOpen={() => window.dispatchEvent(new CustomEvent('medinode:tower-open'))} />
       <DailyQuestionCard />
@@ -1594,6 +1613,19 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     if (q) { setHasSearched(true) }
     search(q)
   }
+
+  // 未解決の問いの画面（/cq）から渡されたキーワードをマウント時に一度だけ実行する。
+  // search は useNotionSearch 側で再生成されうるので、ref で「一度きり」を担保する。
+  const pendingApplied = useRef(false)
+  useEffect(() => {
+    if (pendingApplied.current) return
+    pendingApplied.current = true
+    const pending = takePendingQuery()
+    if (!pending) return
+    setQuery(pending)
+    setHasSearched(true)
+    search(pending)
+  }, [search])
 
   // 履歴保存はEnterで検索を確定したときのみ（入力途中の文字列は残さない）
   const composingRef = useRef(false)
@@ -2938,6 +2970,8 @@ export default function Home() {
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">MediNode</h1>
           </div>
           <div className="min-w-16 flex justify-end items-center gap-2">
+            {/* 未解決の問い（/cq）への静かな入口。未解決0件なら自分で消える。 */}
+            <UnresolvedCqLink />
             {/* 外部ガイド直行はやめ、アプリ内ヘルプ（FAQ検索）を開く。ガイド全文はヘルプ内リンクから */}
             <button
               onClick={() => {

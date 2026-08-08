@@ -37,6 +37,27 @@ button:active, a:active, [role='button']:active {
   }
 }
 
+/* 未解決の問いの画面（/cq）で泡が漂う動き。
+   泡は left/top の % 指定を translate(-50%,-50%) で中心合わせしているため、
+   キーフレーム側にもその -50% を含める（含めないと再生開始で位置が飛ぶ）。
+   duration と delay は泡ごとに inline style で与える（一斉に動かさない）。
+   prefers-reduced-motion では上の全体規則が duration を潰すので、ここに追加の分岐は要らない。 */
+@keyframes cq-drift {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50% { transform: translate(calc(-50% + 9px), calc(-50% - 11px)); }
+}
+.cq-bubble {
+  transform: translate(-50%, -50%);
+  animation-name: cq-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+/* 押下フィードバックの共通規則（button:active { transform: scale(.98) }）は
+   中心合わせの translate を丸ごと置き換えてしまう。泡だけは両方を書く。 */
+.cq-bubble:active {
+  transform: translate(-50%, -50%) scale(0.98);
+}
+
 /* 検索ハイライト（ライト/ダーク両対応） */
 mark {
   background-color: #fef08a;

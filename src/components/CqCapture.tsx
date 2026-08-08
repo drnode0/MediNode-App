@@ -27,6 +27,7 @@ import { OpenSettingsContext } from './SearchErrors'
 import { useAuth } from './auth/AuthProvider'
 import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
+import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
@@ -439,6 +440,8 @@ function CqCaptureModal({
               return
             }
             setMineDone({ url: data.url || '' })
+            // 未解決が1件増えた。ヘッダーの入口（/cq）の控えを捨てて実態に追従させる。
+            clearUnresolvedCount()
             track('cq_capture_saved')
           } catch {
             setMineError('ネットワークエラーが発生しました。接続を確認してください。')
@@ -914,6 +917,15 @@ function CqCaptureModal({
                       ? '検索・新着にもすぐ反映されます。'
                       : 'Notionには保存済みです。アプリの検索結果に出すには再同期してください。'}
                   </p>
+                  {/* 残した疑問がどこに行くのかを、その場で見せる。
+                      未解決の問いの画面（/cq）へ渡す唯一の能動的な入口。 */}
+                  <a
+                    href="/cq"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300 underline underline-offset-2"
+                  >
+                    <MessageCircleQuestion className="w-3.5 h-3.5" />
+                    浮かべておく（未解決の問い）
+                  </a>
                 </div>
               )}
               <div className="flex gap-2">
