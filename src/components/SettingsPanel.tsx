@@ -582,6 +582,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const [displayForm, setDisplayForm] = useState({
     hideQuizTab: !!s0?.hideQuizTab,
     hideCqButton: !!s0?.hideCqButton,
+    hideCommunityCqs: !!s0?.hideCommunityCqs,
   })
   // テーマ（外観）。端末ごとの設定（localStorage）でサーバー同期しない。
   // SSR時は 'system' 固定にし、マウント後に実値へ同期する（ハイドレーション不一致を避ける）。
@@ -1887,6 +1888,11 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                   key: 'hideCqButton' as const,
                   label: 'CQ登録ボタン（右下の浮きボタン）',
                   desc: '疑問を自分のNotionに残す機能。個人のNotion接続を使わない場合はオフに。',
+                },
+                {
+                  key: 'hideCommunityCqs' as const,
+                  label: 'みんなが待っている問い',
+                  desc: '未解決の問いの画面に出る、筆者と読者の未解決CQ。自分の問いだけを眺めたい場合はオフに。',
                 },
               ]).map(({ key, label, desc }) => {
                 const visible = !displayForm[key]

@@ -10,21 +10,19 @@
 //   - ResolvedCqHistory: 設定 →「みんなの臨床疑問」の解決済み一覧。
 //     非プレミアムにも見せる（解決の実績とペースが購買動機になる）が、
 //     ナレッジ本文へのリンクはプレミアムのみ。非プレミアムには登録導線を出す。
-//   - OpenCqBoard: 同じ画面の「受付中」タブ。いま投票を受け付けている疑問。
+//   - OpenCqLink: 同じ画面の「受付中」タブ。板の本体は /cq へ移したので導線だけを置く。
 //   - CommunityCqs: 上記2つを解決済み／受付中のタブで束ねる本体。
 //
 // うるさくしない方針:
 //   - 既定タブは「解決済み」。先に見えるのは答えが出たもので、未解決の山ではない。
 //   - タブに件数バッジを出さない（数を数えさせない）。
-//   - 票数は0のとき何も描かない（voteCountLabel）。
 //   - 投票した疑問が解決しても新たなプッシュは足さない。次に開いたとき、
 //     その一件だけが静かに「あなたが気になるを押した疑問です」と分かる。
 // ============================================================
 
 import { useState, useEffect, useContext, useCallback } from 'react'
-import { X, Sprout, BookOpen, Star, Search, Hand } from 'lucide-react'
+import { X, Sprout, BookOpen, Star, Search, MessageCircleQuestion } from 'lucide-react'
 import { fetchResolvedCqs, posterLabel, resolvedDateLabel, RESOLVED_CQ_SEEN_KEY, type ResolvedCq } from '@/lib/resolved-cqs'
-import { voteCountLabel, type BoardCqWithVote } from '@/lib/cq-board'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { recordCqView, fetchCqViewCounts, VIEW_BADGE_MIN } from '@/lib/cq-views'
@@ -123,126 +121,28 @@ export function CommunityCqs({ onOpenPremium }: { onOpenPremium?: () => void }) 
           受付中
         </button>
       </div>
-      {tab === 'resolved'
-        ? <ResolvedCqHistory onOpenPremium={onOpenPremium} />
-        : <OpenCqBoard onOpenPremium={onOpenPremium} />}
+      {tab === 'resolved' ? <ResolvedCqHistory onOpenPremium={onOpenPremium} /> : <OpenCqLink />}
     </div>
   )
 }
 
-// 「受付中」タブ。作者が板に出した疑問に「気になる」を付けられる。
-// 票は作者の執筆順の参考になる＝押すことに意味がある、と分かる文言にする。
-export function OpenCqBoard({ onOpenPremium }: { onOpenPremium?: () => void }) {
-  const [items, setItems] = useState<BoardCqWithVote[] | null>(null)
-  const [canVote, setCanVote] = useState(false)
-  const [busy, setBusy] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/cq/board')
-      .then((r) => (r.ok ? r.json() : { items: [], canVote: false }))
-      .then((d: { items?: BoardCqWithVote[]; canVote?: boolean }) => {
-        if (cancelled) return
-        setItems(d.items || [])
-        setCanVote(!!d.canVote)
-      })
-      .catch(() => { if (!cancelled) setItems([]) })
-    return () => { cancelled = true }
-  }, [])
-
-  // 押した瞬間に見た目を変え、サーバーの返した合計で確定させる（待たせない）。
-  const toggle = useCallback(async (cq: BoardCqWithVote) => {
-    if (!canVote || busy) return
-    const next = !cq.voted
-    setBusy(cq.id)
-    setItems((prev) => prev?.map((i) =>
-      i.id === cq.id ? { ...i, voted: next, voteCount: i.voteCount + (next ? 1 : -1) } : i,
-    ) ?? prev)
-    try {
-      const res = await fetch('/api/cq/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cqId: cq.id, voted: next }),
-      })
-      const d = (await res.json()) as { voteCount?: number }
-      if (res.ok && typeof d.voteCount === 'number') {
-        setItems((prev) => prev?.map((i) => (i.id === cq.id ? { ...i, voteCount: d.voteCount! } : i)) ?? prev)
-      } else if (!res.ok) {
-        // 失敗したら見た目を戻す（押せたのに入っていない、を残さない）
-        setItems((prev) => prev?.map((i) =>
-          i.id === cq.id ? { ...i, voted: cq.voted, voteCount: cq.voteCount } : i,
-        ) ?? prev)
-      }
-    } catch {
-      setItems((prev) => prev?.map((i) =>
-        i.id === cq.id ? { ...i, voted: cq.voted, voteCount: cq.voteCount } : i,
-      ) ?? prev)
-    } finally {
-      setBusy(null)
-    }
-  }, [canVote, busy])
-
+// 「受付中」タブ。板そのものは「未解決の問い」の画面（/cq）へ移した。
+// 「気になる」を押す場所を2つに割らないため、ここは導線だけを置く
+// （移設先では筆者の未解決CQも同じ空に並び、どちらにも印をつけられる）。
+function OpenCqLink() {
   return (
-    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-      <p className="text-xs text-gray-500 dark:text-gray-400 px-1 leading-relaxed">
-        いま投票を受け付けている疑問です。気になるものに印をつけると、
-        専門医が次に答えるものを決める参考になります。
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center space-y-3">
+      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+        いま答えを待っている疑問は「未解決の問い」の画面に集めました。
+        筆者が気にしている問いも同じ場所に並びます。
       </p>
-      {items === null && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 px-1 py-4 text-center">読み込み中…</p>
-      )}
-      {items !== null && items.length === 0 && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 px-1 py-4 text-center leading-relaxed">
-          いまは受付中の疑問がありません。
-        </p>
-      )}
-      {items !== null && items.map((c) => (
-        <div key={c.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-              <Sprout className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-              {posterLabel(c)}の疑問
-            </span>
-            <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{resolvedDateLabel(c.createdAt)}</span>
-          </div>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">{c.title}</p>
-          <div className="flex items-center gap-2 mt-2.5">
-            <button
-              type="button"
-              disabled={!canVote || busy === c.id}
-              onClick={() => toggle(c)}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1 border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                c.voted
-                  ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-300 dark:border-brand-600 text-brand-700 dark:text-brand-200'
-                  : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              <Hand className="w-3.5 h-3.5 shrink-0" strokeWidth={2.2} />
-              {c.voted ? '気になる（済）' : '私も気になる'}
-            </button>
-            {/* 0票のときは何も描かない（「0人が気になる」は寂しさを見せるだけ） */}
-            {voteCountLabel(c.voteCount) && (
-              <span className="text-[11px] text-gray-400 dark:text-gray-500">{voteCountLabel(c.voteCount)}</span>
-            )}
-          </div>
-        </div>
-      ))}
-      {/* 非プレミアム向け：投票はプレミアムの機能であることを、静かに一度だけ伝える */}
-      {!canVote && items !== null && items.length > 0 && (
-        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl px-4 py-3 space-y-1.5">
-          <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
-            <Star className="h-3.5 w-3.5 shrink-0" />投票と疑問の投稿は、プレミアムの機能です
-          </p>
-          {onOpenPremium && (
-            <button
-              onClick={onOpenPremium}
-              className="text-xs font-semibold text-purple-700 dark:text-purple-200 bg-white/70 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-purple-900/60 transition-colors"
-            >
-              プレミアムについて見る
-            </button>
-          )}
-        </div>
-      )}
+      <a
+        href="/cq"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 text-sm font-semibold"
+      >
+        <MessageCircleQuestion className="w-4 h-4" />
+        未解決の問いを見る
+      </a>
     </div>
   )
 }

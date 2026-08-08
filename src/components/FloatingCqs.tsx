@@ -30,6 +30,8 @@ import {
   type DispatchState,
 } from '@/lib/cq-dispatch'
 import type { MyStage } from '@/lib/cq-mine'
+import { CommunitySky } from '@/components/CommunityCqs'
+import type { CommunityCqWithVote } from '@/lib/community-cqs'
 import { setPendingQuery } from '@/lib/pending-query'
 import { useCqCapture } from '@/components/CqCapture'
 import { CqActionSheet } from '@/components/CqActionSheet'
@@ -50,7 +52,12 @@ type Loaded = { cqs: CqSeed[]; error: string } | null
 export function UnresolvedCqScreen({
   fixture,
 }: {
-  fixture?: { cqs: CqSeed[]; newAnswers: NewAnswerMap; dispatch?: Record<string, DispatchState> }
+  fixture?: {
+    cqs: CqSeed[]
+    newAnswers: NewAnswerMap
+    dispatch?: Record<string, DispatchState>
+    community?: { cqs: CommunityCqWithVote[]; canVote: boolean }
+  }
 } = {}) {
   const router = useRouter()
   const openCapture = useCqCapture()
@@ -346,6 +353,10 @@ export function UnresolvedCqScreen({
             )}
           </>
         )}
+
+        {/* 第2の空。自分の未解決が0件でも出す（他人の問いは自分の在庫と関係ない）。
+            設定で消せる——自分の問いだけを静かに眺めたい人向け。 */}
+        {!settings?.hideCommunityCqs && <CommunitySky paused={paused} fixture={fixture?.community} />}
       </main>
 
       {selected && (

@@ -8,6 +8,7 @@ import { CqCaptureProvider } from '@/components/CqCapture'
 import { UnresolvedCqScreen } from '@/components/FloatingCqs'
 import type { CqSeed, NewAnswerMap } from '@/lib/floating-cq'
 import type { DispatchState } from '@/lib/cq-dispatch'
+import type { CommunityCqWithVote } from '@/lib/community-cqs'
 
 const TITLES = [
   'アミオダロンの初期負荷、腎不全でも同じでいいのか',
@@ -42,6 +43,19 @@ type Scenario = {
   cqs: CqSeed[]
   newAnswers: NewAnswerMap
   dispatch?: Record<string, DispatchState>
+  community?: { cqs: CommunityCqWithVote[]; canVote: boolean }
+}
+
+// 第2の空（みんなが待っている問い）。作者のCQと読者投稿を混ぜて確かめる。
+const COMMUNITY: { cqs: CommunityCqWithVote[]; canVote: boolean } = {
+  canVote: true,
+  cqs: [
+    { id: 'subscription_c1', title: '低体温療法の復温速度は何で決まるか', origin: 'author', posterLabel: '', createdAt: '2026-08-01T00:00:00.000Z', voteCount: 7, voted: false },
+    { id: 'intake_c2', title: '尿道カテーテルはいつ抜くのが妥当か', origin: 'reader', posterLabel: 'のどかさん（看護師）', createdAt: '2026-07-28T00:00:00.000Z', voteCount: 4, voted: true },
+    { id: 'subscription_c3', title: '昇圧剤の切り替えはどの指標で判断するか', origin: 'author', posterLabel: '', createdAt: '2026-07-20T00:00:00.000Z', voteCount: 2, voted: false },
+    { id: 'intake_c4', title: '経鼻胃管の位置確認はどこまでやるか', origin: 'reader', posterLabel: '匿名さん（臨床工学技士）', createdAt: '2026-07-15T00:00:00.000Z', voteCount: 0, voted: false },
+    { id: 'subscription_c5', title: '鎮静の深度は何を見て下げるか', origin: 'author', posterLabel: '', createdAt: '2026-07-10T00:00:00.000Z', voteCount: 0, voted: false },
+  ],
 }
 
 const SCENARIOS: Scenario[] = [
@@ -62,6 +76,8 @@ const SCENARIOS: Scenario[] = [
     },
   },
   { label: '15件・ほかに7件', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },
+  { label: '2つの空', cqs: mkCqs(4), newAnswers: { 'personal_dev-1': 2 }, community: COMMUNITY },
+  { label: '自分は0件・みんなの空だけ', cqs: [], newAnswers: {}, community: COMMUNITY },
 ]
 
 export default function DevFloatingCqPage() {
@@ -69,7 +85,12 @@ export default function DevFloatingCqPage() {
   const [index, setIndex] = useState(2)
   const scenario = SCENARIOS[index]
   const fixture = useMemo(
-    () => ({ cqs: scenario.cqs, newAnswers: scenario.newAnswers, dispatch: scenario.dispatch }),
+    () => ({
+      cqs: scenario.cqs,
+      newAnswers: scenario.newAnswers,
+      dispatch: scenario.dispatch,
+      community: scenario.community,
+    }),
     [scenario],
   )
 
