@@ -4,12 +4,16 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Send } from 'lucide-react'
 import { getSettings } from '@/lib/settings'
 import {
+  createSearchClient,
+  getIndexName,
   createSubscriptionSearchClient,
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
 import {
   countNewAnswers,
+  mergeAnswerCounts,
+  CQ_LEVELS,
   pickFloating,
   placeFloating,
   gridFor,
@@ -106,33 +110,65 @@ export function UnresolvedCqScreen({
     }
   }, [fixture])
 
-  // 新しい答え: 各CQの文言でプレミアムを引き、登録日より後に入ったヒットを数える。
-  // マルチクエリなので件数によらず1往復で済む。
+  // 新しい答え: 各CQの文言で棚を引き、登録日より後に入ったものを数える。
+  //
+  // 棚は2つある。自分のDB（無料でも動く）と、プレミアム（有料の在庫）。
+  // 自分が過去に書いたナレッジが、自分の古い問いの答えになっていることがある——
+  // 無料の人の空が何も起きないまま漂うだけだったのを、ここで解く。
+  // 「答えがあります」と件数だけ見せてプレミアムへ誘う形は採らない（押し売りになる）。
+  //
+  // どちらもマルチクエリなので、件数によらず棚ごとに1往復で済む。
+  // ❓CQ は両方の棚で除外する。問いが問いの答えとして数えられてはいけない。
   useEffect(() => {
     const cqs = loaded?.cqs
-    if (fixture || !cqs || !cqs.length || !hasSubscriptionConfig()) return
+    if (fixture || !cqs || !cqs.length) return
+    const settings0 = getSettings()
+    const hasPersonalIndex = !!(settings0?.algoliaAppId && settings0?.algoliaSearchKey)
+    const hasPremium = hasSubscriptionConfig()
+    if (!hasPersonalIndex && !hasPremium) return
+
     let cancelled = false
     const targets = cqs.slice(0, FLOAT_MAX * 2)
-    const indexName = getSubscriptionIndexName()
-    createSubscriptionSearchClient()
-      .multipleQueries(
-        targets.map((c) => ({
-          indexName,
-          query: c.title,
-          params: { hitsPerPage: 20 },
-        })),
-      )
-      .then(({ results }) => {
-        if (cancelled) return
-        const map: NewAnswerMap = {}
-        results.forEach((r, i) => {
-          const hits = ((r as { hits?: Array<{ objectID?: string; createdAt?: string }> }).hits || []).map(
-            (h) => ({ objectID: String(h.objectID || ''), createdAt: h.createdAt }),
-          )
-          const count = countNewAnswers(targets[i].createdAt, hits)
-          if (count > 0) map[targets[i].objectID] = count
+    const notCq = CQ_LEVELS.map((l) => `NOT knowledgeLevel:"${l}"`).join(' AND ')
+
+    // 1つの棚を引いて objectID → 新しい答えの件数 を作る。
+    // 自分自身のページがヒットしても数えない（同じ問いは答えではない）。
+    const countFrom = (
+      client: ReturnType<typeof createSearchClient>,
+      indexName: string,
+      filters: string,
+    ): Promise<NewAnswerMap> =>
+      client
+        .multipleQueries(
+          targets.map((c) => ({ indexName, query: c.title, params: { hitsPerPage: 20, filters } })),
+        )
+        .then(({ results }) => {
+          const map: NewAnswerMap = {}
+          results.forEach((r, i) => {
+            const hits = ((r as { hits?: Array<{ objectID?: string; createdAt?: string }> }).hits || [])
+              .map((h) => ({ objectID: String(h.objectID || ''), createdAt: h.createdAt }))
+              .filter((h) => h.objectID !== targets[i].objectID)
+            const count = countNewAnswers(targets[i].createdAt, hits)
+            if (count > 0) map[targets[i].objectID] = count
+          })
+          return map
         })
-        setNewAnswers(map)
+        .catch(() => ({}) as NewAnswerMap)
+
+    Promise.all([
+      hasPersonalIndex
+        ? countFrom(
+            createSearchClient(),
+            getIndexName(),
+            `owner:personal AND source:medical AND ${notCq}`,
+          )
+        : Promise.resolve({} as NewAnswerMap),
+      hasPremium
+        ? countFrom(createSubscriptionSearchClient(), getSubscriptionIndexName(), notCq)
+        : Promise.resolve({} as NewAnswerMap),
+    ])
+      .then(([own, premium]) => {
+        if (!cancelled) setNewAnswers(mergeAnswerCounts(own, premium))
       })
       .catch(() => {
         // 新しい答えを数えられないだけ。画面そのものは成立する。
@@ -246,6 +282,13 @@ export function UnresolvedCqScreen({
                 />
               ))}
             </div>
+
+            {/* Notionで直したものが消えるのは再同期のあと。どこで再同期するのかを
+                ここに書いておかないと、片づけたのに減らない画面に見える。 */}
+            <p className="mt-3 text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+              Notionで知識レベルを 💡 ナレッジ に変えると、ホームの「データを再同期する」のあとに
+              この空から消えます。
+            </p>
 
             {rest.length > 0 && (
               <div className="mt-4">

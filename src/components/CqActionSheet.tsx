@@ -3,8 +3,8 @@ import { Search, Send, ExternalLink, X, Sparkles } from 'lucide-react'
 import { formatCqAge, type PlacedCq } from '@/lib/floating-cq'
 import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
 
-// 浮かんでいる問いを触ったときに出るパネル。一手を4つだけ並べる。
-// 「解決した」は確認を挟まない（押した直後に「元に戻す」を数秒残す方が手が軽い）。
+// 浮かんでいる問いを触ったときに出るパネル。一手を3つだけ並べる。
+// アプリからNotionのページは書き換えないので、片づけもNotionへ渡す。
 export function CqActionSheet({
   cq,
   onClose,
@@ -93,8 +93,8 @@ export function CqActionSheet({
             onAsk && (
               <SheetButton
                 Icon={Send}
-                label="作者に投げる"
-                note="みんなの臨床疑問へ。解決したら通知が届く"
+                label="専門医に訊く"
+                note="みんなの臨床疑問に並び、答えが出たら通知が届く"
                 onClick={onAsk}
               />
             )
@@ -105,7 +105,11 @@ export function CqActionSheet({
           <SheetButton
             Icon={ExternalLink}
             label="Notionで解決しに行く"
-            note="書いて、知識レベルを 💡 ナレッジ に変える"
+            note={
+              lit
+                ? '答えが出ているなら、知識レベルを 💡 ナレッジ に変える'
+                : '書いて、知識レベルを 💡 ナレッジ に変える'
+            }
             onClick={() => window.open(cq.notionUrl, '_blank', 'noopener,noreferrer')}
           />
         </div>

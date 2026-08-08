@@ -10,7 +10,7 @@ import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { shouldSuggestPowerMode, readSearchLatencies } from '@/lib/power-mode-suggest'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, MessageCircleQuestion, type LucideIcon } from 'lucide-react'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -33,6 +33,19 @@ export type Announcement = {
   links?: { label: string; url: string }[]
 }
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-08-09-unresolved-cq',
+    date: '2026-08-09',
+    Icon: MessageCircleQuestion,
+    title: '未解決の問いが浮かぶ画面ができました',
+    body:
+      '❓ CQ として残したまま、まだ答えの出ていない問いだけが漂う画面です。CQボタン（右下）を押すと、上に「未解決の問い」の入口があります。' +
+      'CQを残した日より後に書かれたナレッジがその文言で見つかると、その問いが明るくなって「新しい答えが◯件」と出ます。自分のDBの中と、プレミアムの両方から探します。' +
+      '触れると、その文言で横断して探す・専門医に訊く・Notionを開いて自分で書く、の三つが選べます。専門医に送った問いは「届いています」「◯人が同じことを気にしています」「答えが出ました」と、そのあとの様子が返ります。' +
+      '画面の下半分には、まだ答えの出ていないみんなの問いが並びます。気になるものに印をつけると、次に答えるものを決める参考になります（印はプレミアムの方が対象です）。' +
+      'Notionで知識レベルを 💡 ナレッジ に変えると、再同期のあとにその問いは画面から消えます。',
+    links: [{ label: '未解決の問いを開く', url: '/cq' }],
+  },
   {
     id: '2026-07-23-daily-question',
     date: '2026-07-23',
@@ -158,9 +171,10 @@ export function UpdateBanner() {
             {(LATEST_ANNOUNCEMENT.links || []).map((lk) => (
               <a
                 key={lk.url}
+                // アプリ内のルート（/で始まる）は同じタブで開く。別タブにすると
+                // ホーム画面に追加したPWAからブラウザへ飛び出してしまう。
                 href={lk.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                {...(lk.url.startsWith('/') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-200 bg-white/70 dark:bg-brand-900/40 border border-brand-300 dark:border-brand-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-brand-900/60 transition-colors"
               >
                 {lk.label}

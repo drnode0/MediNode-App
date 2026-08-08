@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isUnresolvedCq,
   countNewAnswers,
+  mergeAnswerCounts,
   pickFloating,
   placeFloating,
   gridFor,
@@ -99,6 +100,22 @@ describe('pickFloating', () => {
     ]
     const { floating } = pickFloating(cqs, {})
     expect(floating.map((c) => c.objectID)).toEqual(['b', 'a'])
+  })
+})
+
+describe('mergeAnswerCounts', () => {
+  it('両方の棚から見つかった分を足す', () => {
+    expect(mergeAnswerCounts({ a: 2 }, { a: 3 })).toEqual({ a: 5 })
+  })
+
+  it('片方にしか無いものはそのまま残す', () => {
+    expect(mergeAnswerCounts({ a: 1 }, { b: 4 })).toEqual({ a: 1, b: 4 })
+  })
+
+  it('元の値を書き換えない', () => {
+    const own = { a: 1 }
+    mergeAnswerCounts(own, { a: 2 })
+    expect(own).toEqual({ a: 1 })
   })
 })
 

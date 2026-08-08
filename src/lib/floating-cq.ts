@@ -87,6 +87,15 @@ export function countNewAnswers(cqCreatedAt: string | undefined, hits: AnswerHit
   return count
 }
 
+// 新しい答えの出どころは2つある。自分のDB（無料でも動く）と、プレミアム（有料の在庫）。
+// 同じCQに両方から見つかったら足す——読み手にとっては「答えが増えた」という
+// ひとつの出来事で、どちらの棚から出たかは押したあとに分かればよい。
+export function mergeAnswerCounts(a: NewAnswerMap, b: NewAnswerMap): NewAnswerMap {
+  const merged: NewAnswerMap = { ...a }
+  for (const [id, n] of Object.entries(b)) merged[id] = (merged[id] || 0) + n
+  return merged
+}
+
 // 並び順は「新しい答えの多い順 → 新しい順」。登録日が無ければ最終更新で代用する。
 function sortKey(cq: CqSeed): string {
   return cq.createdAt || cq.lastEdited || ''

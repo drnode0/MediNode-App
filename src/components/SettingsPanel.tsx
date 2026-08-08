@@ -1635,9 +1635,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                           {a.links.map((lk) => (
                             <a
                               key={lk.url}
+                              // アプリ内のルート（/で始まる）は同じタブで開く（PWAから飛び出さない）。
                               href={lk.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              {...(lk.url.startsWith('/') ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
                               className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-full px-3 py-1 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
                             >
                               {lk.label}
