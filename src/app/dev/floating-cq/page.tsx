@@ -40,7 +40,7 @@ const SCENARIOS: { label: string; cqs: CqSeed[]; newAnswers: NewAnswerMap }[] = 
   { label: '0件（空状態）', cqs: [], newAnswers: {} },
   { label: '3件・新しい答えなし', cqs: mkCqs(3), newAnswers: {} },
   { label: '8件・2件に新しい答え', cqs: mkCqs(8), newAnswers: { 'personal_dev-1': 3, 'personal_dev-5': 1 } },
-  { label: '15件・浮かぶのは8件まで', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },
+  { label: '15件・ほかに7件', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },
 ]
 
 export default function DevFloatingCqPage() {

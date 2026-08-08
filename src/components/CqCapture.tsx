@@ -924,7 +924,7 @@ function CqCaptureModal({
                     className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300 underline underline-offset-2"
                   >
                     <MessageCircleQuestion className="w-3.5 h-3.5" />
-                    浮かべておく（未解決の問い）
+                    未解決の問いを見る
                   </a>
                 </div>
               )}
