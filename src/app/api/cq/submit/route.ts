@@ -3,7 +3,8 @@ import { Client } from '@notionhq/client'
 import { resolveRequestPremium } from '@/lib/premium-access'
 import { rateLimitAsync, clientIp } from '@/lib/rate-limit'
 import { validateCqSubmission, buildIntakeProperties, type IntakePropSchema } from '@/lib/cq-submit'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { isAdminEmail } from '@/lib/maintenance'
 import { logCqSubmission } from '@/lib/cq-submission-log'
 
 // プレミアムへの臨床疑問投稿（アプリ内フォーム → 作者の受付DB）。
@@ -26,8 +27,17 @@ function intakeEnv(): { token: string; dbId: string } | null {
 
 // クライアントがモーダルを開くときの事前確認。受付の準備ができているかだけを返す
 // （会員判定はしない: 未設定なら誰にとっても外部フォームの案内に切り替わる）。
+// 受付可否と、叩いた人が作者かどうか。
+// owner のときクライアントは届け先を受付DBだけに固定する（作者の疑問は
+// 個人のMy Medical DBではなくサブスクの制作キューへ流す、という運用のため）。
 export async function GET() {
-  return NextResponse.json({ available: !!intakeEnv() })
+  let email: string | null = null
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    email = user?.email ?? null
+  } catch {}
+  return NextResponse.json({ available: !!intakeEnv(), owner: isAdminEmail(email) })
 }
 
 export async function POST(req: NextRequest) {
@@ -92,6 +102,19 @@ export async function POST(req: NextRequest) {
     const built = buildIntakeProperties(schema, validated.value, validated.value.notify ? userId : null)
     if ('error' in built) {
       return NextResponse.json({ error: built.error }, { status: 500 })
+    }
+
+    // 作者自身の投稿は、既定で板に出す（＝/cq の「みんなが待っている問い」に並び、
+    // 会員が「気になる」を押せる）。作者の疑問はサブスクの制作キューそのものなので、
+    // 1件ずつNotionでチェックを入れさせない。出したくない分はNotion側で外す。
+    let ownerSubmission = false
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      ownerSubmission = isAdminEmail(user?.email ?? null)
+    } catch {}
+    if (ownerSubmission && schema['ボード公開']?.type === 'checkbox') {
+      ;(built.properties as Record<string, unknown>)['ボード公開'] = { checkbox: true }
     }
 
     const created = await notion.pages.create({

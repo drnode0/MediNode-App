@@ -303,6 +303,8 @@ function CqCaptureModal({
   // 送信結果は届け先ごとに持つ（片方の失敗がもう片方を巻き込まない）。
   const [mineDone, setMineDone] = useState<{ url: string } | null>(null)
   const [expertDone, setExpertDone] = useState(false)
+  // 作者アカウントか（/api/cq/submit の GET が返す）。届け先の固定にだけ使う。
+  const [isOwner, setIsOwner] = useState(false)
   const [mineError, setMineError] = useState('')
   const [expertError, setExpertError] = useState('')
   const [phase, setPhase] = useState<'input' | 'done'>('input')
@@ -358,7 +360,14 @@ function CqCaptureModal({
     fetch('/api/cq/submit')
       .then((r) => r.json())
       .then((d) => {
-        if (active) setExpertReady(d?.available ? 'ready' : 'unavailable')
+        if (!active) return
+        setExpertReady(d?.available ? 'ready' : 'unavailable')
+        // 作者は届け先を受付DB（サブスクの制作キュー）だけに固定する。
+        // 個人のMy Medical DBと混ぜると、普段使いの知識と制作待ちの疑問がこんがらがる。
+        if (d?.owner) {
+          setIsOwner(true)
+          setDest({ mine: false, expert: true })
+        }
       })
       .catch(() => {
         if (active) setExpertReady('unavailable')
@@ -543,13 +552,26 @@ function CqCaptureModal({
               <MessageCircleQuestion className="w-5 h-5 text-amber-500" />
               疑問を残す
             </h2>
-            <button
-              onClick={onClose}
-              aria-label="閉じる"
-              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* 残した疑問がどこに溜まるかへの入口。CQボタンが「疑問まわりの唯一の目印」
+                  として一番押されるので、ここに置く（設定の奥まで潜らないと
+                  辿り着けない状態を解く）。 */}
+              {phase === 'input' && (
+                <a
+                  href="/cq"
+                  className="text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-300 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  未解決の問い
+                </a>
+              )}
+              <button
+                onClick={onClose}
+                aria-label="閉じる"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {phase === 'input' ? (
@@ -586,7 +608,7 @@ function CqCaptureModal({
               {/* 届け先チップ。疑問文は1回書くだけで、送り先を選ぶ。 */}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-400 dark:text-gray-500">届け先</span>
-                {personalAvail && (
+                {personalAvail && !isOwner && (
                   <button
                     type="button"
                     onClick={() => setDest((d) => ({ ...d, mine: !d.mine }))}

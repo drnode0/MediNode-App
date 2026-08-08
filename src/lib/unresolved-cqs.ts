@@ -6,6 +6,7 @@
 import { createSearchClient, getIndexName } from './algolia'
 import { getSettings } from './settings'
 import { CQ_LEVELS, isUnresolvedCq, type CqSeed } from './floating-cq'
+import { readLocallyResolved } from './locally-resolved'
 
 function toSeeds(rows: Array<Record<string, unknown>>): CqSeed[] {
   return rows
@@ -96,13 +97,20 @@ export function clearUnresolvedCount(): void {
 }
 
 // 未解決CQ一覧。設定が足りず取りに行けない場合は空配列（エラーにしない）。
+//
+// 「解決した」を押した分は、同期が追いつくまで一覧から落とす。落とさないと
+// パワーモードではリロードで片づけたはずの泡が戻る（Algoliaはまだ ❓CQ のまま）。
 export async function loadUnresolvedCqs(): Promise<CqSeed[]> {
   const settings = getSettings()
   const isAlgolia = (settings?.searchMode || 'algolia') === 'algolia'
-  if (isAlgolia) {
-    if (!settings?.algoliaAppId || !settings?.algoliaSearchKey) return []
-    return fromAlgolia()
-  }
-  if (!settings?.notionToken || !settings?.notionMedicalDbId) return []
-  return fromNotion(settings.notionToken, settings.notionMedicalDbId)
+  const raw = isAlgolia
+    ? settings?.algoliaAppId && settings?.algoliaSearchKey
+      ? await fromAlgolia()
+      : []
+    : settings?.notionToken && settings?.notionMedicalDbId
+      ? await fromNotion(settings.notionToken, settings.notionMedicalDbId)
+      : []
+
+  const hidden = readLocallyResolved()
+  return hidden.size ? raw.filter((c) => !hidden.has(c.objectID)) : raw
 }

@@ -22,6 +22,7 @@ import {
   type PlacedCq,
 } from '@/lib/floating-cq'
 import { loadUnresolvedCqs, clearUnresolvedCount } from '@/lib/unresolved-cqs'
+import { markLocallyResolved, unmarkLocallyResolved } from '@/lib/locally-resolved'
 import {
   readSentCqs,
   buildDispatchStates,
@@ -218,6 +219,9 @@ export function UnresolvedCqScreen({
       setResolving(true)
       try {
         await writeLevel(cq, 'knowledge')
+        // 同期が追いつくまでこの泡を伏せる。控えないとリロードで戻ってくる
+        // （一覧はAlgoliaから引いており、再同期まで ❓CQ のままのため）。
+        markLocallyResolved(cq.objectID)
         dropCq(cq.objectID)
         // 泡が消える以上、投げた記録も残さない（戻したときは押し直しになる）。
         forgetSentCq(cq.objectID)
@@ -246,6 +250,7 @@ export function UnresolvedCqScreen({
     setUndo(null)
     try {
       await writeLevel(cq, 'cq')
+      unmarkLocallyResolved(cq.objectID)
       setLoaded((prev) => (prev ? { ...prev, cqs: [cq, ...prev.cqs] } : prev))
     } catch {
       // 戻せなければNotion側で直せる。ここでエラーを重ねて出さない。
