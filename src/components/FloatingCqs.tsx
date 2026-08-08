@@ -233,7 +233,7 @@ export function UnresolvedCqScreen({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-gray-900 dark:text-white">未解決の問い</h1>
+            <h1 className="text-base font-bold text-gray-900 dark:text-white">あなたの未解決の問い</h1>
             {loaded && loaded.cqs.length > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {loaded.cqs.length}件
@@ -271,7 +271,14 @@ export function UnresolvedCqScreen({
                 </button>
               </div>
             )}
-            <div className="relative h-[68vh] min-h-[420px] mt-2">
+            {/* 初めて開いた人に、これが何の集まりで何ができるかを1行で渡す。
+                初回だけ出す形にしないのは、たまにしか開かない画面だから
+                （2回目でも「これは何だったか」を思い出せる方がよい）。 */}
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              Notionに ❓ CQ として残したまま、まだ答えの出ていない問いです。
+              問いをタップすると、探す・専門医に訊く・Notionで書く、が選べます。
+            </p>
+            <div className="relative h-[64vh] min-h-[400px] mt-1">
               {placed.map((cq) => (
                 <Bubble
                   key={cq.objectID}

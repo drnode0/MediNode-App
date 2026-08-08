@@ -17,7 +17,7 @@ import {
   type CommunityCqWithVote,
 } from '@/lib/community-cqs'
 
-// /cq の第2の空「みんなが待っている問い」。
+// /cq の第2の空「みんなの臨床疑問」。
 //
 // 作者のCQ（プレミアム配信DBの ❓CQ）と読者投稿の板を1つの空にまとめ、
 // どちらにも「気になる」を押せるようにする。押す場所を2つに割らないため、
@@ -161,11 +161,13 @@ export function CommunitySky({
 
   return (
     <section className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-      <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200">みんなが待っている問い</h2>
+      {/* 見出しは設定の「みんなの臨床疑問」と揃える。ここで新しい呼び名を作ると、
+          同じものが画面ごとに違う名前で出てくる。上の「あなたの」と対にもなる。 */}
+      <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200">みんなの臨床疑問</h2>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
         {loaded?.canVote
-          ? '気になるものに印をつけると、次に答えるものを決める参考になります。'
-          : 'いま答えを待っている疑問です。'}
+          ? 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。♡ を押すと、次に答えるものを決める参考になります。'
+          : 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。♡ はプレミアムの方が押せます。'}
       </p>
 
       {!loaded ? (
