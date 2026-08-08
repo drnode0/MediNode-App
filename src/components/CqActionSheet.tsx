@@ -23,7 +23,7 @@ export function CqActionSheet({
   // 個人Notionが無い＝書き込み先が無いときは false。
   canResolve: boolean
 }) {
-  const lit = cq.lightCount > 0
+  const lit = cq.newAnswerCount > 0
   return (
     <div
       className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
@@ -54,7 +54,7 @@ export function CqActionSheet({
           {lit && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 rounded-full px-2.5 py-1">
               <Sparkles className="w-3.5 h-3.5" />
-              この問いを残したあとに、新しい答えが{cq.lightCount}件
+              この問いを残したあとに、新しい答えが{cq.newAnswerCount}件
             </p>
           )}
         </div>

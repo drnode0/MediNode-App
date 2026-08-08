@@ -9,7 +9,7 @@ import {
   hasSubscriptionConfig,
 } from '@/lib/algolia'
 import {
-  newAnswerCount,
+  countNewAnswers,
   notionPageIdOf,
   pickFloating,
   placeFloating,
@@ -18,7 +18,7 @@ import {
   WIDE_GRID,
   type CqSeed,
   type Grid,
-  type LightMap,
+  type NewAnswerMap,
   type PlacedCq,
 } from '@/lib/floating-cq'
 import { loadUnresolvedCqs, clearUnresolvedCount } from '@/lib/unresolved-cqs'
@@ -29,8 +29,8 @@ import { CqActionSheet } from '@/components/CqActionSheet'
 // 未解決の問いが浮かぶ画面（/cq）の本体。
 //
 // 浮かぶのは自分の Medical DB の「知識レベル = ❓ CQ」だけ。💡ナレッジに育てば消える。
-// 灯り（登録日より後にプレミアムへ入ったナレッジ）を持つものだけが明るく、大きく出る。
-// 灯りはプレミアムのみ。無料は全件が同じ薄さで静かに漂う。
+// 登録日より後にプレミアムへ入ったナレッジが見つかったものだけを、明るく大きく出す。
+// この判定はプレミアムのみ。無料は全件が同じ薄さで静かに漂う。
 
 // 「元に戻す」を出しておく時間。押し間違いに気づく程度の長さに留める。
 const UNDO_MS = 8000
@@ -38,12 +38,12 @@ const UNDO_MS = 8000
 type Loaded = { cqs: CqSeed[]; error: string } | null
 
 // fixture は development のdevハーネス（/dev/floating-cq）専用の注入口。
-// 渡されたときは取得も灯り判定も行わない（本物のNotion・Algoliaに触れない）。
-export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lights: LightMap } } = {}) {
+// 渡されたときは取得も新しい答えの判定も行わない（本物のNotion・Algoliaに触れない）。
+export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; newAnswers: NewAnswerMap } } = {}) {
   const router = useRouter()
   const openCapture = useCqCapture()
   const [loaded, setLoaded] = useState<Loaded>(null)
-  const [lights, setLights] = useState<LightMap>({})
+  const [newAnswers, setNewAnswers] = useState<NewAnswerMap>({})
   const [selected, setSelected] = useState<PlacedCq | null>(null)
   const [resolving, setResolving] = useState(false)
   const [undo, setUndo] = useState<CqSeed | null>(null)
@@ -75,7 +75,7 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
   useEffect(() => {
     if (fixture) {
       setLoaded({ cqs: fixture.cqs, error: '' })
-      setLights(fixture.lights)
+      setNewAnswers(fixture.newAnswers)
       return
     }
     let cancelled = false
@@ -93,7 +93,7 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
     }
   }, [fixture])
 
-  // 灯り: 各CQの文言でプレミアムを引き、登録日より後に入ったヒットを数える。
+  // 新しい答え: 各CQの文言でプレミアムを引き、登録日より後に入ったヒットを数える。
   // マルチクエリなので件数によらず1往復で済む。
   useEffect(() => {
     const cqs = loaded?.cqs
@@ -111,18 +111,18 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
       )
       .then(({ results }) => {
         if (cancelled) return
-        const map: LightMap = {}
+        const map: NewAnswerMap = {}
         results.forEach((r, i) => {
           const hits = ((r as { hits?: Array<{ objectID?: string; createdAt?: string }> }).hits || []).map(
             (h) => ({ objectID: String(h.objectID || ''), createdAt: h.createdAt }),
           )
-          const count = newAnswerCount(targets[i].createdAt, hits)
+          const count = countNewAnswers(targets[i].createdAt, hits)
           if (count > 0) map[targets[i].objectID] = count
         })
-        setLights(map)
+        setNewAnswers(map)
       })
       .catch(() => {
-        // 灯りが点かないだけ。画面そのものは成立する。
+        // 新しい答えを数えられないだけ。画面そのものは成立する。
       })
     return () => {
       cancelled = true
@@ -130,11 +130,11 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
   }, [loaded, fixture])
 
   const { floating, rest } = useMemo(
-    () => pickFloating(loaded?.cqs || [], lights, grid.cols * grid.rows),
-    [loaded, lights, grid],
+    () => pickFloating(loaded?.cqs || [], newAnswers, grid.cols * grid.rows),
+    [loaded, newAnswers, grid],
   )
-  const placed = useMemo(() => placeFloating(floating, lights, grid), [floating, lights, grid])
-  const litCount = placed.filter((p) => p.lightCount > 0).length
+  const placed = useMemo(() => placeFloating(floating, newAnswers, grid), [floating, newAnswers, grid])
+  const withNewAnswers = placed.filter((p) => p.newAnswerCount > 0).length
 
   const dropCq = useCallback((objectID: string) => {
     setLoaded((prev) => (prev ? { ...prev, cqs: prev.cqs.filter((c) => c.objectID !== objectID) } : prev))
@@ -221,9 +221,9 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
             {loaded && loaded.cqs.length > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {loaded.cqs.length}件
-                {litCount > 0 && (
+                {withNewAnswers > 0 && (
                   <span className="ml-1.5 text-amber-700 dark:text-amber-300 font-bold">
-                    うち{litCount}件に新しい答え
+                    うち{withNewAnswers}件に新しい答え
                   </span>
                 )}
               </p>
@@ -269,7 +269,7 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; lig
                           onClick={() =>
                             setSelected({
                               ...cq,
-                              lightCount: lights[cq.objectID] || 0,
+                              newAnswerCount: newAnswers[cq.objectID] || 0,
                               x: 0,
                               y: 0,
                               widthPercent: 0,
@@ -339,7 +339,7 @@ const SIZE_CLASS = {
 } as const
 
 function Bubble({ cq, paused, onSelect }: { cq: PlacedCq; paused: boolean; onSelect: () => void }) {
-  const lit = cq.lightCount > 0
+  const lit = cq.newAnswerCount > 0
   return (
     <button
       type="button"
@@ -363,7 +363,7 @@ function Bubble({ cq, paused, onSelect }: { cq: PlacedCq; paused: boolean; onSel
       {lit && (
         <span className="mt-1 flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
           <Sparkles className="w-3 h-3" />
-          新しい答えが{cq.lightCount}件
+          新しい答えが{cq.newAnswerCount}件
         </span>
       )}
     </button>

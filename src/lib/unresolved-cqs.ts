@@ -2,7 +2,7 @@
 // パワーモード（個人Algoliaインデックス）とシンプルモード（Notion直読み）で
 // 形を揃え、呼ぶ側がモードを意識しなくて済むようにする。
 //
-// 並べ替え・選抜・灯り判定は floating-cq.ts（純関数）が持つ。ここは取得だけ。
+// 並べ替え・選抜・新しい答えの判定は floating-cq.ts（純関数）が持つ。ここは取得だけ。
 import { createSearchClient, getIndexName } from './algolia'
 import { getSettings } from './settings'
 import { CQ_LEVELS, isUnresolvedCq, type CqSeed } from './floating-cq'

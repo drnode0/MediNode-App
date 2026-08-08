@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isUnresolvedCq,
   notionPageIdOf,
-  newAnswerCount,
+  countNewAnswers,
   pickFloating,
   placeFloating,
   gridFor,
@@ -59,7 +59,7 @@ describe('notionPageIdOf', () => {
   })
 })
 
-describe('newAnswerCount', () => {
+describe('countNewAnswers', () => {
   const hits: AnswerHit[] = [
     { objectID: 'a', createdAt: '2026-07-20T00:00:00.000Z' },
     { objectID: 'b', createdAt: '2026-06-01T00:00:00.000Z' },
@@ -67,21 +67,21 @@ describe('newAnswerCount', () => {
   ]
 
   it('CQの登録日より後に入ったヒットだけ数える', () => {
-    expect(newAnswerCount('2026-07-01T00:00:00.000Z', hits)).toBe(2)
+    expect(countNewAnswers('2026-07-01T00:00:00.000Z', hits)).toBe(2)
   })
 
   it('createdAtを持たないヒットは新着扱いしない', () => {
-    expect(newAnswerCount('2026-07-01T00:00:00.000Z', [{ objectID: 'd' }])).toBe(0)
+    expect(countNewAnswers('2026-07-01T00:00:00.000Z', [{ objectID: 'd' }])).toBe(0)
   })
 
-  it('CQ側の登録日が不明なら灯さない（常時点灯を防ぐ）', () => {
-    expect(newAnswerCount(undefined, hits)).toBe(0)
-    expect(newAnswerCount('', hits)).toBe(0)
+  it('CQ側の登録日が不明なら新しい答えとして数えない（どのCQにも付くのを防ぐ）', () => {
+    expect(countNewAnswers(undefined, hits)).toBe(0)
+    expect(countNewAnswers('', hits)).toBe(0)
   })
 })
 
 describe('pickFloating', () => {
-  it('灯っているCQを先に浮かべ、次に新しい順で並べる', () => {
+  it('新しい答えのあるCQを先に浮かべ、次に新しい順で並べる', () => {
     const cqs = [
       cq({ objectID: 'old', createdAt: '2026-01-01T00:00:00.000Z' }),
       cq({ objectID: 'new', createdAt: '2026-08-01T00:00:00.000Z' }),
@@ -91,7 +91,7 @@ describe('pickFloating', () => {
     expect(floating.map((c) => c.objectID)).toEqual(['lit', 'new', 'old'])
   })
 
-  it('灯りの多い順に並べる', () => {
+  it('新しい答えの多い順に並べる', () => {
     const cqs = [cq({ objectID: 'a' }), cq({ objectID: 'b' })]
     const { floating } = pickFloating(cqs, { a: 1, b: 5 })
     expect(floating.map((c) => c.objectID)).toEqual(['b', 'a'])
@@ -177,12 +177,12 @@ describe('placeFloating', () => {
     expect(placeFloating(cqs, {}, NARROW_GRID)).toHaveLength(NARROW_GRID.cols * NARROW_GRID.rows)
   })
 
-  it('灯っているCQは大きく、はっきり出す', () => {
+  it('新しい答えのあるCQは大きく、はっきり出す', () => {
     const cqs = [cq({ objectID: 'lit' }), cq({ objectID: 'dim' })]
     const placed = placeFloating(cqs, { lit: 2 })
     const lit = placed.find((p) => p.objectID === 'lit')!
     const dim = placed.find((p) => p.objectID === 'dim')!
-    expect(lit.lightCount).toBe(2)
+    expect(lit.newAnswerCount).toBe(2)
     expect(lit.size).toBe('lg')
     expect(lit.opacity).toBeGreaterThan(dim.opacity)
   })

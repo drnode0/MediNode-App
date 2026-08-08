@@ -5,8 +5,8 @@
 //
 // 設計方針:
 // - 同時に浮かぶのは FLOAT_MAX 件まで。全件を浮かべると未解決の山になり、
-//   「うるさくしない」原則と逆を向く。あふれた分は下の折りたたみリストへ。
-// - 灯り（登録日より後に入ったサブスクのナレッジ）を持つCQを先に浮かべる。
+//   「うるさくしない」原則と逆を向く。浮かびきらない分は下の折りたたみリストへ。
+// - 登録日より後に入ったサブスクのナレッジが見つかったCQを先に浮かべる。
 //   眺めているだけで「解けそうな問い」が自分から名乗り出る状態にする。
 // - 配置は objectID のハッシュから決める。乱数だと再レンダーのたびに泡が飛ぶ。
 //
@@ -48,14 +48,14 @@ export type CqSeed = {
   lastEdited: string
 }
 
-// 灯り判定に使うサブスク側ヒットの最小形。
+// 新しい答えの判定に使うサブスク側ヒットの最小形。
 export type AnswerHit = { objectID: string; createdAt?: string }
 
 // objectID → 新しい答えの件数。0 の項目は入れなくてよい。
-export type LightMap = Record<string, number>
+export type NewAnswerMap = Record<string, number>
 
 export type PlacedCq = CqSeed & {
-  lightCount: number
+  newAnswerCount: number
   // 枠に対する中心座標（%）。
   x: number
   y: number
@@ -79,8 +79,8 @@ export function isUnresolvedCq(hit: { knowledgeLevel?: string }): boolean {
 }
 
 // CQを登録した日より後にサブスクへ入ったヒットの数。
-// 日付が分からないものは数えない。「不明＝新しい」と見なすと灯りが常時点いて意味を失う。
-export function newAnswerCount(cqCreatedAt: string | undefined, hits: AnswerHit[]): number {
+// 日付が分からないものは数えない。「不明＝新しい」と見なすとどのCQにも新しい答えが付いてしまい意味を失う。
+export function countNewAnswers(cqCreatedAt: string | undefined, hits: AnswerHit[]): number {
   if (!cqCreatedAt) return 0
   const since = Date.parse(cqCreatedAt)
   if (Number.isNaN(since)) return 0
@@ -93,19 +93,19 @@ export function newAnswerCount(cqCreatedAt: string | undefined, hits: AnswerHit[
   return count
 }
 
-// 並び順は「灯りの多い順 → 新しい順」。登録日が無ければ最終更新で代用する。
+// 並び順は「新しい答えの多い順 → 新しい順」。登録日が無ければ最終更新で代用する。
 function sortKey(cq: CqSeed): string {
   return cq.createdAt || cq.lastEdited || ''
 }
 
 export function pickFloating(
   cqs: CqSeed[],
-  lights: LightMap,
+  newAnswers: NewAnswerMap,
   max: number = FLOAT_MAX,
 ): { floating: CqSeed[]; rest: CqSeed[] } {
   const sorted = [...cqs].sort((a, b) => {
-    const la = lights[a.objectID] || 0
-    const lb = lights[b.objectID] || 0
+    const la = newAnswers[a.objectID] || 0
+    const lb = newAnswers[b.objectID] || 0
     if (la !== lb) return lb - la
     const ka = sortKey(a)
     const kb = sortKey(b)
@@ -136,7 +136,7 @@ function clamp(value: number, min: number, max: number): number {
 // 揺らしたあとで枠内に収まるよう中心をクランプする（狭い画面で端が切れるのを防ぐ）。
 export function placeFloating(
   cqs: CqSeed[],
-  lights: LightMap,
+  newAnswers: NewAnswerMap,
   grid: Grid = WIDE_GRID,
 ): PlacedCq[] {
   const { cols, rows } = grid
@@ -153,15 +153,15 @@ export function placeFloating(
     const row = Math.floor(index / cols)
     const jitterX = ((((h >>> 3) % 1000) / 1000) * 2 - 1) * JITTER_X * cellW
     const jitterY = ((((h >>> 13) % 1000) / 1000) * 2 - 1) * JITTER_Y * cellH
-    const lightCount = lights[cq.objectID] || 0
+    const newAnswerCount = newAnswers[cq.objectID] || 0
     return {
       ...cq,
-      lightCount,
+      newAnswerCount,
       x: clamp((col + 0.5) * cellW + jitterX, halfWidth, 100 - halfWidth),
       y: clamp((row + 0.5) * cellH + jitterY, MARGIN_Y, 100 - MARGIN_Y),
       widthPercent,
-      size: lightCount > 0 ? 'lg' : index < cols ? 'md' : 'sm',
-      opacity: lightCount > 0 ? 1 : Math.max(0.42, 0.82 - index * 0.05),
+      size: newAnswerCount > 0 ? 'lg' : index < cols ? 'md' : 'sm',
+      opacity: newAnswerCount > 0 ? 1 : Math.max(0.42, 0.82 - index * 0.05),
       driftSeconds: 9 + (h % 10),
       delaySeconds: ((h >>> 7) % 40) / 10,
     }

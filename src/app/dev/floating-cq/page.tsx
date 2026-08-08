@@ -1,12 +1,12 @@
 'use client'
 // 未解決の問いの画面（/cq）のdevハーネス（development限定）。
-// 固定データで泡の配置・灯り・あふれた分の折りたたみを目視確認する。
-// 本物のNotion・Algoliaには一切触れない（fixture 注入で取得も灯り判定も止まる）。
+// 固定データで泡の配置・新しい答えの出方・浮かびきらない分の折りたたみを目視確認する。
+// 本物のNotion・Algoliaには一切触れない（fixture 注入で取得も新しい答えの判定も止まる）。
 import { notFound } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { CqCaptureProvider } from '@/components/CqCapture'
 import { UnresolvedCqScreen } from '@/components/FloatingCqs'
-import type { CqSeed, LightMap } from '@/lib/floating-cq'
+import type { CqSeed, NewAnswerMap } from '@/lib/floating-cq'
 
 const TITLES = [
   'アミオダロンの初期負荷、腎不全でも同じでいいのか',
@@ -36,18 +36,18 @@ function mkCqs(count: number): CqSeed[] {
   }))
 }
 
-const SCENARIOS: { label: string; cqs: CqSeed[]; lights: LightMap }[] = [
-  { label: '0件（空状態）', cqs: [], lights: {} },
-  { label: '3件・灯りなし', cqs: mkCqs(3), lights: {} },
-  { label: '8件・2件が灯る', cqs: mkCqs(8), lights: { 'personal_dev-1': 3, 'personal_dev-5': 1 } },
-  { label: '15件・上限あふれ', cqs: mkCqs(15), lights: { 'personal_dev-2': 2 } },
+const SCENARIOS: { label: string; cqs: CqSeed[]; newAnswers: NewAnswerMap }[] = [
+  { label: '0件（空状態）', cqs: [], newAnswers: {} },
+  { label: '3件・新しい答えなし', cqs: mkCqs(3), newAnswers: {} },
+  { label: '8件・2件に新しい答え', cqs: mkCqs(8), newAnswers: { 'personal_dev-1': 3, 'personal_dev-5': 1 } },
+  { label: '15件・浮かぶのは8件まで', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },
 ]
 
 export default function DevFloatingCqPage() {
   if (process.env.NODE_ENV !== 'development') notFound()
   const [index, setIndex] = useState(2)
   const scenario = SCENARIOS[index]
-  const fixture = useMemo(() => ({ cqs: scenario.cqs, lights: scenario.lights }), [scenario])
+  const fixture = useMemo(() => ({ cqs: scenario.cqs, newAnswers: scenario.newAnswers }), [scenario])
 
   return (
     <div>
