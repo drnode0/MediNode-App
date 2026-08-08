@@ -88,9 +88,11 @@ export function CqActionSheet({
                   {dispatchLabel(dispatch)}
                 </span>
                 <span className="block text-xs text-gray-500 dark:text-gray-400">
-                  {dispatch.voteCount && dispatch.voteCount > 0
-                    ? '票が多い疑問から答えが書かれます'
-                    : '答えが出たらお知らせが届きます'}
+                  {dispatch.stage === 'answered'
+                    ? '上の「この文言で探す」から読めます'
+                    : dispatch.voteCount && dispatch.voteCount > 0
+                      ? '票が多い疑問から答えが書かれます'
+                      : '答えが出たらお知らせが届きます'}
                 </span>
               </span>
             </div>

@@ -14,6 +14,8 @@
 // 無く、それを足すのは受付フォーム・集計・移行を巻き込むため。
 // 個人の行動履歴なので PERSONAL_DEVICE_KEYS の対象（アカウント切替で持ち越さない）。
 
+import type { MyStage } from './cq-mine'
+
 const SENT_KEY = 'medinode_cq_sent_v1'
 
 export type SentCq = {
@@ -25,7 +27,7 @@ export type SentCq = {
 }
 
 // 板に載っていれば票数、載っていなければ null。
-export type DispatchState = { sentAt: string; voteCount: number | null }
+export type DispatchState = { sentAt: string; voteCount: number | null; stage: MyStage }
 
 // 突き合わせ用の正規化。前後の空白と連続する空白だけを潰す。
 // 全角・半角の寄せまではやらない（送った文字列と板の題は同じ1本の入力から出るため）。
@@ -71,20 +73,43 @@ export function forgetSentCq(objectID: string): void {
   } catch {}
 }
 
-// 板の受付中一覧と突き合わせて、泡ごとの状態を作る。
-// 板は同時5件までなので、載っていない（null）方が普通。それを「まだ載っていない」と
-// 断定はしない——文言側で「届いています」に留める。
+// 泡ごとの状態を、2つの出どころを重ねて作る。
+//
+//   サーバー（/api/cq/mine）… 通知に同意した投稿。端末を変えても残る。正とみなす
+//   端末ローカル（recordSentCq）… 同意していない分と、送った直後のまだ引き直す前
+//
+// サーバー側との突き合わせは疑問文の一致で行う。/cq から投げた文はCQの題そのものなので、
+// 端末に記録が無くても題で当たる（＝別端末でも状態が出る）。モーダルで書き換えた場合は
+// 題では当たらないので、その端末のローカル記録が拾う。
 export function buildDispatchStates(
+  cqs: Array<{ objectID: string; title: string }>,
   sent: SentCq[],
-  board: Array<{ title: string; voteCount: number }>,
+  submissions: Array<{ question: string; stage: MyStage; voteCount: number; createdAt: string }>,
 ): Record<string, DispatchState> {
-  const byTitle = new Map<string, number>()
-  for (const item of board) byTitle.set(normalizeQuestion(item.title), item.voteCount)
+  const byQuestion = new Map<string, { stage: MyStage; voteCount: number; createdAt: string }>()
+  for (const s of submissions) byQuestion.set(normalizeQuestion(s.question), s)
+
+  const sentByObjectID = new Map<string, SentCq>()
+  for (const r of sent) sentByObjectID.set(r.objectID, r)
 
   const states: Record<string, DispatchState> = {}
-  for (const record of sent) {
-    const votes = byTitle.get(normalizeQuestion(record.question))
-    states[record.objectID] = { sentAt: record.sentAt, voteCount: votes === undefined ? null : votes }
+  for (const cq of cqs) {
+    const record = sentByObjectID.get(cq.objectID)
+    // 題で引く → 当たらなければ、その端末で実際に送った文で引く。
+    const found =
+      byQuestion.get(normalizeQuestion(cq.title)) ||
+      (record ? byQuestion.get(normalizeQuestion(record.question)) : undefined)
+
+    if (found) {
+      states[cq.objectID] = {
+        sentAt: record?.sentAt || found.createdAt,
+        // 板に出ていない段では票を出さない（0票と「まだ出ていない」は別のこと）。
+        voteCount: found.stage === 'onBoard' ? found.voteCount : null,
+        stage: found.stage,
+      }
+    } else if (record) {
+      states[cq.objectID] = { sentAt: record.sentAt, voteCount: null, stage: 'received' }
+    }
   }
   return states
 }
@@ -92,6 +117,7 @@ export function buildDispatchStates(
 // 泡とパネルに出す一行。票が0のときは数字を出さない（「0人が気になる」は寂しさの可視化）。
 export function dispatchLabel(state: DispatchState | undefined): string {
   if (!state) return ''
+  if (state.stage === 'answered') return '答えが出ました'
   if (state.voteCount && state.voteCount > 0) {
     return `${state.voteCount}人が同じことを気にしています`
   }

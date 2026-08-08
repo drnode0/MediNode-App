@@ -54,9 +54,11 @@ const SCENARIOS: Scenario[] = [
     newAnswers: { 'personal_dev-1': 3 },
     dispatch: {
       // 投げただけ（板にはまだ載っていない）
-      'personal_dev-3': { sentAt: '2026-08-01T00:00:00.000Z', voteCount: null },
+      'personal_dev-3': { sentAt: '2026-08-01T00:00:00.000Z', voteCount: null, stage: 'received' },
       // 板に載って票がついた
-      'personal_dev-4': { sentAt: '2026-07-20T00:00:00.000Z', voteCount: 3 },
+      'personal_dev-4': { sentAt: '2026-07-20T00:00:00.000Z', voteCount: 3, stage: 'onBoard' },
+      // 作者が答えた
+      'personal_dev-6': { sentAt: '2026-06-10T00:00:00.000Z', voteCount: null, stage: 'answered' },
     },
   },
   { label: '15件・ほかに7件', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },

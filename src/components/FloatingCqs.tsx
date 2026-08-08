@@ -29,6 +29,7 @@ import {
   forgetSentCq,
   type DispatchState,
 } from '@/lib/cq-dispatch'
+import type { MyStage } from '@/lib/cq-mine'
 import { setPendingQuery } from '@/lib/pending-query'
 import { useCqCapture } from '@/components/CqCapture'
 import { CqActionSheet } from '@/components/CqActionSheet'
@@ -143,31 +144,32 @@ export function UnresolvedCqScreen({
     }
   }, [loaded, fixture])
 
-  // 作者に投げた問いのその後。板の受付中一覧と突き合わせて票を泡に返す。
-  // 投げた記録が1件も無ければ板を取りに行かない（何も出ない画面のために叩かない）。
+  // 作者に投げた問いのその後。サーバー（通知に同意した投稿）と端末の記録を重ねる。
   useEffect(() => {
-    if (fixture) return
-    const sent = readSentCqs()
-    if (!sent.length) return
+    const cqs = loaded?.cqs
+    if (fixture || !cqs || !cqs.length) return
     let cancelled = false
-    fetch('/api/cq/board')
+    const sent = readSentCqs()
+    fetch('/api/cq/mine')
       .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d: { items?: Array<{ title?: string; voteCount?: number }> }) => {
+      .then((d: { items?: Array<{ question?: string; stage?: string; voteCount?: number; createdAt?: string }> }) => {
         if (cancelled) return
-        const board = (d.items || []).map((i) => ({
-          title: String(i.title || ''),
+        const submissions = (d.items || []).map((i) => ({
+          question: String(i.question || ''),
+          stage: (i.stage as MyStage) || 'received',
           voteCount: Number(i.voteCount || 0),
+          createdAt: String(i.createdAt || ''),
         }))
-        setDispatch(buildDispatchStates(sent, board))
+        setDispatch(buildDispatchStates(cqs, sent, submissions))
       })
       .catch(() => {
-        // 板が取れなくても「送った」までは記録から出せる。
-        setDispatch(buildDispatchStates(sent, []))
+        // サーバーが引けなくても、この端末で送った分までは記録から出せる。
+        if (!cancelled) setDispatch(buildDispatchStates(cqs, sent, []))
       })
     return () => {
       cancelled = true
     }
-  }, [fixture])
+  }, [loaded, fixture])
 
   const { floating, rest } = useMemo(
     () => pickFloating(loaded?.cqs || [], newAnswers, grid.cols * grid.rows),
@@ -297,7 +299,7 @@ export function UnresolvedCqScreen({
                   key={cq.objectID}
                   cq={cq}
                   paused={paused}
-                  sent={dispatchLabel(dispatch[cq.objectID])}
+                  dispatch={dispatch[cq.objectID]}
                   onSelect={() => setSelected(cq)}
                 />
               ))}
@@ -399,16 +401,18 @@ const SIZE_CLASS = {
 function Bubble({
   cq,
   paused,
-  sent,
+  dispatch,
   onSelect,
 }: {
   cq: PlacedCq
   paused: boolean
-  // 作者に投げた問いの一行（空なら投げていない）。
-  sent: string
+  // 作者に投げた問いのその後（投げていなければ undefined）。
+  dispatch?: DispatchState
   onSelect: () => void
 }) {
   const lit = cq.newAnswerCount > 0
+  const answered = dispatch?.stage === 'answered'
+  const sent = dispatchLabel(dispatch)
   return (
     <button
       type="button"
@@ -435,9 +439,12 @@ function Bubble({
           新しい答えが{cq.newAnswerCount}件
         </span>
       )}
-      {/* 投げた問いのその後。新しい答えの琥珀とは色を分ける（別の出来事なので）。 */}
-      {sent && !lit && (
-        <span className="mt-1 flex items-center gap-1 text-[10px] text-teal-700 dark:text-teal-300">
+      {/* 投げた問いのその後。新しい答えの琥珀とは色を分ける（別の出来事なので）。
+          答えが出たときだけは、新しい答えが並んでいても必ず出す（これが投げた甲斐）。 */}
+      {sent && (answered || !lit) && (
+        <span
+          className={`mt-1 flex items-center gap-1 text-[10px] text-teal-700 dark:text-teal-300 ${answered ? 'font-bold' : ''}`}
+        >
           <Send className="w-3 h-3" />
           {sent}
         </span>
