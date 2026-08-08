@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { CqCaptureProvider } from '@/components/CqCapture'
 import { UnresolvedCqScreen } from '@/components/FloatingCqs'
 import type { CqSeed, NewAnswerMap } from '@/lib/floating-cq'
+import type { DispatchState } from '@/lib/cq-dispatch'
 
 const TITLES = [
   'アミオダロンの初期負荷、腎不全でも同じでいいのか',
@@ -36,10 +37,28 @@ function mkCqs(count: number): CqSeed[] {
   }))
 }
 
-const SCENARIOS: { label: string; cqs: CqSeed[]; newAnswers: NewAnswerMap }[] = [
+type Scenario = {
+  label: string
+  cqs: CqSeed[]
+  newAnswers: NewAnswerMap
+  dispatch?: Record<string, DispatchState>
+}
+
+const SCENARIOS: Scenario[] = [
   { label: '0件（空状態）', cqs: [], newAnswers: {} },
   { label: '3件・新しい答えなし', cqs: mkCqs(3), newAnswers: {} },
   { label: '8件・2件に新しい答え', cqs: mkCqs(8), newAnswers: { 'personal_dev-1': 3, 'personal_dev-5': 1 } },
+  {
+    label: '8件・作者に投げた分あり',
+    cqs: mkCqs(8),
+    newAnswers: { 'personal_dev-1': 3 },
+    dispatch: {
+      // 投げただけ（板にはまだ載っていない）
+      'personal_dev-3': { sentAt: '2026-08-01T00:00:00.000Z', voteCount: null },
+      // 板に載って票がついた
+      'personal_dev-4': { sentAt: '2026-07-20T00:00:00.000Z', voteCount: 3 },
+    },
+  },
   { label: '15件・ほかに7件', cqs: mkCqs(15), newAnswers: { 'personal_dev-2': 2 } },
 ]
 
@@ -47,7 +66,10 @@ export default function DevFloatingCqPage() {
   if (process.env.NODE_ENV !== 'development') notFound()
   const [index, setIndex] = useState(2)
   const scenario = SCENARIOS[index]
-  const fixture = useMemo(() => ({ cqs: scenario.cqs, newAnswers: scenario.newAnswers }), [scenario])
+  const fixture = useMemo(
+    () => ({ cqs: scenario.cqs, newAnswers: scenario.newAnswers, dispatch: scenario.dispatch }),
+    [scenario],
+  )
 
   return (
     <div>

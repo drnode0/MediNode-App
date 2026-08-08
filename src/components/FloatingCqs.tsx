@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Undo2 } from 'lucide-react'
+import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Undo2, Send } from 'lucide-react'
 import { getSettings, buildPropMap } from '@/lib/settings'
 import {
   createSubscriptionSearchClient,
@@ -22,6 +22,13 @@ import {
   type PlacedCq,
 } from '@/lib/floating-cq'
 import { loadUnresolvedCqs, clearUnresolvedCount } from '@/lib/unresolved-cqs'
+import {
+  readSentCqs,
+  buildDispatchStates,
+  dispatchLabel,
+  forgetSentCq,
+  type DispatchState,
+} from '@/lib/cq-dispatch'
 import { setPendingQuery } from '@/lib/pending-query'
 import { useCqCapture } from '@/components/CqCapture'
 import { CqActionSheet } from '@/components/CqActionSheet'
@@ -39,7 +46,11 @@ type Loaded = { cqs: CqSeed[]; error: string } | null
 
 // fixture は development のdevハーネス（/dev/floating-cq）専用の注入口。
 // 渡されたときは取得も新しい答えの判定も行わない（本物のNotion・Algoliaに触れない）。
-export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; newAnswers: NewAnswerMap } } = {}) {
+export function UnresolvedCqScreen({
+  fixture,
+}: {
+  fixture?: { cqs: CqSeed[]; newAnswers: NewAnswerMap; dispatch?: Record<string, DispatchState> }
+} = {}) {
   const router = useRouter()
   const openCapture = useCqCapture()
   const [loaded, setLoaded] = useState<Loaded>(null)
@@ -52,6 +63,8 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
   const [paused, setPaused] = useState(false)
   // 初期値は広い方。マウント直後の effect で実際の画面幅に合わせる。
   const [grid, setGrid] = useState<Grid>(WIDE_GRID)
+  // 作者に投げた問いのその後（objectID → 送った日時と票数）。
+  const [dispatch, setDispatch] = useState<Record<string, DispatchState>>({})
 
   const settings = getSettings()
   const personalToken = settings?.notionToken || ''
@@ -76,6 +89,7 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
     if (fixture) {
       setLoaded({ cqs: fixture.cqs, error: '' })
       setNewAnswers(fixture.newAnswers)
+      setDispatch(fixture.dispatch || {})
       return
     }
     let cancelled = false
@@ -129,6 +143,32 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
     }
   }, [loaded, fixture])
 
+  // 作者に投げた問いのその後。板の受付中一覧と突き合わせて票を泡に返す。
+  // 投げた記録が1件も無ければ板を取りに行かない（何も出ない画面のために叩かない）。
+  useEffect(() => {
+    if (fixture) return
+    const sent = readSentCqs()
+    if (!sent.length) return
+    let cancelled = false
+    fetch('/api/cq/board')
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d: { items?: Array<{ title?: string; voteCount?: number }> }) => {
+        if (cancelled) return
+        const board = (d.items || []).map((i) => ({
+          title: String(i.title || ''),
+          voteCount: Number(i.voteCount || 0),
+        }))
+        setDispatch(buildDispatchStates(sent, board))
+      })
+      .catch(() => {
+        // 板が取れなくても「送った」までは記録から出せる。
+        setDispatch(buildDispatchStates(sent, []))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fixture])
+
   const { floating, rest } = useMemo(
     () => pickFloating(loaded?.cqs || [], newAnswers, grid.cols * grid.rows),
     [loaded, newAnswers, grid],
@@ -170,6 +210,13 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
       try {
         await writeLevel(cq, 'knowledge')
         dropCq(cq.objectID)
+        // 泡が消える以上、投げた記録も残さない（戻したときは押し直しになる）。
+        forgetSentCq(cq.objectID)
+        setDispatch((prev) => {
+          const next = { ...prev }
+          delete next[cq.objectID]
+          return next
+        })
         setSelected(null)
         setUndo(cq)
         window.setTimeout(() => setUndo((u) => (u?.objectID === cq.objectID ? null : u)), UNDO_MS)
@@ -246,7 +293,13 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
             )}
             <div className="relative h-[68vh] min-h-[420px] mt-2">
               {placed.map((cq) => (
-                <Bubble key={cq.objectID} cq={cq} paused={paused} onSelect={() => setSelected(cq)} />
+                <Bubble
+                  key={cq.objectID}
+                  cq={cq}
+                  paused={paused}
+                  sent={dispatchLabel(dispatch[cq.objectID])}
+                  onSelect={() => setSelected(cq)}
+                />
               ))}
             </div>
 
@@ -298,12 +351,17 @@ export function UnresolvedCqScreen({ fixture }: { fixture?: { cqs: CqSeed[]; new
           cq={selected}
           resolving={resolving}
           canResolve={!!(personalToken && personalDbId)}
+          dispatch={dispatch[selected.objectID]}
           onClose={() => setSelected(null)}
           onSearch={() => handleSearch(selected)}
           onAsk={
             openCapture
               ? () => {
-                  openCapture(selected.title, { title: selected.title, url: selected.notionUrl }, 'settings')
+                  openCapture(
+                    selected.title,
+                    { title: selected.title, url: selected.notionUrl, cqObjectID: selected.objectID },
+                    'settings',
+                  )
                   setSelected(null)
                 }
               : null
@@ -338,7 +396,18 @@ const SIZE_CLASS = {
   lg: 'text-sm px-4 py-2.5',
 } as const
 
-function Bubble({ cq, paused, onSelect }: { cq: PlacedCq; paused: boolean; onSelect: () => void }) {
+function Bubble({
+  cq,
+  paused,
+  sent,
+  onSelect,
+}: {
+  cq: PlacedCq
+  paused: boolean
+  // 作者に投げた問いの一行（空なら投げていない）。
+  sent: string
+  onSelect: () => void
+}) {
   const lit = cq.newAnswerCount > 0
   return (
     <button
@@ -364,6 +433,13 @@ function Bubble({ cq, paused, onSelect }: { cq: PlacedCq; paused: boolean; onSel
         <span className="mt-1 flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
           <Sparkles className="w-3 h-3" />
           新しい答えが{cq.newAnswerCount}件
+        </span>
+      )}
+      {/* 投げた問いのその後。新しい答えの琥珀とは色を分ける（別の出来事なので）。 */}
+      {sent && !lit && (
+        <span className="mt-1 flex items-center gap-1 text-[10px] text-teal-700 dark:text-teal-300">
+          <Send className="w-3 h-3" />
+          {sent}
         </span>
       )}
     </button>

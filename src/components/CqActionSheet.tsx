@@ -1,6 +1,7 @@
 'use client'
 import { Search, Send, ExternalLink, Check, X, Sparkles } from 'lucide-react'
 import { formatCqAge, type PlacedCq } from '@/lib/floating-cq'
+import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
 
 // 浮かんでいる問いを触ったときに出るパネル。一手を4つだけ並べる。
 // 「解決した」は確認を挟まない（押した直後に「元に戻す」を数秒残す方が手が軽い）。
@@ -12,6 +13,7 @@ export function CqActionSheet({
   onResolve,
   resolving,
   canResolve,
+  dispatch,
 }: {
   cq: PlacedCq
   onClose: () => void
@@ -22,6 +24,8 @@ export function CqActionSheet({
   resolving: boolean
   // 個人Notionが無い＝書き込み先が無いときは false。
   canResolve: boolean
+  // 作者に投げたことがある問いだけ入る。投げていなければ undefined。
+  dispatch?: DispatchState
 }) {
   const lit = cq.newAnswerCount > 0
   // 「今日」の判定はレンダーごとに取り直す（開きっぱなしで日付が変わるほどの画面ではない）。
@@ -72,13 +76,33 @@ export function CqActionSheet({
             emphasis={lit}
             onClick={onSearch}
           />
-          {onAsk && (
-            <SheetButton
-              Icon={Send}
-              label="作者に投げる"
-              note="みんなの臨床疑問へ。解決したら通知が届く"
-              onClick={onAsk}
-            />
+          {/* 一度投げた問いは「投げる」を出さない。同じ疑問を二重に送らせない。
+              代わりに、いま作者側でどこまで進んでいるかを置く。 */}
+          {dispatch ? (
+            <div className="flex items-center gap-3 px-3 py-3">
+              <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">
+                <Send className="w-4 h-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-teal-800 dark:text-teal-200">
+                  {dispatchLabel(dispatch)}
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  {dispatch.voteCount && dispatch.voteCount > 0
+                    ? '票が多い疑問から答えが書かれます'
+                    : '答えが出たらお知らせが届きます'}
+                </span>
+              </span>
+            </div>
+          ) : (
+            onAsk && (
+              <SheetButton
+                Icon={Send}
+                label="作者に投げる"
+                note="みんなの臨床疑問へ。解決したら通知が届く"
+                onClick={onAsk}
+              />
+            )
           )}
           <SheetButton
             Icon={ExternalLink}

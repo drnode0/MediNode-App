@@ -28,10 +28,13 @@ import { useAuth } from './auth/AuthProvider'
 import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
 import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
+import { recordSentCq } from '@/lib/cq-dispatch'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
-export type CqSource = { title?: string; url?: string }
+// cqObjectID は /cq（未解決の問い）から投げたときだけ入る。投稿が通ったら
+// 「どの泡を投げたか」を端末に控え、板の票をその泡に返すために使う。
+export type CqSource = { title?: string; url?: string; cqObjectID?: string }
 
 // 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
 // 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
@@ -480,6 +483,10 @@ function CqCaptureModal({
               return
             }
             setExpertDone(true)
+            // /cq から投げた分は「どの泡を送ったか」を控える。板の票をその泡に返すため。
+            if (source?.cqObjectID) {
+              recordSentCq(source.cqObjectID, trimmed, new Date().toISOString())
+            }
             saveCqProfile(profile)
             track('cq_expert_submitted', { occupation: profile.occupation || 'none' })
           } catch {
