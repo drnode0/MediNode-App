@@ -166,8 +166,8 @@ export function CommunitySky({
       <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200">みんなの臨床疑問</h2>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
         {loaded?.canVote
-          ? 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。♡ を押すと、次に答えるものを決める参考になります。'
-          : 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。♡ はプレミアムの方が押せます。'}
+          ? 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。気になる問いをタップすると印がつき、次に答えるものを決める参考になります。'
+          : 'ほかの人が送った疑問のうち、専門医がまだ答えていないものです。印をつけられるのはプレミアムの方です。'}
       </p>
 
       {!loaded ? (
@@ -238,8 +238,10 @@ function CommunityBubble({
       } ${canVote ? '' : 'cursor-default'}`}
     >
       {cq.title}
-      {/* ハートは票数を出すときだけ。0票の行は名乗り（「匿名さん（看護師）」）なので、
-          そこにハートを付けると人を推している見た目になる。 */}
+      {/* ハートは押すものではなく、印がついたことを示す表示。押しているのは泡そのもの
+          （指で押しやすい面を大きく取るため）。文言も「タップすると印がつく」で揃える。
+          0票の行は名乗り（「匿名さん（看護師）」）なので、そこにハートは付けない
+          ——人を推している見た目になる。 */}
       <span
         className={`mt-1 flex items-center gap-1 text-[10px] ${
           cq.voted ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-gray-400 dark:text-gray-500'

@@ -38,11 +38,14 @@ export const ANNOUNCEMENTS: Announcement[] = [
     date: '2026-08-09',
     Icon: MessageCircleQuestion,
     title: 'あなたの未解決の問いが浮かぶ画面ができました',
+    // 本文は改行と「・」で区切る（表示側は whitespace-pre-line）。
+    // 1つの段落に全部詰めると、長いだけで何ができる機能なのか読み取れない。
     body:
-      '❓ CQ として残したまま、まだ答えの出ていない問いだけが漂う画面です。CQボタン（右下）を押すと、上に「未解決の問い」の入口があります。' +
-      'CQを残した日より後に書かれたナレッジがその文言で見つかると、その問いが明るくなって「新しい答えが◯件」と出ます。自分のDBの中と、プレミアムの両方から探します。' +
-      '問いをタップすると、その文言で横断して探す・専門医に訊く・Notionを開いて自分で書く、の三つが選べます。専門医に送った問いは「届いています」「◯人が同じことを気にしています」「答えが出ました」と、そのあとの様子が返ります。' +
-      '画面の下半分は「みんなの臨床疑問」です。ほかの人が送った疑問のうち、専門医がまだ答えていないものが並びます。♡ を押すと、次に答えるものを決める参考になります（♡ はプレミアムの方が押せます）。' +
+      '❓ CQ として残したまま、まだ答えの出ていない問いが漂う画面です。右下のCQボタンから開けます。\n\n' +
+      '・問いをタップすると、探す・専門医に訊く・Notionで書く、の三つが選べます\n' +
+      '・CQを残した日より後に書かれたナレッジがその文言で見つかると、その問いが明るくなります。自分のDBとプレミアムの両方を探します\n' +
+      '・専門医に送った問いは、そのあとの様子が返ります（届いています／◯人が同じことを気にしています／答えが出ました）\n' +
+      '・画面の下半分は「みんなの臨床疑問」です。ほかの人が送った疑問のうち、専門医がまだ答えていないものが並びます。気になる問いをタップすると印がつき、次に答えるものを決める参考になります（プレミアムの方が対象です）\n\n' +
       'Notionで知識レベルを 💡 ナレッジ に変えると、再同期のあとにその問いは画面から消えます。',
     links: [{ label: 'あなたの未解決の問いを開く', url: '/cq' }],
   },
@@ -166,7 +169,7 @@ export function UpdateBanner() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-brand-800 dark:text-brand-200">{LATEST_ANNOUNCEMENT.title}</p>
           {/* line-clamp-2: 長文お知らせが初回画面を占拠しないよう2行まで。全文は設定→お知らせ・更新履歴で読める */}
-          <p className="text-xs text-brand-700 dark:text-brand-300 mt-0.5 leading-relaxed line-clamp-2">{LATEST_ANNOUNCEMENT.body}</p>
+          <p className="text-xs text-brand-700 dark:text-brand-300 mt-0.5 leading-relaxed line-clamp-2 whitespace-pre-line">{LATEST_ANNOUNCEMENT.body}</p>
           <div className="flex flex-wrap gap-2 mt-2">
             {(LATEST_ANNOUNCEMENT.links || []).map((lk) => (
               <a

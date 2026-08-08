@@ -1629,7 +1629,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                         <p className="text-sm font-bold text-gray-900 dark:text-white">{a.title}</p>
                         <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{a.date}</span>
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">{a.body}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed whitespace-pre-line">{a.body}</p>
                       {a.links && a.links.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {a.links.map((lk) => (
