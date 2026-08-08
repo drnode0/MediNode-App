@@ -85,4 +85,21 @@ describe('POST /api/notion/resolve-cq', () => {
     expect(res.status).toBe(400)
     expect(updateMock).not.toHaveBeenCalled()
   })
+
+  it('Notionの権限不足は、何をすれば直るかまで書いて返す', async () => {
+    updateMock.mockRejectedValue(new Error('Insufficient permissions for this endpoint.'))
+    const res = await POST(makeReq({ ...base, to: 'knowledge' }))
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('notion_update_denied')
+    expect(body.error).toContain('コンテンツを更新')
+    expect(body.error).toContain('Notion側で知識レベル')
+  })
+
+  it('権限以外の失敗はそのまま500で返す（原因を握り潰さない）', async () => {
+    updateMock.mockRejectedValue(new Error('service unavailable'))
+    const res = await POST(makeReq({ ...base, to: 'knowledge' }))
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toBe('service unavailable')
+  })
 })

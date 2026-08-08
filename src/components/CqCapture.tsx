@@ -303,8 +303,6 @@ function CqCaptureModal({
   // 送信結果は届け先ごとに持つ（片方の失敗がもう片方を巻き込まない）。
   const [mineDone, setMineDone] = useState<{ url: string } | null>(null)
   const [expertDone, setExpertDone] = useState(false)
-  // 作者アカウントか（/api/cq/submit の GET が返す）。届け先の固定にだけ使う。
-  const [isOwner, setIsOwner] = useState(false)
   const [mineError, setMineError] = useState('')
   const [expertError, setExpertError] = useState('')
   const [phase, setPhase] = useState<'input' | 'done'>('input')
@@ -362,12 +360,6 @@ function CqCaptureModal({
       .then((d) => {
         if (!active) return
         setExpertReady(d?.available ? 'ready' : 'unavailable')
-        // 作者は届け先を受付DB（サブスクの制作キュー）だけに固定する。
-        // 個人のMy Medical DBと混ぜると、普段使いの知識と制作待ちの疑問がこんがらがる。
-        if (d?.owner) {
-          setIsOwner(true)
-          setDest({ mine: false, expert: true })
-        }
       })
       .catch(() => {
         if (active) setExpertReady('unavailable')
@@ -559,8 +551,9 @@ function CqCaptureModal({
               {phase === 'input' && (
                 <a
                   href="/cq"
-                  className="text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-300 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-3 py-1.5 text-xs font-bold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
                 >
+                  <Sprout className="w-3.5 h-3.5" />
                   未解決の問い
                 </a>
               )}
@@ -608,7 +601,7 @@ function CqCaptureModal({
               {/* 届け先チップ。疑問文は1回書くだけで、送り先を選ぶ。 */}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-400 dark:text-gray-500">届け先</span>
-                {personalAvail && !isOwner && (
+                {personalAvail && (
                   <button
                     type="button"
                     onClick={() => setDest((d) => ({ ...d, mine: !d.mine }))}

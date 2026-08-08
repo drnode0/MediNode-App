@@ -302,8 +302,19 @@ export function UnresolvedCqScreen({
           <EmptyState onCapture={openCapture ? () => openCapture() : null} />
         ) : (
           <>
+            {/* 書き込みに失敗したときの知らせ。裸の赤文字だと英語のまま出て何をすれば
+                いいか分からないので、枠に入れて手当ての一文まで含める。 */}
             {loaded.error && (
-              <p className="mt-3 text-xs text-red-600 dark:text-red-400">{loaded.error}</p>
+              <div className="mt-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
+                <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">{loaded.error}</p>
+                <button
+                  type="button"
+                  onClick={() => setLoaded((prev) => (prev ? { ...prev, error: '' } : prev))}
+                  className="mt-2 text-[11px] font-bold text-red-700 dark:text-red-300 underline underline-offset-2"
+                >
+                  閉じる
+                </button>
+              </div>
             )}
             <div className="relative h-[68vh] min-h-[420px] mt-2">
               {placed.map((cq) => (

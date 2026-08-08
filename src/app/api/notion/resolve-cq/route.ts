@@ -64,7 +64,23 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, knowledgeLevel: value })
   } catch (err) {
-    const message = err instanceof Error ? err.message : '不明なエラー'
-    return NextResponse.json({ error: message }, { status: 500 })
+    const raw = err instanceof Error ? err.message : '不明なエラー'
+    // Notion側の権限不足は、そのまま出すと英語の一文で何をすればいいか分からない。
+    // ページの作成（CQ登録）は通るのに更新だけ弾かれる＝インテグレーションの
+    // 「コンテンツを更新」が無い、というのがほぼ唯一の原因なので、そこまで書く。
+    const denied = /insufficient permissions|restricted from performing/i.test(raw)
+    if (denied) {
+      return NextResponse.json(
+        {
+          error:
+            'Notion連携に「コンテンツを更新」の権限がないため、知識レベルを変えられませんでした。' +
+            'Notionのインテグレーション設定で更新を許可すると押せるようになります。' +
+            'それまではNotion側で知識レベルを「💡 ナレッジ」に変えてください。',
+          code: 'notion_update_denied',
+        },
+        { status: 403 },
+      )
+    }
+    return NextResponse.json({ error: raw }, { status: 500 })
   }
 }
