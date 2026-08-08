@@ -96,12 +96,22 @@ export function PremiumSync() {
         const res = await fetch('/api/premium/status', { cache: 'no-store' })
         const data = await res.json()
         if (cancelled) return
-        const current = getSettings() || DEFAULT_SETTINGS
+        const storedSettings = getSettings()
+        const current = storedSettings || DEFAULT_SETTINGS
 
         // 先行体験を反映。active/非activeを問わず同期する（フリー会員も対象になりうる）。
         // boolean と機能配列の両方を見て、変化があれば「1回だけ」保存してリロードする
         // （別々に判定すると2回リロードが走る）。
-        {
+        //
+        // ⚠️ ただし、この端末にまだ設定が保存されていない（セットアップ未完了の）間は
+        // 何も保存しない。current が DEFAULT_SETTINGS のとき saveSettings すると、
+        // 選んでもいない searchMode:'algolia' を含む既定値一式が実体化してサーバーにも
+        // 同期され、後日どの端末でも「パワーモードの追加設定が必要です」で行き止まる
+        // （2026-08-08 demo検証で実証。GA中は全新規が features の差分を踏むため全員が
+        // 該当する）。ついでに mid-セットアップの reload（ウィザードが入口へ巻き戻る）も
+        // ここで止まる。features は設定が保存された後の次回同期で入り、カードの表示は
+        // GA env（isEasyConnectVisible）が同期値なしでも担う。
+        if (storedSettings) {
           const nextEarlyAccess =
             typeof data.earlyAccess === 'boolean' ? data.earlyAccess : (current.earlyAccess ?? false)
           const nextFeatures: string[] = Array.isArray(data.features)
@@ -132,6 +142,8 @@ export function PremiumSync() {
           }
         }
 
+        // ここから下（プレミアムキーの反映）は従来どおり。契約が有効なら、設定が空の端末でも
+        // プレミアム単独で成立させる必要があるため storedSettings では絞らない。
         if (data.active && data.algolia) {
           // 契約有効 → プレミアムキーをこの端末の設定に反映。
           // 既に同じ値なら書き込まない（不要なリロード誘発を防ぐ）。

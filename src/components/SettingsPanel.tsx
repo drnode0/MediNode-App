@@ -18,6 +18,7 @@ import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
 import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
 import { readPreviewFlagFromBrowser, clearPreviewCookie } from '@/lib/easy-connect-preview'
+import { markEcReturnPending } from '@/lib/ec-return'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
@@ -1114,7 +1115,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     </button>
                     <button
                       type="button"
-                      onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings_repick' }}
+                      onClick={() => { markEcReturnPending(''); window.location.href = '/api/notion/oauth/start?from=settings_repick' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
                       Notionでページを選び直す（許可を増やす・減らす）
@@ -1138,7 +1139,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                     </p>
                     <button
                       type="button"
-                      onClick={() => { window.location.href = '/api/notion/oauth/start?from=settings' }}
+                      onClick={() => { markEcReturnPending(''); window.location.href = '/api/notion/oauth/start?from=settings' }}
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
                       Notionでページを選んで切り替える

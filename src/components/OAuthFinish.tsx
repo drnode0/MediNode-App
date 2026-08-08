@@ -19,6 +19,7 @@ import { CheckCircle2, AlertTriangle, Loader2, Search, BookMarked, ClipboardList
 import { getSettings, saveSettings, normalizeNotionId, type AppSettings } from '@/lib/settings'
 import { resolveClaimedSettings, type ClaimResponse } from '@/lib/oauth-claim'
 import { guessDbRoles, displayDbTitle, DB_PICK_HINT, DB_ROLE_UI, type DbRoleKey } from '@/lib/notion-db-guess'
+import { clearEcReturnPending } from '@/lib/ec-return'
 import { inferPropMap } from '@/lib/prop-infer'
 import { isUnreadableDbErrorCode } from '@/lib/connection-errors'
 import { track } from '@vercel/analytics'
@@ -252,6 +253,8 @@ export function OAuthFinish({
       const next = resolveClaimedSettings(data.settings, data.hadServerSettings === true, local)
       saveSettings(next)
       claimed = true
+      // 「戻ってくる続きがある」フラグは、引き取れた時点で用済み（ec-return.ts）。
+      clearEcReturnPending()
       setWorkspace(next.notionWorkspaceName || '')
       await loadDbs(next.notionToken)
     } catch {

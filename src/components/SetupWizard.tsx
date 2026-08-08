@@ -21,6 +21,7 @@ import { useAuth } from './auth/AuthProvider'
 import { AccountButton } from './auth/AccountButton'
 import { LoginModal } from './auth/LoginModal'
 import { readPreviewFlagFromBrowser } from '@/lib/easy-connect-preview'
+import { markEcReturnPending, readEcReturnPending } from '@/lib/ec-return'
 import { DB_PICK_HINT, DB_ROLE_UI } from '@/lib/notion-db-guess'
 
 // 'entry' はオンボーディング直後の入口分岐（アカウント作成済み / はじめて使う）。
@@ -696,6 +697,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // 登録先行（設計書§9）。プレビュー鍵を持つブラウザだけ順序が変わる。
   // マウント時に1回だけ読む（途中でURLが変わっても順序を入れ替えない）。
   const [registerFirst] = useState(() => readPreviewFlagFromBrowser())
+  // Notion認可から戻ってきた続きが残っているか（ec-return.ts）。SSRとの不一致を
+  // 避けるため、マウント後に読む。
+  const [ecReturn, setEcReturn] = useState<{ email: string; at: number } | null>(null)
+  useEffect(() => { setEcReturn(readEcReturnPending()) }, [])
   // 初回は入口分岐（entry）から。再設定で initialStep を指定された場合はそこから始める。
   const [step, setStep] = useState<Step>(initialStep || 'entry')
   // 「何から始めるか」の選択。最初から通る場合は未選択で始める（モニターFB:
@@ -869,6 +874,14 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       // fetch自体の失敗（オフライン等）は network_error のまま下の案内に落とす。
     }
     setRestoring(false)
+    // Notion認可から戻ってログインし直した経路なら、ページを開き直して接続の
+    // 引き取り（claimable→claim）を走らせる。開き直さないと、ログイン前に一度
+    // 空振りした claimable の確認が再実行されず、認可した接続が拾われない
+    // （ec-return.ts・2026-08-08 demo FB）。
+    if (readEcReturnPending()) {
+      window.location.reload()
+      return
+    }
     if (isSetupComplete()) {
       clearDraft()
       onComplete()
@@ -1443,6 +1456,18 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 </p>
               </div>
 
+              {/* Notion認可から戻ったのにログインが切れているケース（2026-08-08 demo FB）。
+                  ここで別のアドレスを打って新規登録すると、認可した接続は元のアカウント宛の
+                  ため引き取れず、何も繋がらないまま迷子になる。同じアドレスへ誘導する。 */}
+              {ecReturn && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-200 leading-relaxed space-y-1">
+                  <p className="font-semibold">Notionでの許可はできています</p>
+                  <p>
+                    続き（読み取るデータベースの確認）は、<strong>先ほど登録したメールアドレス{ecReturn.email ? `（${ecReturn.email}）` : ''}でログイン</strong>すると自動で始まります。下の「アカウントをお持ちの方」からどうぞ。別のアドレスで新しく登録すると、この接続は引き取れません。
+                  </p>
+                </div>
+              )}
+
               {/* 🅐 アカウント作成済み（別端末で設定済み）→ ログインで復元 */}
               <button
                 onClick={() => {
@@ -1707,14 +1732,27 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               {/* かんたん接続（OAuth）。表示は earlyAccessFeatures で決定される。
                   ここでのチェックは表示制御のみ。アカウント側が許可すると表示される。 */}
               {easyConnectOn && (
-              <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2 bg-brand-50/50 dark:bg-brand-900/20">
+              <div className="rounded-2xl border-2 border-brand-500 dark:border-brand-600 p-4 space-y-2.5 bg-brand-50/50 dark:bg-brand-900/20">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">Notionの画面でページを選んで許可するだけ</p>
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
                   トークンの作成やコピーは不要です。既存のページを編集することはありません。
                 </p>
+                {/* 接続の前に、読み込むDBを用意してもらう（2026-08-08 demo FB）。旧Token動線に
+                    あったテンプレ複製の工程が接続動線から消えていて、DBを持たない人は
+                    Notionの認可画面で選ぶものが無かった。 */}
+                <div className="bg-white/70 dark:bg-gray-800/50 rounded-xl p-3 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  まだNotionに読み込むデータベースが無い方は、先に
+                  <a href={MANUAL_TEMPLATE_URL} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-400 underline font-semibold">無料テンプレートを複製</a>
+                  してください（知識・文献・マニュアルの3つ入り）。複製したページを、次のNotionの画面で選んで許可します。
+                </div>
                 <button
                   type="button"
-                  onClick={() => { window.location.href = '/api/notion/oauth/start?from=setup' }}
+                  onClick={() => {
+                    // 認可から戻ったときにログインが切れていても案内できるよう、
+                    // どのアドレスの続きかを端末に残してから出る（ec-return.ts）。
+                    markEcReturnPending(user?.email || '')
+                    window.location.href = '/api/notion/oauth/start?from=setup'
+                  }}
                   className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl py-3 text-sm font-semibold transition-colors"
                 >
                   Notionでページを選んで接続する
