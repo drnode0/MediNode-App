@@ -1,6 +1,6 @@
 'use client'
 import { Search, Send, ExternalLink, Check, X, Sparkles } from 'lucide-react'
-import type { PlacedCq } from '@/lib/floating-cq'
+import { formatCqAge, type PlacedCq } from '@/lib/floating-cq'
 
 // 浮かんでいる問いを触ったときに出るパネル。一手を4つだけ並べる。
 // 「解決した」は確認を挟まない（押した直後に「元に戻す」を数秒残す方が手が軽い）。
@@ -24,6 +24,8 @@ export function CqActionSheet({
   canResolve: boolean
 }) {
   const lit = cq.newAnswerCount > 0
+  // 「今日」の判定はレンダーごとに取り直す（開きっぱなしで日付が変わるほどの画面ではない）。
+  const age = formatCqAge(cq.createdAt, new Date())
   return (
     <div
       className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
@@ -51,6 +53,9 @@ export function CqActionSheet({
               <X className="w-4 h-4" />
             </button>
           </div>
+          {/* いつ残した問いか。泡には出さず、手を動かす直前のここだけに置く
+              （全部の泡に日付を並べると、溜めた日数を毎回見せる催促になる）。 */}
+          {age && <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">{age}</p>}
           {lit && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 rounded-full px-2.5 py-1">
               <Sparkles className="w-3.5 h-3.5" />

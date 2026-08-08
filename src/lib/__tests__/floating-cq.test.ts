@@ -6,6 +6,7 @@ import {
   pickFloating,
   placeFloating,
   gridFor,
+  formatCqAge,
   FLOAT_MAX,
   WIDE_GRID,
   NARROW_GRID,
@@ -116,6 +117,32 @@ describe('pickFloating', () => {
     ]
     const { floating } = pickFloating(cqs, {})
     expect(floating.map((c) => c.objectID)).toEqual(['b', 'a'])
+  })
+})
+
+describe('formatCqAge', () => {
+  const now = new Date('2026-08-08T09:00:00.000Z')
+
+  it('実日付と経過をひと続きで出す', () => {
+    expect(formatCqAge('2026-03-14T00:00:00.000Z', now)).toBe('2026-03-14 に残した・4か月前')
+  })
+
+  it('30日未満は日数で出す', () => {
+    expect(formatCqAge('2026-08-01T00:00:00.000Z', now)).toBe('2026-08-01 に残した・7日前')
+  })
+
+  it('当日は「今日」', () => {
+    expect(formatCqAge('2026-08-08T01:00:00.000Z', now)).toBe('2026-08-08 に残した・今日')
+  })
+
+  it('1年を超えたら年で丸める', () => {
+    expect(formatCqAge('2024-02-01T00:00:00.000Z', now)).toBe('2024-02-01 に残した・2年前')
+  })
+
+  it('日付が無い・壊れているときは何も出さない', () => {
+    expect(formatCqAge(undefined, now)).toBe('')
+    expect(formatCqAge('', now)).toBe('')
+    expect(formatCqAge('not-a-date', now)).toBe('')
   })
 })
 

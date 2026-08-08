@@ -125,6 +125,29 @@ function hash(text: string): number {
   return h
 }
 
+// 「いつ残した問いか」の表示。日付だけだと何か月前か暗算させることになるので、
+// 実日付と経過をひと続きで出す（例: 2026-03-14 に残した・5か月前）。
+// 経過は月・年で丸める。1日単位の精度は要らず、細かいほど催促に見える。
+export function formatCqAge(createdAt: string | undefined, now: Date): string {
+  if (!createdAt) return ''
+  const at = new Date(createdAt)
+  const ms = at.getTime()
+  if (Number.isNaN(ms)) return ''
+
+  const y = at.getFullYear()
+  const m = String(at.getMonth() + 1).padStart(2, '0')
+  const d = String(at.getDate()).padStart(2, '0')
+  const date = `${y}-${m}-${d}`
+
+  const days = Math.floor((now.getTime() - ms) / 86_400_000)
+  if (days < 0) return `${date} に残した`
+  if (days === 0) return `${date} に残した・今日`
+  if (days < 30) return `${date} に残した・${days}日前`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${date} に残した・${months}か月前`
+  return `${date} に残した・${Math.floor(months / 12)}年前`
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
