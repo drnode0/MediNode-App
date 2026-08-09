@@ -78,9 +78,11 @@ button:active, a:active, [role='button']:active {
    子の絶対配置の基準になるので relative は要らない）。
    膨らみの位置と大きさは px で固定する。% にすると要素の高さ次第で本文に食い込む。 */
 .cq-cloud {
-  border-radius: 9999px;
+  /* 底は平らに近い角丸。全周を丸めきると（9999px）膨らみと合わさって
+     「こぶ付きの塊」になり、雲に見えない。 */
+  border-radius: 24px;
   /* 膨らみが本体に潜り込む分、文字を下げて重なりを避ける。 */
-  padding-top: 1.15rem;
+  padding-top: 1.25rem;
 }
 .cq-cloud::before,
 .cq-cloud::after {
@@ -89,20 +91,22 @@ button:active, a:active, [role='button']:active {
   background: inherit;
   border-radius: 50%;
 }
-/* 大小と形を変える。同じ大きさの丸を2つ並べると、雲ではなく耳に見える。
-   手前は横長のふくらみ、奥は小さな丸。 */
+/* 大小の丸を2つ、互いに重ねて置く。ここは何度か外した。
+   - 離して置くと（左端と右端に1つずつ）、雲ではなく動物の耳に見える。
+   - 平たい楕円＋小さな丸だと、つばの付いた塊に見える。
+   重なった大小の丸を片側に寄せるのが、いちばん雲の輪郭に近い。
+   左からの距離は px で固定する（% にすると幅の広い泡で離れてしまう）。 */
 .cq-cloud::before {
-  width: 46%;
-  max-width: 92px;
-  height: 26px;
-  left: 10%;
-  top: -11px;
+  width: 36px;
+  height: 36px;
+  left: 13px;
+  top: -17px;
 }
 .cq-cloud::after {
-  width: 24px;
-  height: 24px;
-  left: 48%;
-  top: -13px;
+  width: 25px;
+  height: 25px;
+  left: 43px;
+  top: -11px;
 }
 
 /* 検索ハイライト（ライト/ダーク両対応） */
