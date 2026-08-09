@@ -30,12 +30,26 @@ export function gridFor(viewportWidth: number): Grid {
   return viewportWidth < NARROW_MAX_WIDTH ? NARROW_GRID : WIDE_GRID
 }
 
-// 泡の幅が区画に対して占める割合。左右に余白を残して隣とぶつからないようにする。
+// 泡の幅が区画に対して占める割合の上限。左右に余白を残して隣とぶつからないようにする。
 const WIDTH_RATIO = 0.86
+
+// 題の長さから幅を決める。
+//
+// 幅を上限（max-width）だけにすると、日本語はどこでも折り返せるのでブラウザが
+// 最小幅を選び、泡が「1〜3文字ずつ縦に流れる細い柱」に潰れる。かといって全部
+// 同じ固定幅にすると、短い問いまで同じ大きさの札になって表のように見える。
+// そこで長さで3段に分け、幅そのものを変える。
+function widthRatioFor(title: string): number {
+  const len = [...title].length
+  if (len <= 14) return 0.6
+  if (len <= 30) return 0.76
+  return WIDTH_RATIO
+}
 // 区画の中でどれだけ揺らすか（区画の幅・高さに対する割合）。
-// 横は幅いっぱいを使うためほぼ揺らせない。縦を大きめに取って不揃いさを出す。
-const JITTER_X = 0.1
-const JITTER_Y = 0.3
+// 不揃いさは漂う動き（driftX/Y）が受け持つので、置く位置のばらつきは控えめでよい。
+// 縦を大きく振ると、行同士がくっついた帯と、何も無い帯が交互にできる。
+const JITTER_X = 0.12
+const JITTER_Y = 0.16
 // 上下に空ける余白（枠の高さに対する%）。泡は中心座標で置くため、端に寄せると
 // 泡の高さの半分が枠の外へ出てヘッダーに食い込む。3行の泡の半分がおさまる幅を取る。
 const MARGIN_Y = 14
@@ -59,12 +73,19 @@ export type PlacedCq = CqSeed & {
   // 枠に対する中心座標（%）。
   x: number
   y: number
-  // 枠の幅に対する泡の幅（%）。px上限にすると狭い画面で1文字ずつ折り返す。
+  // 枠の幅に対する泡の幅（%）。題の長さで3段に分ける（widthRatioFor）。
   widthPercent: number
   size: 'sm' | 'md' | 'lg'
   opacity: number
   driftSeconds: number
   delaySeconds: number
+  // 漂う軌道。4点を回るので、往復ではなく不規則に見える。単位はpx。
+  driftX: number
+  driftY: number
+  driftX2: number
+  driftY2: number
+  // わずかな傾き（度）。紙片が水に浮いている感じを出す。
+  tiltDeg: number
 }
 
 export function isUnresolvedCq(hit: { knowledgeLevel?: string }): boolean {
@@ -151,6 +172,19 @@ export function formatCqAge(createdAt: string | undefined, now: Date): string {
   return `${date} に残した・${Math.floor(months / 12)}年前`
 }
 
+// 実際に使う行数。件数が少なければ行も減る。
+export function usedRowsFor(count: number, grid: Grid = WIDE_GRID): number {
+  const capped = Math.min(count, grid.cols * grid.rows)
+  return Math.max(1, Math.ceil(capped / grid.cols))
+}
+
+// 空の高さ（CSSの長さ）。行数ぶんだけ取り、画面の3分の2は超えない。
+// 固定の高さにすると、4件しかないときに真ん中が大きく空いて「抜けている」ように見える。
+const ROW_HEIGHT_PX = 130
+export function skyHeight(count: number, grid: Grid = WIDE_GRID): string {
+  return `min(${usedRowsFor(count, grid) * ROW_HEIGHT_PX + 30}px, 66vh)`
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
@@ -164,17 +198,20 @@ export function placeFloating(
   cqs: CqSeed[],
   newAnswers: NewAnswerMap,
   grid: Grid = WIDE_GRID,
+  // 題以外に場所を取る要素がある空のための足し幅（区画に対する割合）。
+  // みんなの臨床疑問は行頭にハートが入るぶん、同じ題でも横がきつくなる。
+  widthBoost = 0,
 ): PlacedCq[] {
   const { cols, rows } = grid
   const visible = cqs.slice(0, cols * rows)
-  const usedRows = Math.max(1, Math.ceil(visible.length / cols))
+  const usedRows = usedRowsFor(visible.length, grid)
   const cellW = 100 / cols
   const cellH = 100 / usedRows
-  const widthPercent = cellW * WIDTH_RATIO
-  const halfWidth = widthPercent / 2
 
   return visible.map((cq, index) => {
     const h = hash(cq.objectID)
+    const widthPercent = cellW * Math.min(WIDTH_RATIO, widthRatioFor(cq.title) + widthBoost)
+    const halfWidth = widthPercent / 2
     const col = index % cols
     const row = Math.floor(index / cols)
     const jitterX = ((((h >>> 3) % 1000) / 1000) * 2 - 1) * JITTER_X * cellW
@@ -190,6 +227,13 @@ export function placeFloating(
       opacity: newAnswerCount > 0 ? 1 : Math.max(0.42, 0.82 - index * 0.05),
       driftSeconds: 9 + (h % 10),
       delaySeconds: ((h >>> 7) % 40) / 10,
+      // 4点の軌道と傾きを泡ごとに散らす。全部が同じ振れ方をすると、
+      // 浮かんでいるのではなく画面全体が揺れているように見える。
+      driftX: 4 + ((h >>> 5) % 9),
+      driftY: 6 + ((h >>> 9) % 11),
+      driftX2: 3 + ((h >>> 17) % 8),
+      driftY2: 4 + ((h >>> 21) % 9),
+      tiltDeg: (6 + ((h >>> 25) % 17)) / 10,
     }
   })
 }

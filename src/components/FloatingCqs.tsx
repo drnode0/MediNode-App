@@ -17,6 +17,7 @@ import {
   pickFloating,
   placeFloating,
   gridFor,
+  skyHeight,
   FLOAT_MAX,
   WIDE_GRID,
   type CqSeed,
@@ -62,7 +63,7 @@ export function UnresolvedCqScreen({
   const openCapture = useCqCapture()
   const [loaded, setLoaded] = useState<Loaded>(null)
   const [newAnswers, setNewAnswers] = useState<NewAnswerMap>({})
-  const [selected, setSelected] = useState<PlacedCq | null>(null)
+  const [selected, setSelected] = useState<(CqSeed & { newAnswerCount: number }) | null>(null)
   const [showRest, setShowRest] = useState(false)
   // 裏に回っている間はアニメーションを止める（見えない泡を動かし続けない）。
   const [paused, setPaused] = useState(false)
@@ -213,7 +214,7 @@ export function UnresolvedCqScreen({
   const withNewAnswers = placed.filter((p) => p.newAnswerCount > 0).length
 
   const handleSearch = useCallback(
-    (cq: PlacedCq) => {
+    (cq: CqSeed) => {
       setPendingQuery(cq.title)
       router.push('/')
     },
@@ -278,7 +279,7 @@ export function UnresolvedCqScreen({
               Notionに ❓ CQ として残したまま、まだ答えの出ていない問いです。
               問いをタップすると、探す・専門医に訊く・Notionで書く、が選べます。
             </p>
-            <div className="relative h-[64vh] min-h-[400px] mt-1">
+            <div className="relative mt-1" style={{ height: skyHeight(floating.length, grid) }}>
               {placed.map((cq) => (
                 <Bubble
                   key={cq.objectID}
@@ -317,13 +318,6 @@ export function UnresolvedCqScreen({
                             setSelected({
                               ...cq,
                               newAnswerCount: newAnswers[cq.objectID] || 0,
-                              x: 0,
-                              y: 0,
-                              widthPercent: 0,
-                              size: 'md',
-                              opacity: 1,
-                              driftSeconds: 0,
-                              delaySeconds: 0,
                             })
                           }
                           className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60"
@@ -397,11 +391,17 @@ function Bubble({
       style={{
         left: `${cq.x}%`,
         top: `${cq.y}%`,
+        // 幅は題の長さで決まる（短い問いは小さく、長い問いは大きく）。
         width: `${cq.widthPercent}%`,
         opacity: cq.opacity,
         animationDuration: `${cq.driftSeconds}s`,
         animationDelay: `${cq.delaySeconds}s`,
         animationPlayState: paused ? 'paused' : 'running',
+        ['--cq-dx' as string]: `${cq.driftX}px`,
+        ['--cq-dy' as string]: `${cq.driftY}px`,
+        ['--cq-dx2' as string]: `${cq.driftX2}px`,
+        ['--cq-dy2' as string]: `${cq.driftY2}px`,
+        ['--cq-tilt' as string]: `${cq.tiltDeg}deg`,
       }}
       className={`cq-bubble absolute rounded-2xl text-left leading-snug ring-1 transition-shadow ${SIZE_CLASS[cq.size]} ${
         lit

@@ -43,10 +43,19 @@ button:active, a:active, [role='button']:active {
    duration と delay は泡ごとに inline style で与える（一斉に動かさない）。
    prefers-reduced-motion では上の全体規則が duration を潰すので、ここに追加の分岐は要らない。 */
 @keyframes cq-drift {
-  0%, 100% { transform: translate(-50%, -50%); }
-  50% { transform: translate(calc(-50% + 9px), calc(-50% - 11px)); }
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  25%  { transform: translate(calc(-50% + var(--cq-dx)),  calc(-50% - var(--cq-dy)))  rotate(var(--cq-tilt)); }
+  50%  { transform: translate(calc(-50% + var(--cq-dx2)), calc(-50% + var(--cq-dy2))) rotate(0deg); }
+  75%  { transform: translate(calc(-50% - var(--cq-dx)),  calc(-50% - var(--cq-dy2))) rotate(calc(-1 * var(--cq-tilt))); }
 }
 .cq-bubble {
+  /* 泡ごとに軌道と傾きを差し替える。既定値は控えめに置いておく
+     （インラインで上書きされる前の1フレームで大きく飛ばないように）。 */
+  --cq-dx: 6px;
+  --cq-dy: 8px;
+  --cq-dx2: 5px;
+  --cq-dy2: 6px;
+  --cq-tilt: 1deg;
   transform: translate(-50%, -50%);
   animation-name: cq-drift;
   animation-timing-function: ease-in-out;

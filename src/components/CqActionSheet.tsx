@@ -1,6 +1,6 @@
 'use client'
 import { Search, Send, ExternalLink, X, Sparkles } from 'lucide-react'
-import { formatCqAge, type PlacedCq } from '@/lib/floating-cq'
+import { formatCqAge, type CqSeed } from '@/lib/floating-cq'
 import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
 
 // 浮かんでいる問いを触ったときに出るパネル。一手を3つだけ並べる。
@@ -12,7 +12,9 @@ export function CqActionSheet({
   onAsk,
   dispatch,
 }: {
-  cq: PlacedCq
+  // 配置（座標・軌道）は使わないので要求しない。折りたたみリストから開くときに
+  // 嘘の座標を作らなくて済む。
+  cq: CqSeed & { newAnswerCount: number }
   onClose: () => void
   onSearch: () => void
   // 届け先（プレミアム）が無いときは null。ボタンごと出さない。

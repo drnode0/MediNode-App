@@ -6,6 +6,8 @@ import {
   pickFloating,
   placeFloating,
   gridFor,
+  skyHeight,
+  usedRowsFor,
   formatCqAge,
   FLOAT_MAX,
   WIDE_GRID,
@@ -157,6 +159,23 @@ describe('gridFor', () => {
   })
 })
 
+describe('skyHeight / usedRowsFor', () => {
+  it('件数が少なければ行も減る', () => {
+    expect(usedRowsFor(1, WIDE_GRID)).toBe(1)
+    expect(usedRowsFor(4, WIDE_GRID)).toBe(2)
+    expect(usedRowsFor(12, WIDE_GRID)).toBe(4)
+  })
+
+  it('区画数を超えても行は増えない', () => {
+    expect(usedRowsFor(100, WIDE_GRID)).toBe(WIDE_GRID.rows)
+  })
+
+  it('空の高さは行数で伸びる（4件のときに真ん中が抜けない）', () => {
+    expect(skyHeight(4, WIDE_GRID)).toBe('min(290px, 66vh)')
+    expect(skyHeight(12, WIDE_GRID)).toBe('min(550px, 66vh)')
+  })
+})
+
 describe('placeFloating', () => {
   it('同じ入力からは同じ配置を返す（再レンダーで泡が飛ばない）', () => {
     const cqs = [cq({ objectID: 'a' }), cq({ objectID: 'b' })]
@@ -167,7 +186,9 @@ describe('placeFloating', () => {
 
   it('泡の幅ごと枠内に収まる（端が切れない）', () => {
     for (const grid of [WIDE_GRID, NARROW_GRID]) {
-      const cqs = Array.from({ length: grid.cols * grid.rows }, (_, i) => cq({ objectID: `c${i}` }))
+      const cqs = Array.from({ length: grid.cols * grid.rows }, (_, i) =>
+        cq({ objectID: `c${i}`, title: 'あ'.repeat(4 + i * 6) }),
+      )
       for (const p of placeFloating(cqs, {}, grid)) {
         expect(p.x - p.widthPercent / 2).toBeGreaterThanOrEqual(0)
         expect(p.x + p.widthPercent / 2).toBeLessThanOrEqual(100)
@@ -178,14 +199,43 @@ describe('placeFloating', () => {
     }
   })
 
-  it('泡は横に重ならない（同じ行の隣同士が離れている）', () => {
-    const cqs = Array.from({ length: 6 }, (_, i) => cq({ objectID: `c${i}` }))
-    const placed = placeFloating(cqs, {}, WIDE_GRID)
-    const row0 = placed.slice(0, 3).sort((a, b) => a.x - b.x)
+  it('泡は横に重ならない（幅が違っても隣とぶつからない）', () => {
+    const cqs = [
+      cq({ objectID: 'a', title: '短い問い' }),
+      cq({ objectID: 'b', title: '中くらいの長さの問いはどう扱うか？' }),
+      cq({ objectID: 'c', title: '低ナトリウム血症の補正速度はなぜ・どこまで制限するか？（浸透圧性脱髄症候群の予防）' }),
+    ]
+    const row0 = placeFloating(cqs, {}, WIDE_GRID).sort((a, b) => a.x - b.x)
     for (let i = 1; i < row0.length; i++) {
       const gap = row0[i].x - row0[i - 1].x
-      expect(gap).toBeGreaterThanOrEqual(row0[i].widthPercent)
+      expect(gap).toBeGreaterThanOrEqual((row0[i].widthPercent + row0[i - 1].widthPercent) / 2)
     }
+  })
+
+  it('足し幅を渡すと横を広く取る（ハートの分など）。ただし区画は超えない', () => {
+    const short = cq({ objectID: 'a', title: '短い問い' })
+    const long = cq({ objectID: 'b', title: 'あ'.repeat(60) })
+    const [plainShort] = placeFloating([short], {}, WIDE_GRID)
+    const [boostedShort] = placeFloating([short], {}, WIDE_GRID, 0.1)
+    expect(boostedShort.widthPercent).toBeGreaterThan(plainShort.widthPercent)
+
+    const [plainLong] = placeFloating([long], {}, WIDE_GRID)
+    const [boostedLong] = placeFloating([long], {}, WIDE_GRID, 0.1)
+    expect(boostedLong.widthPercent).toBe(plainLong.widthPercent)
+  })
+
+  it('題が短い泡は小さく、長い泡は大きい（潰れず、間延びもしない）', () => {
+    const [short, mid, long] = placeFloating(
+      [
+        cq({ objectID: 'a', title: '短い問い' }),
+        cq({ objectID: 'b', title: '中くらいの長さの問いはどう扱うか？' }),
+        cq({ objectID: 'c', title: '低ナトリウム血症の補正速度はなぜ・どこまで制限するか？（浸透圧性脱髄症候群の予防）' }),
+      ],
+      {},
+      WIDE_GRID,
+    )
+    expect(short.widthPercent).toBeLessThan(mid.widthPercent)
+    expect(mid.widthPercent).toBeLessThan(long.widthPercent)
   })
 
   it('件数が少なくても縦を使い切る（上に寄って下半分が死なない）', () => {
@@ -211,6 +261,27 @@ describe('placeFloating', () => {
     expect(lit.newAnswerCount).toBe(2)
     expect(lit.size).toBe('lg')
     expect(lit.opacity).toBeGreaterThan(dim.opacity)
+  })
+
+  it('漂う軌道と傾きは泡ごとに違う（全部が同じ振れ方をしない）', () => {
+    const cqs = Array.from({ length: 8 }, (_, i) => cq({ objectID: `c${i}` }))
+    const placed = placeFloating(cqs, {})
+    const paths = new Set(
+      placed.map((p) => `${p.driftX}:${p.driftY}:${p.driftX2}:${p.driftY2}:${p.tiltDeg}`),
+    )
+    expect(paths.size).toBeGreaterThan(1)
+  })
+
+  it('揺れ幅は控えめに収める（隣の区画へはみ出させない）', () => {
+    const cqs = Array.from({ length: 12 }, (_, i) => cq({ objectID: `c${i}` }))
+    for (const p of placeFloating(cqs, {})) {
+      for (const px of [p.driftX, p.driftY, p.driftX2, p.driftY2]) {
+        expect(px).toBeGreaterThan(0)
+        expect(px).toBeLessThanOrEqual(16)
+      }
+      expect(p.tiltDeg).toBeGreaterThan(0)
+      expect(p.tiltDeg).toBeLessThanOrEqual(2.2)
+    }
   })
 
   it('漂う速さは泡ごとにばらつく（一斉に動かない）', () => {

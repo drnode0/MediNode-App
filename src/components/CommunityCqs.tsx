@@ -7,7 +7,7 @@ import {
   hasSubscriptionConfig,
 } from '@/lib/algolia'
 import { getSettings } from '@/lib/settings'
-import { CQ_LEVELS, placeFloating, gridFor, WIDE_GRID, type Grid } from '@/lib/floating-cq'
+import { CQ_LEVELS, placeFloating, gridFor, skyHeight, WIDE_GRID, type Grid, type PlacedCq } from '@/lib/floating-cq'
 import {
   toAuthorCqs,
   toReaderCqs,
@@ -148,7 +148,8 @@ export function CommunitySky({
     }))
     const weights: Record<string, number> = {}
     for (const c of cqs) if (c.voteCount > 0) weights[c.id] = c.voteCount
-    return placeFloating(seeds, weights, grid)
+    // 行頭のハートぶん、同じ題でも横を広く取る。
+    return placeFloating(seeds, weights, grid, 0.1)
   }, [loaded, grid])
 
   const byId = useMemo(() => {
@@ -173,7 +174,7 @@ export function CommunitySky({
       {!loaded ? (
         <p className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">読み込んでいます…</p>
       ) : (
-        <div className="relative h-[56vh] min-h-[360px] mt-2">
+        <div className="relative mt-2" style={{ height: skyHeight(placed.length, grid) }}>
           {placed.map((p) => {
             const cq = byId.get(p.objectID)
             if (!cq) return null
@@ -210,7 +211,7 @@ function CommunityBubble({
   onToggle,
 }: {
   cq: CommunityCqWithVote
-  place: { x: number; y: number; widthPercent: number; size: 'sm' | 'md' | 'lg'; opacity: number; driftSeconds: number; delaySeconds: number }
+  place: PlacedCq
   paused: boolean
   canVote: boolean
   busy: boolean
@@ -230,24 +231,41 @@ function CommunityBubble({
         animationDuration: `${place.driftSeconds}s`,
         animationDelay: `${place.delaySeconds}s`,
         animationPlayState: paused ? 'paused' : 'running',
+        ['--cq-dx' as string]: `${place.driftX}px`,
+        ['--cq-dy' as string]: `${place.driftY}px`,
+        ['--cq-dx2' as string]: `${place.driftX2}px`,
+        ['--cq-dy2' as string]: `${place.driftY2}px`,
+        ['--cq-tilt' as string]: `${place.tiltDeg}deg`,
       }}
-      className={`cq-bubble absolute rounded-2xl text-left leading-snug ring-1 ${SIZE_CLASS[place.size]} ${
+      // 上の空（自分の問い＝タップでパネルが開く）と押した結果が違うので、
+      // 見た目でも別のものだと分かるようにする。角をぐっと丸めて、
+      // 押せるときは行頭にハートを常に出す（印を「つけるもの」だと見せる）。
+      className={`cq-bubble absolute rounded-[26px] text-left leading-snug ring-1 ${SIZE_CLASS[place.size]} ${
         cq.voted
           ? 'bg-rose-50 dark:bg-rose-900/40 text-rose-950 dark:text-rose-100 ring-rose-300 dark:ring-rose-500/50 font-bold'
-          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-black/5 dark:ring-white/10'
+          : canVote
+            ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-rose-200/70 dark:ring-rose-500/25'
+            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-black/5 dark:ring-white/10'
       } ${canVote ? '' : 'cursor-default'}`}
     >
-      {cq.title}
-      {/* ハートは押すものではなく、印がついたことを示す表示。押しているのは泡そのもの
-          （指で押しやすい面を大きく取るため）。文言も「タップすると印がつく」で揃える。
-          0票の行は名乗り（「匿名さん（看護師）」）なので、そこにハートは付けない
-          ——人を推している見た目になる。 */}
+      <span className="flex items-start gap-1.5">
+        {/* ハートは押せる人にだけ、行頭に。押せない人に押すものを見せない。
+            塗りは印がついた合図で、押しているのは泡そのもの（面を大きく取るため）。 */}
+        {canVote && (
+          <Heart
+            className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+              cq.voted ? 'fill-rose-500 text-rose-500' : 'text-rose-300 dark:text-rose-500/60'
+            }`}
+          />
+        )}
+        <span className="min-w-0">{cq.title}</span>
+      </span>
+      {/* 名乗りと票数。0票の行は名乗りだけ（そこにハートを添えると人を推して見える）。 */}
       <span
-        className={`mt-1 flex items-center gap-1 text-[10px] ${
+        className={`mt-1 block text-[10px] ${
           cq.voted ? 'text-rose-700 dark:text-rose-300 font-bold' : 'text-gray-400 dark:text-gray-500'
-        }`}
+        } ${canVote ? 'pl-5' : ''}`}
       >
-        {cq.voteCount > 0 && <Heart className="w-3 h-3" />}
         {communityVoteLabel(cq)}
       </span>
     </button>
