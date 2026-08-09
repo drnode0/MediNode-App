@@ -67,6 +67,44 @@ button:active, a:active, [role='button']:active {
   transform: translate(-50%, -50%) scale(0.98);
 }
 
+/* 雲の形。本体は強い角丸で、上辺の外に膨らみを2つ足して輪郭を崩す。
+   膨らみは background: inherit なので、明るい問い（琥珀）・印のついた問い（ローズ）・
+   ダークモードでも本体と同じ色で継がる。ただし**背景は不透明色に限る**——
+   半透明だと膨らみと本体が重なった所だけ濃くなり、輪郭が二重に見える。
+   輪郭線（ring）は使えない——膨らみとの継ぎ目に線が走る。代わりに影で浮かせる。
+
+   position は書かない。泡は Tailwind の absolute で置いており、ここで relative を
+   足すとそちらを上書きしてレイアウトごと崩れる（絶対配置の要素は、それ自体が
+   子の絶対配置の基準になるので relative は要らない）。
+   膨らみの位置と大きさは px で固定する。% にすると要素の高さ次第で本文に食い込む。 */
+.cq-cloud {
+  border-radius: 9999px;
+  /* 膨らみが本体に潜り込む分、文字を下げて重なりを避ける。 */
+  padding-top: 1.15rem;
+}
+.cq-cloud::before,
+.cq-cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+/* 大小と形を変える。同じ大きさの丸を2つ並べると、雲ではなく耳に見える。
+   手前は横長のふくらみ、奥は小さな丸。 */
+.cq-cloud::before {
+  width: 46%;
+  max-width: 92px;
+  height: 26px;
+  left: 10%;
+  top: -11px;
+}
+.cq-cloud::after {
+  width: 24px;
+  height: 24px;
+  left: 48%;
+  top: -13px;
+}
+
 /* 検索ハイライト（ライト/ダーク両対応） */
 mark {
   background-color: #fef08a;

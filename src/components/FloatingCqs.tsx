@@ -403,10 +403,10 @@ function Bubble({
         ['--cq-dy2' as string]: `${cq.driftY2}px`,
         ['--cq-tilt' as string]: `${cq.tiltDeg}deg`,
       }}
-      className={`cq-bubble absolute rounded-2xl text-left leading-snug ring-1 transition-shadow ${SIZE_CLASS[cq.size]} ${
+      className={`cq-bubble cq-cloud absolute text-left leading-snug ${SIZE_CLASS[cq.size]} ${
         lit
-          ? 'bg-amber-50 dark:bg-amber-900/40 text-amber-950 dark:text-amber-100 ring-amber-300 dark:ring-amber-500/50 font-bold shadow-md'
-          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-black/5 dark:ring-white/10'
+          ? 'bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold shadow-[0_6px_16px_rgba(180,120,20,0.18)]'
+          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-[0_5px_14px_rgba(15,23,42,0.13)] dark:shadow-[0_5px_14px_rgba(0,0,0,0.45)]'
       }`}
     >
       {cq.title}

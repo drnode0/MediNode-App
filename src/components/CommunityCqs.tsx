@@ -240,12 +240,10 @@ function CommunityBubble({
       // 上の空（自分の問い＝タップでパネルが開く）と押した結果が違うので、
       // 見た目でも別のものだと分かるようにする。角をぐっと丸めて、
       // 押せるときは行頭にハートを常に出す（印を「つけるもの」だと見せる）。
-      className={`cq-bubble absolute rounded-[26px] text-left leading-snug ring-1 ${SIZE_CLASS[place.size]} ${
+      className={`cq-bubble cq-cloud absolute text-left leading-snug ${SIZE_CLASS[place.size]} ${
         cq.voted
-          ? 'bg-rose-50 dark:bg-rose-900/40 text-rose-950 dark:text-rose-100 ring-rose-300 dark:ring-rose-500/50 font-bold'
-          : canVote
-            ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-rose-200/70 dark:ring-rose-500/25'
-            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-black/5 dark:ring-white/10'
+          ? 'bg-rose-50 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold shadow-[0_6px_16px_rgba(190,60,90,0.2)]'
+          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-[0_5px_14px_rgba(15,23,42,0.13)] dark:shadow-[0_5px_14px_rgba(0,0,0,0.45)]'
       } ${canVote ? '' : 'cursor-default'}`}
     >
       <span className="flex items-start gap-1.5">
