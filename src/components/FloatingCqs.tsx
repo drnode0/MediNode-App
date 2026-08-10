@@ -38,6 +38,7 @@ import type { CommunityCqWithVote } from '@/lib/community-cqs'
 import { setPendingQuery } from '@/lib/pending-query'
 import { useCqCapture } from '@/components/CqCapture'
 import { CqActionSheet } from '@/components/CqActionSheet'
+import { DriftingLeaves } from '@/components/DriftingLeaves'
 
 // 未解決の問いが浮かぶ画面（/cq）の本体。
 //
@@ -222,8 +223,8 @@ export function UnresolvedCqScreen({
   )
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900">
-      <header className="sticky top-0 z-20 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+    <div className="min-h-[100dvh] bg-gradient-to-b from-brand-50 to-white dark:from-gray-900 dark:to-gray-800">
+      <header className="sticky top-0 z-20 bg-brand-50/90 dark:bg-gray-900/90 backdrop-blur-sm border-b border-brand-100 dark:border-gray-700">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
             type="button"
@@ -280,6 +281,7 @@ export function UnresolvedCqScreen({
               問いをタップすると、探す・専門医に訊く・Notionで書く、が選べます。
             </p>
             <div className="relative mt-1" style={{ height: skyHeight(floating.length, grid) }}>
+              <DriftingLeaves paused={paused} />
               {placed.map((cq) => (
                 <Bubble
                   key={cq.objectID}
@@ -403,10 +405,10 @@ function Bubble({
         ['--cq-dy2' as string]: `${cq.driftY2}px`,
         ['--cq-tilt' as string]: `${cq.tiltDeg}deg`,
       }}
-      className={`cq-bubble cq-cloud absolute text-left leading-snug ${SIZE_CLASS[cq.size]} ${
+      className={`cq-bubble absolute text-left leading-snug rounded-[1.6rem] ring-1 ${SIZE_CLASS[cq.size]} ${
         lit
-          ? 'bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold shadow-[0_6px_16px_rgba(180,120,20,0.18)]'
-          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-[0_5px_14px_rgba(15,23,42,0.13)] dark:shadow-[0_5px_14px_rgba(0,0,0,0.45)]'
+          ? 'bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold ring-amber-200 dark:ring-amber-800 shadow-md shadow-amber-900/10'
+          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-brand-100 dark:ring-brand-800/60 shadow-sm shadow-brand-900/10'
       }`}
     >
       {cq.title}

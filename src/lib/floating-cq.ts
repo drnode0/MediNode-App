@@ -224,7 +224,8 @@ export function placeFloating(
       y: clamp((row + 0.5) * cellH + jitterY, MARGIN_Y, 100 - MARGIN_Y),
       widthPercent,
       size: newAnswerCount > 0 ? 'lg' : index < cols ? 'md' : 'sm',
-      opacity: newAnswerCount > 0 ? 1 : Math.max(0.42, 0.82 - index * 0.05),
+      // 下限は 0.6 まで。これ以上薄くすると、背景の葉が泡の文字に透ける。
+      opacity: newAnswerCount > 0 ? 1 : Math.max(0.6, 0.88 - index * 0.04),
       driftSeconds: 9 + (h % 10),
       delaySeconds: ((h >>> 7) % 40) / 10,
       // 4点の軌道と傾きを泡ごとに散らす。全部が同じ振れ方をすると、

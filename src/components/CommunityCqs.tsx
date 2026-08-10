@@ -16,6 +16,7 @@ import {
   COMMUNITY_MAX,
   type CommunityCqWithVote,
 } from '@/lib/community-cqs'
+import { DriftingLeaves } from '@/components/DriftingLeaves'
 
 // /cq の第2の空「みんなの臨床疑問」。
 //
@@ -161,7 +162,7 @@ export function CommunitySky({
   if (loaded && loaded.cqs.length === 0) return null
 
   return (
-    <section className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+    <section className="mt-8 pt-6 border-t border-brand-100 dark:border-gray-700">
       {/* 見出しは設定の「みんなの臨床疑問」と揃える。ここで新しい呼び名を作ると、
           同じものが画面ごとに違う名前で出てくる。上の「あなたの」と対にもなる。 */}
       <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200">みんなの臨床疑問</h2>
@@ -175,6 +176,7 @@ export function CommunitySky({
         <p className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">読み込んでいます…</p>
       ) : (
         <div className="relative mt-2" style={{ height: skyHeight(placed.length, grid) }}>
+          <DriftingLeaves paused={paused} />
           {placed.map((p) => {
             const cq = byId.get(p.objectID)
             if (!cq) return null
@@ -240,10 +242,12 @@ function CommunityBubble({
       // 上の空（自分の問い＝タップでパネルが開く）と押した結果が違うので、
       // 見た目でも別のものだと分かるようにする。角をぐっと丸めて、
       // 押せるときは行頭にハートを常に出す（印を「つけるもの」だと見せる）。
-      className={`cq-bubble cq-cloud absolute text-left leading-snug ${SIZE_CLASS[place.size]} ${
+      className={`cq-bubble absolute text-left leading-snug rounded-[1.6rem] ring-1 ${SIZE_CLASS[place.size]} ${
         cq.voted
-          ? 'bg-rose-50 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold shadow-[0_6px_16px_rgba(190,60,90,0.2)]'
-          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-[0_5px_14px_rgba(15,23,42,0.13)] dark:shadow-[0_5px_14px_rgba(0,0,0,0.45)]'
+          ? 'bg-rose-50 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold ring-rose-200 dark:ring-rose-800 shadow-md shadow-rose-900/10'
+          : canVote
+            ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-rose-100 dark:ring-rose-900/50 shadow-sm shadow-brand-900/10'
+            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 ring-brand-100 dark:ring-brand-800/60 shadow-sm shadow-brand-900/10'
       } ${canVote ? '' : 'cursor-default'}`}
     >
       <span className="flex items-start gap-1.5">
