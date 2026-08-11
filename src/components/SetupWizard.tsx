@@ -22,6 +22,7 @@ import { AccountButton } from './auth/AccountButton'
 import { LoginModal } from './auth/LoginModal'
 import { readPreviewFlagFromBrowser } from '@/lib/easy-connect-preview'
 import { markEcReturnPending, readEcReturnPending } from '@/lib/ec-return'
+import { EasyConnectGuide } from './EasyConnectGuide'
 import { DB_PICK_HINT, DB_ROLE_UI } from '@/lib/notion-db-guess'
 
 // 'entry' はオンボーディング直後の入口分岐（アカウント作成済み / はじめて使う）。
@@ -715,6 +716,8 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   const [notionSetupMode, setNotionSetupMode] = useState<NotionSetupMode>('choose')
   // 画面つきガイド（Token作成〜コネクト追加）。null=閉、数値=開始ステップ。
   const [tokenGuideStep, setTokenGuideStep] = useState<number | null>(null)
+  // 接続（ページを選んで許可）の画面つきガイド（EasyConnectGuide）
+  const [showEcGuide, setShowEcGuide] = useState(false)
   // セットアップ動画（実機の通し操作）モーダル
   const [showSetupVideo, setShowSetupVideo] = useState(false)
   const [showAlgoliaGuide, setShowAlgoliaGuide] = useState(false)
@@ -1757,6 +1760,13 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 >
                   Notionでページを選んで接続する
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEcGuide(true)}
+                  className="w-full text-xs text-brand-700 dark:text-brand-300 underline py-1"
+                >
+                  接続の流れを画面で見る（4ステップ）
+                </button>
               </div>
               )}
 
@@ -2638,6 +2648,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
       {/* ログイン誘導モーダル。用途で挙動を切り替える。
           - restore: 既存アカウントの設定復元（成功で同期復元 → 完了）
           - register: 新規が設定完了後に行うアカウント登録（成功で設定保存 → 完了） */}
+      {showEcGuide && <EasyConnectGuide onClose={() => setShowEcGuide(false)} />}
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}

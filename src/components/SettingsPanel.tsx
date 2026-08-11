@@ -19,6 +19,7 @@ import { hasSubscriptionConfig } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
 import { readPreviewFlagFromBrowser, clearPreviewCookie } from '@/lib/easy-connect-preview'
 import { markEcReturnPending } from '@/lib/ec-return'
+import { EasyConnectGuide } from './EasyConnectGuide'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import type { TeamConfig } from '@/lib/teams'
 import { MAX_ADDITIONAL_TEAMS } from '@/lib/teams'
@@ -388,6 +389,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const [restoreArmed, setRestoreArmed] = useState(false)
   // 登録先行プレビュー（?preview=easyconnect）の解除口。持っている人にだけ出す。
   // マウント後に読むのは、SSRとクライアントで document.cookie が食い違うのを避けるため。
+  const [showEcGuide, setShowEcGuide] = useState(false)
   const [previewOn, setPreviewOn] = useState(false)
   // GA後は登録先行が正式な順序なので、「元の順序に戻す」枠は出さない
   // （readPreviewFlagFromBrowser はGAで常にtrueになるため、env を直接見て除外する）。
@@ -1119,6 +1121,13 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                       className="w-full border border-brand-300 dark:border-brand-700 rounded-lg py-2 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                     >
                       Notionでページを選んで切り替える
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowEcGuide(true)}
+                      className="w-full text-brand-700/80 dark:text-brand-300/80 underline py-0.5"
+                    >
+                      接続の流れを画面で見る（4ステップ）
                     </button>
                     <p className="text-brand-700/80 dark:text-brand-300/80 leading-relaxed">
                       いまのTokenは預かっておき、切り替えたあとでも「元の接続に戻す」で戻せます。許可したページの中に、いま読んでいるデータベースが入っていないときは、<strong>設定を変えずにその場で止まります</strong>。
@@ -1938,6 +1947,7 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
         </div>
       </div>
       {/* 画面つきガイド（セットアップと同じもの。パネルより後に描画して手前に出す） */}
+      {showEcGuide && <EasyConnectGuide onClose={() => setShowEcGuide(false)} />}
       {showTokenGuide && <NotionTokenGuide onClose={() => setShowTokenGuide(false)} />}
       {showAlgoliaGuide && <AlgoliaKeyGuide onClose={() => setShowAlgoliaGuide(false)} />}
       {/* フィードバック送信。設定パネルの上に重なって開く。 */}
