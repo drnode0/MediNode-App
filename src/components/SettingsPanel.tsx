@@ -15,7 +15,7 @@ import {
   Sun, Moon, Monitor,
 } from 'lucide-react'
 import { getThemePref, setThemePref, type ThemePref } from '@/lib/theme'
-import { hasSubscriptionConfig, hasSubscriptionConfigRaw, isFreePreview, setFreePreview } from '@/lib/algolia'
+import { hasSubscriptionConfig } from '@/lib/algolia'
 import { getSettings, saveSettings, extractNotionDbId, markTrialUsed, hasUsedTrial, buildPropMap, type AppSettings } from '@/lib/settings'
 import { readPreviewFlagFromBrowser, clearPreviewCookie } from '@/lib/easy-connect-preview'
 import { markEcReturnPending } from '@/lib/ec-return'
@@ -788,34 +788,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                 )
               })()}
 
-              {/* 無料会員プレビュー（プレミアム設定を持つ人にだけ表示）。自分の画面だけ無料表示に切り替える。 */}
-              {hasSubscriptionConfigRaw() && (() => {
-                const preview = isFreePreview()
-                return (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFreePreview(!preview)
-                      window.location.reload()
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left mb-2 transition-colors ${
-                      preview
-                        ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40'
-                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 text-lg">🔍</span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">
-                        {preview ? '無料プレビューを解除（プレミアム表示に戻す）' : '無料会員の画面をプレビュー'}
-                      </span>
-                      <span className="block text-xs text-gray-500 dark:text-gray-400">
-                        {preview ? '今あなたは無料会員の画面を見ています' : '自分の画面だけ無料会員として表示（他の会員には影響しません）'}
-                      </span>
-                    </span>
-                  </button>
-                )
-              })()}
+              {/* 「無料会員の画面をプレビュー」はオーナー専用の /admin/maintenance へ移動
+                  （2026-08-11）。ここに置くとサブスク設定を持つ全員（自動トライアル含む）に
+                  見えてしまい、管理者向けの道具に映る。 */}
 
               {/* ── 接続設定 ── */}
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 pt-2 pb-1">接続設定</p>

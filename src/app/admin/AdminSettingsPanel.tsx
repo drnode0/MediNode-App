@@ -5,6 +5,7 @@
 // 各カードは自分で API から状態を読み書きする（自己完結）ため、どこに置いても動く。
 
 import { useCallback, useEffect, useState } from 'react'
+import { isFreePreview, setFreePreview } from '@/lib/algolia'
 
 type Stage = 'off' | 'preview' | 'on'
 
@@ -212,6 +213,30 @@ function MaintenanceToggleCard() {
 }
 
 // 配信・設定の全コントロールをまとめたパネル（オーナー専用）。
+// 無料会員の見え方プレビュー（この端末だけの表示切替）。以前は設定パネルに置いていたが、
+// サブスク設定を持つ全員（自動トライアル含む）に見えてしまい「管理者権限が付いている」と
+// 誤解された（2026-08-11 demo FB）。オーナー専用のこのパネルへ移した。
+// localStorageの切替なので、プレビューしたい端末でこのページを開いて押すこと。
+function FreePreviewCard() {
+  const [on, setOn] = useState(false)
+  useEffect(() => { setOn(isFreePreview()) }, [])
+  return (
+    <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+      <p className="text-sm font-bold text-gray-900">無料会員の見え方プレビュー（この端末だけ）</p>
+      <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+        オンにすると、この端末のアプリ表示だけが無料会員と同じになります（他の会員には影響しません）。アプリ上部にバナーが出て、そこからも解除できます。
+      </p>
+      <button
+        type="button"
+        onClick={() => { setFreePreview(!on); setOn(!on) }}
+        className={`mt-3 w-full rounded-xl py-2.5 text-sm font-semibold ${on ? 'bg-amber-500 text-white' : 'border border-gray-300 text-gray-700'}`}
+      >
+        {on ? 'プレビュー中（押すと解除）' : '無料会員の画面をプレビューする'}
+      </button>
+    </div>
+  )
+}
+
 export function AdminSettingsPanel() {
   return (
     <div className="mx-auto w-full max-w-md">
@@ -231,6 +256,8 @@ export function AdminSettingsPanel() {
         order={['preview', 'off', 'on']}
         onSuffix="（当面は使わない）"
       />
+
+      <FreePreviewCard />
 
       <div className="mt-5 flex flex-col gap-2 text-sm">
         <a className="text-brand-700 underline" href="/maintenance" target="_blank" rel="noopener noreferrer">

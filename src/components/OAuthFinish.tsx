@@ -123,14 +123,31 @@ export function OAuthFinish({
   }
 
   const loadDbs = async (token: string) => {
-    const res = await fetch('/api/notion/list-databases', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notionToken: token }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || '')
-    const list: DbItem[] = data.databases || []
+    // 許可した直後は、Notionのsearch APIに反映されるまで一覧が空で返ることがある
+    // （2026-08-11 実機で確認：DB単体を許可した直後に「見つかりません」→ 少し後には
+    // 見えていた）。空のまま「見つかりません」と断定すると誤誘導になるため、
+    // 空だったときだけ数秒おいて自動で取り直す。
+    const fetchList = async (): Promise<DbItem[]> => {
+      const res = await fetch('/api/notion/list-databases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notionToken: token }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '')
+      return (data.databases || []) as DbItem[]
+    }
+    setDbsLoading(true)
+    let list: DbItem[] = []
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        list = await fetchList()
+        if (list.length > 0) break
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 2500))
+      }
+    } finally {
+      setDbsLoading(false)
+    }
     setDbs(list)
 
     // 保存済みの選択を、正規化IDで突き合わせて引き継ぐ。claim・repick 共通の処理にする
@@ -550,6 +567,9 @@ export function OAuthFinish({
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
               Notionの画面でそのページも選び直すと、続けられます。設定はまだ変えていないので、このまま閉じれば今の接続のままです。
             </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              ページの中に一覧が見えていても、それが「リンクドビュー」（別の場所にある本体を映す表）だと対象になりません。データベース<strong>本体</strong>のあるページを選ぶか、認可画面の「+ Add pages & databases」でデータベース自体を追加してください。
+            </p>
             <button type="button" disabled={busy} onClick={restart} className="w-full bg-brand-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               Notionでページを選び直す
             </button>
@@ -594,9 +614,21 @@ export function OAuthFinish({
                 <Spinner className="w-4 h-4" />データベースの一覧を読み込んでいます…
               </p>
             ) : dbs.length === 0 ? (
-              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300">
-                データベースが見つかりませんでした。Notionの認可画面で、データベースのあるページを選び直してください。
-                <button type="button" onClick={restart} className="mt-2 w-full border border-amber-400 rounded-lg py-2 font-semibold">
+              <div className="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 space-y-2 leading-relaxed">
+                <p className="font-semibold">許可した範囲に、データベースがまだ見つかりません。</p>
+                <p>許可した直後は、Notion側の反映に少し時間がかかることがあります。まず、もう一度読み込んでみてください。</p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { const t = getSettings()?.notionToken; if (t) runGuarded(() => loadDbs(t)) }}
+                  className="w-full bg-amber-500 text-white rounded-lg py-2 font-semibold disabled:opacity-50"
+                >
+                  もう一度読み込む
+                </button>
+                <p>
+                  それでも出てこないときは、選んだページの中の一覧が<strong>「リンクドビュー」</strong>（別の場所にある本体を映しているだけの表）の可能性があります。データベース<strong>本体</strong>のあるページを選ぶか、認可画面の「+ Add pages & databases」でデータベース自体を追加してください。
+                </p>
+                <button type="button" onClick={restart} className="w-full border border-amber-400 rounded-lg py-2 font-semibold">
                   ページを選び直す
                 </button>
               </div>
