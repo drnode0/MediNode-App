@@ -17,6 +17,9 @@ export const BACKGROUND_MAX = 2000
 export const SOURCE_TITLE_MAX = 200
 export const SOURCE_URL_MAX = 500
 
+// CQ投稿の職種・経験年数・ペンネームの端末記憶キー（CqCapture と登録フローの初期値で共用）。
+export const CQ_PROFILE_KEY = 'medinode_cq_profile_v1'
+
 // 職種の固定リスト。受付DBの「職種」列（外部Notionフォームが書き込む列）の選択肢と
 // 一致させる。自由記述にしない（表示の粒度と品位を保つ）。
 // 旧リストの「学生」は「学生（医学生・看護学生など）」に、「管理栄養士」は

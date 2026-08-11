@@ -67,3 +67,29 @@ export async function getDeviceSubscribed(): Promise<boolean> {
     return false
   }
 }
+
+// 登録フローの通知ステップを出す意味がある端末か。
+// PushManager があり購読を試せるか、iOSの非PWA（「ホーム画面に追加」の案内が出せる）。
+export function canOfferPushOnThisDevice(): boolean {
+  try {
+    if ('serviceWorker' in navigator && 'PushManager' in window) return true
+    return isIos() && !isStandalone()
+  } catch {
+    return false
+  }
+}
+
+// 購読結果を人に伝える一文（PushSettings と登録フローの通知ステップで共用）。
+export function subscribeResultMessage(result: SubscribeResult): string {
+  if (result.ok) return 'この端末で受け取れるようになりました'
+  switch (result.reason) {
+    case 'ios-uninstalled':
+      return 'iPhoneでは、共有メニューから「ホーム画面に追加」でアプリとして開くと受け取れます'
+    case 'denied':
+      return '通知がブロックされています。端末の設定で許可してください'
+    case 'server-rejected':
+      return 'この端末では今は受け取れません（対象外）'
+    default:
+      return 'この端末では通知を利用できません'
+  }
+}

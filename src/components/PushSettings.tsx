@@ -5,21 +5,7 @@
 // （role="switch" のスイッチ・brand-600での点灯・dark対応）。オフはいつでも1〜2タップで戻せる。
 import { useEffect, useState } from 'react'
 import { DAILY_SLOTS, DEFAULT_PREFS, type NotifyPrefs } from '@/lib/push'
-import { getDeviceSubscribed, subscribeThisDevice, type SubscribeResult } from '@/lib/push-client'
-
-function deviceResultMessage(result: SubscribeResult): string {
-  if (result.ok) return 'この端末で受け取れるようになりました'
-  switch (result.reason) {
-    case 'ios-uninstalled':
-      return 'iPhoneでは、共有メニューから「ホーム画面に追加」でアプリとして開くと受け取れます'
-    case 'denied':
-      return '通知がブロックされています。端末の設定で許可してください'
-    case 'server-rejected':
-      return 'この端末では今は受け取れません（対象外）'
-    default:
-      return 'この端末では通知を利用できません'
-  }
-}
+import { getDeviceSubscribed, subscribeThisDevice, subscribeResultMessage } from '@/lib/push-client'
 
 function DeviceSubscribe() {
   const [subscribed, setSubscribed] = useState<boolean | null>(null)
@@ -45,7 +31,7 @@ function DeviceSubscribe() {
       const result = await subscribeThisDevice()
       const nowSubscribed = await getDeviceSubscribed()
       setSubscribed(nowSubscribed)
-      setMsg(deviceResultMessage(result))
+      setMsg(subscribeResultMessage(result))
     } finally {
       setBusy(false)
     }

@@ -29,7 +29,7 @@ import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
 import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { recordSentCq } from '@/lib/cq-dispatch'
-import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
+import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, CQ_PROFILE_KEY, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
 // cqObjectID は /cq（未解決の問い）から投げたときだけ入る。投稿が通ったら
@@ -38,7 +38,6 @@ export type CqSource = { title?: string; url?: string; cqObjectID?: string }
 
 // 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
 // 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
-const CQ_PROFILE_KEY = 'medinode_cq_profile_v1'
 type CqProfile = { occupation: string; experience: string; penName: string; departments: string[] }
 function loadCqProfile(): CqProfile {
   try {
