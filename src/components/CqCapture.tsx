@@ -319,6 +319,8 @@ function CqCaptureModal({
   // 再レンダリングを起こす必要が無く、handleSend が同じ呼び出しの中で同期的に
   // 読むだけなので useState ではなく useRef で持つ（モーダルの再マウントで自然に戻る）。
   const bgConfirmedRef = useRef(false)
+  // アカウントに保存済みの職種（null=未登録）。投稿成功時の穴埋め判定に使う。
+  const accountOccupationRef = useRef<string | null>(null)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -330,6 +332,22 @@ function CqCaptureModal({
   useEffect(() => {
     setMounted(true)
     setProfile(loadCqProfile())
+    // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
+    // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
+    fetch('/api/account/profile', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { occupation?: string | null } | null) => {
+        const occ = d?.occupation
+        if (!occ) return
+        accountOccupationRef.current = occ
+        setProfile((p) => ({
+          ...p,
+          occupation: occ,
+          // 医師以外に確定したら診療科・立場は捨てる（既存の職種変更ハンドラと同じ判断）。
+          departments: occ === CQ_DEPARTMENT_OCCUPATION ? p.departments : [],
+        }))
+      })
+      .catch(() => {})
   }, [])
   // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
   // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
@@ -488,6 +506,15 @@ function CqCaptureModal({
               recordSentCq(source.cqObjectID, trimmed, new Date().toISOString())
             }
             saveCqProfile(profile)
+            // アカウントに職種が未登録なら、この投稿の職種で埋める（登録フロー導入前の
+            // ユーザーの穴埋め。失敗しても投稿は成功扱いのまま静かに握る）。
+            if (!accountOccupationRef.current && profile.occupation) {
+              void fetch('/api/account/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ occupation: profile.occupation }),
+              }).catch(() => {})
+            }
             track('cq_expert_submitted', { occupation: profile.occupation || 'none' })
           } catch {
             setExpertError('ネットワークエラーが発生しました。接続を確認してください。')
