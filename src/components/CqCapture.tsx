@@ -331,14 +331,12 @@ function CqCaptureModal({
   // 判定中（loading）はログイン案内を出さない（開いた瞬間のチラつき防止）。
   const needsLogin = auth.configured && !auth.loading && !auth.user
 
-  // 背景スクロールをロック（iOSでキーボード後に画面がズレない fixed 方式）。
-  useBodyScrollLock()
-  useEffect(() => {
-    setMounted(true)
-    setProfile(loadCqProfile())
-    // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
-    // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
+  // アカウントの職種を取得して accountOccupationRef／profile に反映する。
+  // マウント時と、モーダル内ログインを閉じた直後の両方から呼ぶため関数として切り出す
+  // （cancelled ガードは呼び出しごとに独立させ、古い応答が新しい状態を上書きしないようにする）。
+  const refreshAccountOccupation = useCallback(() => {
     let cancelled = false
+    // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
     fetch('/api/account/profile', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { occupation?: string | null } | null) => {
@@ -365,6 +363,30 @@ function CqCaptureModal({
       cancelled = true
     }
   }, [])
+
+  // 背景スクロールをロック（iOSでキーボード後に画面がズレない fixed 方式）。
+  useBodyScrollLock()
+  useEffect(() => {
+    setMounted(true)
+    setProfile(loadCqProfile())
+    // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
+    return refreshAccountOccupation()
+  }, [refreshAccountOccupation])
+
+  // モーダル内ログイン（LoginModal）を閉じた直後に、アカウントの職種を取り直す。
+  // マウント時のフェッチは未ログインなら401でaccountOccupationRefがnullのまま残る。
+  // その状態でモーダル内ログイン＋職種登録（profileフェーズ）を済ませて投稿すると、
+  // 古いnull判定のまま「未登録なら穴埋め保存」が走り、既にアカウントへ保存済みの
+  // 職種を投稿時の選択で上書きしてしまいうる。ログインモーダルが閉じたタイミングで
+  // 再取得し、ref を最新化する（userEditedOccupationRef による手動選択の尊重はそのまま）。
+  const prevShowLoginRef = useRef(showLogin)
+  useEffect(() => {
+    const wasShown = prevShowLoginRef.current
+    prevShowLoginRef.current = showLogin
+    if (wasShown && !showLogin) {
+      return refreshAccountOccupation()
+    }
+  }, [showLogin, refreshAccountOccupation])
   // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
   // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
   // 閉じてしまい、body-scroll-lockが非LIFOで解除されて画面が固まりうる。

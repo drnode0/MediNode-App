@@ -20,6 +20,16 @@ export async function getUserOccupation(admin: SupabaseClient, userId: string): 
   return isValidOccupation(v) ? v : null
 }
 
+// migration 0024 未適用の環境かどうか（列が無いことによるupsert失敗）。
+// Postgres の未定義列エラーは code '42703'、PostgREST 経由だと 'PGRST204' で
+// 返ってくることがあるため両方を見る。code が取れない場合の保険として、
+// メッセージに 'occupation' と 'column' を含むかも見る。
+function isMissingOccupationColumnError(error: { code?: string; message?: string }): boolean {
+  if (error.code === '42703' || error.code === 'PGRST204') return true
+  const msg = String(error.message || '')
+  return msg.includes('occupation') && msg.includes('column')
+}
+
 export async function saveUserOccupation(
   admin: SupabaseClient,
   userId: string,
@@ -28,5 +38,10 @@ export async function saveUserOccupation(
   const { error } = await admin
     .from('user_settings')
     .upsert({ user_id: userId, occupation }, { onConflict: 'user_id' })
-  if (error) throw new Error(error.message)
+  if (!error) return
+  // migration 0024 適用前（occupation列が無い）は例外にせず、保存なしのスキップ相当で
+  // 成功扱いにする。呼び出し元（登録フロー・穴埋め保存）が500で袋小路にならないようにする
+  // ための設計上の意図。次回ログイン時にまた職種ステップが出るだけで、壊れはしない。
+  if (isMissingOccupationColumnError(error as { code?: string; message?: string })) return
+  throw new Error(error.message)
 }
