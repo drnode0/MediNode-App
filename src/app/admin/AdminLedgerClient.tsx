@@ -311,6 +311,7 @@ export function AdminLedgerClient() {
   const [lpDaily, setLpDaily] = useState<DailyPoint[]>([])
   const [lpHourly, setLpHourly] = useState<number[]>([])
   const [lpSources, setLpSources] = useState<Array<{ source: string; count: number }>>([])
+  const [occupationBreakdown, setOccupationBreakdown] = useState<Record<string, number> | null>(null)
   const [auditLog, setAuditLog] = useState<
     { action: string; actorEmail: string; targetEmail: string | null; createdAt: string }[]
   >([])
@@ -357,6 +358,9 @@ export function AdminLedgerClient() {
       setLpDaily(Array.isArray(data.lpDaily) ? data.lpDaily : [])
       setLpHourly(Array.isArray(data.lpHourly) ? data.lpHourly : [])
       setLpSources(Array.isArray(data.lpSources) ? data.lpSources : [])
+      setOccupationBreakdown(
+        data.occupationBreakdown && typeof data.occupationBreakdown === 'object' ? data.occupationBreakdown : null,
+      )
       setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : [])
       setReferralTotal(typeof data.referralTotal === 'number' ? data.referralTotal : 0)
     } catch (err) {
@@ -656,6 +660,17 @@ ${label}`,
   }, [lpSources])
 
   const lpTotal = useMemo(() => lpSources.reduce((sum, s) => sum + s.count, 0), [lpSources])
+
+  // 職種の内訳（登録フローで訊くアカウント属性）。未登録 = 全アカウント数 − 職種あり合計。
+  const occupationBars = useMemo<Segment[]>(() => {
+    if (!occupationBreakdown) return []
+    const entries = Object.entries(occupationBreakdown).sort((a, b) => b[1] - a[1])
+    const withOcc = entries.reduce((sum, [, c]) => sum + c, 0)
+    const bars: Segment[] = entries.map(([label, count]) => ({ label, count, className: 'bg-brand-500' }))
+    const none = Math.max(0, (rows?.length ?? 0) - withOcc)
+    if (none > 0) bars.push({ label: '未登録', count: none, className: 'bg-gray-300 dark:bg-gray-600' })
+    return bars
+  }, [occupationBreakdown, rows])
 
   const filtered = useMemo(() => {
     if (!rows) return []
@@ -1211,6 +1226,14 @@ ${label}`,
                   <SegmentBar segments={modeSegments} label="接続モード" />
                   <SegmentBar segments={dbSetupSegments} label="DB設定の入り方" />
                 </div>
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <SectionHeading title="職種の内訳" caption="登録時に訊く職種の構成。どんな読者に向けてナレッジを作るかの参考。" help="user_settings.occupation の集計（全アカウント）。登録フロー導入前のユーザーは「未登録」に入り、次回ログイン時の職種ステップで集まっていきます。" />
+                {occupationBars.length > 0 ? (
+                  <CountBars items={occupationBars} label="職種の内訳" />
+                ) : (
+                  <p className="text-xs text-gray-400 dark:text-gray-500">migration 0024 の適用待ち、または記録がまだありません。</p>
+                )}
               </section>
             </div>
 

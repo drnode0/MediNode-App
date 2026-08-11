@@ -434,6 +434,19 @@ export async function GET() {
       // 0011 未適用なら空（UIは「適用待ち」表示）。
     }
 
+    // 職種の内訳（登録フローで訊くアカウント属性）。migration 0024 未適用なら null（UIは適用待ち表示）。
+    let occupationBreakdown: Record<string, number> | null = null
+    {
+      const res = await admin.from('user_settings').select('user_id, occupation')
+      if (!res.error) {
+        occupationBreakdown = {}
+        for (const r of res.data ?? []) {
+          const occ = (r as { occupation?: string | null }).occupation
+          if (occ) occupationBreakdown[occ] = (occupationBreakdown[occ] ?? 0) + 1
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       count: rows.length,
@@ -453,6 +466,8 @@ export async function GET() {
       lpSources,
       lpToday: jstToday,
       auditLog,
+      // 職種の内訳（全アカウント。列未適用なら null）。
+      occupationBreakdown,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
