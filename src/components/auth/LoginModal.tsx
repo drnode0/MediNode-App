@@ -7,10 +7,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { UserPlus, CheckCircle2, Mail, X } from 'lucide-react'
+import { UserPlus, CheckCircle2, Mail, X, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import { suggestEmailCorrection, checkEmailDeliverable } from '@/lib/email-typo'
+import { CQ_OCCUPATIONS } from '@/lib/cq-submit'
+import { getDeviceSubscribed, subscribeThisDevice, canOfferPushOnThisDevice, subscribeResultMessage } from '@/lib/push-client'
+import { nextPhaseAfterAuth, nextPhaseAfterProfile, deviceRememberedOccupation } from '@/lib/login-onboarding'
 
 type Props = {
   onClose: () => void
@@ -36,10 +39,17 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
   // 新規登録はメール確認を兼ねるため常にメール方式。
   const [method, setMethod] = useState<'otp' | 'password'>('otp')
   const [password, setPassword] = useState('')
-  const [phase, setPhase] = useState<'email' | 'sent' | 'done'>('email')
+  const [phase, setPhase] = useState<'email' | 'sent' | 'profile' | 'notify' | 'done'>('email')
   // 認証成功後に「新規登録だったか／既存アカウントへのログインだったか」を告知するための状態。
   // 判定は user.created_at の新しさで行う（サインアップ時に作成された直後かどうか）。
   const [accountIsNew, setAccountIsNew] = useState<boolean | null>(null)
+  // 職種ステップ（認証成功後・アカウントに職種が無いときだけ出る）。
+  const [occupation, setOccupation] = useState('')
+  const [profileSaving, setProfileSaving] = useState(false)
+  // 通知ステップ（この端末が未購読のときだけ出る）。
+  const [notifyBusy, setNotifyBusy] = useState(false)
+  const [notifyMsg, setNotifyMsg] = useState('')
+  const [notifyDone, setNotifyDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -131,7 +141,7 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
         throw error
       }
       setAccountIsNew(false)
-      setPhase('done')
+      await routeAfterAuth()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ログインに失敗しました')
     } finally {
@@ -160,11 +170,66 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
       //  created_at は数日〜数週間前になり、確実に見分けられる。）
       const createdAt = data.user?.created_at ? new Date(data.user.created_at).getTime() : 0
       setAccountIsNew(createdAt > 0 && Date.now() - createdAt < 30 * 60 * 1000)
-      setPhase('done')
+      await routeAfterAuth()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'コードの確認に失敗しました。期限切れの場合は再送してください。')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 認証成功後の行き先。職種未登録なら profile、未購読端末なら notify、それ以外は done。
+  // 職種の照会に失敗したときは done に直行する（登録を止めない。次回ログイン時に再度出る）。
+  const routeAfterAuth = async () => {
+    try {
+      const res = await fetch('/api/account/profile', { cache: 'no-store' })
+      if (!res.ok) throw new Error('profile_fetch_failed')
+      const data = (await res.json()) as { occupation?: string | null }
+      const subscribed = await getDeviceSubscribed()
+      const next = nextPhaseAfterAuth({
+        occupation: data.occupation ?? null,
+        subscribed,
+        canOfferPush: canOfferPushOnThisDevice(),
+      })
+      if (next === 'profile') setOccupation(deviceRememberedOccupation())
+      setPhase(next)
+    } catch {
+      setPhase('done')
+    }
+  }
+
+  // 職種を保存して次へ（通知 or 完了）。
+  const saveOccupation = async () => {
+    if (!occupation) return
+    setProfileSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/account/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ occupation }),
+      })
+      const data = await res.json().catch(() => ({ ok: false }))
+      if (!res.ok || !data?.ok) throw new Error('save_failed')
+      const subscribed = await getDeviceSubscribed()
+      setPhase(nextPhaseAfterProfile({ subscribed, canOfferPush: canOfferPushOnThisDevice() }))
+    } catch {
+      setError('保存できませんでした。時間をおいて再度お試しください。')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  // この端末で通知を購読する（許可ダイアログが出る）。失敗理由は一文で返る。
+  const enableNotify = async () => {
+    setNotifyBusy(true)
+    setNotifyMsg('')
+    try {
+      const result = await subscribeThisDevice()
+      setNotifyDone(result.ok)
+      setNotifyMsg(subscribeResultMessage(result))
+    } finally {
+      setNotifyBusy(false)
     }
   }
 
@@ -315,6 +380,87 @@ export function LoginModal({ onClose, onSuccess, reason, purpose = 'login' }: Pr
             >
               メールを再送する
             </button>
+          </>
+        )}
+
+        {phase === 'profile' && (
+          <>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">職種を教えてください</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                どんな職種の方が読んでいるかを、今後のナレッジ作りに活かします。臨床疑問の投稿時にも自動で入ります。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="職種の選択">
+              {CQ_OCCUPATIONS.map((o) => {
+                const on = occupation === o
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => { setOccupation(o); setError(null) }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      on
+                        ? 'bg-brand-600 border-brand-600 text-white'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-brand-300'
+                    }`}
+                  >
+                    {o}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              onClick={saveOccupation}
+              disabled={profileSaving || !occupation}
+              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {profileSaving ? '保存中...' : 'この職種で続ける'}
+            </button>
+          </>
+        )}
+
+        {phase === 'notify' && (
+          <>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                <Bell className="w-4 h-4" />
+                通知を受け取りますか？
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                今日の1問・投稿した疑問の解決・お知らせが届きます。オフに戻すのはいつでも1〜2タップです。
+              </p>
+            </div>
+            {notifyMsg && (
+              <div className={`rounded-lg p-3 text-xs ${notifyDone ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'bg-gray-50 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300'}`}>
+                {notifyMsg}
+              </div>
+            )}
+            {notifyDone ? (
+              <button
+                onClick={() => setPhase('done')}
+                className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                続ける
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={enableNotify}
+                  disabled={notifyBusy}
+                  className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {notifyBusy ? '設定中...' : 'この端末で通知を受け取る'}
+                </button>
+                <button
+                  onClick={() => setPhase('done')}
+                  className="w-full text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  あとで（設定 → 通知からいつでも）
+                </button>
+              </>
+            )}
           </>
         )}
 
