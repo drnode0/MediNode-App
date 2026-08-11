@@ -29,6 +29,7 @@ import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
 import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { recordSentCq } from '@/lib/cq-dispatch'
+import { isValidOccupation } from '@/lib/account-profile'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, CQ_PROFILE_KEY, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
@@ -321,6 +322,9 @@ function CqCaptureModal({
   const bgConfirmedRef = useRef(false)
   // アカウントに保存済みの職種（null=未登録）。投稿成功時の穴埋め判定に使う。
   const accountOccupationRef = useRef<string | null>(null)
+  // 職種フェッチが解決する前に、本人が職種セレクトを手で変えたか。
+  // trueなら、あとから届くアカウント値で上書きしない（レース防止）。
+  const userEditedOccupationRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
@@ -334,12 +338,21 @@ function CqCaptureModal({
     setProfile(loadCqProfile())
     // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
     // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
+    let cancelled = false
     fetch('/api/account/profile', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { occupation?: string | null } | null) => {
-        const occ = d?.occupation
-        if (!occ) return
+        if (cancelled) return
+        const raw = d?.occupation
+        // 固定リスト外の値（旧データ等）は使わない。
+        if (!isValidOccupation(raw)) return
+        const occ = raw
+        // 穴埋め判定（投稿成功時にアカウントへ書き戻すか）は、表示への反映有無に
+        // かかわらず正しく保つ。
         accountOccupationRef.current = occ
+        // フェッチ解決前に本人がセレクトを手で変えていたら、その選択を尊重する
+        // （レース：あとから届くアカウント値で上書きしない）。
+        if (userEditedOccupationRef.current) return
         setProfile((p) => ({
           ...p,
           occupation: occ,
@@ -348,6 +361,9 @@ function CqCaptureModal({
         }))
       })
       .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
   // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
   // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
@@ -770,6 +786,8 @@ function CqCaptureModal({
                             value={profile.occupation}
                             onChange={(e) => {
                               const occupation = e.target.value
+                              // 本人が手で選んだ。以後、遅れて届くアカウント値の自動入力で上書きしない。
+                              userEditedOccupationRef.current = true
                               // 医師以外に変えたら診療科・立場は捨てる。UIが隠れるだけだと
                               // 看護師の投稿に救急科が付いたまま届く。
                               setProfile((p) => ({
