@@ -1584,7 +1584,7 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
                 // tone はオンボーディング「3つの知識源」と同じ配色（個人=常盤・部署=空・プレミアム=琥珀）。
                 // プレミアムを先頭に置く（モニターFB: 設定不要で始められる選択肢が一番下だと戸惑う）。
                 { key: 'premium' as const, Icon: Star, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', title: '専門医の知識を使う', sub: 'プレミアム', badge: 'おすすめ・設定不要', desc: `作者（専門医）が配信する医療ナレッジを検索します。難しい設定はなく、アカウント登録だけで${autoTrialDays()}日間無料でお試しできます。カード登録は不要で、期間後は自動で通常表示に戻ります（勝手に課金されることはありません）。` },
-                { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', badge: '', desc: '自分のNotionに作った医療メモを検索します。Notionとつなぐ合鍵（コネクトToken）と、DBのリンクを使います。' },
+                { key: 'personal' as const, Icon: User, tone: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300', title: '自分の知識を使う', sub: '個人のNotion', badge: '', desc: '自分のNotionに作った医療メモを検索します。Notionの画面で読ませたいページを選んで許可するだけでつながります。' },
                 { key: 'team' as const, Icon: Users, tone: 'bg-sky-50 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300', title: 'みんなの知識を使う', sub: '部署の共有DB', badge: '', desc: '職場で共有しているDBを検索します。代表者からもらったTokenとURLを貼るだけでOK（自分のNotionは不要）。' },
               ]).map((opt) => {
                 const selected = targets[opt.key]
