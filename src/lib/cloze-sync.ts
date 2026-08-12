@@ -37,6 +37,35 @@ function pageIdOf(objectID: string): string {
   return objectID.replace(/^(personal|team)_/, '')
 }
 
+// 子ブロックを取得して添付する対象のコンテナ型。⚡結論ボックス（callout）が本命。
+const CONTAINER_TYPES = ['callout', 'toggle', 'bulleted_list_item', 'numbered_list_item', 'quote'] as const
+
+// 1ページあたりの子取得リクエスト上限（コンテナだらけのページでも暴走しない）
+export const CHILD_FETCH_MAX_PER_PAGE = 8
+
+// has_childrenのコンテナの子を深さ2まで取得し、ブロックに `children` として添付する。
+// extractClozeはこのキーを再帰的に読む。失敗したコンテナは黙って飛ばす（同期は止めない）。
+export async function expandChildren(
+  notion: NotionLike,
+  blocks: unknown[],
+  depth = 0,
+  budget = { left: CHILD_FETCH_MAX_PER_PAGE },
+): Promise<void> {
+  if (depth >= 2) return
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue
+    const b = block as Record<string, unknown> & { children?: unknown[] }
+    if (!b.has_children) continue
+    if (!CONTAINER_TYPES.includes(b.type as (typeof CONTAINER_TYPES)[number])) continue
+    if (budget.left <= 0) return
+    budget.left--
+    const children = await fetchAllBlocks(notion, String(b.id))
+    if (!children) continue
+    b.children = children
+    await expandChildren(notion, children, depth + 1, budget)
+  }
+}
+
 async function fetchAllBlocks(notion: NotionLike, pageId: string): Promise<unknown[] | null> {
   try {
     const blocks: unknown[] = []
@@ -94,6 +123,8 @@ export async function attachClozeData(
     fetches++
     const blocks = await fetchAllBlocks(client, pageIdOf(String(r.objectID)))
     if (!blocks) continue
+    // ⚡結論ボックス等のcallout内マークも拾えるよう、コンテナの子を展開してから抽出する
+    await expandChildren(client, blocks)
     const cloze = extractCloze(blocks)
     if (cloze) r.cloze = cloze
   }

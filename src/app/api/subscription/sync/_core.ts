@@ -3,6 +3,7 @@ import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
 import { extractCloze } from '@/lib/cloze'
+import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 
 /**
@@ -136,6 +137,12 @@ async function syncMedicalDb(
       if (!title) continue
       const blocks = await fetchPageBlocks(notion, page.id)
       const stats = blocks ? computeContentStats(blocks) : null
+      // ⚡結論ボックス（callout）内の赤マーカーも拾えるよう、クイズ候補（ナレッジ）だけ
+      // コンテナの子を展開してから抽出する（1ページ最大8リクエストの上限つき）
+      const knowledgeLevel = extractText(props['知識レベル'] || {})
+      if (blocks && isClozeCandidate({ knowledgeLevel })) {
+        await expandChildren(notion, blocks)
+      }
       const record: Record<string, unknown> = {
         objectID: `subscription_${page.id}`,
         // distinct(parentId) 用: 親も自分のIDを持つ（無いと親と節が別グループになり検索結果が二重に出る）
@@ -148,7 +155,7 @@ async function syncMedicalDb(
         genre: extractList(props['ジャンル'] || {}),
         detailGenre: extractText(props['詳細ジャンル'] || {}),
         tags: extractText(props['タグ'] || {}),
-        knowledgeLevel: extractText(props['知識レベル'] || {}),
+        knowledgeLevel,
         // 由来（現場の疑問＝読者の臨床疑問投稿から生まれたナレッジ）。空なら通常のナレッジ。
         origin: extractText(props['由来'] || {}),
         // 投稿者情報（由来=現場の疑問のページのみ作者が入力）。実名は扱わず、

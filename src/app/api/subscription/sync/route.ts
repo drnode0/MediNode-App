@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// 実行時間上限（秒）。穴埋め抽出でcallout子の取得が増えるため明示する（/api/sync と同水準）。
+export const maxDuration = 60
 import { runSubscriptionSync, isSyncSecretValid } from './_core'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 

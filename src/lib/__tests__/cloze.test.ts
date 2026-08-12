@@ -61,3 +61,44 @@ describe('extractCloze', () => {
     expect(extractCloze([null, {}, { type: 'image', image: {} }])).toBeNull()
   })
 })
+
+// ── ネスト対応（2026-08-12追記）: ⚡結論ボックス（callout）内のマークを拾う ──
+// 実際の原稿は要点がcalloutの子ブロックにあり、トップレベル走査だけでは
+// マークが構造的に見えなかった（本番で実際に発生）。
+const callout = (text: string, ...children: unknown[]) => ({
+  type: 'callout',
+  callout: { rich_text: text ? [run(text)] : [] },
+  has_children: children.length > 0,
+  children,
+})
+
+describe('extractCloze（ネスト）', () => {
+  it('calloutの子のマークを拾い、calloutの文言を見出しにする', () => {
+    const data = extractCloze([
+      callout('この問いへの答え', bullet(run('意義があるのは'), run('抗菌薬を中止', true), run('する判断だけ'))),
+    ])!
+    expect(data.blocks).toHaveLength(1)
+    expect(data.blocks[0].heading).toBe('この問いへの答え')
+    expect(data.blocks[0].segments.some((s) => s.hidden && s.text === '抗菌薬を中止')).toBe(true)
+  })
+
+  it('文言のないcalloutの子は外側の見出しを引き継ぐ', () => {
+    const data = extractCloze([h2('外の見出し'), callout('', bullet(run('値 '), run('42', true)))])!
+    expect(data.blocks[0].heading).toBe('外の見出し')
+  })
+
+  it('孫（子の子）のマークも拾う', () => {
+    const child = { ...bullet(run('親項目')), children: [bullet(run('孫の '), run('肝', true))] }
+    const data = extractCloze([callout('答え', child)])!
+    expect(data.blocks).toHaveLength(1)
+    expect(data.blocks[0].segments.some((s) => s.hidden && s.text === '肝')).toBe(true)
+  })
+
+  it('calloutの子の見出しは外側の兄弟ブロックに漏れない', () => {
+    const data = extractCloze([
+      callout('答え', bullet(run('中 '), run('a', true))),
+      bullet(run('外 '), run('b', true)),
+    ])!
+    expect(data.blocks[1].heading).toBeNull()
+  })
+})

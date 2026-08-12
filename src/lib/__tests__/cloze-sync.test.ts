@@ -125,3 +125,83 @@ describe('attachClozeData', () => {
     expect(res.fetches).toBe(1)
   })
 })
+
+// ── expandChildren（2026-08-12追記）: callout等の子を取得して添付する ──
+import { expandChildren, CHILD_FETCH_MAX_PER_PAGE } from '@/lib/cloze-sync'
+
+function fakeNotionTree(childrenById: Record<string, unknown[]>) {
+  const calls: string[] = []
+  return {
+    calls,
+    blocks: {
+      children: {
+        list: async ({ block_id }: { block_id: string }) => {
+          calls.push(block_id)
+          return { results: childrenById[block_id] || [], has_more: false, next_cursor: null }
+        },
+      },
+    },
+  }
+}
+
+describe('expandChildren', () => {
+  it('has_childrenのcalloutの子を取得してchildrenに添付する', async () => {
+    const blocks = [{ id: 'c1', type: 'callout', has_children: true, callout: { rich_text: [] } }]
+    const notion = fakeNotionTree({ c1: [marked] })
+    await expandChildren(notion, blocks)
+    expect(notion.calls).toEqual(['c1'])
+    expect((blocks[0] as { children?: unknown[] }).children).toEqual([marked])
+  })
+
+  it('孫（深さ2）まで取得し、それ以上は降りない', async () => {
+    const blocks = [{ id: 'c1', type: 'callout', has_children: true, callout: { rich_text: [] } }]
+    const child = { id: 'b1', type: 'bulleted_list_item', has_children: true, bulleted_list_item: { rich_text: [] } }
+    const grand = { id: 'b2', type: 'bulleted_list_item', has_children: true, bulleted_list_item: { rich_text: [] } }
+    const notion = fakeNotionTree({ c1: [child], b1: [grand], b2: [marked] })
+    await expandChildren(notion, blocks)
+    expect(notion.calls).toEqual(['c1', 'b1']) // b2（深さ3の取得）はしない
+  })
+
+  it('コンテナ以外・has_childrenなしは取得しない', async () => {
+    const blocks = [
+      { id: 'p1', type: 'paragraph', has_children: false, paragraph: { rich_text: [] } },
+      { id: 'img', type: 'image', has_children: true, image: {} },
+    ]
+    const notion = fakeNotionTree({})
+    await expandChildren(notion, blocks)
+    expect(notion.calls).toEqual([])
+  })
+
+  it('1ページあたりの子取得は上限で打ち切る', async () => {
+    const blocks = Array.from({ length: CHILD_FETCH_MAX_PER_PAGE + 3 }, (_, i) => ({
+      id: `c${i}`, type: 'callout', has_children: true, callout: { rich_text: [] },
+    }))
+    const notion = fakeNotionTree({})
+    await expandChildren(notion, blocks)
+    expect(notion.calls).toHaveLength(CHILD_FETCH_MAX_PER_PAGE)
+  })
+
+  it('attachClozeDataはcallout内のマークも拾う（結合確認）', async () => {
+    const calloutBlock = {
+      id: 'c1',
+      type: 'callout',
+      has_children: true,
+      callout: { rich_text: [{ plain_text: 'この問いへの答え', annotations: { color: 'default' } }] },
+    }
+    const notion = {
+      blocks: {
+        children: {
+          list: async ({ block_id }: { block_id: string }) => ({
+            results: block_id === 'p1' ? [calloutBlock] : [marked],
+            has_more: false,
+            next_cursor: null,
+          }),
+        },
+      },
+    }
+    const records = [rec('personal_p1')]
+    await attachClozeData(records, { personal: notion }, emptyIndex)
+    const cloze = (records[0] as { cloze?: { blocks: { heading: string | null }[] } }).cloze
+    expect(cloze?.blocks[0]?.heading).toBe('この問いへの答え')
+  })
+})

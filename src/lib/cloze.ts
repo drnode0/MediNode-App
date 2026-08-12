@@ -50,37 +50,52 @@ function segmentsOf(rich: RichText[]): ClozeSegment[] {
   return out
 }
 
+// ブロックに `children` 配列が添付されていれば（expandChildrenが付ける非標準キー）、
+// その中も再帰的に見る。⚡結論ボックス等のcallout内マークは実際の原稿で多用されるため、
+// トップレベル走査だけでは構造的に見えない（2026-08-12に本番で発生）。
+// callout・トグルの子は、その枠の文言（例:「この問いへの答え」）を文脈ラベルとして継承する。
 export function extractCloze(blocks: unknown[]): ClozeData | null {
   const picked: ClozeBlock[] = []
   let blankCount = 0
   let truncated = false
-  let heading: string | null = null
 
-  for (const block of blocks) {
-    if (!block || typeof block !== 'object') continue
-    const b = block as Record<string, unknown>
-    const type = b.type as string
+  const walk = (list: unknown[], inheritedHeading: string | null) => {
+    let heading = inheritedHeading
+    for (const block of list) {
+      if (!block || typeof block !== 'object') continue
+      const b = block as Record<string, unknown> & { children?: unknown[] }
+      const type = b.type as string
 
-    if (HEADING_TYPES.includes(type as (typeof HEADING_TYPES)[number])) {
+      if (HEADING_TYPES.includes(type as (typeof HEADING_TYPES)[number])) {
+        const payload = b[type] as { rich_text?: RichText[] } | undefined
+        heading = plainOf(payload?.rich_text).trim() || null
+        continue
+      }
+
       const payload = b[type] as { rich_text?: RichText[] } | undefined
-      heading = plainOf(payload?.rich_text).trim() || null
-      continue
-    }
-    if (!TEXT_BLOCK_TYPES.includes(type as (typeof TEXT_BLOCK_TYPES)[number])) continue
+      if (TEXT_BLOCK_TYPES.includes(type as (typeof TEXT_BLOCK_TYPES)[number])) {
+        const segments = segmentsOf(payload?.rich_text || [])
+        const blanks = segments.filter((s) => s.hidden).length
+        if (blanks > 0) {
+          if (picked.length >= CLOZE_MAX_BLOCKS) {
+            truncated = true
+          } else {
+            picked.push({ heading, segments })
+            blankCount += blanks
+          }
+        }
+      }
 
-    const payload = b[type] as { rich_text?: RichText[] } | undefined
-    const segments = segmentsOf(payload?.rich_text || [])
-    const blanks = segments.filter((s) => s.hidden).length
-    if (blanks === 0) continue
-
-    if (picked.length >= CLOZE_MAX_BLOCKS) {
-      truncated = true
-      break
+      if (Array.isArray(b.children) && b.children.length > 0) {
+        const ownText =
+          type === 'callout' || type === 'toggle' ? plainOf(payload?.rich_text).trim() : ''
+        // 子スコープの見出しは漏れない（walkのローカル変数なので兄弟に影響しない）
+        walk(b.children, ownText || heading)
+      }
     }
-    picked.push({ heading, segments })
-    blankCount += blanks
   }
 
+  walk(blocks, null)
   if (picked.length === 0) return null
   return { blocks: picked, blankCount, truncated }
 }
