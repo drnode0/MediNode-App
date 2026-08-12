@@ -1,8 +1,8 @@
 'use client'
 
 // 初回オンボーディング（2層方式）。
-//   コア4枚: 価値訴求 → できること → 3つの知識源 → 始め方（最短でセットアップへ）
-//   詳細2枚: Notion連携・DB構成（コア最終ページから任意で入る第2層）
+//   コア5枚: 価値訴求 → できること → 3つの知識源 → 書く/引く対応（mirror） → 始め方（最短でセットアップへ）
+//   詳細2枚: つながる仕組み（connect）・徹底解剖（anatomy）※コア最終ページから任意で入る第2層
 // デザイン: 絵文字を使わず、ブランドアイコン＋lucide線画で統一。
 // モーション: ページ遷移フェード／アイコンのフロート／カードの時間差登場。
 
@@ -10,9 +10,9 @@ import { useState } from 'react'
 import { AccountButton } from './auth/AccountButton'
 import {
   Search, Clock, FolderOpen, Lightbulb, BookMarked, ClipboardList,
-  UserRound, Building2, Star, RefreshCw, ArrowUpRight, FolderCheck,
-  HeartPulse, Target, Compass, KeyRound, Rocket, ArrowRight,
+  UserRound, Building2, Star, Compass, Rocket, ArrowRight,
   Sparkles, Library, NotebookPen, Database, ChevronRight, Leaf,
+  MousePointerClick, EyeOff, ShieldCheck, Undo2, Link2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -40,7 +40,7 @@ type Page = {
   description?: string
   features?: Feature[]
   hero?: boolean // 1枚目のアイコンヒーロー
-  diagram?: boolean // DB構成図
+  diagram?: 'mirror' | 'anatomy' // 図解の種類（mirror=書く/引く対応図、anatomy=徹底解剖図）
 }
 
 const PAGES: Page[] = [
@@ -73,42 +73,50 @@ const PAGES: Page[] = [
     description: '3つとも使う必要はありません。Notionをつながずに、専門医の知識だけで始めることもできます。',
     features: [
       { Icon: Star, title: '専門医の知識（プレミアム）', desc: '作者（専門医）が配信するナレッジを検索。設定なしですぐ使えます', tone: 'amber' },
-      { Icon: UserRound, title: '自分の知識（個人のNotion）', desc: '自分で書きためた医療メモを検索。自分のNotionをつなぎます', tone: 'brand' },
-      { Icon: Building2, title: 'みんなの知識（部署の共有DB）', desc: '職場で共有しているDBを検索。代表者からもらった情報を入れるだけ', tone: 'sky' },
+      { Icon: UserRound, title: '自分の知識（自分のNotion）', desc: 'Notionに書きためた自分のメモを検索。Notionの画面でページを選んで許可するだけでつながります', tone: 'brand' },
+      { Icon: Building2, title: 'みんなの知識（部署の共有DB）', desc: '職場で共有しているNotionを検索。代表者からもらった情報を入れるだけ', tone: 'sky' },
     ],
   },
   {
-    id: 'notion',
-    badge: { Icon: NotebookPen, label: 'Notionと連携' },
-    title: '書く場所は\nそのままでいい',
-    accent: 'そのままでいい',
-    features: [
-      { Icon: RefreshCw, title: 'Notionに書くだけで即反映', desc: '追加・編集はいつものNotionで。MediNodeに自動で同期される', tone: 'brand' },
-      { Icon: ArrowUpRight, title: '詳細はNotionでそのまま確認', desc: 'タップするとNotionアプリで全文表示。書いた内容を活かせる', tone: 'sky' },
-      { Icon: FolderCheck, title: '既存DBもそのまま使える', desc: 'すでにNotionでまとめている人はテンプレート不要', tone: 'amber' },
-    ],
-  },
-  {
-    id: 'dbs',
-    badge: { Icon: Database, label: 'DBのかたち' },
-    title: '知識本体と\n参考文献を分けて管理',
-    accent: '分けて管理',
-    diagram: true,
-    features: [
-      { Icon: HeartPulse, title: 'Medical DB（知識の本体）', desc: '病名・治療・手技などの本体ノート。検索・クイズの中心', tone: 'brand' },
-      { Icon: BookMarked, title: 'Reference DB（任意）', desc: '論文・書籍を別管理。Medical DBと相互リレーションで紐付け', tone: 'amber' },
-      { Icon: Target, title: '知識レベルで学びを育てる', desc: '疑問 → ナレッジ → まとめ。思考の深さに合わせて整理できる', tone: 'violet' },
-    ],
+    id: 'mirror',
+    badge: { Icon: NotebookPen, label: 'Notionとの関係' },
+    title: '書くのはNotion\n引くのはMediNode',
+    accent: '引くのはMediNode',
+    diagram: 'mirror',
+    description: '追加・編集はいつものNotionのまま。書いた内容が自動で反映され、アプリでは検索とクイズに姿を変えます。',
   },
   {
     id: 'setup',
-    badge: { Icon: KeyRound, label: 'セットアップ' },
-    title: '選んで設定するだけ\nすぐ使い始められます',
+    badge: { Icon: Rocket, label: 'セットアップ' },
+    title: '選んで許可するだけ\nすぐ使い始められます',
     accent: 'すぐ使い始められます',
     features: [
       { Icon: Compass, title: 'まず使う知識を選ぶ', desc: '自分／みんな／専門医の知識から使いたいものを選ぶ（複数OK）', tone: 'sky' },
-      { Icon: KeyRound, title: '選んだものを設定', desc: 'Notionを使うなら、Notionの画面でページを選んで許可するだけ。プレミアムだけなら設定はほぼ不要', tone: 'violet' },
+      { Icon: MousePointerClick, title: 'Notionはページを選んで許可するだけ', desc: 'トークンの作成やコピーは不要。Notionの画面でページを選べば、読み込むDBは自動で見つかります', tone: 'violet' },
       { Icon: Rocket, title: '完了して検索開始', desc: 'あとは検索・新着・ジャンル・クイズをすぐ使えます', tone: 'brand' },
+    ],
+  },
+  {
+    id: 'connect',
+    badge: { Icon: Link2, label: 'つながる仕組み' },
+    title: 'トークン不要\nページを選んで許可するだけ',
+    accent: '許可するだけ',
+    features: [
+      { Icon: MousePointerClick, title: 'Notionの画面で選ぶ', desc: '接続ボタンを押すとNotionの許可画面が開きます。読ませたいページを選んで許可するだけ', tone: 'brand' },
+      { Icon: EyeOff, title: '選んだページ以外は見えない', desc: '許可しなかったページ・DBには、アプリは一切アクセスできません', tone: 'sky' },
+      { Icon: ShieldCheck, title: '既存のページを書き換えない', desc: 'アプリが行うのは読み取りと、疑問メモ（CQ）の新規作成だけ。書いた知識はそのまま守られます', tone: 'amber' },
+      { Icon: Undo2, title: 'いつでも外せる', desc: '設定から接続を解除できます。Notion側の内容はそのまま残ります', tone: 'violet' },
+    ],
+  },
+  {
+    id: 'anatomy',
+    badge: { Icon: Database, label: '徹底解剖' },
+    title: 'Notionのどの欄が\nどこに表示されるか',
+    accent: 'どこに表示されるか',
+    diagram: 'anatomy',
+    features: [
+      { Icon: BookMarked, title: 'Reference Library_DB → 文献タブ', desc: '論文・ガイドラインのDBは、そのまま文献タブになります', tone: 'amber' },
+      { Icon: ClipboardList, title: 'Manual & Notice_DB → マニュアルタブ', desc: '病院・部署のマニュアルDBはマニュアルタブに（任意）', tone: 'rose' },
     ],
   },
 ]
@@ -117,41 +125,98 @@ const pageById = Object.fromEntries(PAGES.map((p) => [p.id, p]))
 // コアに「3つの知識源」を含める。ここが第2層にあった頃は、Notionを使える人ほど
 // 「まず自分のNotionをつなぐもの」と読んで、つなぐ前に離脱していた。
 // 設定なしで始められることは、セットアップ画面の手前で見えている必要がある。
-const CORE_PAGES = [pageById.welcome, pageById.features, pageById.sources, pageById.setup]
-const DETAIL_PAGES = [pageById.notion, pageById.dbs]
+const CORE_PAGES = [pageById.welcome, pageById.features, pageById.sources, pageById.mirror, pageById.setup]
+const DETAIL_PAGES = [pageById.connect, pageById.anatomy]
 
-// DB構成図（常盤トーンのSVG）
-function DbDiagram() {
+// MirrorDiagram: 「書くのはNotion、引くのはMediNode」。テーマ対応が素直なJSXで組む
+function MirrorDiagram() {
+  const notionRows = ['疑問をメモ', '調べて知識に', 'いつも通り編集']
+  const appRows = [
+    { Icon: Search, label: '高速検索' },
+    { Icon: Lightbulb, label: '一問一答クイズ' },
+    { Icon: FolderOpen, label: 'ジャンル別' },
+  ]
   return (
-    <div className="w-full max-w-xs h-44 mb-6">
-      <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-        <g>
-          <rect x="6" y="20" width="120" height="140" rx="14" fill="#E7F3EE" stroke="#2C8A6A" strokeWidth="2" />
-          <text x="66" y="46" textAnchor="middle" fontSize="11" fontWeight="700" fill="#155A42">Medical DB</text>
-          <text x="66" y="61" textAnchor="middle" fontSize="9" fill="#196B4F">（知識の本体）</text>
-          <line x1="18" y1="70" x2="114" y2="70" stroke="#C4E6D8" strokeWidth="1" />
-          <text x="18" y="86" fontSize="9" fill="#124F3A">病名・治療・知識</text>
-          <text x="18" y="102" fontSize="9" fill="#124F3A">ジャンル / キーワード</text>
-          <text x="18" y="118" fontSize="9" fill="#124F3A">知識レベル</text>
-          <text x="18" y="134" fontSize="9" fill="#124F3A">参考文献 (Relation)</text>
-          <text x="66" y="152" textAnchor="middle" fontSize="8" fill="#2C8A6A">本体ノート</text>
-        </g>
-        <g>
-          <rect x="194" y="30" width="120" height="120" rx="14" fill="#FEF3C7" stroke="#F59E0B" strokeWidth="2" />
-          <text x="254" y="56" textAnchor="middle" fontSize="11" fontWeight="700" fill="#B45309">Reference DB</text>
-          <text x="254" y="70" textAnchor="middle" fontSize="9" fill="#92400E">（任意）</text>
-          <line x1="206" y1="80" x2="302" y2="80" stroke="#FDE68A" strokeWidth="1" />
-          <text x="206" y="96" fontSize="9" fill="#78350F">論文・書籍</text>
-          <text x="206" y="112" fontSize="9" fill="#78350F">発行年</text>
-          <text x="206" y="128" fontSize="9" fill="#78350F">エビデンスレベル</text>
-          <text x="254" y="144" textAnchor="middle" fontSize="8" fill="#B45309">参考文献ストック</text>
-        </g>
-        <g>
-          <line x1="130" y1="88" x2="188" y2="88" stroke="#64748B" strokeWidth="1.5" />
-          <polygon points="188,84 194,88 188,92" fill="#64748B" />
-          <line x1="190" y1="108" x2="132" y2="108" stroke="#64748B" strokeWidth="1.5" />
-          <polygon points="132,104 126,108 132,112" fill="#64748B" />
-        </g>
+    <div className="w-full max-w-xs mb-6 animate-fade-in-up">
+      <div className="flex items-stretch gap-1.5">
+        <div className="flex-1 rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-3 shadow-sm">
+          <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
+            <NotebookPen className="w-3.5 h-3.5" />Notionに書く
+          </p>
+          <div className="space-y-1.5">
+            {notionRows.map((label) => (
+              <div key={label} className="rounded-lg bg-gray-50 dark:bg-gray-700/60 px-2 py-1.5 text-[10px] text-gray-600 dark:text-gray-300">{label}</div>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center px-0.5">
+          <ArrowRight className="w-4 h-4 text-brand-500 dark:text-brand-300" />
+        </div>
+        <div className="flex-1 rounded-2xl bg-brand-50 dark:bg-brand-900/30 ring-1 ring-brand-200 dark:ring-brand-800 p-3 shadow-sm">
+          <p className="text-[11px] font-bold text-brand-700 dark:text-brand-300 mb-2 flex items-center gap-1">
+            <Search className="w-3.5 h-3.5" />MediNodeで引く
+          </p>
+          <div className="space-y-1.5">
+            {appRows.map(({ Icon, label }) => (
+              <div key={label} className="rounded-lg bg-white/80 dark:bg-gray-800/60 px-2 py-1.5 text-[10px] font-semibold text-brand-700 dark:text-brand-300 flex items-center gap-1">
+                <Icon className="w-3 h-3 shrink-0" />{label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="text-center text-[10px] text-gray-400 dark:text-gray-500 mt-1.5">読むのは自動反映・書く場所はNotionのまま</p>
+    </div>
+  )
+}
+
+// AnatomyDiagram: Notionページの各欄 → アプリのどの画面に出るかを色付き矢印で対応させる徹底解剖図。
+// 色はTailwindのfill/strokeユーティリティで両テーマ対応。💡❓はNotionのデータ由来の例示なので使用可。
+function AnatomyDiagram() {
+  const rows = [
+    { y: 44, label: 'タイトル', dot: 'fill-brand-500', line: 'stroke-brand-500 dark:stroke-brand-300', toY: 48 },
+    { y: 76, label: '要約', dot: 'fill-sky-500', line: 'stroke-sky-500 dark:stroke-sky-300', toY: 66 },
+    { y: 108, label: 'キーワード', dot: 'fill-teal-500', line: 'stroke-teal-500 dark:stroke-teal-300', toY: 84 },
+    { y: 140, label: '知識レベル（💡/❓）', dot: 'fill-violet-500', line: 'stroke-violet-500 dark:stroke-violet-300', toY: 142 },
+    { y: 172, label: 'ジャンル', dot: 'fill-amber-500', line: 'stroke-amber-500 dark:stroke-amber-300', toY: 196 },
+  ] as const
+  const cardCls = 'fill-white dark:fill-gray-800'
+  const ringCls = 'stroke-gray-200 dark:stroke-gray-600'
+  const headCls = 'fill-gray-500 dark:fill-gray-400'
+  const textCls = 'fill-gray-600 dark:fill-gray-300'
+  return (
+    <div className="w-full max-w-xs mb-4 animate-fade-in-up">
+      <svg viewBox="0 0 320 236" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
+        {/* 左: Notionのページ */}
+        <rect x="4" y="8" width="136" height="212" rx="14" className={`${cardCls} ${ringCls}`} strokeWidth="1.5" />
+        <text x="72" y="30" textAnchor="middle" fontSize="10" fontWeight="700" className={headCls}>Notionのページ</text>
+        {rows.map((r) => (
+          <g key={r.label}>
+            <rect x="12" y={r.y - 14} width="120" height="22" rx="7" className="fill-gray-50 dark:fill-gray-700" />
+            <circle cx="22" cy={r.y - 3} r="3" className={r.dot} />
+            <text x="30" y={r.y} fontSize="8.5" className={textCls}>{r.label}</text>
+            <path d={`M 132 ${r.y - 3} C 164 ${r.y - 3}, 164 ${r.toY}, 194 ${r.toY}`} fill="none" strokeWidth="1.5" className={r.line} markerEnd="none" />
+          </g>
+        ))}
+        <text x="72" y="210" textAnchor="middle" fontSize="7.5" className={headCls}>本文はタップでNotionを開く</text>
+        {/* 右上: 検索タブ（タイトル・要約・キーワードが検索カードに） */}
+        <rect x="196" y="24" width="120" height="72" rx="12" className={`${cardCls} ${ringCls}`} strokeWidth="1.5" />
+        <text x="256" y="40" textAnchor="middle" fontSize="9" fontWeight="700" className={headCls}>検索タブのカード</text>
+        <rect x="206" y="46" width="72" height="5" rx="2.5" className="fill-brand-500" />
+        <rect x="206" y="58" width="100" height="4" rx="2" className="fill-sky-300 dark:fill-sky-500" />
+        <rect x="206" y="66" width="84" height="4" rx="2" className="fill-sky-300 dark:fill-sky-500" />
+        <rect x="206" y="78" width="28" height="8" rx="4" className="fill-teal-100 dark:fill-teal-900" />
+        <rect x="238" y="78" width="28" height="8" rx="4" className="fill-teal-100 dark:fill-teal-900" />
+        <text x="220" y="84.5" textAnchor="middle" fontSize="5.5" className="fill-teal-700 dark:fill-teal-300">ヒット</text>
+        <text x="252" y="84.5" textAnchor="middle" fontSize="5.5" className="fill-teal-700 dark:fill-teal-300">ヒット</text>
+        {/* 右中: クイズ（💡ナレッジだけ出題） */}
+        <rect x="196" y="118" width="120" height="48" rx="12" className={`${cardCls} ${ringCls}`} strokeWidth="1.5" />
+        <text x="256" y="136" textAnchor="middle" fontSize="9" fontWeight="700" className={headCls}>クイズタブ</text>
+        <text x="256" y="152" textAnchor="middle" fontSize="8" className="fill-violet-600 dark:fill-violet-300">💡ナレッジだけ出題</text>
+        {/* 右下: ジャンルタブ */}
+        <rect x="196" y="176" width="120" height="44" rx="12" className={`${cardCls} ${ringCls}`} strokeWidth="1.5" />
+        <text x="256" y="193" textAnchor="middle" fontSize="9" fontWeight="700" className={headCls}>ジャンルタブ</text>
+        <text x="256" y="208" textAnchor="middle" fontSize="8" className="fill-amber-600 dark:fill-amber-300">ジャンルで自動分類</text>
       </svg>
     </div>
   )
@@ -262,8 +327,9 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
           </div>
         )}
 
-        {/* DB構成図 */}
-        {current.diagram && <DbDiagram />}
+        {/* 図解（コアの mirror / 詳細の anatomy） */}
+        {current.diagram === 'mirror' && <MirrorDiagram />}
+        {current.diagram === 'anatomy' && <AnatomyDiagram />}
 
         {/* フィーチャーリスト（時間差で登場） */}
         {current.features && (
@@ -347,7 +413,7 @@ export function OnboardingScreen({ onComplete, onSkip }: Props) {
             className="w-full mt-3 py-3.5 rounded-2xl text-sm font-semibold text-brand-700 dark:text-brand-300 bg-white dark:bg-gray-800 ring-1 ring-brand-200 dark:ring-brand-700 hover:bg-brand-50 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center gap-1"
           >
             <Library className="w-4 h-4" />
-            Notionとつながる仕組みをのぞく
+            接続の仕組みと表示のされ方をのぞく
             <ChevronRight className="w-4 h-4" />
           </button>
         )}
