@@ -53,6 +53,10 @@ export function ClozeBody({ cloze, revealed }: { cloze: ClozeData; revealed: boo
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const { open: openReader } = useReader()
   const [revealed, setRevealed] = useState(false)
+  // 穴埋めカードの三段階想起（2026-08-12オーナー裁定）:
+  //   タイトルで自由想起 → タップで穴埋めを開く（clozeOpen）→ もう一度タップで答え合わせ（revealed）。
+  // 折りたたみが既定なのは、場所の節約に加えて「最初にタイトルだけで思い出す」段を挟むため。
+  const [clozeOpen, setClozeOpen] = useState(false)
   // 「覚えた／まだ」の自己申告（このカードで申告済みならその結果を保持して表示を変える）。
   const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
   // 申告直後のメッセージで「次は◯◯ごろ」を出すための連続「覚えた」回数。
@@ -89,6 +93,11 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         className="w-full text-left p-4"
         onClick={() => {
           if (revealed) return
+          // 穴埋めカードは折りたたみ→穴埋め→答えの三段階。1回目のタップは穴埋めを開くだけ
+          if (hit.cloze && !clozeOpen) {
+            setClozeOpen(true)
+            return
+          }
           setRevealed(true)
           // 答えを見た＝本文へ進む前兆。先読みして「本文を読む」を待たせない。
           if (isInAppReaderTarget(hit.owner)) prefetchReaderDoc(hit.objectID)
@@ -101,7 +110,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
           </div>
           {!revealed && (
             <span className="shrink-0 text-xs text-brand-500 dark:text-brand-300 font-medium border border-brand-200 dark:border-brand-700 rounded-full px-2 py-0.5">
-              答えを見る
+              {hit.cloze && !clozeOpen ? '穴埋めを開く' : '答えを見る'}
             </span>
           )}
         </div>
@@ -124,8 +133,8 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
             </span>
           )}
         </div>
-        {/* 穴埋めの設問はタップ前から見せる（それ自体が問題文。フラッシュカードとの顔つきの差） */}
-        {hit.cloze && <ClozeBody cloze={hit.cloze} revealed={revealed} />}
+        {/* 穴埋めの設問は1回目のタップで開く（折りたたみが既定。見分けは「穴埋めN問」チップ） */}
+        {hit.cloze && clozeOpen && <ClozeBody cloze={hit.cloze} revealed={revealed} />}
       </button>
 
       {/* 要約：タップ後に展開 */}
@@ -181,7 +190,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
           )}
           <div className="flex items-center justify-between mt-3">
             <button
-              onClick={() => setRevealed(false)}
+              onClick={() => { setRevealed(false); setClozeOpen(false) }}
               className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 dark:text-gray-300"
             >
               隠す

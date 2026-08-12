@@ -36,15 +36,16 @@ type DailyQuestionPayload = {
 }
 
 // 当日の進み具合（開いた/答えた）だけを端末に覚えておくキー。日付が変わればリセット。
+// opened=穴埋めを開いたか（三段階想起の1段目→2段目。旧データは欠損＝falseで互換）
 const STATE_KEY = 'medinode_daily_question_v1'
-type LocalState = { date: string; revealed: boolean; done: boolean }
+type LocalState = { date: string; revealed: boolean; done: boolean; opened?: boolean }
 
 function loadState(date: string): LocalState {
   try {
     const raw = JSON.parse(localStorage.getItem(STATE_KEY) || 'null') as LocalState | null
     if (raw && raw.date === date) return raw
   } catch {}
-  return { date, revealed: false, done: false }
+  return { date, revealed: false, done: false, opened: false }
 }
 
 function saveState(state: LocalState) {
@@ -169,20 +170,25 @@ export function DailyQuestionCard() {
           </div>
           <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100"><KnowledgeTitle title={q.title} level={q.knowledgeLevel} /></p>
 
-          {/* 穴埋めの設問はタップ前から見せる（伏せ字が問題文そのもの） */}
-          {data.cloze && <ClozeBody cloze={data.cloze} revealed={state.revealed} />}
+          {/* 三段階想起（2026-08-12）: タイトルで思い出す → 穴埋めを開く → 答え合わせ。
+              折りたたみが既定なので、検索タブ最上部でも場所を取らない */}
+          {data.cloze && state.opened && <ClozeBody cloze={data.cloze} revealed={state.revealed} />}
 
           {!state.revealed ? (
             <button
               type="button"
               onClick={() => {
-                update({ revealed: true })
+                if (data.cloze && !state.opened) {
+                  update({ opened: true })
+                  return
+                }
+                update({ revealed: true, opened: true })
                 // 答えを見た＝続きを読む前兆。先読みして「続きを読む」を待たせない。
                 if (data.notionUrl && hasSubscriptionConfig()) prefetchReaderDoc(q.objectID)
               }}
               className="mt-3 inline-flex items-center gap-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
             >
-              答えを見る
+              {data.cloze && !state.opened ? '穴埋めを開く' : '答えを見る'}
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
