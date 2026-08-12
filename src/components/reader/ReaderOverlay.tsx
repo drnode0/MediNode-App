@@ -3,7 +3,9 @@
 // 本文レンダラ・目次・確信度チップ・lucide などリーダーでしか使わない重い依存はこのファイルに
 // 閉じ込め、アプリ初期バンドル（立ち上がり）を軽く保つ。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Star, MessageCircleQuestion, Search } from 'lucide-react'
+import { X, Star, MessageCircleQuestion, Search, ExternalLink } from 'lucide-react'
+import { recordNotionEscape } from '@/lib/notion-escape'
+import { unsupportedStats } from '@/lib/reader-doc'
 import { useCqCaptureButton } from '@/components/CqCapture'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
@@ -239,6 +241,15 @@ export default function ReaderOverlay({
 
   const pressed = isBookmarked(hit.objectID)
 
+  // 個人・部署リーダー（降格式）の要素。サブスク配信では一切出ない。
+  const isPersonalDoc = hit.owner === 'personal' || hit.owner === 'team'
+  // 未対応ブロックが明らかに多いページだけ、冒頭で静かにNotionを勧める。
+  // 判定は自動・無言（「あなたの書き方が悪い」というシグナルを出さない）。
+  const degraded = useMemo(
+    () => (isPersonalDoc && doc ? unsupportedStats(doc).degraded : false),
+    [isPersonalDoc, doc],
+  )
+
   const onToggleBookmark = () => {
     const entry: BookmarkEntry = {
       objectID: hit.objectID,
@@ -268,7 +279,9 @@ export default function ReaderOverlay({
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-purple-600 dark:text-purple-300">プレミアム</span>
+            <span className={`text-xs font-medium ${isPersonalDoc ? 'text-teal-600 dark:text-teal-300' : 'text-purple-600 dark:text-purple-300'}`}>
+              {hit.owner === 'personal' ? '自分のページ' : hit.owner === 'team' ? '部署のページ' : 'プレミアム'}
+            </span>
             <button
               type="button"
               onClick={onToggleBookmark}
@@ -310,9 +323,25 @@ export default function ReaderOverlay({
               </span>
             </button>
           </div>
-          <button type="button" onClick={onClose} aria-label="閉じる" className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* 逃げ道常設（降格式の第3原則）: 個人・部署ページはいつでもNotionへ戻れる */}
+            {isPersonalDoc && hit.notionUrl && (
+              <a
+                href={hit.notionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => recordNotionEscape('reader', hit.owner)}
+                aria-label="Notionで開く"
+                title="Notionで開く"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <ExternalLink className="w-5 h-5" />
+              </a>
+            )}
+            <button type="button" onClick={onClose} aria-label="閉じる" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         {searchOpen && (
           <ReaderSearchBar
@@ -372,6 +401,21 @@ export default function ReaderOverlay({
           )}
           {state === 'idle' && doc && (
             <>
+              {/* 未対応ブロックが明らかに多いページだけの静かな案内（押し付けない自動判定） */}
+              {degraded && hit.notionUrl && (
+                <p className="mb-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
+                  このページはNotionの方が読みやすそうです{' '}
+                  <a
+                    href={hit.notionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => recordNotionEscape('reader', hit.owner)}
+                    className="text-brand-600 dark:text-brand-300 underline"
+                  >
+                    開く
+                  </a>
+                </p>
+              )}
               {/* 全文｜要点の切替。要点は結論＋節見出し＋recapだけ＝まず骨格を掴む入口。 */}
               <div className="mb-2">
                 <div className="inline-flex rounded-full bg-gray-100 dark:bg-gray-700 p-0.5" role="group" aria-label="表示モード">
@@ -402,10 +446,12 @@ export default function ReaderOverlay({
                   active={active}
                   scaleEm={SCALE_EM[fontScale]}
                   mode={viewMode}
+                  owner={hit.owner}
                 />
               </ReaderSearchCtx.Provider>
-              <ReaderHelpful objectID={hit.objectID} />
-              <ReaderFooter objectID={hit.objectID} />
+              {/* 「役に立った」・つづけて読む枠はサブスク配信専用（自分のページに出しても意味がない） */}
+              {!isPersonalDoc && <ReaderHelpful objectID={hit.objectID} />}
+              {!isPersonalDoc && <ReaderFooter objectID={hit.objectID} />}
             </>
           )}
           </div>

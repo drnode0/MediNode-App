@@ -9,7 +9,7 @@
 // 既存行を書き換えず読み取り時にだけ解釈するので、移行のためのバックフィルは不要。
 
 // 開閉できる機能の一覧。UI のラベルもこの順に並べる。
-export const EARLY_ACCESS_FEATURES = ['easy_connect', 'multi_department', 'tower'] as const
+export const EARLY_ACCESS_FEATURES = ['easy_connect', 'multi_department', 'tower', 'personal_reader'] as const
 export type EarlyAccessFeature = (typeof EARLY_ACCESS_FEATURES)[number]
 
 // レガシー early_access(boolean) が意味していた機能。かんたん接続は含めない
@@ -28,6 +28,9 @@ const FEATURE_ENV: Record<EarlyAccessFeature, { ga: string; emails: string; emai
   // 蔓まで見えてしまうため。TOWER_EMAILS が空のあいだは分離前の
   // EARLY_ACCESS_EMAILS に落ちる——置いた瞬間に、そちらだけが効く。
   tower: { ga: 'TOWER_GA', emails: 'TOWER_EMAILS', emailsFallback: 'EARLY_ACCESS_EMAILS' },
+  // 個人・部署ページのアプリ内リーダー（降格式）。専用リストのみ・フォールバックなし
+  // （EARLY_ACCESS_EMAILS に落とすと、他機能のモニターに未磨きのリーダーまで開いてしまう）。
+  personal_reader: { ga: 'PERSONAL_READER_GA', emails: 'PERSONAL_READER_EMAILS' },
 }
 
 function envListNames(name: string): string[] {

@@ -128,6 +128,7 @@ const FEATURE_LABELS: Array<{ key: EarlyAccessFeature; label: string; hint: stri
   },
   { key: 'multi_department', label: 'マルチ部署検索', hint: '複数の部署DBを横断して検索・新着・ジャンルに出す' },
   { key: 'tower', label: '知の塔', hint: '読了・クイズの記録と塔の画面' },
+  { key: 'personal_reader', label: '個人・部署リーダー', hint: '自分の個人DB・部署DBのページをアプリ内リーダーで読む（降格式・試験中）' },
 ]
 
 // セットアップのステップ名（離脱位置の表示用。SetupWizard の Step と対応）。

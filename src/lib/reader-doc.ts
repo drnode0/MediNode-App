@@ -10,7 +10,9 @@ export type ReaderBlock =
   | { kind: 'image'; url: string; caption: string | null }
   | { kind: 'divider' }
   | { kind: 'table'; rows: ReaderInline[][][] }
-  | { kind: 'unsupported'; text: string }
+  // blockType/blockId は個人・部署リーダーのプレースホルダ用（Notionのブロックアンカーを組む）。
+  // サブスク側の既存キャッシュには無いキーなので、常に optional として扱うこと。
+  | { kind: 'unsupported'; text: string; blockType?: string; blockId?: string }
 
 export type ReaderDoc = {
   title: string
@@ -18,7 +20,15 @@ export type ReaderDoc = {
   cover: string | null
   lastEdited: string | null
   blocks: ReaderBlock[]
+  // 「Notionで開く」逃げ道・プレースホルダのリンク先（個人・部署リーダーのみ設定）。
+  // サブスク配信は本文防衛のため設定しない（undefined のまま）。
+  sourceUrl?: string | null
 }
+
+// mapBlocks / mapBlocksToReaderDoc の挙動オプション。
+// imageProxyBase: file画像・coverの安定プロキシの起点。既定はサブスク用
+//   （/api/subscription/image）。個人・部署リーダーは /api/personal/image を渡す。
+export type MapBlocksOptions = { imageProxyBase?: string }
 
 type RichText = {
   plain_text?: string
@@ -60,14 +70,16 @@ function fileUrlOf(node: any): string | null {
 }
 
 // 画像URLの解決。Notionアップロード画像（type:'file'）の署名URLは約1hで失効するため、
-// pageId/blockId が渡されていれば安定したプロキシ（/api/subscription/image）URLに置き換える。
+// pageId/blockId が渡されていれば安定したプロキシ（既定 /api/subscription/image）URLに置き換える。
 // プロキシが表示のたびに新しい署名URLを取り直すので、doc をキャッシュしても画像が切れない。
 // external 画像は失効しないので直リンクのまま。proxyPath 未指定（テスト等）は従来どおり直リンク。
-function imageUrlOf(node: any, proxyPath: string | null): string {
+const DEFAULT_IMAGE_PROXY = '/api/subscription/image'
+
+function imageUrlOf(node: any, proxyPath: string | null, proxyBase: string = DEFAULT_IMAGE_PROXY): string {
   if (!node) return ''
   if (node.type === 'external') return node.external?.url ?? ''
   if (node.type === 'file') {
-    if (proxyPath) return `/api/subscription/image?${proxyPath}`
+    if (proxyPath) return `${proxyBase}?${proxyPath}`
     return node.file?.url ?? ''
   }
   return fileUrlOf(node) ?? ''
@@ -77,7 +89,7 @@ function plain(rich: RichText[] | undefined): string {
   return inlines(rich).map((i) => i.text).join('')
 }
 
-export function mapBlocks(blocks: RawBlock[], pageId?: string): ReaderBlock[] {
+export function mapBlocks(blocks: RawBlock[], pageId?: string, opts?: MapBlocksOptions): ReaderBlock[] {
   const out: ReaderBlock[] = []
   for (const b of blocks || []) {
     switch (b.type) {
@@ -93,13 +105,13 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string): ReaderBlock[] {
         const body: ReaderBlock[] = []
         const rich = inlines(b.callout?.rich_text)
         if (rich.length) body.push({ kind: 'paragraph', inlines: rich })
-        body.push(...mapBlocks(b.children || [], pageId))
+        body.push(...mapBlocks(b.children || [], pageId, opts))
         out.push({ kind: 'callout', icon: iconOf(b.callout?.icon), color: b.callout?.color ?? null, blocks: body })
         break
       }
       case 'image': {
         const proxyPath = pageId && b.id ? `id=${encodeURIComponent(pageId)}&b=${encodeURIComponent(String(b.id))}` : null
-        out.push({ kind: 'image', url: imageUrlOf(b.image, proxyPath), caption: plain(b.image?.caption) || null }); break
+        out.push({ kind: 'image', url: imageUrlOf(b.image, proxyPath, opts?.imageProxyBase), caption: plain(b.image?.caption) || null }); break
       }
       case 'divider': out.push({ kind: 'divider' }); break
       case 'quote': out.push({ kind: 'paragraph', inlines: inlines(b.quote?.rich_text) }); break
@@ -110,10 +122,10 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string): ReaderBlock[] {
         out.push({ kind: 'table', rows }); break
       }
       default:
-        out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]` })
+        out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]`, blockType: b.type, blockId: b.id ? String(b.id) : undefined })
     }
     if (b.children?.length && b.type !== 'callout' && b.type !== 'table') {
-      out.push(...mapBlocks(b.children, pageId))
+      out.push(...mapBlocks(b.children, pageId, opts))
     }
   }
   return out
@@ -136,14 +148,35 @@ function titleOf(props: Record<string, any> | undefined): string {
   return ''
 }
 
-export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?: string): ReaderDoc {
+export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?: string, opts?: MapBlocksOptions): ReaderDoc {
   return {
     title: titleOf(page.properties),
     icon: iconOf(page.icon),
-    cover: imageUrlOf(page.cover, pageId ? `id=${encodeURIComponent(pageId)}&cover=1` : null),
+    cover: imageUrlOf(page.cover, pageId ? `id=${encodeURIComponent(pageId)}&cover=1` : null, opts?.imageProxyBase),
     lastEdited: page.last_edited_time ?? null,
-    blocks: mapBlocks(blocks, pageId),
+    blocks: mapBlocks(blocks, pageId, opts),
   }
+}
+
+// 未対応ブロックの量（降格判定用）。個人・部署リーダーが「このページはNotionの方が
+// 読みやすそう」案内を出すかを決める。判定は自動・無言 —「あなたの書き方が悪い」という
+// シグナルにならないよう、閾値は「一部欠けている」でなく「明らかに読みにくい」に置く。
+export const DEGRADE_MIN_UNSUPPORTED = 3
+export const DEGRADE_MIN_RATIO = 0.3
+
+export function unsupportedStats(doc: ReaderDoc): { unsupported: number; total: number; degraded: boolean } {
+  let unsupported = 0
+  let total = 0
+  const walk = (blocks: ReaderBlock[]) => {
+    for (const b of blocks) {
+      total++
+      if (b.kind === 'unsupported') unsupported++
+      if (b.kind === 'callout') walk(b.blocks)
+    }
+  }
+  walk(doc.blocks)
+  const degraded = total > 0 && unsupported >= DEGRADE_MIN_UNSUPPORTED && unsupported / total >= DEGRADE_MIN_RATIO
+  return { unsupported, total, degraded }
 }
 
 export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'note' | 'plain'

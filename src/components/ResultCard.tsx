@@ -7,9 +7,9 @@ import { readingMinutes } from '@/lib/content-stats'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
 import { recordNotionEscape } from '@/lib/notion-escape'
+import { isInAppReaderTarget } from '@/lib/subscription-open'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
-import { hasSubscriptionConfig } from '@/lib/algolia'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { CurrentQueryCtx } from '@/components/CurrentQueryContext'
 import { useState, useContext, type KeyboardEvent } from 'react'
@@ -104,7 +104,9 @@ function parseEvidence(raw: string): { stars: number; label: string } {
 export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
   const { open: openReader } = useReader()
   const { isRead, isBookmarked } = useReaderMarks()
-  const inAppReader = hit.owner === 'subscription' && hasSubscriptionConfig()
+  // 「アプリ内で開くか」は唯一のゲート（subscription-open）に一本化。
+  // personal/team は先行体験 'personal_reader'＋トークン有のときだけ true（降格式リーダー）。
+  const inAppReader = isInAppReaderTarget(hit.owner)
   const currentQuery = useContext(CurrentQueryCtx)
   // 節レコードが代表ヒットのとき、リーダーは必ず親ページIDで開く
   // （objectIDの #secN サフィックスは本文APIに渡せない）。

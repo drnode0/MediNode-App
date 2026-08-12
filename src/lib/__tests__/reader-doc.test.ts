@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mapBlocks, mapBlocksToReaderDoc } from '../reader-doc'
+import { mapBlocks, mapBlocksToReaderDoc, unsupportedStats } from '../reader-doc'
 
 const rt = (text: string, extra: Record<string, unknown> = {}) => ({
   type: 'text', text: { content: text, link: null }, plain_text: text,
@@ -160,5 +160,52 @@ describe('isRecapText', () => {
     expect(isRecapText('→ だから上限を守る')).toBe(true)
     expect(isRecapText('  → まとめ')).toBe(true)
     expect(isRecapText('通常の主張。')).toBe(false)
+  })
+})
+
+describe('個人・部署リーダー向け拡張', () => {
+  it('未対応ブロックは blockType / blockId を保持する（プレースホルダのアンカー用）', () => {
+    const out = mapBlocks([{ id: 'abc-def', type: 'equation', equation: { expression: 'E=mc^2' } } as any])
+    expect(out[0]).toEqual({
+      kind: 'unsupported',
+      text: '[未対応ブロック: equation]',
+      blockType: 'equation',
+      blockId: 'abc-def',
+    })
+  })
+
+  it('imageProxyBase で画像プロキシの起点を差し替えられる（既定はサブスク用）', () => {
+    const img = { type: 'image', image: { type: 'file', file: { url: 'https://img.test/x.png' } }, id: 'b1' } as any
+    const sub = mapBlocks([img], 'p1')
+    expect((sub[0] as { url: string }).url).toBe('/api/subscription/image?id=p1&b=b1')
+    const personal = mapBlocks([img], 'p1', { imageProxyBase: '/api/personal/image' })
+    expect((personal[0] as { url: string }).url).toBe('/api/personal/image?id=p1&b=b1')
+  })
+
+  it('unsupportedStats: 未対応が少ないページは degraded にならない', () => {
+    const doc = {
+      title: '', icon: null, cover: null, lastEdited: null,
+      blocks: [
+        { kind: 'paragraph', inlines: [] },
+        { kind: 'paragraph', inlines: [] },
+        { kind: 'unsupported', text: '' },
+      ],
+    } as Parameters<typeof unsupportedStats>[0]
+    expect(unsupportedStats(doc)).toEqual({ unsupported: 1, total: 3, degraded: false })
+  })
+
+  it('unsupportedStats: 未対応3個以上かつ3割以上で degraded（callout内も数える）', () => {
+    const doc = {
+      title: '', icon: null, cover: null, lastEdited: null,
+      blocks: [
+        { kind: 'callout', icon: null, color: null, blocks: [{ kind: 'unsupported', text: '' }] },
+        { kind: 'unsupported', text: '' },
+        { kind: 'unsupported', text: '' },
+        { kind: 'paragraph', inlines: [] },
+        { kind: 'paragraph', inlines: [] },
+        { kind: 'paragraph', inlines: [] },
+      ],
+    } as Parameters<typeof unsupportedStats>[0]
+    expect(unsupportedStats(doc)).toEqual({ unsupported: 3, total: 7, degraded: true })
   })
 })

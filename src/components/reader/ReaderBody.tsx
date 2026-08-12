@@ -16,7 +16,9 @@ import { CONFIDENCE_MARKS, isDimmed, type Confidence } from '@/lib/reader-confid
 import { KnowledgeTitle, sectionHeadingParts } from '@/lib/title-display'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
 import { ReaderSearchCtx } from './reader-search-context'
+import { ReaderSourceCtx } from './reader-source-context'
 import { findMatchRanges, inlineSegments } from '@/lib/reader-search'
+import { recordNotionEscape } from '@/lib/notion-escape'
 
 // CONFIDENCE_MARKS からマーク文字を導出する（表記ゆれ防止：分割用正規表現と判定マップを同一ソースから作る）。
 const MARK_OF: Record<string, Confidence> = Object.fromEntries(
@@ -314,6 +316,8 @@ function Block({
   onImageClick: (u: string) => void
   active: Set<Confidence>
 }) {
+  // 個人・部署リーダーのみ非null。未対応ブロックをNotionへの正直なリンクにする。
+  const source = useContext(ReaderSourceCtx)
   switch (block.kind) {
     case 'heading': {
       if (block.level === 2) {
@@ -416,12 +420,33 @@ function Block({
           </table>
         </div>
       )
-    case 'unsupported':
+    case 'unsupported': {
+      // 個人・部署リーダー: 描けないブロックは隠さず「Notionで表示」への正直な
+      // プレースホルダにする（降格式の第1原則）。ブロックアンカー付きで該当箇所へ飛ぶ。
+      if (source?.url) {
+        const anchor = block.blockId ? `#${block.blockId.replace(/-/g, '')}` : ''
+        return (
+          <a
+            href={`${source.url}${anchor}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => recordNotionEscape('reader', source.owner)}
+            className="flex items-center gap-2 my-3 px-3 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-[0.85em] text-gray-500 dark:text-gray-400 no-underline hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <ExternalLink className="w-[1em] h-[1em] shrink-0" aria-hidden="true" />
+            <span className="min-w-0">このブロックはNotionで表示</span>
+            {block.blockType && (
+              <span className="ml-auto shrink-0 font-mono text-[0.8em] text-gray-400 dark:text-gray-500">{block.blockType}</span>
+            )}
+          </a>
+        )
+      }
       return (
         <p className="text-[0.75em] text-gray-400 dark:text-gray-500 my-1">
           {block.text}
         </p>
       )
+    }
     default:
       return null
   }
@@ -599,6 +624,7 @@ export function ReaderBody({
   active = new Set(),
   scaleEm,
   mode = 'full',
+  owner,
 }: {
   doc: ReaderDoc
   onImageClick: (url: string) => void
@@ -607,7 +633,11 @@ export function ReaderBody({
   scaleEm?: string
   // 全文｜要点（ReaderOverlay の切替から渡る）。既定は従来どおり全文。
   mode?: ReaderViewMode
+  // 開いているアイテムのowner（個人・部署リーダーの離脱計測用。サブスクは未指定でよい）。
+  owner?: string
 }) {
+  // doc.sourceUrl は個人・部署リーダーのみ（サブスク配信は本文防衛のため常に無し）。
+  const source = useMemo(() => (doc.sourceUrl ? { url: doc.sourceUrl, owner } : null), [doc.sourceUrl, owner])
   return (
     // 本文の組版。バッジを足す代わりに、読む時間そのものの質を上げる。
     // ・palt は見出し限定（地の文は自然な字幅＋微字間 — globals.css の .reader-prose 参照）
@@ -617,6 +647,7 @@ export function ReaderBody({
     //
     // サイズの流れ: .reader-prose（基準サイズ・iOSはDynamic Type）→ 内側ラッパー（Aa倍率）
     // → 本文/見出し/表は em 系サイズで連動拡大。更新日はメタ情報なので固定のまま。
+    <ReaderSourceCtx.Provider value={source}>
     <div className="reader-prose">
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
         {doc.lastEdited && (
@@ -643,5 +674,6 @@ export function ReaderBody({
         )}
       </div>
     </div>
+    </ReaderSourceCtx.Provider>
   )
 }
