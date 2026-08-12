@@ -91,7 +91,7 @@ const OAuthFinish = dynamicImport(
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
-import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
+import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, ExitSurveyBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { recordSimpleSearchLatency } from '@/lib/power-mode-suggest'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -3068,6 +3068,7 @@ export default function Home() {
         <ResolvedCqBanner />
         <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />
+        <ExitSurveyBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
           <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
           {activeTab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
@@ -3172,6 +3173,7 @@ export default function Home() {
         <ResolvedCqBanner />
         <AuthorAdditionsBanner additions={authorAdds} onOpenRecent={() => setTab('recent')} />
         <FeedbackNudgeBanner />
+        <ExitSurveyBanner />
         <div className="max-w-2xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700">
           <SyncPanel />
         </div>

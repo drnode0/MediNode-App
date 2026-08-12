@@ -11,6 +11,9 @@ import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { shouldSuggestPowerMode, readSearchLatencies } from '@/lib/power-mode-suggest'
 import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, MessageCircleQuestion, type LucideIcon } from 'lucide-react'
+import { ExitSurveyModal, isExitSurveyDone } from '@/components/ExitSurveyModal'
+import { getSettings } from '@/lib/settings'
+import { classifyExitSurveyStage, shouldShowExitSurveyBanner, exitSurveyDismissKey, type ExitSurveyStage } from '@/lib/exit-survey'
 
 // ============================================================
 // アプリ内お知らせ（更新バナー）
@@ -260,6 +263,64 @@ export function FeedbackNudgeBanner() {
         </div>
       </div>
       {showFeedback && <FeedbackModal survey onClose={() => setShowFeedback(false)} />}
+    </div>
+  )
+}
+
+// ── 体験終了アンケート・バナー（有料解約の2時点）──
+// 解約予約を検知した最初の起動で一度、未回答のまま失効したらもう一度だけ出す。
+// 検知は PremiumSync が保存する subscriptionCancelAt（設定）を読む。判定は exit-survey.ts。
+// 無料トライアル失効は TrialLifecycleNotice のオーバーレイが担う（ここでは出さない）。
+export function ExitSurveyBanner() {
+  const [stage, setStage] = useState<ExitSurveyStage>('none')
+  const [showSurvey, setShowSurvey] = useState(false)
+  useEffect(() => {
+    try {
+      const s = getSettings()
+      const st = classifyExitSurveyStage(
+        {
+          subscriptionCancelAt: s?.subscriptionCancelAt,
+          hasPremiumKeys: !!(s?.subscriptionAppId && s?.subscriptionSearchKey),
+        },
+        { now: Date.now() },
+      )
+      if (st === 'none') return
+      const flags = {
+        done: isExitSurveyDone(),
+        dismissed: !!localStorage.getItem(exitSurveyDismissKey(st)),
+      }
+      if (shouldShowExitSurveyBanner(st, flags)) setStage(st)
+    } catch {}
+  }, [])
+  const dismiss = () => {
+    try {
+      if (stage !== 'none') localStorage.setItem(exitSurveyDismissKey(stage), new Date().toISOString())
+    } catch {}
+    setStage('none')
+  }
+  // バナーを閉じた後もモーダルは開いたままにする（送信途中で消えないように）。
+  if (stage === 'none') {
+    return showSurvey ? <ExitSurveyModal origin="cancel" onClose={() => setShowSurvey(false)} /> : null
+  }
+  return (
+    <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
+      <div className="bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
+        <Send className="w-5 h-5 text-brand-500 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">よければ、離れる理由を聞かせてください</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">1分で終わります。いただいた内容はそのまま改善に使います。</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <button
+            onClick={() => { setShowSurvey(true); dismiss() }}
+            className="text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+          >
+            答える
+          </button>
+          <button onClick={dismiss} className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">閉じる</button>
+        </div>
+      </div>
+      {showSurvey && <ExitSurveyModal origin="cancel" onClose={() => setShowSurvey(false)} />}
     </div>
   )
 }

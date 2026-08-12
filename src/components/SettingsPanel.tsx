@@ -36,6 +36,7 @@ import { ANNOUNCEMENTS } from '@/components/AppBanners'
 import { CommunityCqs } from '@/components/ResolvedCqs'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeedbackModal } from '@/components/FeedbackModal'
+import { ExitSurveyEntry } from '@/components/ExitSurveyModal'
 import GardenLink from './GardenLink'
 import PushSettings from '@/components/PushSettings'
 import dynamicImport from 'next/dynamic'
@@ -1542,6 +1543,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                             <p className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center justify-center gap-1.5"><AlarmClock className="h-4 w-4 shrink-0" />解約手続き済み</p>
                             <p className="text-xs text-amber-600 dark:text-amber-400"><strong>{cancelAtDate.toLocaleDateString('ja-JP')}</strong> までプレミアムをご利用いただけます</p>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-1">以降の課金はありません。継続したくなった場合は、解約手続きに使ったページ（カスタマーポータル）から期限内に解約を取り消せます。</p>
+                          </div>
+                          <div className="text-center">
+                            <ExitSurveyEntry origin="cancel" />
                           </div>
                           <PremiumCancelInfo />
                         </>
