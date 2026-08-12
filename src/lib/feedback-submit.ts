@@ -274,6 +274,11 @@ export function buildFeedbackProperties(
   const setSelect = (name: string, v: string) => {
     if (v && schema[name]?.type === 'select') properties[name] = { select: { name: v } }
   }
+  const setMultiSelect = (name: string, vs: string[]) => {
+    if (vs.length > 0 && schema[name]?.type === 'multi_select') {
+      properties[name] = { multi_select: vs.map((v) => ({ name: v })) }
+    }
+  }
 
   setSelect('種類', KIND_LABEL[value.kind])
   setSelect('送信経路', 'アプリ内')
@@ -294,6 +299,11 @@ export function buildFeedbackProperties(
   if (value.kind === 'praise') {
     setRich('👍 良かった点・役立っている点', value.good)
     setSelect('📣 感想の掲載許可（note・SNS）', value.quotePermission)
+  }
+  if (value.kind === 'exit') {
+    setSelect('離脱理由', value.exitReason)
+    setMultiSelect('あれば続けた', value.exitWants)
+    setSelect('今後の利用', value.exitFuture)
   }
   setRich('✍️ 気づいたこと（良かった点・改善点・バグなど、何でも）', value.note)
 

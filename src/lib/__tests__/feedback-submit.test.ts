@@ -33,6 +33,9 @@ const schema: FeedbackPropSchema = {
   '🙌 人に勧めたいか': { type: 'select' },
   '⏱ 利用頻度': { type: 'select' },
   ご職種: { type: 'select' },
+  離脱理由: { type: 'select' },
+  あれば続けた: { type: 'multi_select' },
+  今後の利用: { type: 'select' },
 }
 
 describe('validateFeedback（種類ごとに必要なものを求める）', () => {
@@ -187,6 +190,9 @@ describe('buildFeedbackProperties', () => {
     recommend: '',
     frequency: '',
     occupation: '',
+    exitReason: '',
+    exitWants: [],
+    exitFuture: '',
   }
 
   it('バグは「何をしたら／どうなったか」の列にまとめて入れる', () => {
@@ -252,6 +258,45 @@ describe('buildFeedbackProperties', () => {
 
   it('タイトル列が無ければエラー', () => {
     expect('error' in buildFeedbackProperties({ 種類: { type: 'select' } }, base, '')).toBe(true)
+  })
+
+  it('体験終了アンケートは専用の3列に積む（multi_select含む）', () => {
+    const r = buildFeedbackProperties(schema, {
+      ...base,
+      kind: 'exit',
+      did: '', happened: '', reproducibility: '', name: '',
+      exitReason: '価格が合わない',
+      exitWants: ['自分の診療科のコンテンツ', 'もっと安いプラン'],
+      exitFuture: '条件が合えばプレミアムに戻りたい',
+      satisfaction: '⭐⭐⭐⭐ 満足',
+      note: '救急のCQが増えたら戻ります',
+    }, 'ctx')
+    if (!('properties' in r)) throw new Error('expected properties')
+    expect(r.properties['種類']).toEqual({ select: { name: '👋 体験終了アンケート' } })
+    expect(r.properties['離脱理由']).toEqual({ select: { name: '価格が合わない' } })
+    expect(r.properties['あれば続けた']).toEqual({
+      multi_select: [{ name: '自分の診療科のコンテンツ' }, { name: 'もっと安いプラン' }],
+    })
+    expect(r.properties['今後の利用']).toEqual({ select: { name: '条件が合えばプレミアムに戻りたい' } })
+    expect(r.properties['⭐ 総合満足度']).toEqual({ select: { name: '⭐⭐⭐⭐ 満足' } })
+    // 自由記述は既存の「気づいたこと」列へ
+    expect(String(JSON.stringify(r.properties['✍️ 気づいたこと（良かった点・改善点・バグなど、何でも）']))).toContain('救急のCQ')
+  })
+
+  it('体験終了アンケートも未選択の列は作らない・列が無ければ黙って飛ばす', () => {
+    const value = {
+      ...base,
+      kind: 'exit' as const,
+      exitReason: '', exitWants: [], exitFuture: 'たぶん使わない',
+    }
+    const r = buildFeedbackProperties(schema, value, '')
+    if (!('properties' in r)) throw new Error('expected properties')
+    expect('離脱理由' in r.properties).toBe(false)
+    expect('あれば続けた' in r.properties).toBe(false)
+    // exit列が無い古いスキーマでも送信自体は成立する
+    const bare: FeedbackPropSchema = { 'お名前・ニックネーム（任意）': { type: 'title' } }
+    const r2 = buildFeedbackProperties(bare, value, '')
+    expect('properties' in r2).toBe(true)
   })
 })
 
