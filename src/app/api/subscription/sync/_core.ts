@@ -2,6 +2,7 @@ import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
+import { extractCloze } from '@/lib/cloze'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 
 /**
@@ -165,6 +166,9 @@ async function syncMedicalDb(
         contentChars: stats?.contentChars ?? 0,
         sectionCount: stats?.sectionCount ?? 0,
         headings: stats?.headings ?? [],
+        // 赤背景マーカー穴埋め（クイズタブ・今日の1問だけが使う。検索面では使わない。
+        // 文献DB側（syncReferenceDb）はクイズ対象外なので載せない）
+        cloze: blocks ? extractCloze(blocks) : null,
       }
       records.push(record)
       if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks)))

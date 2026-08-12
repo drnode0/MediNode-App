@@ -60,7 +60,7 @@ const PAGES: Page[] = [
     features: [
       { Icon: Search, title: 'キーワード検索', desc: '病名・薬名で即検索。自分・部署・専門医の知識をまとめて引ける', tone: 'brand' },
       { Icon: FolderOpen, title: 'ジャンル別ブラウズ', desc: '好きなカテゴリで知識を分類・ブラウズ', tone: 'amber' },
-      { Icon: Lightbulb, title: 'クイズモード', desc: 'フラッシュカードで隙間時間に反復学習', tone: 'violet' },
+      { Icon: Lightbulb, title: 'クイズモード', desc: 'フラッシュカードと穴埋めで、隙間時間に反復学習', tone: 'violet' },
       { Icon: BookMarked, title: '参考文献管理', desc: '文献・ソースをまとめて管理・参照', tone: 'sky' },
       { Icon: ClipboardList, title: 'マニュアル・お知らせ', desc: '病院・部署の手順やお知らせも検索（任意）', tone: 'rose' },
     ],
@@ -133,7 +133,7 @@ function MirrorDiagram() {
   const notionRows = ['疑問をメモ', '調べて知識に', 'いつも通り編集']
   const appRows = [
     { Icon: Search, label: '高速検索' },
-    { Icon: Lightbulb, label: '一問一答クイズ' },
+    { Icon: Lightbulb, label: 'フラッシュカード・穴埋め' },
     { Icon: FolderOpen, label: 'ジャンル別' },
   ]
   return (

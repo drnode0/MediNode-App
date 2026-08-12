@@ -3,6 +3,7 @@
 // ここを唯一の選定元にすることで、カードの問いと通知本文の問いがズレない。
 import algoliasearch from 'algoliasearch'
 import { isDailyQuestionCandidate, jstToday, pickDailyIndex } from './daily-question'
+import type { ClozeData } from './cloze'
 
 type PoolHit = {
   objectID: string
@@ -12,6 +13,7 @@ type PoolHit = {
   genre?: string | string[]
   knowledgeLevel?: string
   notionUrl?: string
+  cloze?: ClozeData | null
 }
 
 export type DailyPick = {
@@ -21,6 +23,7 @@ export type DailyPick = {
   knowledgeLevel?: string
   answer: string
   notionUrl?: string
+  cloze?: ClozeData | null
 }
 
 // 今日の1問を決定的に1件選ぶ。Algolia未設定・取得失敗・候補ゼロなら null（呼び出し側でフォールバック）。
@@ -35,7 +38,7 @@ export async function pickTodaysDailyQuestion(): Promise<DailyPick | null> {
       .initIndex(indexName)
       .search('', {
         hitsPerPage: 1000,
-        attributesToRetrieve: ['title', 'aiSummary', 'summary', 'genre', 'knowledgeLevel', 'notionUrl'],
+        attributesToRetrieve: ['title', 'aiSummary', 'summary', 'genre', 'knowledgeLevel', 'notionUrl', 'cloze'],
         attributesToHighlight: [],
       })
 
@@ -54,6 +57,7 @@ export async function pickTodaysDailyQuestion(): Promise<DailyPick | null> {
       knowledgeLevel: q.knowledgeLevel,
       answer: q.aiSummary || q.summary || '',
       notionUrl: q.notionUrl,
+      cloze: q.cloze ?? null,
     }
   } catch {
     return null

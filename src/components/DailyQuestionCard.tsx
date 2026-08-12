@@ -17,6 +17,7 @@ import { hasSubscriptionConfig } from '@/lib/algolia'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import PushPrimer, { shouldShowPrimer, markPrimerSeen } from './PushPrimer'
+import { ClozeBody } from './QuizCard'
 
 type DailyQuestionPayload = {
   available: boolean
@@ -28,6 +29,8 @@ type DailyQuestionPayload = {
     knowledgeLevel?: string
   }
   answer?: string
+  // 赤マーカー穴埋め（あるページだけ）。表示時は要約（answer）の代わりにこちらを出す
+  cloze?: import('@/lib/cloze').ClozeData
   notionUrl?: string
   premium?: boolean
 }
@@ -166,6 +169,9 @@ export function DailyQuestionCard() {
           </div>
           <p className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100"><KnowledgeTitle title={q.title} level={q.knowledgeLevel} /></p>
 
+          {/* 穴埋めの設問はタップ前から見せる（伏せ字が問題文そのもの） */}
+          {data.cloze && <ClozeBody cloze={data.cloze} revealed={state.revealed} />}
+
           {!state.revealed ? (
             <button
               type="button"
@@ -181,9 +187,12 @@ export function DailyQuestionCard() {
             </button>
           ) : (
             <div className="animate-fade-in-up">
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                {data.answer}
-              </p>
+              {/* 穴埋めカードは答えが上のClozeBodyで開くため、要約は出さない（二重表示を避ける） */}
+              {!data.cloze && (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  {data.answer}
+                </p>
+              )}
               <div className="mt-3 flex items-center gap-2">
                 <button
                   type="button"

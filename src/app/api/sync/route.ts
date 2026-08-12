@@ -3,6 +3,7 @@ import { requireSessionOrSetupRateLimit } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { extractBodyExcerpt } from '@/lib/notion-body'
+import { attachClozeData } from '@/lib/cloze-sync'
 
 // このルートの実行時間上限（秒）。本文フォールバックで直列fetchが増えても
 // serverlessのデフォルトタイムアウトで打ち切られないようにする。
@@ -319,8 +320,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 部署用 Medical DB の同期（任意）
+    // クライアントはif文の外でも保持する（後段の穴埋め抽出が部署ページを読むため）
+    let teamNotionClient: Client | undefined
     if (teamNotionToken && teamNotionMedicalDbId) {
       const teamNotion = new Client({ auth: teamNotionToken })
+      teamNotionClient = teamNotion
       try {
         const teamMedicalResult = await syncMedicalDb(teamNotion, teamNotionMedicalDbId, 'team', teamLabel || '部署', records, resolvedPropMap, Boolean(bodyFallback))
         syncedTeamMedical += teamMedicalResult.count
@@ -340,6 +344,18 @@ export async function POST(req: NextRequest) {
 
     if (bodyFallbackLimitHit) {
       warnings.push('本文の取り込みは1回の同期で40ページまでです。超過したページは本文なしで索引しました。')
+    }
+
+    // 赤マーカー穴埋めの抽出（ナレッジ候補のみ・未編集は前回結果を引き継ぎ・上限40）
+    const clozeResult = await attachClozeData(
+      records,
+      { personal: notion, team: teamNotionClient },
+      index,
+    )
+    if (clozeResult.limitHit) {
+      warnings.push(
+        '穴埋めの読み取りは1回の同期で40ページまでです。残りは次回以降の同期で読み取られます。',
+      )
     }
 
     const syncedMedical = syncedPersonalMedical + syncedTeamMedical

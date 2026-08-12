@@ -49,6 +49,8 @@ export type Hit = {
   relatedRefTitles?: string[]
   aiKeywords?: string
   hasAttachment?: boolean
+  // 赤マーカー穴埋め（sync時に抽出）。あるページだけクイズタブで穴埋めカードになる。
+  cloze?: import('@/lib/cloze').ClozeData
   // サブスク同期が計算する本文充実度（プレミアムのみ）。一覧から「中身の濃さ」を伝える。
   contentChars?: number
   sectionCount?: number
