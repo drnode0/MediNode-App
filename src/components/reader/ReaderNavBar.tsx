@@ -95,7 +95,12 @@ export function ReaderNavBar({
   const answerParagraphs = tldr ? tldr.blocks.map(blockPlainText).filter(Boolean) : []
 
   return (
-    <div className="sticky top-0 z-20">
+    // h-0: バー・ドロップダウンを文書フローから外す（オーバーレイ描画）。
+    // 高さを持たせると、バーの出現/消滅やパネルの開閉が本文を押し下げ、
+    // IntersectionObserverの監視対象（⚡/最初の節見出し）が画面内外を往復して
+    // 表示⇄非表示が毎フレーム発振する（実機で「細かい揺れ」として観測・2026-08-12）。
+    // 高さ0ならマウントしてもレイアウトが1pxも動かず、フィードバック経路が存在しない。
+    <div className="sticky top-0 z-20 h-0">
       <div className="relative w-full flex items-stretch bg-purple-500/10 dark:bg-purple-400/10 backdrop-blur border-b border-purple-500/20">
         <button
           type="button"

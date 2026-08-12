@@ -156,4 +156,20 @@ describe('digestUsable（個人・部署ページの要点成立判定）', () =
     expect(digestUsable(flat)).toBe(false)
     expect(digestUsable([])).toBe(false)
   })
+
+  it('H2節だけで⚡・recap・図解が無いページも不成立（空のアコーディオンになる）', () => {
+    const headingsOnly: ReaderBlock[] = [
+      { kind: 'heading', level: 2, inlines: t('1. 節その1') },
+      { kind: 'paragraph', inlines: t('本文。recapではない。') },
+      { kind: 'heading', level: 2, inlines: t('2. 節その2') },
+      { kind: 'table', rows: [[t('表')]] },
+    ]
+    expect(digestUsable(headingsOnly)).toBe(false)
+    // recap行が1つあれば成立
+    const withRecap: ReaderBlock[] = [
+      ...headingsOnly,
+      { kind: 'paragraph', inlines: t('→だから、ここが持ち帰り。') },
+    ]
+    expect(digestUsable(withRecap)).toBe(true)
+  })
 })
