@@ -38,7 +38,7 @@ import {
 } from '@/lib/feedback-submit'
 
 // sw.js の CACHE_VERSION と揃える（版の識別に既にある値を使い、新しい仕組みを作らない）。
-const APP_VERSION = 'medinode-v25'
+export const APP_VERSION = 'medinode-v25'
 
 const KINDS: { key: FeedbackKind; label: string; Icon: typeof Bug; tone: string }[] = [
   { key: 'bug', label: 'バグ・不具合', Icon: Bug, tone: 'bg-rose-50 dark:bg-rose-900/30 border-rose-300 dark:border-rose-600 text-rose-700 dark:text-rose-300' },
@@ -58,7 +58,7 @@ function currentScreen(): string {
   return (active?.textContent || '').trim().slice(0, 20)
 }
 
-function currentDevice(): string {
+export function currentDevice(): string {
   if (typeof navigator === 'undefined') return ''
   const ua = navigator.userAgent
   const os = /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'その他'
@@ -67,7 +67,7 @@ function currentDevice(): string {
   return `${os} / ${br}${standalone ? ' / ホーム画面から起動' : ''}`
 }
 
-function currentMembership(): string {
+export function currentMembership(): string {
   if (hasSubscriptionConfig()) {
     const endsAt = getSettings()?.subscriptionTrialEndsAt
     return endsAt ? 'trial' : 'premium'
