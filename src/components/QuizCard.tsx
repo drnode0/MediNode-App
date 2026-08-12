@@ -1,7 +1,8 @@
 'use client'
-import { RotateCcw, Check, ExternalLink, BookOpen } from 'lucide-react'
+import { RotateCcw, Check, ExternalLink, BookOpen, Highlighter } from 'lucide-react'
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
+import type { ClozeData } from '@/lib/cloze'
 import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
 import { recordTowerEvent, recallKindFor, loadTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
@@ -11,6 +12,42 @@ import { KnowledgeTitle } from '@/lib/title-display'
 import { isInAppReaderTarget } from '@/lib/subscription-open'
 import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
+
+// 穴埋め本文。タップ前は伏せ字（設問）、開示後はNotionの赤マーカーと同じ見た目で開く。
+function ClozeBody({ cloze, revealed }: { cloze: ClozeData; revealed: boolean }) {
+  return (
+    <div className="mt-2.5 space-y-2">
+      {cloze.blocks.map((block, bi) => (
+        <div key={bi}>
+          {/* 連続する同一見出しは最初の1回だけ出す */}
+          {block.heading && block.heading !== cloze.blocks[bi - 1]?.heading && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-0.5">{block.heading}</p>
+          )}
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-loose">
+            {block.segments.map((seg, si) =>
+              seg.hidden ? (
+                revealed ? (
+                  <span key={si} className="bg-red-100 dark:bg-red-900/40 text-red-900 dark:text-red-200 rounded px-1 font-semibold">
+                    {seg.text}
+                  </span>
+                ) : (
+                  <span key={si} className="inline-block min-w-[3.5rem] text-center border-b-2 border-red-400 dark:border-red-500 text-red-500 dark:text-red-300 font-semibold">
+                    ？？？
+                  </span>
+                )
+              ) : (
+                <span key={si}>{seg.text}</span>
+              ),
+            )}
+          </p>
+        </div>
+      ))}
+      {cloze.truncated && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500">…続きのマークは本文で</p>
+      )}
+    </div>
+  )
+}
 
 export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const { open: openReader } = useReader()
@@ -76,19 +113,30 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               {hit.genre}
             </span>
           )}
+          {hit.cloze && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300">
+              <Highlighter className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+              穴埋め {hit.cloze.blankCount}問
+            </span>
+          )}
         </div>
+        {/* 穴埋めの設問はタップ前から見せる（それ自体が問題文。フラッシュカードとの顔つきの差） */}
+        {hit.cloze && <ClozeBody cloze={hit.cloze} revealed={revealed} />}
       </button>
 
       {/* 要約：タップ後に展開 */}
       {revealed && (
         <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in-up">
-          <div className="pt-3">
-            {displaySummary ? (
-              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{displaySummary}</p>
-            ) : (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic">要約なし</p>
-            )}
-          </div>
+          {/* 穴埋めカードは答えが上のClozeBodyで開くため、要約は出さない（同内容の二重表示を避ける） */}
+          {!hit.cloze && (
+            <div className="pt-3">
+              {displaySummary ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{displaySummary}</p>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">要約なし</p>
+              )}
+            </div>
+          )}
           {/* 自己申告（簡易・間隔反復）: 記録すると次回の出題順で「まだ」が優先される */}
           {answered === null ? (
             <div className="flex gap-2 mt-3">
