@@ -1,7 +1,7 @@
 // attachClozeData（個人・部署syncの穴埋め後付けパス）のテスト。
 // レート対策3点: 候補限定 / 未編集は前回引き継ぎ / 上限40。
 import { describe, it, expect } from 'vitest'
-import { attachClozeData, isClozeCandidate, CLOZE_FETCH_MAX } from '@/lib/cloze-sync'
+import { attachClozeData, isClozeCandidate, tallyBlockTypes, CLOZE_FETCH_MAX } from '@/lib/cloze-sync'
 
 const marked = {
   type: 'paragraph',
@@ -203,5 +203,47 @@ describe('expandChildren', () => {
     await attachClozeData(records, { personal: notion }, emptyIndex)
     const cloze = (records[0] as { cloze?: { blocks: { heading: string | null }[] } }).cloze
     expect(cloze?.blocks[0]?.heading).toBe('この問いへの答え')
+  })
+})
+
+describe('tallyBlockTypes / typeCounts（Phase 0 ブロックタイプ分布）', () => {
+  it('取得したブロックのtype別出現数を子まで再帰的に集計する', () => {
+    const counts: Record<string, number> = {}
+    tallyBlockTypes(
+      [
+        { type: 'paragraph' },
+        { type: 'toggle', children: [{ type: 'paragraph' }, { type: 'code' }] },
+        { type: 'paragraph' },
+        { notABlock: true },
+      ],
+      counts,
+    )
+    expect(counts).toEqual({ paragraph: 3, toggle: 1, code: 1 })
+  })
+
+  it('attachClozeDataが本文を読んだページのtypeCountsを返す', async () => {
+    const notion = fakeNotion([marked, { type: 'divider' }])
+    const records = [rec('personal_p1')]
+    const res = await attachClozeData(records, { personal: notion }, emptyIndex)
+    expect(res.typeCounts).toEqual({ paragraph: 1, divider: 1 })
+  })
+
+  it('未編集（fetchなし）のページは分布に加算されない', async () => {
+    const notion = fakeNotion()
+    const index = {
+      getObjects: async () => ({
+        results: [
+          {
+            objectID: 'personal_p1',
+            lastEdited: '2026-08-12T00:00:00Z',
+            cloze: { blocks: [], blankCount: 1, truncated: false },
+          },
+        ],
+      }),
+    }
+    const records = [rec('personal_p1')]
+    const res = await attachClozeData(records, { personal: notion }, index)
+    expect(res.fetches).toBe(0)
+    expect(res.typeCounts).toEqual({})
   })
 })

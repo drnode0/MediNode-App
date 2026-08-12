@@ -119,6 +119,15 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string): ReaderBlock[] {
   return out
 }
 
+// リーダーが描画できるNotionブロックtype（mapBlocksのswitchと同期させること）。
+// /adminのブロックタイプ分布で「未対応がどれだけ出るか」を分類する基準にも使う。
+// table_row は table の子として描画されるためここに含める。
+export const READER_SUPPORTED_BLOCK_TYPES: ReadonlySet<string> = new Set([
+  'heading_1', 'heading_2', 'heading_3',
+  'paragraph', 'bulleted_list_item', 'numbered_list_item',
+  'callout', 'image', 'divider', 'quote', 'table', 'table_row',
+])
+
 function titleOf(props: Record<string, any> | undefined): string {
   if (!props) return ''
   for (const p of Object.values(props)) {

@@ -7,6 +7,7 @@ import { recordQuizResult, getQuizStat, intervalLabelFor } from '@/lib/quiz-srs'
 import { recordTowerEvent, recallKindFor, loadTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordCqView } from '@/lib/cq-views'
+import { recordNotionEscape } from '@/lib/notion-escape'
 import { stripLeadingEmoji } from '@/lib/labels'
 import { KnowledgeTitle } from '@/lib/title-display'
 import { isInAppReaderTarget } from '@/lib/subscription-open'
@@ -211,7 +212,7 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
                 href={hit.notionUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => recordCqView(hit.objectID, hit.owner)}
+                onClick={() => { recordCqView(hit.objectID, hit.owner); recordNotionEscape('quiz', hit.owner) }}
                 className="text-xs font-medium text-brand-600 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 flex items-center gap-1"
               >
                 Notionで開く

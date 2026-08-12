@@ -73,6 +73,7 @@ import { MessageCatalog } from './MessageCatalog'
 import { BroadcastForm } from './DailyCommandCenter'
 import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
+import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -1123,6 +1124,7 @@ ${label}`,
             {tab === 'analytics' && <OperatingCostCard mrrJpy={revenue.mrr} />}
             {tab === 'analytics' && <EngagementSection />}
             {tab === 'analytics' && <KnowledgeRankingCard />}
+            {tab === 'analytics' && <PersonalReaderMetricsCard />}
 
             {tab === 'analytics' && (
               <>

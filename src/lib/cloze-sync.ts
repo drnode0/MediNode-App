@@ -66,6 +66,18 @@ export async function expandChildren(
   }
 }
 
+// ブロックタイプ分布の集計（Phase 0計測）。取得済みブロックを再帰的に歩いて
+// type別の出現数を counts に加算する。追加のfetchは一切しない＝穴埋め抽出のために
+// どうせ読んだ本文から「未対応ブロックがどれだけ出るか」を副産物として拾う。
+export function tallyBlockTypes(blocks: unknown[], counts: Record<string, number>): void {
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue
+    const b = block as { type?: unknown; children?: unknown[] }
+    if (typeof b.type === 'string' && b.type) counts[b.type] = (counts[b.type] || 0) + 1
+    if (Array.isArray(b.children)) tallyBlockTypes(b.children, counts)
+  }
+}
+
 async function fetchAllBlocks(notion: NotionLike, pageId: string): Promise<unknown[] | null> {
   try {
     const blocks: unknown[] = []
@@ -89,9 +101,10 @@ export async function attachClozeData(
   records: Array<Record<string, unknown>>,
   clients: { personal?: NotionLike; team?: NotionLike },
   index: IndexLike,
-): Promise<{ fetches: number; limitHit: boolean }> {
+): Promise<{ fetches: number; limitHit: boolean; typeCounts: Record<string, number> }> {
+  const typeCounts: Record<string, number> = {}
   const candidates = records.filter((r) => r.source === 'medical' && isClozeCandidate(r))
-  if (candidates.length === 0) return { fetches: 0, limitHit: false }
+  if (candidates.length === 0) return { fetches: 0, limitHit: false, typeCounts }
 
   // 前回レコードを一括読取（初回同期・index未作成は空扱いで全件新規）
   const prev = new Map<string, { lastEdited?: string; cloze?: ClozeData | null }>()
@@ -125,8 +138,9 @@ export async function attachClozeData(
     if (!blocks) continue
     // ⚡結論ボックス等のcallout内マークも拾えるよう、コンテナの子を展開してから抽出する
     await expandChildren(client, blocks)
+    tallyBlockTypes(blocks, typeCounts)
     const cloze = extractCloze(blocks)
     if (cloze) r.cloze = cloze
   }
-  return { fetches, limitHit }
+  return { fetches, limitHit, typeCounts }
 }

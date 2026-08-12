@@ -4,6 +4,21 @@ import { Client } from '@notionhq/client'
 import algoliasearch from 'algoliasearch'
 import { extractBodyExcerpt } from '@/lib/notion-body'
 import { attachClozeData } from '@/lib/cloze-sync'
+import { createAdminClient } from '@/lib/supabase/server'
+
+// ブロックタイプ分布の記録（Phase 0計測・best-effort）。
+// 穴埋め抽出が読んだ本文のtype別出現数を貯める。回数だけでページ内容は送らない。
+// env未設定・migration 0025未適用でも黙って飛ばし、同期は絶対に止めない。
+async function recordBlockTypeCounts(typeCounts: Record<string, number>): Promise<void> {
+  if (Object.keys(typeCounts).length === 0) return
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
+  try {
+    const admin = createAdminClient()
+    await admin.rpc('record_block_type_counts', { p_counts: typeCounts })
+  } catch {
+    // 計測は副産物。失敗しても同期結果に影響させない。
+  }
+}
 
 // このルートの実行時間上限（秒）。本文フォールバックで直列fetchが増えても
 // serverlessのデフォルトタイムアウトで打ち切られないようにする。
@@ -357,6 +372,7 @@ export async function POST(req: NextRequest) {
         '穴埋めの読み取りは1回の同期で40ページまでです。残りは次回以降の同期で読み取られます。',
       )
     }
+    await recordBlockTypeCounts(clozeResult.typeCounts)
 
     const syncedMedical = syncedPersonalMedical + syncedTeamMedical
     const syncedReference = syncedPersonalReference + syncedTeamReference

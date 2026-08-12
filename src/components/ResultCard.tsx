@@ -6,6 +6,7 @@ import { titleParts, sectionHeadingParts } from '@/lib/title-display'
 import { readingMinutes } from '@/lib/content-stats'
 import { recordRecentView } from '@/lib/recent-views'
 import { recordCqView } from '@/lib/cq-views'
+import { recordNotionEscape } from '@/lib/notion-escape'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { useReaderMarks } from '@/components/reader/ReaderMarksProvider'
 import { hasSubscriptionConfig } from '@/lib/algolia'
@@ -422,6 +423,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
                 onClick={(e) => {
                   e.stopPropagation()
                   recordRecentView(readerHit)
+                  recordNotionEscape('search', hit.owner)
                   // 参照カウントは「詳細を開いた時」に一本化（展開で既に加算済み）。
                   // ここ（要約を読んだ後のNotionジャンプ）では二重に数えない。
                 }}
@@ -453,7 +455,7 @@ export function ResultCard({ hit, isNew }: { hit: Hit; isNew?: boolean }) {
             href={hit.notionUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => { recordRecentView(readerHit); recordCqView(readerId, hit.owner) }}
+            onClick={() => { recordRecentView(readerHit); recordCqView(readerId, hit.owner); recordNotionEscape('search', hit.owner) }}
             className="inline-flex items-center gap-1 px-4 pb-3 text-xs text-brand-500 dark:text-brand-300 hover:text-brand-700"
           >
             Notionで開く
