@@ -17,13 +17,15 @@ export const FEEDBACK_TEXT_MAX = 2000
 export const NAME_MAX = 30
 
 // 種類。受付DB「種類」セレクトの選択肢名と対応させる。
-export const FEEDBACK_KINDS = ['bug', 'request', 'praise'] as const
+// exit = 体験終了アンケート（無料トライアル失効・有料解約時に出す。設問は下のEXIT_*）。
+export const FEEDBACK_KINDS = ['bug', 'request', 'praise', 'exit'] as const
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number]
 
 const KIND_LABEL: Record<FeedbackKind, string> = {
   bug: '🐛 バグ',
   request: '💡 要望',
   praise: '👍 感想',
+  exit: '👋 体験終了アンケート',
 }
 
 // 再現性。トリアージの優先度がこれでほぼ決まるので、バグでは1タップで訊く。
@@ -63,6 +65,40 @@ export const FEEDBACK_OCCUPATIONS = [
   '言語聴覚士', '救急救命士', 'その他',
 ] as const
 
+// ── 体験終了アンケート ──────────────────────────────────────
+// 受付DBの「離脱理由」「あれば続けた」「今後の利用」セレクトの選択肢名と一致させる。
+// 「特にない」「たぶん使わない」の逃げ道を必ず残す（回答を歪めない）。
+export const EXIT_REASONS = [
+  '価格が合わない',
+  '収録内容が足りない（診療科・テーマ）',
+  '使う場面がなかった',
+  '検索・アプリの使い勝手',
+  '無料機能で十分だった',
+  'その他',
+] as const
+
+export const EXIT_WANTS = [
+  '自分の診療科のコンテンツ',
+  'もっと安いプラン',
+  '今日の1問などの習慣機能',
+  '職場の仲間と使える仕組み',
+  '特にない',
+  'その他',
+] as const
+
+export const EXIT_FUTURE = [
+  '無料のまま使い続けたい',
+  '条件が合えばプレミアムに戻りたい',
+  'たまに開くかもしれない',
+  'たぶん使わない',
+] as const
+
+// このどれかを「あれば続けたか」で選んだ人にだけ、締め画面で拡充通知のオプトインを訊く。
+export const EXIT_NOTIFY_WANTS = [
+  '自分の診療科のコンテンツ',
+  '今日の1問などの習慣機能',
+] as const
+
 export type Feedback = {
   kind: FeedbackKind
   did: string // バグ: 何をしたか
@@ -80,6 +116,9 @@ export type Feedback = {
   recommend: string
   frequency: string
   occupation: string
+  exitReason: string // 体験終了: 続けなかった一番の理由
+  exitWants: string[] // 体験終了: あと何があれば続けたか（複数選択）
+  exitFuture: string // 体験終了: これからのMediNode
 }
 
 export type FeedbackInput = Record<string, unknown>
@@ -89,6 +128,17 @@ const clip = (v: unknown, max = FEEDBACK_TEXT_MAX): string => str(v).slice(0, ma
 const pick = (v: unknown, list: readonly string[]): string => {
   const s = str(v)
   return list.includes(s) ? s : ''
+}
+
+// 複数選択。リスト外を落とし、重複を除く（Notionのmulti_selectへそのまま渡せる形に）。
+const pickMulti = (v: unknown, list: readonly string[]): string[] => {
+  if (!Array.isArray(v)) return []
+  const out: string[] = []
+  for (const item of v) {
+    const s = str(item)
+    if (list.includes(s) && !out.includes(s)) out.push(s)
+  }
+  return out
 }
 
 // メールの最低限の形（厳密判定はしない。誤りは空にして送信自体は通す）。
@@ -149,6 +199,9 @@ export function validateFeedback(
       recommend: pick(input.recommend, RECOMMEND),
       frequency: pick(input.frequency, FREQUENCY),
       occupation: pick(input.occupation, FEEDBACK_OCCUPATIONS),
+      exitReason: pick(input.exitReason, EXIT_REASONS),
+      exitWants: pickMulti(input.exitWants, EXIT_WANTS),
+      exitFuture: pick(input.exitFuture, EXIT_FUTURE),
     },
   }
 }

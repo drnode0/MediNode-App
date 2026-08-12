@@ -8,6 +8,10 @@ import {
   SATISFACTION,
   SATISFACTION_SCALE,
   satisfactionByStars,
+  EXIT_REASONS,
+  EXIT_WANTS,
+  EXIT_FUTURE,
+  EXIT_NOTIFY_WANTS,
   type FeedbackPropSchema,
 } from '../feedback-submit'
 
@@ -77,6 +81,38 @@ describe('validateFeedback（種類ごとに必要なものを求める）', () 
   it('メール形式が不正なら空にする（投稿自体は止めない）', () => {
     const r = validateFeedback({ kind: 'praise', good: 'よいです', replyWanted: true, email: 'not-an-email' })
     expect(r.ok && r.value.email).toBe('')
+  })
+
+  it('体験終了アンケートは全問任意（空でも通る）', () => {
+    const r = validateFeedback({ kind: 'exit' })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.exitReason).toBe('')
+    expect(r.value.exitWants).toEqual([])
+    expect(r.value.exitFuture).toBe('')
+  })
+
+  it('体験終了アンケートの選択肢はリスト内だけを受け取る', () => {
+    const r = validateFeedback({
+      kind: 'exit',
+      exitReason: '価格が合わない',
+      exitWants: ['自分の診療科のコンテンツ', '存在しない選択肢', 'もっと安いプラン', 'もっと安いプラン'],
+      exitFuture: '条件が合えばプレミアムに戻りたい',
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.exitReason).toBe('価格が合わない')
+    // リスト外は落とし、重複は1つにする
+    expect(r.value.exitWants).toEqual(['自分の診療科のコンテンツ', 'もっと安いプラン'])
+    expect(r.value.exitFuture).toBe('条件が合えばプレミアムに戻りたい')
+  })
+
+  it('体験終了アンケートのリスト外の単一選択は空にする（送信は止めない）', () => {
+    const r = validateFeedback({ kind: 'exit', exitReason: '謎の理由', exitFuture: '謎の予定' })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.exitReason).toBe('')
+    expect(r.value.exitFuture).toBe('')
   })
 })
 
@@ -247,5 +283,23 @@ describe('SATISFACTION_SCALE（値と表示を分ける）', () => {
     expect(satisfactionByStars(1)?.label).toBe('不満')
     expect(satisfactionByStars(0)).toBeUndefined()
     expect(satisfactionByStars(6)).toBeUndefined()
+  })
+})
+
+describe('exit定数（Notionの選択肢名と一致させる照合用の値）', () => {
+  it('通知オプトイン対象は「あれば続けた」の選択肢の部分集合', () => {
+    for (const w of EXIT_NOTIFY_WANTS) {
+      expect(EXIT_WANTS).toContain(w)
+    }
+  })
+
+  it('逃げ道の選択肢がある（回答を歪めない）', () => {
+    expect(EXIT_WANTS).toContain('特にない')
+    expect(EXIT_FUTURE).toContain('たぶん使わない')
+  })
+
+  it('離脱理由・今後の利用は単一選択の想定数（4〜6件）', () => {
+    expect(EXIT_REASONS.length).toBeGreaterThanOrEqual(4)
+    expect(EXIT_FUTURE).toHaveLength(4)
   })
 })
