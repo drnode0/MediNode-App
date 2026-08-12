@@ -178,7 +178,12 @@ async function syncMedicalDb(
         cloze: blocks ? extractCloze(blocks) : null,
       }
       records.push(record)
-      if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks)))
+      if (blocks) {
+        // 節レコードにclozeを複製しない（クイズ・今日の1問は親レコードだけを使う。
+        // 複製するとAlgoliaの1レコード10KB上限を超える節が出る——2026-08-12に実際に発生）
+        const { cloze: _cloze, ...sectionParent } = record
+        records.push(...buildSectionRecords(sectionParent, splitIntoSections(blocks)))
+      }
       count++
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
