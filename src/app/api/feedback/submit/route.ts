@@ -24,6 +24,7 @@ import {
   redactPath,
   type FeedbackPropSchema,
 } from '@/lib/feedback-submit'
+import { signOptinToken } from '@/lib/feedback-optin'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,10 +119,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: built.error }, { status: 500 })
     }
 
-    await notion.pages.create({
+    const page = await notion.pages.create({
       parent: { database_id: env.dbId },
       properties: built.properties as Parameters<typeof notion.pages.create>[0]['properties'],
     })
+
+    // 体験終了アンケートだけ、締め画面のオプトイン（拡充通知希望）用に
+    // 作成ページへの署名つき書き込み許可を返す（60分・このページ限定）。
+    if (validated.value.kind === 'exit') {
+      const ts = Date.now()
+      return NextResponse.json({
+        ok: true,
+        optin: { pageId: page.id, ts, sig: signOptinToken(page.id, ts, env.token) },
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch {
