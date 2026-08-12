@@ -27,7 +27,7 @@ import {
   SCALE_LABEL,
   type ReaderFontScale,
 } from '@/lib/reader-font-scale'
-import { getReaderViewMode, setReaderViewMode, type ReaderViewMode } from '@/lib/reader-digest'
+import { getReaderViewMode, setReaderViewMode, digestUsable, type ReaderViewMode } from '@/lib/reader-digest'
 import type { ReaderDoc } from '@/lib/reader-doc'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
@@ -249,6 +249,14 @@ export default function ReaderOverlay({
     () => (isPersonalDoc && doc ? unsupportedStats(doc).degraded : false),
     [isPersonalDoc, doc],
   )
+  // 要点モードはテンプレ構造（H2節）前提の抽出。構造のない個人・部署ページでは
+  // ほぼ白紙になるため、切替ごと出さず全文固定にする（保存された端末設定は上書きしない
+  // ＝サブスクを開けば従来どおり要点で開く）。サブスク配信は常に true。
+  const canDigest = useMemo(
+    () => !isPersonalDoc || !doc || digestUsable(doc.blocks),
+    [isPersonalDoc, doc],
+  )
+  const effectiveViewMode: ReaderViewMode = canDigest ? viewMode : 'full'
 
   const onToggleBookmark = () => {
     const entry: BookmarkEntry = {
@@ -428,7 +436,9 @@ export default function ReaderOverlay({
                   </a>
                 </p>
               )}
-              {/* 全文｜要点の切替。要点は結論＋節見出し＋recapだけ＝まず骨格を掴む入口。 */}
+              {/* 全文｜要点の切替。要点は結論＋節見出し＋recapだけ＝まず骨格を掴む入口。
+                  構造のない個人・部署ページでは出さない（canDigest）。 */}
+              {canDigest && (
               <div className="mb-2">
                 <div className="inline-flex rounded-full bg-gray-100 dark:bg-gray-700 p-0.5" role="group" aria-label="表示モード">
                   {(['full', 'digest'] as const).map((m) => (
@@ -448,8 +458,9 @@ export default function ReaderOverlay({
                   ))}
                 </div>
               </div>
+              )}
               {/* 確信度チップは全文専用（要点にはマーク付き本文がほぼ無く、絞り込む対象がない） */}
-              {viewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
+              {effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 <ReaderBody
@@ -457,7 +468,7 @@ export default function ReaderOverlay({
                   onImageClick={(u) => onZoom(u)}
                   active={active}
                   scaleEm={SCALE_EM[fontScale]}
-                  mode={viewMode}
+                  mode={effectiveViewMode}
                   owner={hit.owner}
                 />
               </ReaderSearchCtx.Provider>

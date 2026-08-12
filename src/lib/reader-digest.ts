@@ -90,6 +90,15 @@ function epilogueStart(blocks: ReaderBlock[]): number {
   return i
 }
 
+// このページで要点モードが成立するか（個人・部署リーダー用）。
+// 要点はH2節・⚡結論・recap行というテンプレート構造から抽出するため、H2節が
+// 1つもないページでは表示するものがほぼ残らず、ほぼ白紙になる。そうしたページでは
+// 切替ボタンごと出さない（「あなたの書き方が悪い」というシグナルを出さないため、
+// 判定は自動・無言。サブスク配信は常に成立扱いで従来どおり）。
+export function digestUsable(blocks: ReaderBlock[]): boolean {
+  return digestSections(blocks).sections.length > 0
+}
+
 // blocks を preamble / 節 / epilogue に割る。節は「その場で全文へ開く」単位。
 export function digestSections(blocks: ReaderBlock[]): DigestLayout {
   const tailAt = epilogueStart(blocks)
