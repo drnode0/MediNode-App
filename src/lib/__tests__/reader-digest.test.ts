@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   digestItems,
   digestSections,
-  digestUsable,
   getReaderViewMode,
   setReaderViewMode,
   READER_VIEW_MODE_KEY,
@@ -138,38 +137,5 @@ describe('view mode の保存', () => {
   it('保存した値を読み戻せる', () => {
     setReaderViewMode('digest')
     expect(getReaderViewMode()).toBe('digest')
-  })
-})
-
-describe('digestUsable（個人・部署ページの要点成立判定）', () => {
-  it('H2節のあるページは成立', () => {
-    expect(digestUsable(blocks)).toBe(true)
-  })
-
-  it('H2節が1つもないページは不成立（要点がほぼ白紙になるため切替を出さない）', () => {
-    const flat: ReaderBlock[] = [
-      { kind: 'heading', level: 1, inlines: t('タイトル的な見出し') },
-      { kind: 'paragraph', inlines: t('本文。') },
-      { kind: 'list_item', ordered: false, inlines: t('箇条書き。') },
-      { kind: 'heading', level: 3, inlines: t('小見出しだけではダメ') },
-    ]
-    expect(digestUsable(flat)).toBe(false)
-    expect(digestUsable([])).toBe(false)
-  })
-
-  it('H2節だけで⚡・recap・図解が無いページも不成立（空のアコーディオンになる）', () => {
-    const headingsOnly: ReaderBlock[] = [
-      { kind: 'heading', level: 2, inlines: t('1. 節その1') },
-      { kind: 'paragraph', inlines: t('本文。recapではない。') },
-      { kind: 'heading', level: 2, inlines: t('2. 節その2') },
-      { kind: 'table', rows: [[t('表')]] },
-    ]
-    expect(digestUsable(headingsOnly)).toBe(false)
-    // recap行が1つあれば成立
-    const withRecap: ReaderBlock[] = [
-      ...headingsOnly,
-      { kind: 'paragraph', inlines: t('→だから、ここが持ち帰り。') },
-    ]
-    expect(digestUsable(withRecap)).toBe(true)
   })
 })

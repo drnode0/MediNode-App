@@ -27,7 +27,7 @@ import {
   SCALE_LABEL,
   type ReaderFontScale,
 } from '@/lib/reader-font-scale'
-import { getReaderViewMode, setReaderViewMode, digestUsable, type ReaderViewMode } from '@/lib/reader-digest'
+import { getReaderViewMode, setReaderViewMode, type ReaderViewMode } from '@/lib/reader-digest'
 import type { ReaderDoc } from '@/lib/reader-doc'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
@@ -249,13 +249,11 @@ export default function ReaderOverlay({
     () => (isPersonalDoc && doc ? unsupportedStats(doc).degraded : false),
     [isPersonalDoc, doc],
   )
-  // 要点モードはテンプレ構造（H2節）前提の抽出。構造のない個人・部署ページでは
-  // ほぼ白紙になるため、切替ごと出さず全文固定にする（保存された端末設定は上書きしない
-  // ＝サブスクを開けば従来どおり要点で開く）。サブスク配信は常に true。
-  const canDigest = useMemo(
-    () => !isPersonalDoc || !doc || digestUsable(doc.blocks),
-    [isPersonalDoc, doc],
-  )
+  // 要点モードはプレミアム配信専用（オーナー判断 2026-08-12）。要点はテンプレ構造
+  // （H2節・⚡結論・recap行）前提の抽出で、個人・部署ページに条件判定で出し分けるより
+  // 「サブスクの読書体験」として一本化する。個人・部署は常に全文
+  // （保存された端末設定は上書きしない＝サブスクを開けば従来どおり要点で開く）。
+  const canDigest = !isPersonalDoc
   const effectiveViewMode: ReaderViewMode = canDigest ? viewMode : 'full'
 
   const onToggleBookmark = () => {
