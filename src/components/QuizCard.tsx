@@ -3,7 +3,7 @@ import { RotateCcw, Check, ExternalLink, BookOpen, Highlighter } from 'lucide-re
 import { useState } from 'react'
 import { LEVEL_META, type Hit } from './ResultCard'
 import type { ClozeData } from '@/lib/cloze'
-import { recordQuizResult, getQuizStat } from '@/lib/quiz-srs'
+import { recordQuizResult, getQuizStat, intervalLabelFor } from '@/lib/quiz-srs'
 import { recordTowerEvent, recallKindFor, loadTowerState } from '@/lib/tower-steps'
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { recordCqView } from '@/lib/cq-views'
@@ -54,6 +54,8 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
   const [revealed, setRevealed] = useState(false)
   // 「覚えた／まだ」の自己申告（このカードで申告済みならその結果を保持して表示を変える）。
   const [answered, setAnswered] = useState<'ok' | 'ng' | null>(null)
+  // 申告直後のメッセージで「次は◯◯ごろ」を出すための連続「覚えた」回数。
+  const [answeredStreak, setAnsweredStreak] = useState(0)
 
   const answer = (ok: boolean) => {
     if (isTowerEnabled()) {
@@ -67,7 +69,8 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
         recordTowerEvent({ id: hit.objectID, kind: 'attempt', genre: Array.isArray(hit.genre) ? hit.genre[0] : hit.genre || '', title: hit.title })
       }
     }
-    recordQuizResult(hit.objectID, ok)
+    const stat = recordQuizResult(hit.objectID, ok)
+    setAnsweredStreak(stat.streak || 0)
     setAnswered(ok ? 'ok' : 'ng')
   }
   const isMedical = hit.source === 'medical'
@@ -165,12 +168,12 @@ export function QuizCard({ hit, index }: { hit: Hit; index: number }) {
               {answered === 'ok' ? (
                 <>
                   <Check className="w-4 h-4" strokeWidth={2.5} />
-                  覚えた！次回は後ろの方に出ます
+                  覚えた、と記録しました。次は{intervalLabelFor(answeredStreak)}ごろに出ます
                 </>
               ) : (
                 <>
                   <RotateCcw className="w-4 h-4" strokeWidth={2.5} />
-                  記録しました。次回は優先して出ます
+                  まだ、と記録しました。忘れないうちに、またすぐ出します
                 </>
               )}
             </div>
