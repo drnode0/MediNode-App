@@ -21,6 +21,7 @@ import {
   EyeOff,
   ExternalLink,
   Gift,
+  History,
   Hourglass,
   LayoutDashboard,
   Megaphone,
@@ -215,7 +216,7 @@ const KIND_STYLE: Record<MemberKind, { badge: string; icon: typeof Crown }> = {
   stripe_trial: { badge: 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200', icon: CreditCard },
   trial: { badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200', icon: Hourglass },
   auto_trial: { badge: 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200', icon: Timer },
-  expired: { badge: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+  expired: { badge: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300', icon: History },
   free: { badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Users },
 }
 
@@ -1796,7 +1797,8 @@ ${label}`,
               区分 — 管理者: COMP_ADMIN_EMAILS のメール（常時無料）／永続無料: 招待コードまたはこの画面で付与（取り消し可）／
               サブスク中: Stripeで課金中／トライアル中（カード登録）: Stripeの無料期間中（終了後は自動で課金開始）／
               トライアル中（無料コード）: note特典などのコード入力・期限で自動失効（取り消し可）／
-              トライアル中（登録・自動）: 登録時にコードなしで自動付与されるトライアル（キャンペーン中7日・通常3日。取り消し可）。
+              トライアル中（登録・自動）: 登録時にコードなしで自動付与されるトライアル（キャンペーン中7日・通常3日。取り消し可）／
+              体験終了（無料）: トライアル期限が過ぎた・または取り消した人（通常の無料利用に戻っています。異常ではありません）。
               <br />
               最終ログイン: 6桁コードやパスワードでログインが成立した日（ログインしたままの端末では動きません）。
               最終利用: ログイン中のユーザーがアプリを開いた日（1時間に1回更新・機能追加後の利用から。日付にカーソルを載せると時刻も出ます）。

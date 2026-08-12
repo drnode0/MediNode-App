@@ -79,6 +79,22 @@ export const MEMBER_KIND_LABEL: Record<MemberKind, string> = {
   stripe_trial: 'トライアル中（カード登録）',
   trial: 'トライアル中（無料コード）',
   auto_trial: 'トライアル中（登録・自動）',
-  expired: '失効・取消',
+  // トライアル期限切れ・revoke 済みの両方を含む（通常の無料利用に戻った人）。
+  expired: '体験終了（無料）',
   free: '無料',
+}
+
+// 台帳の「期限」表示に使う日時。
+// コード式トライアルは trial_ends_at を持つが、カード登録トライアル（Stripe trialing）は
+// trial_ends_at が null で、無料期間の終了日（＝課金開始日）は current_period_end に入っている。
+export function ledgerTrialEndsAt(
+  sub:
+    | { trial_ends_at?: string | null; status?: string | null; current_period_end?: string | null }
+    | null
+    | undefined,
+): string | null {
+  if (!sub) return null
+  if (sub.trial_ends_at) return sub.trial_ends_at
+  if (sub.status === 'trialing') return sub.current_period_end ?? null
+  return null
 }

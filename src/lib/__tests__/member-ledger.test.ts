@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { deriveMemberKind, type SubscriptionSummary } from '../member-ledger'
+import { deriveMemberKind, ledgerTrialEndsAt, type SubscriptionSummary } from '../member-ledger'
 
 const NOW = new Date('2026-07-15T00:00:00Z')
 
@@ -117,5 +117,30 @@ describe('deriveMemberKind', () => {
     expect(
       deriveMemberKind(false, sub({ plan: 'trial', status: 'trialing', trial_ends_at: '2026-07-27T00:00:00Z' }), NOW),
     ).toBe('trial')
+  })
+})
+
+describe('ledgerTrialEndsAt', () => {
+  it('コード式トライアルは trial_ends_at をそのまま返す', () => {
+    expect(
+      ledgerTrialEndsAt({ trial_ends_at: '2026-07-27T00:00:00Z', status: 'trialing', current_period_end: null }),
+    ).toBe('2026-07-27T00:00:00Z')
+  })
+
+  it('カード登録トライアル（trial_ends_at なし・trialing）は current_period_end を返す', () => {
+    expect(
+      ledgerTrialEndsAt({ trial_ends_at: null, status: 'trialing', current_period_end: '2026-08-14T03:30:56Z' }),
+    ).toBe('2026-08-14T03:30:56Z')
+  })
+
+  it('課金中（active）は current_period_end を期限として使わない', () => {
+    expect(
+      ledgerTrialEndsAt({ trial_ends_at: null, status: 'active', current_period_end: '2026-08-14T03:30:56Z' }),
+    ).toBeNull()
+  })
+
+  it('行なしは null', () => {
+    expect(ledgerTrialEndsAt(null)).toBeNull()
+    expect(ledgerTrialEndsAt(undefined)).toBeNull()
   })
 })

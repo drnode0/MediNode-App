@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
-import { deriveMemberKind, type SubscriptionSummary } from '@/lib/member-ledger'
+import { deriveMemberKind, ledgerTrialEndsAt, type SubscriptionSummary } from '@/lib/member-ledger'
 import { logAdminAction } from '@/lib/admin-audit'
 import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
 import {
@@ -309,7 +309,10 @@ export async function GET() {
           kind: deriveMemberKind(isAdmin, summary, now),
           plan: summary?.plan ?? null,
           status: summary?.status ?? null,
-          trialEndsAt: summary?.trial_ends_at ?? null,
+          // カード登録トライアルは trial_ends_at が null のため current_period_end を期限として使う。
+          trialEndsAt: ledgerTrialEndsAt(
+            summary ? { ...summary, current_period_end: (s?.current_period_end as string | undefined) ?? null } : null,
+          ),
           subUpdatedAt: (s?.updated_at as string | undefined) ?? null,
           settingsUpdatedAt: settingsByUser.get(u.id) ?? null,
           lastUsedAt: usageByUser.get(u.id) ?? null,
