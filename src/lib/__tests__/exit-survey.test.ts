@@ -47,6 +47,17 @@ describe('classifyExitSurveyStage（解約予約→失効の2時点）', () => {
     ).toBe('none')
   })
 
+  it('境界値: 期間末ちょうどは cancel_scheduled・失効からちょうど14日は canceled', () => {
+    const exact = new Date(now).toISOString()
+    expect(
+      classifyExitSurveyStage({ subscriptionCancelAt: exact, hasPremiumKeys: true }, { now }),
+    ).toBe('cancel_scheduled')
+    const graceEdge = new Date(now - CANCELED_GRACE_MS).toISOString()
+    expect(
+      classifyExitSurveyStage({ subscriptionCancelAt: graceEdge, hasPremiumKeys: true }, { now }),
+    ).toBe('canceled')
+  })
+
   it('壊れた日付は none（落とさない）', () => {
     expect(
       classifyExitSurveyStage({ subscriptionCancelAt: 'not-a-date', hasPremiumKeys: true }, { now }),
