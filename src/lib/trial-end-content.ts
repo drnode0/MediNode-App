@@ -34,6 +34,8 @@ export const TRIAL_END_COPY = {
   upcomingTail: 'など、これからも増やしていきます。',
   feedbackLead: 'よければ、使ってみて感じたことを聞かせてください。',
   feedbackCta: '感想を送る',
+  // アプリ内の体験終了アンケート（オーバーレイ用。メールは従来のfeedbackCta＋外部フォームのまま）。
+  exitSurveyCta: '1分アンケートに協力する',
   dismiss: 'あとで',
 } as const
 

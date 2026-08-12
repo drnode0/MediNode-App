@@ -15,6 +15,7 @@ import { TRIAL_END_COPY, TRIAL_END_LINKS, UPCOMING_FEATURES } from '@/lib/trial-
 import { OpenSettingsContext } from '@/components/SearchErrors'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { startPremiumCheckout } from '@/components/premium-shared'
+import { ExitSurveyModal, isExitSurveyDone } from '@/components/ExitSurveyModal'
 
 const ENDED_DISMISS_KEY = 'medinode_trial_ended_dismissed_until'
 const ENDING_SEEN_KEY = 'medinode_trial_ending_seen_for'
@@ -27,6 +28,7 @@ export function TrialLifecycleNotice() {
   const [mode, setMode] = useState<TrialLifecycleStage>('none')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [showSurvey, setShowSurvey] = useState(false)
 
   useEffect(() => {
     if (loading || !user) return
@@ -106,13 +108,14 @@ export function TrialLifecycleNotice() {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="trial-ended-title"
-      onClick={dismissEnded}
-    >
+    <>
+      <div
+        className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trial-ended-title"
+        onClick={dismissEnded}
+      >
       <div
         className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 p-6 animate-fade-in-up"
         onClick={(e) => e.stopPropagation()}
@@ -175,19 +178,22 @@ export function TrialLifecycleNotice() {
           </p>
         </div>
 
-        {/* 感想 */}
+        {/* 体験終了アンケート（アプリ内で完結・回答済みなら出さない） */}
         <div className="mt-4 flex items-center justify-between gap-3">
-          <a
-            href={TRIAL_END_LINKS.feedback}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-300 hover:underline"
-          >
-            <Send className="w-3.5 h-3.5 shrink-0" />{TRIAL_END_COPY.feedbackCta}
-          </a>
+          {!isExitSurveyDone() ? (
+            <button
+              type="button"
+              onClick={() => setShowSurvey(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-300 hover:underline"
+            >
+              <Send className="w-3.5 h-3.5 shrink-0" />{TRIAL_END_COPY.exitSurveyCta}
+            </button>
+          ) : <span />}
           <button onClick={dismissEnded} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">{TRIAL_END_COPY.dismiss}</button>
         </div>
       </div>
-    </div>
+      </div>
+      {showSurvey && <ExitSurveyModal origin="trial" onClose={() => setShowSurvey(false)} />}
+    </>
   )
 }
