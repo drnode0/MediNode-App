@@ -67,6 +67,8 @@ export async function GET() {
       knowledgeLevel: pick.knowledgeLevel,
     },
     answer: pick.answer,
+    // 赤マーカー穴埋め（あるページだけ）。カード側は要約の代わりにこれを出す
+    ...(pick.cloze ? { cloze: pick.cloze } : {}),
     ...(premium && pick.notionUrl ? { notionUrl: pick.notionUrl } : {}),
     premium,
     ...adminExtra,

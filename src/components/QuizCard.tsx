@@ -14,7 +14,8 @@ import { prefetchReaderDoc } from '@/lib/reader-prefetch'
 import { useReader } from '@/components/reader/SubscriptionReader'
 
 // 穴埋め本文。タップ前は伏せ字（設問）、開示後はNotionの赤マーカーと同じ見た目で開く。
-function ClozeBody({ cloze, revealed }: { cloze: ClozeData; revealed: boolean }) {
+// DailyQuestionCard（今日の1問）も同じ描画を使う。
+export function ClozeBody({ cloze, revealed }: { cloze: ClozeData; revealed: boolean }) {
   return (
     <div className="mt-2.5 space-y-2">
       {cloze.blocks.map((block, bi) => (
