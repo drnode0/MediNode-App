@@ -31,7 +31,8 @@ declare
 begin
   for k, v in select * from jsonb_each(p_counts)
   loop
-    if k = '' or jsonb_typeof(v) <> 'number' then
+    -- 非整数（1.5等）・負数もここで弾く。1キーの不正でバッチ全体を落とさない。
+    if k = '' or jsonb_typeof(v) <> 'number' or v::text !~ '^[0-9]+$' then
       continue;
     end if;
     insert into public.block_type_stats (block_type, seen_count, updated_at)
@@ -42,6 +43,12 @@ begin
   end loop;
 end;
 $$;
+
+-- security definer はRLSを迂回するため、PostgREST経由で anon から叩けると
+-- 計測データを誰でも汚染できてしまう。サーバー（service_role）専用に絞る
+-- （0005/0010/0013 と同じ作法）。
+revoke all on function public.record_block_type_counts(jsonb) from public, anon, authenticated;
+grant execute on function public.record_block_type_counts(jsonb) to service_role;
 
 -- ② 「Notionで開く」タップ（アプリ外への離脱）。クイズ・今日の1問から個人/部署ページへ
 --    飛ばされた回数＝アプリ内リーダーの需要の数値化。context は 'quiz' / 'daily_question' /
@@ -66,3 +73,6 @@ as $$
   on conflict (context, day)
   do update set tap_count = notion_escape_taps.tap_count + 1;
 $$;
+
+revoke all on function public.increment_notion_escape(text) from public, anon, authenticated;
+grant execute on function public.increment_notion_escape(text) to service_role;

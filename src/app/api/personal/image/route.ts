@@ -58,38 +58,42 @@ async function loadOwnTokens(): Promise<{ userId: string; tokens: string[] } | n
   }
 }
 
+// 全トークンがエラーだった（=Notion側の一時障害の可能性）ときは throw して
+// unstable_cache に null を25分焼き付けない。「取得できたが画像が無い」だけを null で返す。
+async function resolveViaTokens(tokens: string[], fetchNode: (token: string) => Promise<unknown>): Promise<string | null> {
+  let anySucceeded = false
+  for (const token of tokens) {
+    try {
+      const node = await fetchNode(token)
+      anySucceeded = true
+      const url = fileUrl(node)
+      if (url) return url
+    } catch {
+      // このトークンでは読めない（権限なし or 一時障害）。次を試す。
+    }
+  }
+  if (!anySucceeded) throw new Error('all tokens failed')
+  return null
+}
+
 const freshBlockImageUrl = (userId: string, blockId: string, tokens: string[]) =>
   unstable_cache(
-    async () => {
-      for (const token of tokens) {
-        try {
-          const block = await new Client({ auth: token }).blocks.retrieve({ block_id: blockId })
-          const url = fileUrl((block as { image?: unknown }).image)
-          if (url) return url
-        } catch {
-          // このトークンでは読めない。次を試す。
-        }
-      }
-      return null
-    },
+    async () =>
+      resolveViaTokens(tokens, async (token) => {
+        const block = await new Client({ auth: token }).blocks.retrieve({ block_id: blockId })
+        return (block as { image?: unknown }).image
+      }),
     ['personal-image-block', userId, blockId],
     { revalidate: 1500 }, // 25分 < Notion署名の約1h失効
   )()
 
 const freshCoverUrl = (userId: string, pageId: string, tokens: string[]) =>
   unstable_cache(
-    async () => {
-      for (const token of tokens) {
-        try {
-          const page = await new Client({ auth: token }).pages.retrieve({ page_id: pageId })
-          const url = fileUrl((page as { cover?: unknown }).cover)
-          if (url) return url
-        } catch {
-          // このトークンでは読めない。次を試す。
-        }
-      }
-      return null
-    },
+    async () =>
+      resolveViaTokens(tokens, async (token) => {
+        const page = await new Client({ auth: token }).pages.retrieve({ page_id: pageId })
+        return (page as { cover?: unknown }).cover
+      }),
     ['personal-image-cover', userId, pageId],
     { revalidate: 1500 },
   )()

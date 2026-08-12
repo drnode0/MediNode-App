@@ -42,7 +42,8 @@ export async function GET() {
       recentDays: Array<{ day: string; count: number }>
     } | null = null
     try {
-      const since = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000)
+      // day はJST日付で貯まる（increment_notion_escape）ので、境界もJSTで切る。
+      const since = new Date(Date.now() + 9 * 60 * 60 * 1000 - RECENT_DAYS * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10)
       const { data: tapRows, error: tapErr } = await admin

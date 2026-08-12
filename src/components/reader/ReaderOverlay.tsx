@@ -389,6 +389,18 @@ export default function ReaderOverlay({
                 >
                   再試行
                 </button>
+                {/* 個人・部署ページは失敗時こそ逃げ道を明示（降格式の第3原則） */}
+                {isPersonalDoc && hit.notionUrl && (
+                  <a
+                    href={hit.notionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => recordNotionEscape('reader', hit.owner)}
+                    className="inline-flex items-center min-h-[44px] px-2 text-sm text-brand-600 dark:text-brand-300 underline"
+                  >
+                    Notionで開く
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={onClose}

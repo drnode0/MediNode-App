@@ -8,6 +8,8 @@
 // サーバーには発生場所（context）と日別回数だけが貯まり、
 // どのページを開いたか・誰が開いたかは一切保存しない（cq-views と同じ方針）。
 
+// daily_question は現状発火しない（今日の1問はサブスク配信のみ＝owner:'subscription'）。
+// 個人ページが出題対象になった将来のために許可リストへ残している。
 export type NotionEscapeContext = 'quiz' | 'daily_question' | 'reader' | 'search'
 
 export function recordNotionEscape(context: NotionEscapeContext, owner?: string) {
