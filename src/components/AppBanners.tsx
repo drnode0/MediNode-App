@@ -3,13 +3,11 @@
 // アプリ内バナー群（page.tsx から分割）。
 //   - UpdateBanner: 最新お知らせを1回だけ表示
 //   - FeedbackNudgeBanner: 使い込んだ人に1回だけ感想を依頼
-//   - PowerModeUpgradeBanner: シンプルモード利用者へのパワーモード誘導
 
 import { useState, useEffect, useContext } from 'react'
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
-import { shouldSuggestPowerMode, readSearchLatencies } from '@/lib/power-mode-suggest'
 import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, MessageCircleQuestion, type LucideIcon } from 'lucide-react'
 import { ExitSurveyModal, isExitSurveyDone } from '@/components/ExitSurveyModal'
 import { getSettings } from '@/lib/settings'
@@ -326,58 +324,12 @@ export function ExitSurveyBanner() {
 }
 
 
-// シンプルモード（Notion直接検索）使用中に、パワーモードへの誘導を出すバナー。
-// 以前は全員に初回から出していたが、「5回以上検索し、うち3回が2秒超」の人にだけ
-// 出すように変更（2026-08-07 オーナー決定。トリガーは power-mode-suggest.ts）。
-// 初回セットアップからモード選択を外したため、このバナーがパワーモードへの主動線になる。
-const POWER_BANNER_DISMISS_KEY = 'medinode_power_banner_dismissed_v1'
-export function PowerModeUpgradeBanner({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const [dismissed, setDismissed] = useState(true) // SSR時はちらつき防止のため初期true
-  const [triggered, setTriggered] = useState(false)
-  useEffect(() => {
-    try {
-      setDismissed(localStorage.getItem(POWER_BANNER_DISMISS_KEY) === '1')
-    } catch {
-      setDismissed(false)
-    }
-    const evaluate = () => setTriggered(shouldSuggestPowerMode(readSearchLatencies()))
-    evaluate()
-    // 検索のたびに記録側がイベントを投げる。しきい値を跨いだ瞬間から出せるようにする。
-    window.addEventListener('medinode:simple-search-recorded', evaluate)
-    return () => window.removeEventListener('medinode:simple-search-recorded', evaluate)
-  }, [])
-  if (dismissed || !triggered) return null
-  return (
-    <div className="mb-4 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl p-3 flex items-start gap-3">
-      <Zap className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">
-          検索の待ち時間が気になるときは、パワーモードへ
-        </p>
-        <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5 leading-relaxed">
-          Algolia（無料）を使うと、待たずに検索結果が返ります。日本語の部分一致やジャンル絞り込みにも対応します。
-        </p>
-        <div className="flex items-center gap-3 mt-2">
-          <button
-            onClick={onOpenSettings}
-            className="text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors"
-          >
-            設定から切り替える
-          </button>
-          <button
-            onClick={() => {
-              try { localStorage.setItem(POWER_BANNER_DISMISS_KEY, '1') } catch {}
-              setDismissed(true)
-            }}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-          >
-            あとで
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+// パワーモード誘導バナーは削除した（2026-08-13 オーナー決定）。台帳の実測でパワーの
+// 稼働率がシンプルを下回り（パワー12人中7日以内1人=8.3%、シンプル57人中7人=12.3%）、
+// 定着を支えている証拠が無かったため、新規には勧めない方針へ切り替えた。
+// 既存の利用者はそのまま動き、設定 →「セットアップをやり直す」→「モードを切り替える」
+// から今も切り替えられる。判定ロジック（power-mode-suggest.ts）は
+// 「シンプルモードが十分速くなったか」の物差しとして残してある。
 
 // ── PWAインストール案内バナー ──
 // ブラウザ（未インストール）で開いている人にだけ「ホーム画面に追加」を案内する。
