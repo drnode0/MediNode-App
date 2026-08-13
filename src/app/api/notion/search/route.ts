@@ -3,6 +3,7 @@ import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
 import { createHash } from 'crypto'
 import { createScanCache, type ScanState } from '@/lib/notion-scan-cache'
+import { matchesKeyword } from '@/lib/notion-search-match'
 import { sanitizeAdditionalTeams, type TeamConfig } from '@/lib/teams'
 import { getSessionEarlyAccess } from '@/lib/supabase/early-access'
 
@@ -49,32 +50,6 @@ function extractList(prop: Record<string, unknown>): string[] {
     return name ? [name] : []
   }
   return []
-}
-
-// 検索用にテキストを正規化する。
-// ・小文字化（英大文字小文字の揺れ吸収）
-// ・全角英数を半角へ（Ａ→a 等）
-// ・全角スペース→半角、前後トリム
-// これにより「低Na血症」「低ナトリウム血症」のような要約/キーワード中の語も
-// タイトル以外から拾えるようにする。
-function normalizeForSearch(text: string): string {
-  return (text || '')
-    .toLowerCase()
-    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
-    .replace(/\u3000/g, ' ')
-    .trim()
-}
-
-// レコードのタイトル・要約・キーワードを横断して、全キーワード（スペース区切り）を
-// すべて含むか（AND一致）を判定する。Notionのtitle前方一致では拾えない
-// 要約・キーワード中の語にもヒットさせるための、型に依存しないJS側マッチャ。
-function matchesKeyword(record: NotionRecord, keyword: string): boolean {
-  const haystack = normalizeForSearch(
-    [record.title, record.aiSummary, record.aiKeywords].join(' '),
-  )
-  const terms = normalizeForSearch(keyword).split(/\s+/).filter(Boolean)
-  if (terms.length === 0) return true
-  return terms.every((term) => haystack.includes(term))
 }
 
 // 全件スキャン系（キーワード検索・クイズ・ジャンル）の安全上限。
@@ -276,6 +251,30 @@ async function queryDb(
   // Notionを読み直すのがシンプルモードのラグの主因だったため（notion-scan-cache.ts）。
   // まず手元を絞り、足りなければ続きから読み足す ——早期打ち切りはそのままなので
   // 初回検索は従来と同じ速さで、2回目以降だけが速くなる。
+  return {
+    records: await scanRecords(notion, dbId, source, owner, {
+      match: (r) => matchesKeyword(r, keyword),
+      limit: pageSize,
+    }),
+    hasMore: false,
+    nextCursor: null,
+  }
+}
+
+// DBを先頭からページ送りしながら match を満たすレコードを limit 件まで集める。
+// 読んだページは scanCache に「どこまで読んだか」つきで残し、次の呼び出しは
+// まず手元を絞ってから、足りなければ続きを読み足す。
+//
+// キーワード検索と端末内インデックス（mode='index'）の両方がここを通る。
+// 同じキャッシュを共有するので、インデックスを一度作れば以後の検索はNotion往復ゼロ、
+// 逆に検索で読み進めた分はインデックス構築の先読みになる。
+async function scanRecords(
+  notion: Client,
+  dbId: string,
+  source: 'medical' | 'reference' | 'manual',
+  owner: 'personal' | 'team',
+  opts: { match: (r: NotionRecord) => boolean; limit: number },
+): Promise<NotionRecord[]> {
   const cacheKey = scanKey(notion, dbId, source, owner)
   const now = Date.now()
   const scan: ScanState<NotionRecord> =
@@ -285,14 +284,14 @@ async function queryDb(
   const matched: NotionRecord[] = []
   const take = (from: NotionRecord[]) => {
     for (const r of from) {
-      if (matched.length >= pageSize) return
-      if (matchesKeyword(r, keyword)) matched.push(r)
+      if (matched.length >= opts.limit) return
+      if (opts.match(r)) matched.push(r)
     }
   }
   take(scan.records)
 
   let pagesScanned = 0
-  while (matched.length < pageSize && !scan.done && pagesScanned < MAX_SCAN_PAGES) {
+  while (matched.length < opts.limit && !scan.done && pagesScanned < MAX_SCAN_PAGES) {
     const res = await notion.databases.query({
       database_id: dbId,
       sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
@@ -312,12 +311,7 @@ async function queryDb(
   // 読み進めた分を残す（次の打鍵はここから絞れる）。scan.at は最初に読んだ時刻のままに
   // しておく（読み足すたびに延長すると、いつまでも古いレコードが残り続ける）。
   if (cacheKey) scanCache.set(cacheKey, scan)
-
-  return {
-    records: matched,
-    hasMore: false,
-    nextCursor: null,
-  }
+  return matched
 }
 
 // クイズ対象（知識レベル=ナレッジ系 かつ 要約あり）を取得
@@ -542,7 +536,7 @@ export async function POST(req: NextRequest) {
       // 部署バッジに表示する部署名（例: 救急）。未指定時は「部署」をフォールバック。
       teamLabel = '',
       keyword = '',
-      mode = 'search', // 'search' | 'recent' | 'quiz' | 'browse' | 'manual'
+      mode = 'search', // 'search' | 'recent' | 'quiz' | 'browse' | 'manual' | 'index'
       genre = '',
       cursor,
       pageSize = 50,
@@ -638,6 +632,21 @@ export async function POST(req: NextRequest) {
       }
       // 新着順（最終更新日時降順）。改訂したものが上に来る。
       records.sort((a, b) => (b.lastEdited > a.lastEdited ? 1 : -1))
+    } else if (mode === 'index') {
+      // 端末内インデックス用: キーワードで絞らず、読める範囲の全件を返す。
+      // クライアントはこれを一度だけ取って端末に持ち、以後の検索は端末内で完結させる
+      // （打鍵ごとのサーバー往復をゼロにするため。matchesKeyword は共有 —— notion-search-match）。
+      // 走査は scanRecords 経由なので、検索で読み進めた分があればそれを再利用する。
+      const ALL = MAX_SCAN_PAGES * 100
+      const [med, ref, teamMed, teamRef] = await Promise.all([
+        !teamOnly ? scanRecords(notion!, notionMedicalDbId, 'medical', 'personal', { match: () => true, limit: ALL }) : null,
+        !teamOnly && notionReferenceDbId ? scanRecords(notion!, notionReferenceDbId, 'reference', 'personal', { match: () => true, limit: ALL }) : null,
+        teamNotion && teamNotionMedicalDbId ? scanRecords(teamNotion, teamNotionMedicalDbId, 'medical', 'team', { match: () => true, limit: ALL }).catch(() => null) : null,
+        teamNotion && teamNotionMedicalDbId && teamNotionReferenceDbId ? scanRecords(teamNotion, teamNotionReferenceDbId, 'reference', 'team', { match: () => true, limit: ALL }).catch(() => null) : null,
+      ])
+      for (const r of [med, ref, teamMed, teamRef]) {
+        if (r) records.push(...r)
+      }
     } else {
       // 通常検索（keyword必須）
       if (keyword.trim()) {

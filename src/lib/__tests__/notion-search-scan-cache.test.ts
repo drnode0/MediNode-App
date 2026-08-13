@@ -96,3 +96,33 @@ describe('走査キャッシュ（/api/notion/search）', () => {
     expect(miss.records).toEqual([])
   })
 })
+
+describe('index モード（端末内インデックス用の全件取得）', () => {
+  const index = (token: string) =>
+    POST(makeReq({ notionToken: token, notionMedicalDbId: 'db1', mode: 'index' }))
+
+  it('キーワードで絞らず、読める全件を返す', async () => {
+    const res = await (await index('ntn_index')).json()
+    // 1ページ目100件＋2ページ目100件（この fixture の全部）
+    expect(res.records).toHaveLength(200)
+    expect(queryMock.mock.calls.length).toBe(2)
+  })
+
+  it('インデックスを作った後の検索はNotionを叩かない（走査キャッシュを共有する）', async () => {
+    const tok = 'ntn_index_then_search'
+    await index(tok)
+    const afterIndex = queryMock.mock.calls.length
+    const res = await (await search('心不全', tok)).json()
+    expect(res.records.length).toBeGreaterThan(0)
+    expect(queryMock.mock.calls.length).toBe(afterIndex)
+  })
+
+  it('検索で読み進めた分はインデックス取得の先読みになる', async () => {
+    const tok = 'ntn_search_then_index'
+    await search('敗血症', tok)      // 1ページ目だけ読む
+    expect(queryMock.mock.calls.length).toBe(1)
+    const res = await (await index(tok)).json()
+    expect(res.records).toHaveLength(200)
+    expect(queryMock.mock.calls.length).toBe(2)  // 2ページ目を足しただけ
+  })
+})

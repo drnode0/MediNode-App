@@ -94,6 +94,8 @@ import { installClientErrorCapture } from '@/lib/client-errors'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
 import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, ExitSurveyBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { recordSimpleSearchLatency } from '@/lib/power-mode-suggest'
+import { filterIndexed } from '@/lib/notion-search-match'
+import { readIndex, writeIndex } from '@/lib/notion-index-store'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
 import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
@@ -1377,6 +1379,75 @@ function useNotionSearch(mode: Tab) {
   // 最新リクエストのみ反映するための世代カウンタ（古いレスポンスの上書きを防ぐ）
   const reqIdRef = useRef(0)
 
+  // 端末内インデックス: 個人・部署の一覧を一度だけ端末に載せ、以後の検索を端末内で
+  // 完結させる（打鍵ごとのサーバー往復をゼロにする）。まずIndexedDBの前回分を即座に使い、
+  // 裏でサーバーから取り直して差し替える。失敗しても indexRef は null のままで、
+  // 従来どおりサーバー検索に落ちるだけ。
+  const indexRef = useRef<Hit[] | null>(null)
+  useEffect(() => {
+    if (mode !== 'search') return
+    if (!settings?.notionToken || !settings?.notionMedicalDbId) return
+    let alive = true
+
+    readIndex<Hit>().then((entry) => {
+      if (alive && entry?.records?.length && !indexRef.current) indexRef.current = entry.records
+    })
+
+    void (async () => {
+      try {
+        const res = await window.fetch('/api/notion/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notionToken: settings.notionToken,
+            notionMedicalDbId: settings.notionMedicalDbId,
+            notionReferenceDbId: settings.notionReferenceDbId || undefined,
+            teamNotionToken: settings.teamNotionToken || undefined,
+            teamNotionMedicalDbId: settings.teamNotionMedicalDbId || undefined,
+            teamNotionReferenceDbId: settings.teamNotionReferenceDbId || undefined,
+            teamLabel: settings.teamLabel || undefined,
+            additionalTeams: settings.additionalTeams?.length ? settings.additionalTeams : undefined,
+            mode: 'index',
+          }),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const all = data.records as Hit[] | undefined
+        if (!alive || !all?.length) return
+        indexRef.current = all
+        void writeIndex(all)
+      } catch {
+        // 取れなければサーバー検索のまま。何も壊さない。
+      }
+    })()
+
+    return () => { alive = false }
+  }, [mode, settings?.notionToken, settings?.notionMedicalDbId, settings?.notionReferenceDbId, settings?.teamNotionToken, settings?.teamNotionMedicalDbId, settings?.teamNotionReferenceDbId])
+
+  // 取得できた結果を画面と塔へ反映する。サーバー検索と端末内インデックスの両方から通るため、
+  // 塔の取り込みが片方だけ走る（＝端末内検索にすると歩が記録されなくなる）ことがないよう関数にしている。
+  const applyFresh = useCallback((fresh: Hit[]) => {
+    // 知の塔: 流れてきた自分のレコードを「書いた」の歩として取り込む（追加API呼び出しなし）
+    // Hit.genre は string|string[] だが Step.genre は string 単体のため、
+    // 既存の getHitGenres() で正規化した代表ジャンルに変換してから渡す。
+    try {
+      if (isTowerEnabled()) {
+        const prev = loadTowerState()
+        const ingestHits = fresh.map((h) => ({
+          objectID: h.objectID,
+          title: h.title,
+          genre: getHitGenres(h)[0],
+          createdAt: h.createdAt,
+          owner: h.owner,
+          knowledgeLevel: h.knowledgeLevel, // ❓CQ→💡ナレッジの解決検出（resolved）用
+        }))
+        const next = ingestRecords(prev, ingestHits)
+        if (next !== prev) saveTowerState(next)
+      }
+    } catch { /* 塔の取込失敗で検索を壊さない */ }
+    setRecords(fresh)
+  }, [])
+
   const fetch = useCallback(async (keyword = '', extra: Record<string, unknown> = {}) => {
     if (!settings) return
     // プレミアム専用ユーザー（個人Notion DB未設定）では個人検索をスキップする。
@@ -1416,6 +1487,21 @@ function useNotionSearch(mode: Tab) {
       setRefreshing(false)
     }
 
+    // 端末内インデックスが載っていて、素のキーワード検索なら、サーバーへ行かずに
+    // 端末内で絞る（往復ゼロ）。マッチャはサーバーと共有（notion-search-match）なので
+    // 結果は一致する。新着/クイズ/ジャンル/マニュアルは extra.mode 付きなので対象外。
+    const localIndex = indexRef.current
+    if (localIndex && keyword.trim() && !extra.mode) {
+      recordSimpleSearchLatency(0)
+      if (reqId !== reqIdRef.current) return
+      const fresh = filterIndexed(localIndex, keyword)
+      setNotionCache(cacheKey, fresh)
+      applyFresh(fresh)
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
     // パワーモード誘導のトリガー用に、Notion直読み検索の体感時間を記録する
     // （power-mode-suggest.ts。5回以上・2秒超3回で初めてバナーが出る）。
     const searchStartedAt = performance.now()
@@ -1446,25 +1532,7 @@ function useNotionSearch(mode: Tab) {
       if (!res.ok) throw new Error(data.error || '検索に失敗しました')
       const fresh = data.records as Hit[]
       setNotionCache(cacheKey, fresh)
-      // 知の塔: 流れてきた自分のレコードを「書いた」の歩として取り込む（追加API呼び出しなし）
-      // Hit.genre は string|string[] だが Step.genre は string 単体のため、
-      // 既存の getHitGenres() で正規化した代表ジャンルに変換してから渡す。
-      try {
-        if (isTowerEnabled()) {
-          const prev = loadTowerState()
-          const ingestHits = fresh.map((h) => ({
-            objectID: h.objectID,
-            title: h.title,
-            genre: getHitGenres(h)[0],
-            createdAt: h.createdAt,
-            owner: h.owner,
-            knowledgeLevel: h.knowledgeLevel, // ❓CQ→💡ナレッジの解決検出（resolved）用
-          }))
-          const next = ingestRecords(prev, ingestHits)
-          if (next !== prev) saveTowerState(next)
-        }
-      } catch { /* 塔の取込失敗で検索を壊さない */ }
-      setRecords(fresh)
+      applyFresh(fresh)
     } catch (err) {
       // キャッシュ表示中の裏更新が失敗しても、既に出ている結果は消さない（エラーも出さない）。
       if (reqId === reqIdRef.current && !cached) setError(err instanceof Error ? err.message : '検索エラー')
