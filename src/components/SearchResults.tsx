@@ -3,6 +3,8 @@ import { useHits, useStats, useRefinementList, useSearchBox } from 'react-instan
 import { Inbox, Search, ClipboardList, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { ResultCard, type Hit } from './ResultCard'
+import { usePrefetchTopHits } from '@/lib/use-prefetch-top-hits'
+import type { PrefetchCandidate } from '@/lib/reader-prefetch-plan'
 
 function GenreFilter() {
   const { items, refine } = useRefinementList({ attribute: 'genre', limit: 20, sortBy: ['count:desc'] })
@@ -122,6 +124,10 @@ export function SearchResults({ showFilters, onSearch }: { showFilters?: boolean
   const { hits } = useHits()
   const { nbHits, processingTimeMS } = useStats()
   const { query } = useSearchBox()
+
+  // 上位ヒットの本文を、カードが触られる前に先読みしておく。
+  // カード側の onPointerEnter はタッチだとタップと同時に発火して助走にならない（2026-08-13 実測）。
+  usePrefetchTopHits(hits as unknown as PrefetchCandidate[])
 
   useEffect(() => {
     if (query && onSearch) onSearch(query)
