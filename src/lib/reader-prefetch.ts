@@ -1,5 +1,6 @@
 import type { ReaderDoc } from './reader-doc'
 import { getSettings } from './settings'
+import { clearStoredDocs, writeStoredDoc } from './reader-doc-store'
 
 // アプリ内リーダー本文のクライアントキャッシュ＋プリフェッチ。
 // 「本文を読む」を押してからNotion API往復を待つとストレスになるため、
@@ -41,6 +42,8 @@ export function fetchReaderDoc(objectID: string): Promise<ReaderDoc> {
     })
     .then((d) => {
       docs.set(objectID, { doc: d.doc as ReaderDoc, at: Date.now() })
+      // 端末にも残す（リロード・PWA再起動を跨いで速く開くため）。失敗は握り潰される。
+      void writeStoredDoc(objectID, d.doc as ReaderDoc)
       return d.doc as ReaderDoc
     })
     .finally(() => {
@@ -65,7 +68,10 @@ export function prefetchReaderDoc(objectID: string): void {
   void fetchReaderDoc(objectID).catch(() => {})
 }
 
+// アカウント切り替え時に呼ばれる（AuthProvider）。端末に残した本文も一緒に消す ——
+// 前の持ち主の個人・部署ページを次のユーザーに見せないため。
 export function clearReaderDocCache(): void {
   docs.clear()
   inflight.clear()
+  void clearStoredDocs()
 }
