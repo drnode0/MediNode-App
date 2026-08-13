@@ -740,7 +740,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
   // optionsステップに直行した場合はプレミアムセクションを自動展開
   const [openSection, setOpenSection] = useState<string | null>(initialStep === 'options' ? 'subscription' : null)
   const [form, setForm] = useState<AppSettings>({
-    searchMode: 'algolia',
+    // 既定はシンプル。初回セットアップはもともとモードを選ばせず 'notion' を入れる
+    // （下の entry 分岐）が、既定値まで 'algolia' だと、その分岐を通らない経路で
+    // キー未入力のパワーモードとして保存され得る（2026-08-13）。
+    searchMode: 'notion',
     notionToken: '',
     notionMedicalDbId: '',
     notionReferenceDbId: '',
@@ -1705,10 +1708,10 @@ export function SetupWizard({ onComplete, onShowOnboarding, initialStep }: Props
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <p className="text-sm font-bold text-brand-700 dark:text-brand-300"><Zap className="inline-block h-4 w-4 align-text-bottom mr-1.5" />パワーモード</p>
-                  <span className="text-xs font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">本格利用に</span>
+                  <span className="text-xs font-semibold bg-gray-500 text-white px-2 py-0.5 rounded-full">上級者向け</span>
                 </div>
                 <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-                  Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<strong>Notionの記事を更新するたびに再同期</strong>すると最新の内容が検索に反映されます。毎日検索するなら、こちらが向いています。<br />
+                  Algoliaで<strong>0.1秒以下の高速検索</strong>。日本語の部分一致やジャンル絞り込みも快適。<strong>Notionの記事を更新するたびに再同期</strong>しないと、追加・修正が検索に反映されません。<br />
                   <span className="text-amber-600 dark:text-amber-400">※ Algoliaアカウント（無料）の作成と、APIキー3項目の入力が追加で必要です。未入力のままだと検索を始められません</span>
                 </p>
               </button>

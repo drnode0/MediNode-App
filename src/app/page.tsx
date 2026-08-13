@@ -20,7 +20,7 @@ import {
   getSubscriptionIndexName,
   hasSubscriptionConfig,
 } from '@/lib/algolia'
-import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, type AppSettings } from '@/lib/settings'
+import { isSetupComplete, clearSettings, getSettings, saveSettings, getDraft, type AppSettings, type SearchMode } from '@/lib/settings'
 import { isLoginRequiredByServer } from '@/lib/login-policy'
 import { usePremiumPaymentMode, TestModeNotice } from '@/components/premium-shared'
 import { LoginGate } from '@/components/LoginGate'
@@ -92,7 +92,7 @@ const OAuthFinish = dynamicImport(
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL, FEEDBACK_FORM_URL, CLINICAL_QUESTION_FORM_URL, TEASER_LP_URL, NOTION_MAGAZINE_URL, PREMIUM_NOTE_URL } from '@/lib/app-links'
 import { installClientErrorCapture } from '@/lib/client-errors'
 import { isEasyConnectVisible } from '@/lib/easy-connect-flag'
-import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, ExitSurveyBanner, PowerModeUpgradeBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
+import { ANNOUNCEMENTS, UpdateBanner, FeedbackNudgeBanner, ExitSurveyBanner, PwaInstallBanner, bumpSearchCount } from '@/components/AppBanners'
 import { recordSimpleSearchLatency } from '@/lib/power-mode-suggest'
 import { TrialLifecycleNotice } from '@/components/TrialLifecycleNotice'
 import { ResolvedCqBanner } from '@/components/ResolvedCqs'
@@ -2930,7 +2930,13 @@ export default function Home() {
     )
   }
 
-  const searchMode = settings?.searchMode || 'algolia'
+  // searchMode が保存されていない人（searchMode 導入前の設定が残っている等）の既定。
+  // 以前は 'algolia' に倒していたが、パワーモードを新規に勧めない方針（2026-08-13）では
+  // 「キー未入力のままパワーモード扱いになり『追加設定が必要です』で行き止まる」だけになる。
+  // かといって一律 'notion' に倒すと、既にAlgoliaで使っている人の検索が黙って切り替わる。
+  // Algoliaキーが実際に入っているかで決めるのが、どちらの取りこぼしも起こさない。
+  const searchMode: SearchMode =
+    settings?.searchMode ?? (settings?.algoliaAppId && settings?.algoliaSearchKey ? 'algolia' : 'notion')
   const hasTeam = !!(settings?.teamNotionToken && settings?.teamNotionMedicalDbId)
   // プレミアム判定はキーの有無だけでなくトライアル期限切れも考慮する。
   // hasSubscriptionConfig() が isSubscriptionTrialExpired() を内包しており、
@@ -3075,7 +3081,15 @@ export default function Home() {
         <FeedbackNudgeBanner />
         <ExitSurveyBanner />
         <div className="max-w-2xl mx-auto px-4 py-4">
-          <PowerModeUpgradeBanner onOpenSettings={() => setShowSettings(true)} />
+          {/* パワーモード誘導バナーは出さない（2026-08-13 オーナー決定）。
+              台帳の実測でパワーの稼働率がシンプルを下回り（パワー12人中7日以内1人=8.3%、
+              シンプル57人中7人=12.3%）、定着を支えている証拠が無かった。加えて
+              Algolia Admin Key の入力を求める導線であること、同期を押すまで検索へ
+              反映されないという壊れて見える挙動を生むこと、全タブが二重実装になることから、
+              新規には勧めない。既存の利用者はそのまま動き、設定 →「セットアップをやり直す」
+              →「モードを切り替える」から今も切り替えられる。
+              所要時間の記録（recordSimpleSearchLatency）は残す —— シンプルモードが
+              十分速くなったかを測る材料として使う。 */}
           {activeTab === 'search' && <NotionSearchTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'recent' && <NotionRecentTab hasTeam={hasTeam} hasSubscription={hasSubscription} newSince={authorNewSince} />}
           {activeTab === 'browse' && <NotionBrowseTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
