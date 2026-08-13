@@ -1,6 +1,7 @@
 import type { ReaderDoc } from './reader-doc'
 import { getSettings } from './settings'
 import { clearStoredDocs, writeStoredDoc } from './reader-doc-store'
+import { clearIndex } from './notion-index-store'
 
 // アプリ内リーダー本文のクライアントキャッシュ＋プリフェッチ。
 // 「本文を読む」を押してからNotion API往復を待つとストレスになるため、
@@ -74,4 +75,7 @@ export function clearReaderDocCache(): void {
   docs.clear()
   inflight.clear()
   void clearStoredDocs()
+  // 端末内インデックス（一覧）も消す。本文だけ消しても、前の持ち主のページタイトル・
+  // 要約が検索結果に出てしまう。
+  void clearIndex()
 }
