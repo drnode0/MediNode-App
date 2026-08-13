@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { recordRecentView } from '@/lib/recent-views'
 import { fetchReaderDoc, getCachedReaderDoc } from '@/lib/reader-prefetch'
+import { readStoredDoc } from '@/lib/reader-doc-store'
 import type { ReaderDoc } from '@/lib/reader-doc'
 
 const ReaderOverlay = dynamic(() => import('./ReaderOverlay'), { ssr: false })
@@ -60,9 +61,43 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       return
     }
     setHit(h); setDoc(null); setState('loading'); setZoom(null)
+
+    // 端末に残した本文（IndexedDB）を先に出す。メモリキャッシュはリロードで消えるので、
+    // 「昨日読んだページを今日開く」はここが効く。ネットワーク取得は並行して走らせ、
+    // 届いたら差し替える（stale-while-revalidate）。
+    // 先に出すのは、まだ本文が無いときだけ —— ネットワークの方が先に返っていたら、
+    // 古い本文で上書きしてはいけない。
+    // この2つは runFetch 呼び出しごとのローカル状態（クロージャ）。どちらが先に返るか
+    // だけを見るので、state ではなくここで持つ。
+    // networkOk は「取得に成功した」ときだけ立てる。失敗で立ててしまうと、
+    // 通信失敗の直後に端末の本文が届いたとき、読めるのにエラー画面のままになる。
+    let networkOk = false
+    let shownFromStore: ReaderDoc | null = null
+
+    readStoredDoc(h.objectID).then((stored) => {
+      // ネットワークが先に返っていたら、古い本文で上書きしない。
+      if (reqRef.current !== token || !stored || networkOk) return
+      shownFromStore = stored
+      setDoc(stored)
+      // 取得失敗が先に来て error になっていても、ここで読める状態へ戻す。
+      setState('idle')
+    })
+
     fetchReaderDoc(h.objectID)
-      .then((doc) => { if (reqRef.current !== token) return; setDoc(doc); setState('idle') })
-      .catch(() => { if (reqRef.current !== token) return; setState('error') })
+      .then((doc) => {
+        if (reqRef.current !== token) return
+        networkOk = true
+        // 端末の本文を表示中で、中身が変わっていないなら差し替えない。
+        // 読んでいる最中に同じ内容で入れ替えると、再描画でスクロール位置が動く。
+        if (shownFromStore && shownFromStore.lastEdited === doc.lastEdited) return
+        setDoc(doc); setState('idle')
+      })
+      .catch(() => {
+        if (reqRef.current !== token) return
+        // 端末の本文を出せているなら、取得に失敗してもそのまま読ませる（オフライン等）。
+        if (shownFromStore) return
+        setState('error')
+      })
   }, [])
 
   const open = useCallback((h: ReaderHit, opts?: ReaderOpenOptions) => {
