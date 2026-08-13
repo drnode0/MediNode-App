@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionIfLoginRequired } from '@/lib/api-guard'
 import { Client } from '@notionhq/client'
+import { createHash } from 'crypto'
+import { createScanCache, type ScanState } from '@/lib/notion-scan-cache'
 import { sanitizeAdditionalTeams, type TeamConfig } from '@/lib/teams'
 import { getSessionEarlyAccess } from '@/lib/supabase/early-access'
 
@@ -80,6 +82,25 @@ function matchesKeyword(record: NotionRecord, keyword: string): boolean {
 // （Notion API往復の累積によるVercelタイムアウト保護。大規模DBには
 //  Algolia検索＝パワーモード/プレミアムの利用を案内する既定路線）。
 const MAX_SCAN_PAGES = 15
+
+// 走査キャッシュ（notion-scan-cache.ts）。鍵には必ずトークンを含める ——
+// dbId だけを鍵にすると、他人のDB IDを渡すだけで「Notionに触れずにキャッシュから」
+// レコードが返ってしまう（DB IDはNotionのURLに出るので秘密ではない）。
+// トークンはハッシュにして持ち、生の値を鍵に置かない。
+const scanCache = createScanCache<NotionRecord>()
+const tokenKeys = new WeakMap<Client, string>()
+
+function clientFor(token: string): Client {
+  const client = new Client({ auth: token })
+  tokenKeys.set(client, createHash('sha256').update(token).digest('base64url').slice(0, 22))
+  return client
+}
+
+// clientFor 以外で作られたクライアントには鍵が無い＝キャッシュを使わない（安全側）。
+function scanKey(notion: Client, dbId: string, source: string, owner: string): string | null {
+  const t = tokenKeys.get(notion)
+  return t ? `${t}:${dbId}:${source}:${owner}` : null
+}
 
 type NotionRecord = {
   objectID: string
@@ -250,25 +271,47 @@ async function queryDb(
   // Notionのtitleフィルタはタイトル前方一致のみで、要約・キーワードを検索できない。
   // そのため全件をページネーションで取得し、title/要約/キーワードを横断してJS側で
   // 絞り込む（型・プロパティ名に依存しない堅牢版。ジャンル/クイズと同方針）。
+  //
+  // 取得済みのページは scanCache に「どこまで読んだか」つきで残す。打鍵ごとに毎回
+  // Notionを読み直すのがシンプルモードのラグの主因だったため（notion-scan-cache.ts）。
+  // まず手元を絞り、足りなければ続きから読み足す ——早期打ち切りはそのままなので
+  // 初回検索は従来と同じ速さで、2回目以降だけが速くなる。
+  const cacheKey = scanKey(notion, dbId, source, owner)
+  const now = Date.now()
+  const scan: ScanState<NotionRecord> =
+    (cacheKey ? scanCache.get(cacheKey, now) : null) ??
+    { records: [], cursor: undefined, done: false, at: now }
+
   const matched: NotionRecord[] = []
-  let pageCursor: string | undefined = undefined
+  const take = (from: NotionRecord[]) => {
+    for (const r of from) {
+      if (matched.length >= pageSize) return
+      if (matchesKeyword(r, keyword)) matched.push(r)
+    }
+  }
+  take(scan.records)
+
   let pagesScanned = 0
-  do {
+  while (matched.length < pageSize && !scan.done && pagesScanned < MAX_SCAN_PAGES) {
     const res = await notion.databases.query({
       database_id: dbId,
       sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
       page_size: 100,
-      start_cursor: pageCursor,
+      start_cursor: scan.cursor,
     })
     pagesScanned++
     const mapped = mapPagesToRecords(res.results as Array<Record<string, unknown>>, source, owner)
-    for (const r of mapped) {
-      if (matchesKeyword(r, keyword)) matched.push(r)
-      if (matched.length >= pageSize) break
-    }
-    if (matched.length >= pageSize || pagesScanned >= MAX_SCAN_PAGES) break
-    pageCursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
-  } while (pageCursor)
+    scan.records.push(...mapped)
+    scan.cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+    scan.done = !scan.cursor
+    take(mapped)
+    // 上限ページまで読んだらそこで打ち切る（従来の MAX_SCAN_PAGES と同じ意味）。
+    if (scan.records.length >= MAX_SCAN_PAGES * 100) scan.done = true
+  }
+
+  // 読み進めた分を残す（次の打鍵はここから絞れる）。scan.at は最初に読んだ時刻のままに
+  // しておく（読み足すたびに延長すると、いつまでも古いレコードが残り続ける）。
+  if (cacheKey) scanCache.set(cacheKey, scan)
 
   return {
     records: matched,
@@ -433,7 +476,7 @@ async function queryAdditionalTeams(
   const out: NotionRecord[] = []
   await Promise.all(
     teams.map(async (team) => {
-      const client = new Client({ auth: team.notionToken })
+      const client = clientFor(team.notionToken)
       const label = team.label.trim() || '部署'
       const collected: NotionRecord[] = []
       try {
@@ -516,10 +559,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'notionToken と notionMedicalDbId が必要です' }, { status: 400 })
     }
 
-    const notion = notionToken ? new Client({ auth: notionToken }) : null
+    const notion = notionToken ? clientFor(notionToken) : null
     // 部署用クライアント。manualモードでは医療DBが無くても部署トークンだけで生成する。
     const hasTeam = !!(teamNotionToken && (teamNotionMedicalDbId || (mode === 'manual' && teamNotionManualDbId)))
-    const teamNotion = hasTeam ? new Client({ auth: teamNotionToken }) : null
+    const teamNotion = hasTeam ? clientFor(teamNotionToken) : null
     const records: NotionRecord[] = []
 
     // 個人・部署の各DBクエリは互いに独立なので Promise.all で並列実行する
