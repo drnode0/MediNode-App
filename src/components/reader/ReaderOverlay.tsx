@@ -367,7 +367,10 @@ export default function ReaderOverlay({
         </p>
         {/* overflow-x-hidden＋overscroll-contain: スマホで縦スクロール中に横へずれる
             （幅超過コンテンツで水平パンが起きる）のを封じる。表は自前の overflow-x-auto で横スクロール可。 */}
-        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-5 pt-4 pb-20">
+        {/* scroll-pt-14: 目次バーは上端に貼り付く h-0 オーバーレイなので、scrollIntoView で
+            節へ飛ぶと見出しがバーの真下に潜る（実測61px・2026-08-13）。scroll-padding-top を
+            バー高（44px）より少し大きく取り、飛び先が必ずバーの下端より下に来るようにする。 */}
+        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-5 pt-4 pb-20 scroll-pt-14">
           <div className="mx-auto w-full max-w-2xl">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">
