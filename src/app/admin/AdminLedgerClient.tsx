@@ -93,6 +93,8 @@ type LedgerRow = {
   onbFurthest: string | null
   onbTargets: string[] | null
   onbMode: string | null
+  // 現在の接続モード（'notion'=シンプル / 'algolia'=パワー）。設定を保存した人のみ。
+  searchMode: string | null
   onbDbSetup: string | null
   // 友達紹介: 紹介者としての成立数／自身が紹介経由で始めたか。
   referralCount: number
@@ -572,7 +574,9 @@ ${label}`,
     if (!window.confirm('個人情報（メールアドレス等）を含むCSVを出力します。取り扱いに注意してください。続けますか？')) {
       return
     }
-    const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', 'CQ投稿', '投票', 'カード', '知識の選択', 'モード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
+    // 「モード」はセットアップ時点（onb_mode）、「現在のモード」は保存済み設定の searchMode。
+    // 後者はあとから切り替えた人も追えるので、Excelでのクロス集計はこちらを使うこと。
+    const header = ['メール', '区分', '流入元', '紹介した数', '紹介経由', 'CQ投稿', '投票', 'カード', '知識の選択', 'モード', '現在のモード', 'DB設定', '到達ステップ', 'プレミアム最終利用', '期限', '登録日', '最終ログイン', '最終利用', '設定同期', 'ユーザーID']
     const lines = rows.map((r) =>
       [
         csvCell(r.email),
@@ -585,6 +589,7 @@ ${label}`,
         csvCell(r.hasStripe ? 'カードあり' : '—'),
         csvCell((r.onbTargets ?? []).map((t) => TARGET_LABEL[t] ?? t).join('/') || '—'),
         csvCell(r.onbMode === 'simple' ? 'シンプル' : r.onbMode === 'power' ? 'パワー' : '—'),
+        csvCell(r.searchMode === 'notion' ? 'シンプル' : r.searchMode === 'algolia' ? 'パワー' : '—'),
         csvCell(r.onbDbSetup === 'template' ? 'テンプレ複製' : r.onbDbSetup === 'existing' ? '既存DB連携' : '—'),
         csvCell(r.onbFurthest ? (STEP_LABEL[r.onbFurthest] ?? r.onbFurthest) : '—'),
         csvCell(fmtDateTime(r.premiumUsedAt) || (PREMIUM_ELIGIBLE_KINDS.includes(r.kind) ? '未利用' : '—')),
@@ -923,6 +928,31 @@ ${label}`,
     ]
   }, [rows])
 
+  // 現在の接続モード（設定の searchMode を復号したもの）× 最終利用のクロス集計。
+  // 「パワーモードを畳めるか」を決めるための材料 —— 比率ではなく「パワーにした人が
+  // 今も使っているか」で判断するため（2026-08-13）。
+  // onb_mode（上の modeSegments）はセットアップ時点の記録なので、あとから切り替えた人や
+  // かんたん接続で notion に倒された人を追えない。こちらは現在値。
+  // 母数はモニター・本人を除いた realRows（最終利用の内訳と同じ基準に揃える）。
+  const modeActivity = useMemo(() => {
+    const empty = (): ActiveBreakdown => ({ within7: 0, within30: 0, older: 0, never: 0 })
+    const out = { algolia: empty(), notion: empty(), unknown: 0 }
+    const now = Date.now()
+    for (const r of realRows) {
+      if (r.searchMode !== 'algolia' && r.searchMode !== 'notion') {
+        out.unknown++
+        continue
+      }
+      const b = out[r.searchMode]
+      const band = activityBand(lastSeenMs(r), now)
+      if (band === 'never') b.never++
+      else if (band === 'week') b.within7++
+      else if (band === 'month') b.within30++
+      else b.older++
+    }
+    return out
+  }, [realRows])
+
   const dbSetupSegments = useMemo<Segment[]>(() => {
     let template = 0
     let existing = 0
@@ -1229,6 +1259,32 @@ ${label}`,
                 <div className="space-y-4">
                   <SegmentBar segments={modeSegments} label="接続モード" />
                   <SegmentBar segments={dbSetupSegments} label="DB設定の入り方" />
+                </div>
+              </section>
+              <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <SectionHeading
+                  title="接続モード別の最終利用（現在の設定・モニター除く）"
+                  caption="パワーモードにした人が今も使っているか。畳めるかの判断材料。"
+                  help="保存済み設定の searchMode（現在値）で分け、それぞれの最終利用を7日以内／8〜30日／31日以上／形跡なしに分類します。上の「接続モード」はセットアップ時点の記録（onb_mode）なので、あとから切り替えた人はこちらにだけ反映されます。設定をまだ保存していない人は「不明」。"
+                />
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-violet-600 dark:text-violet-300 mb-1.5">
+                      パワー {modeActivity.algolia.within7 + modeActivity.algolia.within30 + modeActivity.algolia.older + modeActivity.algolia.never}人
+                    </p>
+                    <ActiveBreakdownBar breakdown={modeActivity.algolia} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-sky-600 dark:text-sky-300 mb-1.5">
+                      シンプル {modeActivity.notion.within7 + modeActivity.notion.within30 + modeActivity.notion.older + modeActivity.notion.never}人
+                    </p>
+                    <ActiveBreakdownBar breakdown={modeActivity.notion} />
+                  </div>
+                  {modeActivity.unknown > 0 && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      不明 {modeActivity.unknown}人（設定をまだ保存していない、または復号できなかった人）
+                    </p>
+                  )}
                 </div>
               </section>
               <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">

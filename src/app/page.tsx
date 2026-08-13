@@ -29,6 +29,7 @@ import { Spinner } from '@/components/Spinner'
 import { SkeletonCards } from '@/components/SkeletonCards'
 import { SearchResults } from '@/components/SearchResults'
 import { ResultCard, type Hit } from '@/components/ResultCard'
+import { usePrefetchTopHits } from '@/lib/use-prefetch-top-hits'
 import { QuizCard } from '@/components/QuizCard'
 import { StudyNoteCard } from '@/components/StudyNoteCard'
 import { useSearchHistory, SearchHistoryList } from '@/components/SearchHistory'
@@ -1607,6 +1608,10 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     () => mergeHitsByOwnerFilter(records, subHits, ownerFilter),
     [records, subHits, ownerFilter],
   )
+
+  // 上位ヒットの本文を、カードが触られる前に先読みしておく（パワーモード側の
+  // SearchResults と同じ。タッチでは onPointerEnter がタップと同時で助走にならない）。
+  usePrefetchTopHits(merged)
 
   const handleChange = (q: string) => {
     setQuery(q)

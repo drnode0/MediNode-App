@@ -22,6 +22,7 @@ import { requireAdmin } from '@/lib/admin-guard'
 import { grantComplimentaryByUserId } from '@/lib/supabase/subscriptions'
 import { deriveMemberKind, ledgerTrialEndsAt, type SubscriptionSummary } from '@/lib/member-ledger'
 import { logAdminAction } from '@/lib/admin-audit'
+import { decryptSettings, isCryptoReady } from '@/lib/crypto'
 import { reconcileStripe, type StripeSub } from '@/lib/ledger-safety'
 import {
   EARLY_ACCESS_FEATURES,
@@ -71,12 +72,22 @@ export async function GET() {
     // 保存していないフレッシュなテスターアカウントに機能を付与しただけで「設定完了」「最終利用=今日」
     // に見えてしまう（セットアップ完了カウント・離脱位置抽出・最終利用の3箇所が誤る）。
     //
-    // ただし settings_enc は暗号文そのもの（ユーザーのAppSettings全体＝Notionトークン・
-    // Algolia管理キー・追加チーム・プロパティマップ）で1人あたり1〜8KB程度あり、
-    // 中身を使わないのに毎回すべて転送するのは無駄が大きい。non-null かどうかだけを見たいので、
-    // 列そのものを select するのではなく「settings_enc が null でない行の user_id」だけを
-    // 別クエリで取得し、暗号文を一切こちら側に持ち込まない。
+    // settings_enc は暗号文そのもの（ユーザーのAppSettings全体＝Notionトークン・
+    // Algolia管理キー・追加チーム・プロパティマップ）で1人あたり1〜8KB程度ある。
+    // 以前は「non-null かどうか」しか要らなかったので user_id だけを引いていたが、
+    // 現在の接続モード（searchMode）を数えるために本文が要る（2026-08-13）。
+    //
+    // onb_mode（user_metadata）はセットアップ時点の記録で、あとから設定で切り替えた人・
+    // かんたん接続で notion に倒された人（/api/notion/oauth/claim）を追えず、パワーモードを
+    // 過大に見せる。パワーモードを畳むかの判断材料にするには現在値が要る。
+    //
+    // 復号はここ（サーバー）だけで行い、取り出すのは searchMode の1フィールドのみ。
+    // 平文も暗号文も管理画面へは返さない。復号に失敗した行は null（不明）に倒して続行する。
+    //
+    // 規模の注意: 利用者が増えると転送量が「人数×最大8KB」で効いてくる。台帳が重くなったら
+    // user_settings に search_mode の平文列を足して保存時に書く方式へ移すこと（機微ではない）。
     const settingsByUser = new Map<string, string | null>()
+    const searchModeByUser = new Map<string, string>()
     const earlyAccessByUser = new Map<string, boolean>()
     const featuresByUser = new Map<string, string[]>()
     {
@@ -112,9 +123,27 @@ export async function GET() {
       // そのまま信用する」側にフォールバックする（機能付与直後を設定完了と誤認する既知の
       // 揺れは残るが、全員を未設定に見せる誤りよりましと判断）。
       let savedSettingsUserIds: Set<string> | null = null
-      const probe = await admin.from('user_settings').select('user_id').not('settings_enc', 'is', null)
+      const probe = await admin
+        .from('user_settings')
+        .select('user_id, settings_enc')
+        .not('settings_enc', 'is', null)
       if (!probe.error) {
         savedSettingsUserIds = new Set((probe.data ?? []).map((r) => r.user_id as string))
+        // 鍵が無い環境（ローカル等）では復号しない＝モードは全員「不明」。台帳自体は落とさない。
+        if (isCryptoReady()) {
+          for (const r of probe.data ?? []) {
+            const enc = r.settings_enc as string | null
+            if (!enc) continue
+            try {
+              const mode = (JSON.parse(decryptSettings(enc)) as { searchMode?: unknown }).searchMode
+              if (mode === 'notion' || mode === 'algolia') {
+                searchModeByUser.set(r.user_id as string, mode)
+              }
+            } catch {
+              // 旧鍵で復号できない・JSONが壊れている等。この人だけ「不明」にして続行する。
+            }
+          }
+        }
       }
 
       for (const s of rows) {
@@ -325,6 +354,9 @@ export async function GET() {
             ? (u.user_metadata.onb_targets as string[])
             : null,
           onbMode: (u.user_metadata?.onb_mode as string | undefined) ?? null,
+          // 現在の接続モード（'notion'=シンプル / 'algolia'=パワー）。設定を保存した人のみ。
+          // onbMode と違い、あとから切り替えた分もここに出る。
+          searchMode: searchModeByUser.get(u.id) ?? null,
           onbDbSetup: (u.user_metadata?.onb_db_setup as string | undefined) ?? null,
           // 友達紹介: この人が紹介者として成立させた数／この人自身が紹介経由か。
           referralCount: referralCountByUser.get(u.id) ?? 0,
