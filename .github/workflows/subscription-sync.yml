@@ -21,9 +21,22 @@ jobs:
     steps:
       - name: Trigger subscription sync API
         run: |
-          response=$(curl -sS -X POST -m 300 \
-            -H "x-sync-secret: ${{ secrets.SUBSCRIPTION_SYNC_SECRET }}" \
-            https://medical-search-public.vercel.app/api/subscription/sync)
-          echo "$response"
-          # success:true が返らなければジョブを失敗させて気づけるようにする
-          echo "$response" | grep -q '"success":true'
+          # 同期処理がVercelのmaxDuration(60秒)に近づくと稀にタイムアウトで失敗する
+          # （穴埋め抽出でページごとのNotion API呼び出しが増えたため）。次回実行では
+          # 大抵成功しているため、まず同一ジョブ内で最大3回リトライしてから失敗扱いにする。
+          for i in 1 2 3; do
+            # GitHub Actionsのrunステップは既定でset -eが有効なため、curl自体が
+            # 失敗（タイムアウト時の接続断など）すると || true がないとここで
+            # スクリプトごと即終了し、以降のリトライに進めない。
+            response=$(curl -sS -X POST -m 300 \
+              -H "x-sync-secret: ${{ secrets.SUBSCRIPTION_SYNC_SECRET }}" \
+              https://medical-search-public.vercel.app/api/subscription/sync) || true
+            echo "$response"
+            if echo "$response" | grep -q '"success":true'; then
+              exit 0
+            fi
+            echo "retry $i failed, waiting before next attempt..."
+            sleep 20
+          done
+          echo "all retries failed"
+          exit 1
