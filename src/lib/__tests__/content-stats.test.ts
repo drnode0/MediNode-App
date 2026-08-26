@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeContentStats, readingMinutes } from '@/lib/content-stats'
+import { blockText, computeContentStats, readingMinutes } from '@/lib/content-stats'
 
 const rt = (text: string) => [{ plain_text: text }]
 
@@ -46,5 +46,28 @@ describe('readingMinutes', () => {
     expect(readingMinutes(100)).toBe(1)
     expect(readingMinutes(600)).toBe(1)
     expect(readingMinutes(4200)).toBe(7)
+  })
+})
+
+describe('blockText の表対応', () => {
+  it('table_row のセルを空白区切りで読む', () => {
+    const row = {
+      type: 'table_row',
+      table_row: { cells: [[{ plain_text: '鼻カニューレ' }], [{ plain_text: '2〜6 L/分' }]] },
+    }
+    expect(blockText(row)).toBe('鼻カニューレ 2〜6 L/分')
+  })
+
+  it('table 本体（セルを持たない）は空文字のまま', () => {
+    expect(blockText({ type: 'table', table: { table_width: 2 } })).toBe('')
+  })
+
+  it('表の文字数が本文文字数に加算される', () => {
+    const blocks = [
+      { type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'あいう' }] } },
+      { type: 'table', table: { table_width: 2 } },
+      { type: 'table_row', table_row: { cells: [[{ plain_text: 'かき' }], [{ plain_text: 'くけ' }]] } },
+    ]
+    expect(computeContentStats(blocks).contentChars).toBe(3 + 'かき くけ'.length)
   })
 })

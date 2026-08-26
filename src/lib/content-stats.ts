@@ -10,6 +10,13 @@ const MAX_HEADINGS = 5
 const CHARS_PER_MINUTE = 600
 
 export function blockText(block: NotionBlockLite): string {
+  // 表の中身は table_row の cells にある（rich_text ではない）。
+  // ここを読まないと、本文を表に書き直した瞬間その文が検索と文字数から消える。
+  if (block.type === 'table_row') {
+    const cells = (block.table_row as { cells?: Array<Array<{ plain_text?: string }>> } | undefined)?.cells
+    if (!Array.isArray(cells)) return ''
+    return cells.map((cell) => cell.map((t) => t.plain_text || '').join('')).join(' ')
+  }
   const payload = block[block.type] as { rich_text?: Array<{ plain_text?: string }> } | undefined
   if (!payload || !Array.isArray(payload.rich_text)) return ''
   return payload.rich_text.map((t) => t.plain_text || '').join('')

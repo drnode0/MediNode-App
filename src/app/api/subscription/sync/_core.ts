@@ -83,8 +83,15 @@ function extractHasFiles(props: Record<string, Record<string, unknown>>): boolea
   return false
 }
 
+// 表の子（table_row）を取りに行く回数の上限。1ページに表が大量にある想定はしないが、
+// 同期全体を止めないための保険として置く（cloze-sync の展開上限と同じ考え方）。
+const MAX_TABLE_EXPANDS = 8
+
 // ページ本文（トップレベルブロック）を全ページネーションで取得する。
 // 失敗してもページ全体の同期は止めない（nullで続行）。統計と節分割の両方がこれを使う。
+//
+// 表だけは子（table_row）に中身があるため、平坦な配列に展開して混ぜる。
+// 展開しないと、表に書いた本文が検索スニペットにも本文文字数にも載らない。
 async function fetchPageBlocks(notion: Client, pageId: string): Promise<NotionBlockLite[] | null> {
   try {
     const blocks: NotionBlockLite[] = []
@@ -98,7 +105,21 @@ async function fetchPageBlocks(notion: Client, pageId: string): Promise<NotionBl
       blocks.push(...(res.results as unknown as NotionBlockLite[]))
       cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
     } while (cursor)
-    return blocks
+
+    const out: NotionBlockLite[] = []
+    let expands = 0
+    for (const b of blocks) {
+      out.push(b)
+      if (b.type !== 'table' || expands >= MAX_TABLE_EXPANDS) continue
+      expands++
+      try {
+        const rows = await notion.blocks.children.list({ block_id: (b as unknown as { id: string }).id, page_size: 100 })
+        out.push(...(rows.results as unknown as NotionBlockLite[]))
+      } catch {
+        // 表の中身が取れなくても、そのページの同期自体は続ける。
+      }
+    }
+    return out
   } catch {
     return null
   }
