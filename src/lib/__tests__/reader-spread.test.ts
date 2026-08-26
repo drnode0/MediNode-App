@@ -152,4 +152,14 @@ describe('visibleQuizzes', () => {
     const s = { ...base, quizzes: [q({ sectionAnchor: '2' })] }
     expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
+
+  it('根拠が空文字で目視済みでも出さない（"".includes("")はtrueになるため）', () => {
+    const s = { ...base, quizzes: [q({ evidence: '' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+
+  it('根拠が空白とタブだけで目視済みでも出さない', () => {
+    const s = { ...base, quizzes: [q({ evidence: '  \t\t  ' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
 })

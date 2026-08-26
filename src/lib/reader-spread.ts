@@ -250,7 +250,12 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
   const section = spread.sections.find((s) => s.anchor === anchor)
   if (!section) return []
   const corpus = corpusOf({ title: '', icon: null, cover: null, lastEdited: null, blocks: section.deep })
-  return spread.quizzes.filter(
-    (q) => q.sectionAnchor === anchor && q.reviewed && corpus.includes(q.evidence.replace(/[ \t]+/g, ' ')),
-  )
+  return spread.quizzes.filter((q) => {
+    if (q.sectionAnchor !== anchor || !q.reviewed) return false
+    const evidence = q.evidence.trim()
+    // 空文字は String.includes('') が常に true を返すため、検査をすり抜けて
+    // 根拠のない設問を通してしまう。fail-closed で明示的に弾く。
+    if (!evidence) return false
+    return corpus.includes(evidence.replace(/[ \t]+/g, ' '))
+  })
 }

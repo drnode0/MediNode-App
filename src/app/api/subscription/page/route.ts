@@ -39,7 +39,13 @@ async function getPublishedSpread(pageId: string): Promise<SpreadDoc | null> {
       .eq('page_id', pageId)
       .eq('status', 'published')
       .maybeSingle()
-    return (data?.spread_doc as SpreadDoc | undefined) ?? null
+    const spread = (data?.spread_doc as SpreadDoc | undefined) ?? null
+    if (!spread) return null
+    // 保存データ（spread_doc）自体は未目視の設問を含んだまま変えない。
+    // /admin の目視画面はそれを必要とする。ここは読者に返す直前の関門で、
+    // reviewed: true だけに絞る。visibleQuizzes（描画側）はさらに逐語一致も見るが、
+    // 未目視の設問がJSONとしてブラウザに届くこと自体をここで止める。
+    return { ...spread, quizzes: spread.quizzes.filter((q) => q.reviewed) }
   } catch {
     // 誌面が引けなくても本文は返す。読めなくなることだけは避ける。
     return null

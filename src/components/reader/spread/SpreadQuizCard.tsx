@@ -14,10 +14,12 @@ export function SpreadQuizCard({ quiz }: { quiz: SpreadQuiz }) {
       <div className="space-y-1.5">
         {quiz.choices.map((c, i) => {
           const correct = i === quiz.answerIndex
+          // 面には彩度のある色を敷かない（誌面の配色原則）。正解は面の塗りではなく
+          // アクセント（文字色＋左の細枠線）で示す。面は階調トークンのまま。
           const tone = !answered
             ? 'bg-card-light dark:bg-card-dark'
             : correct
-              ? 'bg-brand-50 dark:bg-brand-900/30 font-bold'
+              ? 'bg-card-light dark:bg-card-dark border-l-2 border-brand-600 text-brand-700 dark:text-brand-300 font-bold'
               : i === picked
                 ? 'bg-gray-100 dark:bg-white/[0.08] line-through text-gray-500 dark:text-gray-400'
                 : 'bg-card-light dark:bg-card-dark opacity-60'
