@@ -121,3 +121,55 @@ export function splitSections(doc: ReaderDoc): SplitResult {
 
   return { lead, preface, sections, tail }
 }
+
+const MIN_FLOW_STEPS = 3
+
+/**
+ * 節のブロックから表層部品を推定する。
+ *
+ * 推定は控えめにする。医学的な意味づけ（この表は分類マトリクスか比較表か等）は
+ * 機械には決められないので、迷ったら 'none'（表層なし）に倒し、
+ * 制作スキルのオーバレイで明示的に上書きしてもらう。
+ */
+export function classifyPart(blocks: ReaderBlock[]): SpreadPart {
+  const table = blocks.find((b) => b.kind === 'table')
+  if (table && table.kind === 'table') return { kind: 'comparison', rows: table.rows }
+
+  const ordered = blocks.filter((b) => b.kind === 'list_item' && b.ordered)
+  if (ordered.length >= MIN_FLOW_STEPS) {
+    return {
+      kind: 'flow',
+      steps: ordered.map((b, i) => ({
+        label: String(i + 1),
+        inlines: b.kind === 'list_item' ? b.inlines : [],
+      })),
+    }
+  }
+  return { kind: 'none' }
+}
+
+/**
+ * 原本の ReaderDoc から SpreadDoc の下書きを組む。
+ * 本文（deep）は原本のブロックをそのまま持つので、この時点で逐語一致は保証される。
+ */
+export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
+  const split = splitSections(doc)
+  return {
+    version: 1,
+    pageId,
+    title: doc.title,
+    lead: split.lead,
+    preface: split.preface,
+    sections: split.sections.map((s) => ({
+      n: s.n,
+      anchor: s.anchor,
+      title: s.title,
+      shortLabel: null,
+      part: classifyPart(s.blocks),
+      deep: s.blocks,
+    })),
+    tail: split.tail,
+    quizzes: [],
+    icons: {},
+  }
+}

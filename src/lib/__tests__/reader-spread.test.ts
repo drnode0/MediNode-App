@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
 const t = (text: string) => [{ text }]
@@ -37,5 +37,44 @@ describe('splitSections', () => {
     expect(r.lead).toBeNull()
     expect(r.preface).toEqual([d.blocks[0]])
     expect(r.sections).toHaveLength(1)
+  })
+})
+
+describe('classifyPart', () => {
+  it('表ブロックがあれば比較表になる', () => {
+    const rows = [[[{ text: 'デバイス' }], [{ text: '流量' }]], [[{ text: '鼻カニューレ' }], [{ text: '2〜6 L/分' }]]]
+    const part = classifyPart([{ kind: 'table', rows }])
+    expect(part).toEqual({ kind: 'comparison', rows })
+  })
+
+  it('番号つき箇条書きが3つ以上なら判断フローになる', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'list_item', ordered: true, inlines: t('目標SpO2を決める') },
+      { kind: 'list_item', ordered: true, inlines: t('デバイスを選ぶ') },
+      { kind: 'list_item', ordered: true, inlines: t('反応を見て替える') },
+    ]
+    const part = classifyPart(blocks)
+    expect(part.kind).toBe('flow')
+    expect(part.kind === 'flow' && part.steps.map((s) => s.label)).toEqual(['1', '2', '3'])
+  })
+
+  it('該当しなければ表層なし', () => {
+    expect(classifyPart([{ kind: 'paragraph', inlines: t('ただの段落。') }])).toEqual({ kind: 'none' })
+  })
+})
+
+describe('buildSpreadDraft', () => {
+  it('節ごとに部品と深掘りを持つ下書きを組む', () => {
+    const d = buildSpreadDraft(doc, 'page-1')
+    expect(d.version).toBe(1)
+    expect(d.pageId).toBe('page-1')
+    expect(d.title).toBe('酸素はどう使い分ける？')
+    expect(d.lead).toBe(doc.blocks[0])
+    expect(d.sections).toHaveLength(2)
+    expect(d.sections[0].deep).toEqual([doc.blocks[2]])
+    expect(d.sections[0].part).toEqual({ kind: 'none' })
+    expect(d.sections[0].shortLabel).toBeNull()
+    expect(d.quizzes).toEqual([])
+    expect(d.tail).toEqual([doc.blocks[5]])
   })
 })
