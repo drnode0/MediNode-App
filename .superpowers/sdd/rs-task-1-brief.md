@@ -1,3 +1,71 @@
+### Task 1: SpreadDoc の型と節への切り分け
+
+**Files:**
+- Create: `src/lib/reader-spread.ts`
+- Test: `src/lib/__tests__/reader-spread.test.ts`
+
+**Interfaces:**
+- Consumes: `ReaderBlock` / `ReaderDoc` / `ReaderInline` / `calloutRole` / `parseSectionHeading` / `sectionAnchor`（すべて `src/lib/reader-doc.ts` の既存エクスポート）
+- Produces: `SpreadPart` / `SpreadSection` / `SpreadQuiz` / `SpreadDoc` / `SpreadOverlay` 型、`splitSections(doc: ReaderDoc): SplitResult`
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`src/lib/__tests__/reader-spread.test.ts` を新規作成する。
+
+```ts
+import { describe, it, expect } from 'vitest'
+import { splitSections } from '../reader-spread'
+import type { ReaderBlock, ReaderDoc } from '../reader-doc'
+
+const t = (text: string) => [{ text }]
+
+const doc: ReaderDoc = {
+  title: '酸素はどう使い分ける？',
+  icon: null,
+  cover: null,
+  lastEdited: '2026-08-20T00:00:00.000Z',
+  blocks: [
+    /* 0 */ { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [{ kind: 'paragraph', inlines: t('目標SpO2から決める。') }] },
+    /* 1 */ { kind: 'heading', level: 2, inlines: t('1. 最初に決めるのは目標SpO2である') },
+    /* 2 */ { kind: 'paragraph', inlines: t('デバイスより先に目標値を決める。') },
+    /* 3 */ { kind: 'heading', level: 2, inlines: t('2. 鼻カニューレで開始する') },
+    /* 4 */ { kind: 'list_item', ordered: false, inlines: t('2〜6 L/分で開始する。') },
+    /* 5 */ { kind: 'callout', icon: '🧑‍⚕️', color: null, blocks: [{ kind: 'paragraph', inlines: t('実際には忍容性を見る。') }] },
+  ],
+}
+
+describe('splitSections', () => {
+  it('⚡結論を lead に、番号つきH2ごとに節を切り、署名は tail に置く', () => {
+    const r = splitSections(doc)
+    expect(r.lead).toBe(doc.blocks[0])
+    expect(r.sections.map((s) => s.n)).toEqual([1, 2])
+    expect(r.sections[0].title).toBe('1. 最初に決めるのは目標SpO2である')
+    expect(r.sections[0].anchor).toBe('s1')
+    expect(r.sections[0].blocks).toEqual([doc.blocks[2]])
+    expect(r.sections[1].blocks).toEqual([doc.blocks[4]])
+    expect(r.tail).toEqual([doc.blocks[5]])
+  })
+
+  it('H2の前にある本文は lead にも節にも入らず preface に落ちる', () => {
+    const d: ReaderDoc = { ...doc, blocks: [{ kind: 'paragraph', inlines: t('前書き。') }, doc.blocks[1], doc.blocks[2]] }
+    const r = splitSections(d)
+    expect(r.lead).toBeNull()
+    expect(r.preface).toEqual([d.blocks[0]])
+    expect(r.sections).toHaveLength(1)
+  })
+})
+```
+
+- [ ] **Step 2: テストを走らせて失敗を確認する**
+
+Run: `npx vitest run src/lib/__tests__/reader-spread.test.ts`
+Expected: FAIL（`Failed to resolve import "../reader-spread"`）
+
+- [ ] **Step 3: 実装する**
+
+`src/lib/reader-spread.ts` を新規作成する。
+
+```ts
 // アプリ内リーダーの「誌面」表示（TEXTBOOK LITE）のデータ模型。
 // 設計: docs/superpowers/specs/2026-08-27-reader-spread-design.md
 //
@@ -84,10 +152,8 @@ function isTailBlock(b: ReaderBlock): boolean {
 /**
  * ReaderDoc を「⚡結論（lead）／H2前の本文（preface）／H2ごとの節／末尾（tail）」に切る。
  *
- * 節の区切りは既存の目次（tocSections）と同じ heading level 2。番号は sectionAnchor が
- * 使う採番ロジックをそのまま借り、's' を前置して誌面（SpreadDoc）専用の名前空間にする
- * （オーバレイ・クイズが節を s1・s2 のキーで参照するため。既存リーダーの data-section 属性
- * とは別名前空間で、混線しない）。
+ * 節の区切りは既存の目次（tocSections）と同じ heading level 2。アンカーも
+ * sectionAnchor を使い、横断検索の節ジャンプ（data-section）と一致させる。
  */
 export function splitSections(doc: ReaderDoc): SplitResult {
   let lead: ReaderBlock | null = null
@@ -108,10 +174,7 @@ export function splitSections(doc: ReaderDoc): SplitResult {
     if (b.kind === 'heading' && b.level === 2) {
       const title = textOf(b.inlines)
       const parsed = parseSectionHeading(b.inlines)
-      // 接頭辞を付けないこと。ReaderOverlay が querySelector で節番号と照合するため、
-      // 接頭辞を付けると横断検索からの節ジャンプが無言で外れる。
-      const anchor = sectionAnchor(parsed?.n ?? null, index)
-      current = { n: parsed?.n ?? null, anchor, title, blocks: [] }
+      current = { n: parsed?.n ?? null, anchor: sectionAnchor(parsed?.n ?? null, index), title, blocks: [] }
       sections.push(current)
       return
     }
@@ -121,3 +184,19 @@ export function splitSections(doc: ReaderDoc): SplitResult {
 
   return { lead, preface, sections, tail }
 }
+```
+
+- [ ] **Step 4: テストを走らせて通ることを確認する**
+
+Run: `npx vitest run src/lib/__tests__/reader-spread.test.ts`
+Expected: PASS（2 tests）
+
+- [ ] **Step 5: コミット**
+
+```bash
+git add src/lib/reader-spread.ts src/lib/__tests__/reader-spread.test.ts
+git commit -m "feat: 誌面のデータ模型と節への切り分け（純関数）"
+```
+
+---
+

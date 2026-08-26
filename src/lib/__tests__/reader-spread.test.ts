@@ -25,7 +25,7 @@ describe('splitSections', () => {
     expect(r.lead).toBe(doc.blocks[0])
     expect(r.sections.map((s) => s.n)).toEqual([1, 2])
     expect(r.sections[0].title).toBe('1. 最初に決めるのは目標SpO2である')
-    expect(r.sections[0].anchor).toBe('s1')
+    expect(r.sections[0].anchor).toBe('1')
     expect(r.sections[0].blocks).toEqual([doc.blocks[2]])
     expect(r.sections[1].blocks).toEqual([doc.blocks[4]])
     expect(r.tail).toEqual([doc.blocks[5]])
