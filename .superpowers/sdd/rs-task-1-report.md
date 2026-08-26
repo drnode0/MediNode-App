@@ -117,3 +117,36 @@ Command: `npx vitest run src/lib/__tests__/reader-spread.test.ts`（`src/lib/rea
 - 上記のアンカー `s` 接頭辞の判断が誤りであれば、Step 3 のコードどおり接頭辞を外すだけで
   修正できる（テスト側の期待値 `'s1'` も同時に変更が必要になる）。後続タスクの実装者・レビュアーに
   この判断の妥当性を確認してほしい。
+
+## 修正（節アンカー）
+
+Task 1 コミット直後、`ReaderOverlay.tsx:236` の `querySelector` がアンカーと照合することが判明した。
+節ジャンプが無言で外れる不具合が判明したため、**接頭辞を外して修正**。
+
+### 修正内容
+
+- `src/lib/reader-spread.ts:111` 行目: `const anchor = \`s${sectionAnchor(...)}\`` を
+  `const anchor = sectionAnchor(...)` に変更。直前に日本語コメント追加（照合外れの理由を明記）
+- `src/lib/__tests__/reader-spread.test.ts:28` 行目: `toBe('s1')` を `toBe('1')` に変更
+
+### 確認コマンドと出力
+
+Run: `npx vitest run src/lib/__tests__/reader-spread.test.ts`
+
+```
+ RUN  v4.1.10 /Users/tatsukinonaka/MediNode-本体/.worktrees/reader-spread
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  06:18:06
+   Duration  438ms (transform 36ms, setup 0ms, import 47ms, tests 5ms, environment 0ms)
+```
+
+Run: `npx tsc --noEmit`
+
+```
+（出力なし）
+```
+
+Commit: `5cbf8e5` — fix: 節アンカーに接頭辞を付けない（節ジャンプ互換）
