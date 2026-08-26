@@ -1,0 +1,93 @@
+import { NextResponse } from 'next/server'
+import { Client } from '@notionhq/client'
+import { requireAdmin } from '@/lib/admin-guard'
+import { logAdminAction } from '@/lib/admin-audit'
+import { createAdminClient } from '@/lib/supabase/server'
+import { fetchPageBlocks } from '@/lib/notion-page'
+import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
+import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
+import { applyOverlay, buildSpreadDraft, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+
+/**
+ * 誌面（SpreadDoc）の投入。オーナー専用。
+ *
+ * 本文はクライアントから受け取らない。サーバーがNotion原本を読んで組み立て、
+ * 制作スキルから渡されるのは上書き（短ラベル・部品・理解チェック・アイコン）だけにする。
+ * こうすると (1) 本文の逐語一致が構造上保証され、(2) Notionの署名URL（約1時間で失効）が
+ * 誌面に焼き付く事故も起きない（mapBlocksToReaderDoc に pageId を渡すと
+ * 画像が /api/subscription/image の安定プロキシURLになる）。
+ */
+export async function PUT(req: Request) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
+  let body: { pageId?: string; overlay?: SpreadOverlay; publish?: boolean }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'bad_json' }, { status: 400 })
+  }
+  const pageId = (body.pageId || '').replace(/^subscription_/, '').replace(/#.*$/, '').trim()
+  if (!pageId) return NextResponse.json({ error: 'missing pageId' }, { status: 400 })
+
+  const token = process.env.SUBSCRIPTION_NOTION_TOKEN
+  if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })
+
+  let doc
+  let lastEdited: string | null = null
+  try {
+    const notion = new Client({ auth: token })
+    const page = await notion.pages.retrieve({ page_id: pageId })
+    const blocks = await fetchPageBlocks(notion, pageId)
+    doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
+    lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
+  } catch {
+    return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
+  }
+
+  const overlay = body.overlay ?? {}
+  const spread = applyOverlay(buildSpreadDraft(doc, pageId), overlay)
+  const check = verifyVerbatim(spread, doc)
+  if (!check.ok) {
+    // 生成側が本文を書き換えた、または原本が変わった。どちらも投入させない。
+    return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const status = body.publish ? 'published' : 'draft'
+  const { error } = await admin.from('reader_spreads').upsert({
+    page_id: pageId,
+    spread_doc: spread,
+    overlay,
+    source_last_edited: lastEdited,
+    status,
+    verified_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  if (error) return NextResponse.json({ error: 'save_failed' }, { status: 500 })
+
+  await logAdminAction(admin, {
+    actorEmail: auth.email,
+    action: body.publish ? 'publish_spread' : 'put_spread',
+    // admin_audit_log.target_user_id は uuid 型なので、page_id は detail に入れる。
+    detail: { pageId, sections: spread.sections.length, quizzes: spread.quizzes.length },
+  })
+
+  // 誌面は /api/subscription/page の応答に同梱するので、本文と同じタグで失効させる。
+  revalidateSubscriptionReaderDocs()
+
+  return NextResponse.json({ ok: true, status, sections: spread.sections.length })
+}
+
+/** /admin の棚卸し用。誌面の一覧を新しい順に返す。 */
+export async function GET() {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('reader_spreads')
+    .select('page_id, status, source_last_edited, verified_at, updated_at')
+    .order('updated_at', { ascending: false })
+  if (error) return NextResponse.json({ error: 'load_failed' }, { status: 500 })
+  return NextResponse.json({ spreads: data ?? [] })
+}

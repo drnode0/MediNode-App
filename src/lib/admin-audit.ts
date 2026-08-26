@@ -15,6 +15,8 @@ export type AdminAction =
   // 機能別の先行体験。どの機能を開けたかがログから直接読めるようにキーを含める。
   | `grant_feature:${EarlyAccessFeature}`
   | `revoke_feature:${EarlyAccessFeature}`
+  | 'put_spread'
+  | 'publish_spread'
 
 // 監査ログを1件記録。テーブル未適用・失敗でも主アクションは止めない（握りつぶす）。
 export async function logAdminAction(
