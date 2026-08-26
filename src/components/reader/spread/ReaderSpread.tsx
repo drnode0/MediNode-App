@@ -3,6 +3,8 @@ import { useContext, useMemo, useState } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
+import { SpreadQuizCard } from './SpreadQuizCard'
+import { visibleQuizzes } from '@/lib/reader-spread'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
@@ -133,6 +135,10 @@ export function ReaderSpread({
               </h2>
 
               <SpreadPartView part={s.part} />
+
+              {visibleQuizzes(spread, s.anchor).map((q) => (
+                <SpreadQuizCard key={q.id} quiz={q} />
+              ))}
 
               {/* 検索中は searching || open.has(...) で isOpen が常に真になり、全節が開いた
                   状態になる（記事内検索が DOM 上の mark[data-reader-search] を数えるため）。

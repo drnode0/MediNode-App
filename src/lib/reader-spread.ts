@@ -237,3 +237,20 @@ export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc): { ok: boolean
     .filter((s) => !corpus.includes(s.replace(/[ \t]+/g, ' ')))
   return { ok: missing.length === 0, missing }
 }
+
+/**
+ * その節で読者に出してよい理解チェックだけを返す。
+ *
+ * 条件は2つとも必要。
+ *  1. オーナーの目視を通っている（reviewed）
+ *  2. 根拠の逐語が、その節の深掘り本文にそのまま含まれている
+ * 原本が変わって根拠が消えた設問を、黙って出し続けないための関門。
+ */
+export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] {
+  const section = spread.sections.find((s) => s.anchor === anchor)
+  if (!section) return []
+  const corpus = corpusOf({ title: '', icon: null, cover: null, lastEdited: null, blocks: section.deep })
+  return spread.quizzes.filter(
+    (q) => q.sectionAnchor === anchor && q.reviewed && corpus.includes(q.evidence.replace(/[ \t]+/g, ' ')),
+  )
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, verifyVerbatim } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
+import type { SpreadQuiz } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
 
@@ -122,5 +123,33 @@ describe('applyOverlay / verifyVerbatim', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const merged = applyOverlay(draft, { shortLabels: { '1': '目標SpO2' } })
     expect(verifyVerbatim(merged, doc).ok).toBe(true)
+  })
+})
+
+describe('visibleQuizzes', () => {
+  const base = buildSpreadDraft(doc, 'page-1')
+  const q = (over: Partial<SpreadQuiz>): SpreadQuiz => ({
+    id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0,
+    evidence: 'デバイスより先に目標値を決める。', reviewed: true, ...over,
+  })
+
+  it('目視済みで根拠が本文にあるものだけ出す', () => {
+    const s = { ...base, quizzes: [q({})] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(1)
+  })
+
+  it('目視前は出さない', () => {
+    const s = { ...base, quizzes: [q({ reviewed: false })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+
+  it('根拠が本文に無くなったら出さない', () => {
+    const s = { ...base, quizzes: [q({ evidence: '原本から消えた文。' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+
+  it('別の節の設問は出さない', () => {
+    const s = { ...base, quizzes: [q({ sectionAnchor: '2' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 })
