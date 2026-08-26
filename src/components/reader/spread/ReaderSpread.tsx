@@ -34,17 +34,30 @@ const SECTION_INDEX_STRIDE = 1000
  *
  * 検索中は全節を開く。折りたたんだ本文は DOM に無く、ReaderOverlay の
  * 記事内検索（mark[data-reader-search] を数える）が拾えないため。
+ *
+ * 注意: ここで呼ぶ RenderedBlocks は ReaderSourceCtx.Provider を張らずに使っている
+ * （ReaderBody.tsx は張っており、未対応ブロックの「Notionで開く」リンクに使われる）。
+ * 誌面は公開済みサブスク記事にしか付かず、sourceUrl は個人・部署ページでしか
+ * 非nullにならないため現状は無害だが、将来 doc.sourceUrl を誌面側にも流用するときは
+ * ここに Provider が要ることを忘れないこと。
  */
 export function ReaderSpread({
   spread,
   onImageClick,
   scaleEm,
+  lastEdited,
+  cover,
 }: {
   spread: SpreadDoc
   onImageClick: (url: string) => void
   // Aaボタンの文字サイズ（SCALE_EM の値）。ReaderBody と同じ受け口で、
   // em なので iOS Dynamic Type と乗算で合成される。
   scaleEm?: string
+  // 更新日とカバー画像は誌面スナップショット（SpreadDoc）には焼き込まない。
+  // 「今の原本の状態」なので、doc を持つ ReaderOverlay から毎回渡してもらう
+  // （SpreadDoc の型は変えない。理由は下のコメント参照）。
+  lastEdited: string | null
+  cover: string | null
 }) {
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
@@ -61,6 +74,19 @@ export function ReaderSpread({
     // ラッパーを reader-prose の外に出したり中身側の各要素にバラして掛けたりしない。
     <div className="reader-prose">
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
+        {/* 更新日・カバー画像は ReaderBody.tsx と同じ見た目・同じ順序・同じ位置
+            （本文冒頭・lead より前）で出す。誌面化した記事でもここが黙って消えないように。 */}
+        {lastEdited && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+            更新 {new Date(lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+          </p>
+        )}
+        {cover && (
+          <button type="button" onClick={() => onImageClick(cover)} className="block w-full mb-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cover} alt="" className="w-full rounded-lg" />
+          </button>
+        )}
         {spread.lead && (
           // data-tldr は付けない。spread.lead は必ず conclusion role の callout で、
           // 中で RenderedBlocks が data-tldr を出す（ReaderBody.tsx）。ここにも付けると

@@ -475,7 +475,13 @@ export default function ReaderOverlay({
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 {spread ? (
-                  <ReaderSpread spread={spread} onImageClick={(u) => onZoom(u)} scaleEm={SCALE_EM[fontScale]} />
+                  <ReaderSpread
+                    spread={spread}
+                    onImageClick={(u) => onZoom(u)}
+                    scaleEm={SCALE_EM[fontScale]}
+                    lastEdited={doc.lastEdited}
+                    cover={doc.cover}
+                  />
                 ) : (
                   <ReaderBody
                     doc={doc}
