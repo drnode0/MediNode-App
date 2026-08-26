@@ -41,8 +41,8 @@
 | 0021 | early_access_features | `user_settings.early_access_features` | ✅ |
 | 0022 | oauth_states | `oauth_states` | ✅ |
 | 0023 | oauth_states_purge_indexes | `oauth_states_created_at_idx`, `oauth_states_status_completed_at_idx` | ✅ |
-| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ⏳ 未適用 |
-| 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps` | ⏳ 未適用 |
+| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ❓ 未確認 |
+| 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps` | ❓ 未確認 |
 | 0026 | reader_spreads | `reader_spreads` | ⏳ 未適用 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
