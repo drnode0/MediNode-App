@@ -10,8 +10,14 @@ import type { SpreadDoc } from '@/lib/reader-spread'
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
 const NO_FILTER: Set<Confidence> = new Set()
 
-// 節ごとに index の起点をずらす幅。1つの節が持つブロック数の上限より十分大きく取り、
-// 節をまたいで index（キーと番号なし見出しのアンカーに使う）が衝突しないようにする。
+// 節ごとに index の起点をずらす幅。
+// 注意: これは RenderedBlocks の offset 本来の契約（blocks が doc 全体の一部であるときの
+// 元配列上の開始位置。番号なしH2の iN アンカーを目次バーの計算と一致させるためのもの）
+// とは別物の暫定値で、節内での元配列上の位置を表してはいない。本来なら値がズレるはずだが、
+// splitSections が level 2 見出しを節の中身に積まないため、deep / preface / tail から
+// sectionAnchor が呼ばれることが無く、現状は実害が出ていない。
+// （RenderedBlocks 内の React キーは key={i} でインスタンスごとに閉じているため、
+// 　そもそも index はキーの衝突とは無関係）
 const SECTION_INDEX_STRIDE = 1000
 
 /**
@@ -48,7 +54,10 @@ export function ReaderSpread({
   return (
     <div className="reader-prose">
       {spread.lead && (
-        <div data-tldr="" className="mb-5">
+        // data-tldr は付けない。spread.lead は必ず conclusion role の callout で、
+        // 中で RenderedBlocks が data-tldr を出す（ReaderBody.tsx）。ここにも付けると
+        // 入れ子で二重になり、将来 querySelectorAll で数える処理が入ったときに二重計上する。
+        <div className="mb-5">
           <RenderedBlocks blocks={[spread.lead]} onImageClick={onImageClick} active={NO_FILTER} />
         </div>
       )}
@@ -62,7 +71,10 @@ export function ReaderSpread({
             <a
               key={s.anchor}
               href={`#${s.anchor}`}
-              className="text-[0.8em] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-200"
+              // 見た目の地の高さ（丸い錠剤型）は px-2.5 py-1 のまま保ちつつ、
+              // タップ対象だけ min-h-[44px] + inline-flex items-center で44pxに広げる。
+              // 節ジャンプという主要導線のため、他のタップ対象と同じ基準を満たす。
+              className="inline-flex items-center min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-200"
             >
               {s.label}
             </a>
@@ -88,8 +100,15 @@ export function ReaderSpread({
 
             <SpreadPartView part={s.part} />
 
+            {/* 検索中は searching || open.has(...) で isOpen が常に真になり、全節が開いた
+                状態になる（記事内検索が DOM 上の mark[data-reader-search] を数えるため）。
+                このときボタンを押せてしまうと、open に入っていない節でも「閉じる」の
+                つもりのクリックが has() 判定で誤って open に追加され、検索終了後にその節が
+                開いたまま残ってしまう。isOpen の計算式自体は変えず、検索中はボタンを
+                disabled にして個別開閉の操作自体を塞ぐ。 */}
             <button
               type="button"
+              disabled={searching}
               onClick={() => setOpen((prev) => {
                 const next = new Set(prev)
                 if (next.has(s.anchor)) next.delete(s.anchor)
@@ -97,7 +116,7 @@ export function ReaderSpread({
                 return next
               })}
               aria-expanded={isOpen}
-              className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1"
+              className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 disabled:no-underline disabled:opacity-60 disabled:cursor-default"
             >
               {isOpen ? 'この節の根拠を閉じる' : 'この節の根拠を見る'}
             </button>
