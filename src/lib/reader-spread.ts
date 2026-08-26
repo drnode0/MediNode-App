@@ -84,10 +84,10 @@ function isTailBlock(b: ReaderBlock): boolean {
 /**
  * ReaderDoc を「⚡結論（lead）／H2前の本文（preface）／H2ごとの節／末尾（tail）」に切る。
  *
- * 節の区切りは既存の目次（tocSections）と同じ heading level 2。番号は sectionAnchor が
- * 使う採番ロジックをそのまま借り、's' を前置して誌面（SpreadDoc）専用の名前空間にする
- * （オーバレイ・クイズが節を s1・s2 のキーで参照するため。既存リーダーの data-section 属性
- * とは別名前空間で、混線しない）。
+ * 節の区切りは既存の目次（tocSections）と同じ heading level 2。anchor は sectionAnchor が
+ * 返した値そのもの（番号つき H2 なら "1"、"2" など。番号なし H2 なら "iN" 形式）。
+ * 接頭辞は付けない。ReaderOverlay が querySelector で節番号と照合するため、接頭辞を付けると
+ * 横断検索からの節ジャンプが無言で外れてしまう。
  */
 export function splitSections(doc: ReaderDoc): SplitResult {
   let lead: ReaderBlock | null = null
