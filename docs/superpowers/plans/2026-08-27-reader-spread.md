@@ -1343,11 +1343,17 @@ const [spread, setSpread] = useState<SpreadDoc | null>(null)
       })
 ```
 
-`fetchReaderDoc(...).then((doc) => {...})` の中、`setDoc(doc); setState('idle')` の直前に足す。
+`fetchReaderDoc(...).then((doc) => {...})` の中、**`if (shownFromStore && shownFromStore.lastEdited === doc.lastEdited) return` の手前**に足す。
 
 ```ts
+        // 誌面は本文の lastEdited とは無関係に公開・再生成されるため、本文の同一性で
+        // 誌面の更新を止めてはいけない。端末の本文が同じでも、新しく公開された誌面は
+        // ここで反映する必要がある。
         setSpread(getCachedSpread(h.objectID))
 ```
+
+**この位置を守ること。** 早期 return の後ろに置くと、本文が同じで誌面だけ新しく公開された場合に、
+古い誌面（または誌面なし）が画面に残り続ける。
 
 `<ReaderOverlay ... />` に `spread={spread}` を渡す。
 
