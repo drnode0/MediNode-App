@@ -150,3 +150,35 @@ Run: `npx tsc --noEmit`
 ```
 
 Commit: `5cbf8e5` — fix: 節アンカーに接頭辞を付けない（節ジャンプ互換）
+
+## 修正（JSDocの訂正）
+
+JSDoc（`src/lib/reader-spread.ts:85-90`）が撤回済みの設計（`'s'` 接頭辞の付与）を説明したまま
+残っていたため、実装とインラインコメントに一致させた。
+
+### 修正内容
+
+- `splitSections` の JSDoc: 「anchor は sectionAnchor が返した値そのもの（番号つき H2 なら "1"、
+  "2" など。番号なし H2 なら "iN" 形式）。接頭辞は付けない」と明記
+
+### 確認コマンドと出力
+
+Run: `npx vitest run src/lib/__tests__/reader-spread.test.ts`
+
+```
+ RUN  v4.1.10 /Users/tatsukinonaka/MediNode-本体/.worktrees/reader-spread
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  06:22:24
+   Duration  324ms (transform 30ms, setup 0ms, import 40ms, tests 4ms, environment 0ms)
+```
+
+Run: `npx tsc --noEmit`
+
+```
+（出力なし）
+```
+
+Commit: `f3a388c` — docs: splitSections の JSDoc を実装に合わせ修正

@@ -52,7 +52,10 @@ export async function PUT(req: Request) {
   // 押すたびに短ラベル・部品の指定・オーナーの理解チェックが空のオーバレイで無警告に消える。
   let overlay = body.overlay
   if (!overlay) {
-    const { data: existing } = await admin.from('reader_spreads').select('overlay').eq('page_id', pageId).maybeSingle()
+    const { data: existing, error: readError } = await admin.from('reader_spreads').select('overlay').eq('page_id', pageId).maybeSingle()
+    // 読み取りエラーが発生したときは投入を拒否する。無警告で空のオーバレイで上書きするより、
+    // 失敗を知らせて再試行させるほうが安全（fail-closed パターン）。
+    if (readError) return NextResponse.json({ error: 'overlay_read_failed' }, { status: 500 })
     overlay = (existing?.overlay as SpreadOverlay | undefined) ?? {}
   }
   // オーバレイが SpreadDoc に入る経路を1本にするため、送信された overlay も

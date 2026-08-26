@@ -8,6 +8,7 @@ const revalidateSubscriptionReaderDocs = vi.fn()
 let selectRows: unknown[] = []
 // PUT が overlay 省略時に読みに行く既存行（select().eq().maybeSingle() 経路）。
 let existingOverlayRow: { overlay: unknown } | null = null
+let overlayReadError: unknown = null
 
 vi.mock('@/lib/admin-guard', () => ({ requireAdmin: () => requireAdmin() }))
 vi.mock('@/lib/admin-audit', () => ({ logAdminAction }))
@@ -18,7 +19,7 @@ vi.mock('@/lib/supabase/server', () => ({
       upsert,
       select: () => ({
         order: () => ({ data: selectRows, error: null }),
-        eq: () => ({ maybeSingle: async () => ({ data: existingOverlayRow, error: null }) }),
+        eq: () => ({ maybeSingle: async () => ({ data: existingOverlayRow, error: overlayReadError }) }),
       }),
     }),
   }),
@@ -46,6 +47,7 @@ beforeEach(() => {
   upsert.mockResolvedValue({ error: null })
   selectRows = []
   existingOverlayRow = null
+  overlayReadError = null
 })
 
 describe('PUT /api/admin/spread', () => {
@@ -104,6 +106,20 @@ describe('PUT /api/admin/spread', () => {
     expect(res.status).toBe(200)
     const saved = upsert.mock.calls[0][0]
     expect(saved.spread_doc.sections[0].shortLabel).toBe('新しいラベル')
+  })
+
+  it('保存済みオーバレイの読み取りが失敗したときは、空オーバレイで保存せずエラーを返す', async () => {
+    // overlay 省略時に既存行を読もうとするが読み取りエラーが発生
+    overlayReadError = new Error('Connection refused')
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('overlay_read_failed')
+    // 投入されないこと
+    expect(upsert).not.toHaveBeenCalled()
+    // 監査ログとキャッシュ失効は呼ばれない
+    expect(logAdminAction).not.toHaveBeenCalled()
+    expect(revalidateSubscriptionReaderDocs).not.toHaveBeenCalled()
   })
 
   it('原本に無い文を含むオーバレイは400で拒否する', async () => {
