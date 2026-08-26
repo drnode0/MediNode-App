@@ -1443,6 +1443,11 @@ git commit -m "refactor: Inlines を共有部品に切り出す（挙動は変�
 2. 本文のインラインは Task 9 の `Inlines` を通す（`mark[data-reader-search]` の互換）
 3. **検索中は全節の深掘りを開く**（折りたたまれた本文は DOM に無く検索が拾えない）
 4. 深掘りの中身は原本のブロックをそのまま描く
+5. **`lead` / `preface` / 各節の `deep` / `tail` の4つを全部描く。** どれか1つでも落とすと、
+   原本にある本文が誌面から黙って消える。`splitSections` はブロックをこの4つに振り分けるので、
+   4つ揃えて初めて原本と同じ量になる
+6. callout の描画は `ReaderBody` の `Block` に委ねる。自前で callout を描くと、
+   🎨制作メモを隠す `draft` role の処理（Task 4）が誌面だけ効かなくなる
 
 - [ ] **Step 1: 深掘りに使うブロック描画を公開する**
 
@@ -1605,6 +1610,11 @@ export function ReaderSpread({
           <Block block={spread.lead} index={-1} onImageClick={onImageClick} active={NO_FILTER} />
         </div>
       )}
+
+      {/* 最初のH2より前の本文。ここを描かないと、導入の段落が誌面から黙って消える。 */}
+      {spread.preface.map((b, i) => (
+        <Block key={`p-${i}`} block={b} index={-100 - i} onImageClick={onImageClick} active={NO_FILTER} />
+      ))}
 
       {toc.length > 0 && (
         <nav className="flex flex-wrap gap-1.5 mb-6" aria-label="目次">
