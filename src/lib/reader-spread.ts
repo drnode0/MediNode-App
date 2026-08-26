@@ -173,3 +173,67 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
     icons: {},
   }
 }
+
+/**
+ * 制作スキルからのオーバレイを下書きに重ねる。
+ * 本文（deep / lead / preface / tail）には一切触れない。触れさせないことが安全装置になる。
+ */
+export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDoc {
+  return {
+    ...draft,
+    sections: draft.sections.map((s) => ({
+      ...s,
+      shortLabel: overlay.shortLabels?.[s.anchor] ?? s.shortLabel,
+      part: overlay.parts?.[s.anchor] ?? s.part,
+    })),
+    icons: { ...draft.icons, ...(overlay.icons ?? {}) },
+    quizzes: overlay.quizzes ?? draft.quizzes,
+  }
+}
+
+// 部品と理解チェックが持つ「原本に由来するはずの文」を集める。
+// 短ラベルは目次チップ用の呼び名で原本には無くてよいので、対象に入れない。
+function verbatimTargets(spread: SpreadDoc): string[] {
+  const out: string[] = []
+  for (const s of spread.sections) {
+    const p = s.part
+    if (p.kind === 'comparison' || p.kind === 'matrix') {
+      for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
+    } else if (p.kind === 'flow' || p.kind === 'timeline') {
+      for (const step of p.steps) out.push(textOf(step.inlines))
+    } else if (p.kind === 'bignumber') {
+      out.push(p.value, textOf(p.caption))
+    } else if (p.kind === 'gonogo') {
+      for (const line of [...p.go, ...p.noGo]) out.push(textOf(line))
+    }
+  }
+  for (const q of spread.quizzes) out.push(q.evidence)
+  return out.map((s) => s.trim()).filter(Boolean)
+}
+
+// 原本の全文（ブロックを跨いだ連結ではなく、ブロックごとの文字列の集合）。
+function corpusOf(doc: ReaderDoc): string {
+  const parts: string[] = []
+  const walk = (blocks: ReaderBlock[]) => {
+    for (const b of blocks) {
+      if (b.kind === 'heading' || b.kind === 'paragraph' || b.kind === 'list_item') parts.push(textOf(b.inlines))
+      else if (b.kind === 'callout') walk(b.blocks)
+      else if (b.kind === 'table') for (const row of b.rows) for (const cell of row) parts.push(textOf(cell))
+      else if (b.kind === 'image' && b.caption) parts.push(b.caption)
+    }
+  }
+  walk(doc.blocks)
+  // 改行と連続空白の揺れを吸収する。文字を落とす正規化はしない（別物を同一視しないため）。
+  return parts.join('\n').replace(/[ \t]+/g, ' ')
+}
+
+/**
+ * 誌面が原本の逐語だけでできているかを検査する。
+ * 落ちたら投入を拒否する。生成側が本文を書き換えたことを意味するため。
+ */
+export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc): { ok: boolean; missing: string[] } {
+  const corpus = corpusOf(doc)
+  const missing = verbatimTargets(spread)
+    .filter((s) => !corpus.includes(s.replace(/[ \t]+/g, ' ')))
+  return { ok: missing.length === 0, missing }
+}

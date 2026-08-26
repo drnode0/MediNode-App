@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, verifyVerbatim } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
 const t = (text: string) => [{ text }]
@@ -76,5 +76,47 @@ describe('buildSpreadDraft', () => {
     expect(d.sections[0].shortLabel).toBeNull()
     expect(d.quizzes).toEqual([])
     expect(d.tail).toEqual([doc.blocks[5]])
+  })
+})
+
+describe('applyOverlay / verifyVerbatim', () => {
+  it('短ラベル・部品・理解チェックを重ねる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, {
+      shortLabels: { '1': '目標SpO2' },
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: 'デバイスより先に目標値を決める。' }] } },
+      icons: { '1': 'target' },
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: false }],
+    })
+    expect(merged.sections[0].shortLabel).toBe('目標SpO2')
+    expect(merged.sections[0].part.kind).toBe('bignumber')
+    expect(merged.icons).toEqual({ '1': 'target' })
+    expect(merged.quizzes).toHaveLength(1)
+    // 深掘り本文はオーバレイでは触れない
+    expect(merged.sections[0].deep).toEqual(draft.sections[0].deep)
+  })
+
+  it('原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: '目標は常に98%以上にする。' }] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('目標は常に98%以上にする。')
+  })
+
+  it('原本の逐語だけなら検査を通る', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const good = applyOverlay(draft, {
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true }],
+    })
+    expect(verifyVerbatim(good, doc)).toEqual({ ok: true, missing: [] })
+  })
+
+  it('短ラベルは検査の対象にしない（原本に無くてよい）', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, { shortLabels: { '1': '目標SpO2' } })
+    expect(verifyVerbatim(merged, doc).ok).toBe(true)
   })
 })
