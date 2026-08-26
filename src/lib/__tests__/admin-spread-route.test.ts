@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const requireAdmin = vi.fn()
 const upsert = vi.fn()
 const notionRetrieve = vi.fn()
+const logAdminAction = vi.fn()
+const revalidateSubscriptionReaderDocs = vi.fn()
 
 vi.mock('@/lib/admin-guard', () => ({ requireAdmin: () => requireAdmin() }))
-vi.mock('@/lib/admin-audit', () => ({ logAdminAction: vi.fn() }))
-vi.mock('@/lib/reader-cache', () => ({ revalidateSubscriptionReaderDocs: vi.fn() }))
+vi.mock('@/lib/admin-audit', () => ({ logAdminAction }))
+vi.mock('@/lib/reader-cache', () => ({ revalidateSubscriptionReaderDocs }))
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({ from: () => ({ upsert, select: () => ({ order: () => ({ data: [], error: null }) }) }) }),
 }))
@@ -49,11 +51,25 @@ describe('PUT /api/admin/spread', () => {
     expect(saved.status).toBe('draft')
     expect(saved.spread_doc.sections).toHaveLength(1)
     expect(saved.source_last_edited).toBe('2026-08-20T00:00:00.000Z')
+
+    // 監査ログが呼ばれ、action が 'put_spread' であること
+    expect(logAdminAction).toHaveBeenCalled()
+    const auditCall = logAdminAction.mock.calls[0]
+    expect(auditCall[1].action).toBe('put_spread')
+    // pageId が detail に入り、targetUserId には入らないこと
+    expect(auditCall[1].detail.pageId).toBe('p1')
+    expect(auditCall[1].targetUserId).toBeUndefined()
+
+    // キャッシュ失効が呼ばれたこと
+    expect(revalidateSubscriptionReaderDocs).toHaveBeenCalled()
   })
 
   it('publish: true なら公開状態で保存する', async () => {
     await PUT(req({ pageId: 'p1', publish: true }))
     expect(upsert.mock.calls[0][0].status).toBe('published')
+    // action が 'publish_spread' になることを確認
+    const auditCall = logAdminAction.mock.calls[0]
+    expect(auditCall[1].action).toBe('publish_spread')
   })
 
   it('原本に無い文を含むオーバレイは400で拒否する', async () => {
@@ -66,5 +82,8 @@ describe('PUT /api/admin/spread', () => {
     expect(body.error).toBe('verbatim_mismatch')
     expect(body.missing).toContain('原本に無い文。')
     expect(upsert).not.toHaveBeenCalled()
+    // 拒否されたときは監査ログとキャッシュ失効は呼ばれない
+    expect(logAdminAction).not.toHaveBeenCalled()
+    expect(revalidateSubscriptionReaderDocs).not.toHaveBeenCalled()
   })
 })
