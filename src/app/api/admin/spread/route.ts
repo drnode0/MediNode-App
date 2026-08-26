@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
-import { applyOverlay, buildSpreadDraft, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 
 /**
  * 誌面（SpreadDoc）の投入。オーナー専用。
@@ -33,6 +33,8 @@ export async function PUT(req: Request) {
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
   if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })
 
+  const admin = createAdminClient()
+
   let doc
   let lastEdited: string | null = null
   try {
@@ -45,7 +47,17 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
   }
 
-  const overlay = body.overlay ?? {}
+  // overlay を指定しない PUT（/admin の「再生成」はこれだけを送る）は、保存済みの overlay を
+  // 読んで再利用する。ここを body.overlay ?? {} のままにすると、原本を直して「再生成」を
+  // 押すたびに短ラベル・部品の指定・オーナーの理解チェックが空のオーバレイで無警告に消える。
+  let overlay = body.overlay
+  if (!overlay) {
+    const { data: existing } = await admin.from('reader_spreads').select('overlay').eq('page_id', pageId).maybeSingle()
+    overlay = (existing?.overlay as SpreadOverlay | undefined) ?? {}
+  }
+  // オーバレイが SpreadDoc に入る経路を1本にするため、送信された overlay も
+  // 再利用した overlay も、ここで必ず正規化してから重ねる。
+  overlay = sanitizeOverlay(overlay)
   const spread = applyOverlay(buildSpreadDraft(doc, pageId), overlay)
   const check = verifyVerbatim(spread, doc)
   if (!check.ok) {
@@ -53,7 +65,6 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
   }
 
-  const admin = createAdminClient()
   const status = body.publish ? 'published' : 'draft'
   const { error } = await admin.from('reader_spreads').upsert({
     page_id: pageId,

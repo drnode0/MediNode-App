@@ -5,6 +5,7 @@ import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
 import { visibleQuizzes } from '@/lib/reader-spread'
+import { KnowledgeTitle } from '@/lib/title-display'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
@@ -49,6 +50,8 @@ export function ReaderSpread({
   scaleEm,
   lastEdited,
   cover,
+  title,
+  icon,
 }: {
   spread: SpreadDoc
   onImageClick: (url: string) => void
@@ -60,6 +63,10 @@ export function ReaderSpread({
   // （SpreadDoc の型は変えない。理由は下のコメント参照）。
   lastEdited: string | null
   cover: string | null
+  // タイトルも同じ流儀。保存された誌面のタイトル（spread.title）ではなく、
+  // その時の原本（doc.title / doc.icon）を渡す。更新日と揃えて「今の原本」を出すため。
+  title: string
+  icon: string | null
 }) {
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
@@ -89,6 +96,14 @@ export function ReaderSpread({
             <img src={cover} alt="" className="w-full rounded-lg" />
           </button>
         )}
+        {/* ReaderBody.tsx と同じ見た目・同じ位置（カバー画像の直後・lead より前）で
+            記事タイトルを出す。ここが無いと、誌面化した記事だけ「何を読んでいるか」が
+            画面から失われる（ReaderOverlay のヘッダの aria-label はスクリーンリーダー用で
+            画面には見えない）。ページアイコンの扱いも ReaderBody.tsx と揃える。 */}
+        <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
+          <KnowledgeTitle title={title} level={icon?.startsWith('http') ? null : icon} />
+        </h2>
+
         {spread.lead && (
           // data-tldr は付けない。spread.lead は必ず conclusion role の callout で、
           // 中で RenderedBlocks が data-tldr を出す（ReaderBody.tsx）。ここにも付けると

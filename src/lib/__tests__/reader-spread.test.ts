@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, sanitizeOverlay, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
-import type { SpreadQuiz } from '../reader-spread'
+import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
 
@@ -123,6 +123,125 @@ describe('applyOverlay / verifyVerbatim', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const merged = applyOverlay(draft, { shortLabels: { '1': '目標SpO2' } })
     expect(verifyVerbatim(merged, doc).ok).toBe(true)
+  })
+
+  // verifyVerbatim（正確には内部の verbatimTargets）が辿る6分岐のうち、
+  // bignumber と quiz.evidence は既存のテストで固定済み。ここは残り5分岐
+  // （comparison / matrix / flow / timeline / gonogo）を1つずつ固定する。
+  // これは修正3（sanitizeOverlay）が守っている安全装置の本体なので、逐語検査が
+  // 素通りしないことをここで確定させておく。
+  it('comparison に原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'comparison', rows: [[[{ text: '原本に無い比較文。' }]]] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無い比較文。')
+  })
+
+  it('matrix に原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'matrix', rows: [[[{ text: '原本に無いマトリクス文。' }]]] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無いマトリクス文。')
+  })
+
+  it('flow に原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'flow', steps: [{ label: '1', inlines: [{ text: '原本に無い手順。' }] }] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無い手順。')
+  })
+
+  it('timeline に原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'timeline', steps: [{ label: '1', inlines: [{ text: '原本に無い時系列の文。' }] }] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無い時系列の文。')
+  })
+
+  it('gonogo に原本に無い文が混ざったら検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, {
+      parts: { '1': { kind: 'gonogo', go: [[{ text: '原本に無いgoの文。' }]], noGo: [] } },
+    })
+    const r = verifyVerbatim(bad, doc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無いgoの文。')
+  })
+})
+
+describe('sanitizeOverlay', () => {
+  it('part の ReaderInline から href を落とす（text/bold等は残す）', () => {
+    const overlay = {
+      parts: {
+        '1': {
+          kind: 'comparison',
+          rows: [[[{ text: 'デバイスより先に目標値を決める。', bold: true, href: 'https://example.com/fake' }]]],
+        } satisfies SpreadPart,
+      },
+    }
+    const sanitized = sanitizeOverlay(overlay)
+    const part = sanitized.parts!['1']
+    expect(part.kind).toBe('comparison')
+    expect(part.kind === 'comparison' && part.rows[0][0][0]).toEqual({
+      text: 'デバイスより先に目標値を決める。',
+      bold: true,
+    })
+  })
+
+  it('bignumber・flow・gonogo でも href を落とす', () => {
+    const overlay = {
+      parts: {
+        a: { kind: 'bignumber', value: '94%', caption: [{ text: '説明。', href: 'https://x.example' }] } satisfies SpreadPart,
+        b: { kind: 'flow', steps: [{ label: '1', inlines: [{ text: '手順。', href: 'https://x.example' }] }] } satisfies SpreadPart,
+        c: { kind: 'gonogo', go: [[{ text: 'go。', href: 'https://x.example' }]], noGo: [[{ text: 'no-go。', href: 'https://x.example' }]] } satisfies SpreadPart,
+      },
+    }
+    const sanitized = sanitizeOverlay(overlay)
+    const a = sanitized.parts!.a
+    const b = sanitized.parts!.b
+    const c = sanitized.parts!.c
+    expect(a.kind === 'bignumber' && a.caption[0].href).toBeUndefined()
+    expect(b.kind === 'flow' && b.steps[0].inlines[0].href).toBeUndefined()
+    expect(c.kind === 'gonogo' && c.go[0][0].href).toBeUndefined()
+    expect(c.kind === 'gonogo' && c.noGo[0][0].href).toBeUndefined()
+  })
+
+  it('未知の kind は採用しない（そのアンカーの上書きごと落とす）', () => {
+    const overlay = {
+      parts: {
+        '1': { kind: 'chart', data: [] } as unknown as SpreadPart,
+        '2': { kind: 'none' } satisfies SpreadPart,
+      },
+    }
+    const sanitized = sanitizeOverlay(overlay)
+    expect(sanitized.parts).toEqual({ '2': { kind: 'none' } })
+  })
+
+  it('parts を持たないオーバレイはそのまま返す', () => {
+    const overlay = { shortLabels: { '1': 'ラベル' } }
+    expect(sanitizeOverlay(overlay)).toEqual(overlay)
+  })
+
+  it('classifyPart が原本から自動で作る part には触れない（overlay.parts に無ければ無傷）', () => {
+    // 節2は原本の番号なし箇条書き1件なので classifyPart は 'none' を返す。
+    // ここに overlay.parts でアンカー '2' を指定しなければ、sanitizeOverlay は
+    // draft.sections[1].part に一切触れず、applyOverlay もそれをそのまま素通しする。
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const overlay = sanitizeOverlay({ parts: { '1': { kind: 'none' } } })
+    const merged = applyOverlay(draft, overlay)
+    expect(merged.sections[1].part).toEqual(draft.sections[1].part)
   })
 })
 

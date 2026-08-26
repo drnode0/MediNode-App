@@ -481,6 +481,8 @@ export default function ReaderOverlay({
                     scaleEm={SCALE_EM[fontScale]}
                     lastEdited={doc.lastEdited}
                     cover={doc.cover}
+                    title={doc.title}
+                    icon={doc.icon}
                   />
                 ) : (
                   <ReaderBody

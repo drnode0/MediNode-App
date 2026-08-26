@@ -6,13 +6,21 @@ const notionRetrieve = vi.fn()
 const logAdminAction = vi.fn()
 const revalidateSubscriptionReaderDocs = vi.fn()
 let selectRows: unknown[] = []
+// PUT が overlay 省略時に読みに行く既存行（select().eq().maybeSingle() 経路）。
+let existingOverlayRow: { overlay: unknown } | null = null
 
 vi.mock('@/lib/admin-guard', () => ({ requireAdmin: () => requireAdmin() }))
 vi.mock('@/lib/admin-audit', () => ({ logAdminAction }))
 vi.mock('@/lib/reader-cache', () => ({ revalidateSubscriptionReaderDocs }))
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
-    from: () => ({ upsert, select: () => ({ order: () => ({ data: selectRows, error: null }) }) }),
+    from: () => ({
+      upsert,
+      select: () => ({
+        order: () => ({ data: selectRows, error: null }),
+        eq: () => ({ maybeSingle: async () => ({ data: existingOverlayRow, error: null }) }),
+      }),
+    }),
   }),
 }))
 vi.mock('@/lib/notion-page', () => ({
@@ -37,6 +45,7 @@ beforeEach(() => {
   notionRetrieve.mockResolvedValue({ last_edited_time: '2026-08-20T00:00:00.000Z', properties: {} })
   upsert.mockResolvedValue({ error: null })
   selectRows = []
+  existingOverlayRow = null
 })
 
 describe('PUT /api/admin/spread', () => {
@@ -74,6 +83,27 @@ describe('PUT /api/admin/spread', () => {
     // action が 'publish_spread' になることを確認
     const auditCall = logAdminAction.mock.calls[0]
     expect(auditCall[1].action).toBe('publish_spread')
+  })
+
+  it('overlay を指定しない PUT は、既存行の overlay を読んで保存し直す（全消しにしない）', async () => {
+    // 「再生成」ボタンは { pageId, publish } しか送らない（overlay を含めない）。
+    // ここで body.overlay ?? {} のままだと、保存済みの短ラベルが空で上書きされる。
+    existingOverlayRow = { overlay: { shortLabels: { '1': '目視済みラベル' } } }
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(200)
+    const saved = upsert.mock.calls[0][0]
+    // overlay 列そのものが既存の中身のまま保存し直されること
+    expect(saved.overlay).toEqual({ shortLabels: { '1': '目視済みラベル' } })
+    // spread_doc にも既存 overlay が反映されていること（空のオーバレイで潰されていない）
+    expect(saved.spread_doc.sections[0].shortLabel).toBe('目視済みラベル')
+  })
+
+  it('overlay を明示的に渡した PUT は、既存行を読みに行かずそれを使う', async () => {
+    existingOverlayRow = { overlay: { shortLabels: { '1': '古いラベル' } } }
+    const res = await PUT(req({ pageId: 'p1', overlay: { shortLabels: { '1': '新しいラベル' } } }))
+    expect(res.status).toBe(200)
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.spread_doc.sections[0].shortLabel).toBe('新しいラベル')
   })
 
   it('原本に無い文を含むオーバレイは400で拒否する', async () => {

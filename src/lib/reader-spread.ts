@@ -174,6 +174,60 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
   }
 }
 
+// SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
+const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'none'])
+
+// part の中の ReaderInline から href だけを落とす（text/bold/italic/code/color は残す）。
+function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
+  return list.map((i) => {
+    if (!i.href) return i
+    const { href: _href, ...rest } = i
+    return rest
+  })
+}
+
+// オーバレイ由来の part から出典リンクを落とす。part.kind ごとに ReaderInline の在り処が違うので分岐する。
+function stripPartHref(part: SpreadPart): SpreadPart {
+  switch (part.kind) {
+    case 'comparison':
+    case 'matrix':
+      return { ...part, rows: part.rows.map((row) => row.map(stripInlineHref)) }
+    case 'flow':
+    case 'timeline':
+      return { ...part, steps: part.steps.map((s) => ({ ...s, inlines: stripInlineHref(s.inlines) })) }
+    case 'bignumber':
+      return { ...part, caption: stripInlineHref(part.caption) }
+    case 'gonogo':
+      return { ...part, go: part.go.map(stripInlineHref), noGo: part.noGo.map(stripInlineHref) }
+    case 'none':
+      return part
+  }
+}
+
+/**
+ * 制作スキルから渡されたオーバレイを、SpreadDoc に重ねる前に正規化する。
+ *
+ * 1. part.kind を許可リストで検査する。未知の kind は SpreadPartView が描画できず
+ *    黙って何も出ない表層になるため、投入時に弾く（そのアンカーの上書きを採用しない）。
+ * 2. part 内の ReaderInline から href を落とす。表層の部品（比較表・フロー・go/no-go等）に
+ *    出典リンクを載せない、という前提をコードで固定する。生成側はLLMなので、もっともらしい
+ *    URLの捏造は起こりうる誤りであり、逐語一致検査（verifyVerbatim）はテキストしか見ないため
+ *    href の捏造までは検出できない。
+ *
+ * ここで触れるのはオーバレイ由来の part（overlay.parts）だけ。classifyPart が原本の表や
+ * 番号付きリストから自動で作る part（節の既定の part）には触れない。あちらは原本の
+ * ReaderInline をそのまま使っており、原本にあるリンクは正当なので落とす理由がない。
+ */
+export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
+  if (!overlay.parts) return overlay
+  const parts: Record<string, SpreadPart> = {}
+  for (const [anchor, part] of Object.entries(overlay.parts)) {
+    if (!KNOWN_PART_KINDS.has(part.kind)) continue
+    parts[anchor] = stripPartHref(part)
+  }
+  return { ...overlay, parts }
+}
+
 /**
  * 制作スキルからのオーバレイを下書きに重ねる。
  * 本文（deep / lead / preface / tail）には一切触れない。触れさせないことが安全装置になる。
