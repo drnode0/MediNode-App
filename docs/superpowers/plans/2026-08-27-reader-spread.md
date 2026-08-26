@@ -78,7 +78,7 @@ describe('splitSections', () => {
     expect(r.lead).toBe(doc.blocks[0])
     expect(r.sections.map((s) => s.n)).toEqual([1, 2])
     expect(r.sections[0].title).toBe('1. 最初に決めるのは目標SpO2である')
-    expect(r.sections[0].anchor).toBe('s1')
+    expect(r.sections[0].anchor).toBe('1')
     expect(r.sections[0].blocks).toEqual([doc.blocks[2]])
     expect(r.sections[1].blocks).toEqual([doc.blocks[4]])
     expect(r.tail).toEqual([doc.blocks[5]])
@@ -212,6 +212,10 @@ export function splitSections(doc: ReaderDoc): SplitResult {
     if (b.kind === 'heading' && b.level === 2) {
       const title = textOf(b.inlines)
       const parsed = parseSectionHeading(b.inlines)
+      // アンカーは sectionAnchor の戻り値をそのまま使う（番号つきなら "1"、番号なしなら "iN"）。
+      // 接頭辞を付けたり別の採番にしたりしないこと。ReaderOverlay の節ジャンプが
+      // [data-section="${sectionNo}"]（Algolia の節番号）で引くので、値がずれると
+      // 横断検索からの節ジャンプが無言で外れる。
       current = { n: parsed?.n ?? null, anchor: sectionAnchor(parsed?.n ?? null, index), title, blocks: [] }
       sections.push(current)
       return
@@ -401,14 +405,14 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('短ラベル・部品・理解チェックを重ねる', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const merged = applyOverlay(draft, {
-      shortLabels: { s1: '目標SpO2' },
-      parts: { s1: { kind: 'bignumber', value: '94%', caption: [{ text: 'デバイスより先に目標値を決める。' }] } },
-      icons: { s1: 'target' },
-      quizzes: [{ id: 'q1', sectionAnchor: 's1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: false }],
+      shortLabels: { '1': '目標SpO2' },
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: 'デバイスより先に目標値を決める。' }] } },
+      icons: { '1': 'target' },
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: false }],
     })
     expect(merged.sections[0].shortLabel).toBe('目標SpO2')
     expect(merged.sections[0].part.kind).toBe('bignumber')
-    expect(merged.icons).toEqual({ s1: 'target' })
+    expect(merged.icons).toEqual({ '1': 'target' })
     expect(merged.quizzes).toHaveLength(1)
     // 深掘り本文はオーバレイでは触れない
     expect(merged.sections[0].deep).toEqual(draft.sections[0].deep)
@@ -417,7 +421,7 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('原本に無い文が混ざったら検査で落ちる', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const bad = applyOverlay(draft, {
-      parts: { s1: { kind: 'bignumber', value: '94%', caption: [{ text: '目標は常に98%以上にする。' }] } },
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: '目標は常に98%以上にする。' }] } },
     })
     const r = verifyVerbatim(bad, doc)
     expect(r.ok).toBe(false)
@@ -427,14 +431,14 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('原本の逐語だけなら検査を通る', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const good = applyOverlay(draft, {
-      quizzes: [{ id: 'q1', sectionAnchor: 's1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true }],
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true }],
     })
     expect(verifyVerbatim(good, doc)).toEqual({ ok: true, missing: [] })
   })
 
   it('短ラベルは検査の対象にしない（原本に無くてよい）', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
-    const merged = applyOverlay(draft, { shortLabels: { s1: '目標SpO2' } })
+    const merged = applyOverlay(draft, { shortLabels: { '1': '目標SpO2' } })
     expect(verifyVerbatim(merged, doc).ok).toBe(true)
   })
 })
@@ -957,7 +961,7 @@ describe('PUT /api/admin/spread', () => {
   it('原本に無い文を含むオーバレイは400で拒否する', async () => {
     const res = await PUT(req({
       pageId: 'p1',
-      overlay: { parts: { s1: { kind: 'bignumber', value: '99%', caption: [{ text: '原本に無い文。' }] } } },
+      overlay: { parts: { '1': { kind: 'bignumber', value: '99%', caption: [{ text: '原本に無い文。' }] } } },
     }))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -1801,28 +1805,28 @@ git commit -m "feat: 誌面の有無で描画を出し分ける"
 describe('visibleQuizzes', () => {
   const base = buildSpreadDraft(doc, 'page-1')
   const q = (over: Partial<SpreadQuiz>): SpreadQuiz => ({
-    id: 'q1', sectionAnchor: 's1', question: '？', choices: ['a', 'b'], answerIndex: 0,
+    id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0,
     evidence: 'デバイスより先に目標値を決める。', reviewed: true, ...over,
   })
 
   it('目視済みで根拠が本文にあるものだけ出す', () => {
     const s = { ...base, quizzes: [q({})] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(1)
+    expect(visibleQuizzes(s, '1')).toHaveLength(1)
   })
 
   it('目視前は出さない', () => {
     const s = { ...base, quizzes: [q({ reviewed: false })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 
   it('根拠が本文に無くなったら出さない', () => {
     const s = { ...base, quizzes: [q({ evidence: '原本から消えた文。' })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 
   it('別の節の設問は出さない', () => {
-    const s = { ...base, quizzes: [q({ sectionAnchor: 's2' })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    const s = { ...base, quizzes: [q({ sectionAnchor: '2' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 })
 ```
