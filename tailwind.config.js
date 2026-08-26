@@ -28,6 +28,12 @@ module.exports = {
           900: '#0d3a2b',
           DEFAULT: '#196b4f',
         },
+        // 誌面（TEXTBOOK LITE）の面。青寄りニュートラルの単一階調で、
+        // 浮くものほど明るくする。色はアクセントだけに使い、面には乗せない
+        // （低彩度の暗い色は濁って見えるため）。
+        sheet: { light: '#ffffff', dark: '#131721' },
+        soft: { light: '#f5f7fa', dark: '#1a1f2b' },
+        card: { light: '#ffffff', dark: '#212736' },
       },
       // クイズの答え表示・バナー出現用のさりげないモーション。
       keyframes: {

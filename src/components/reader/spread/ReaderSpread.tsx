@@ -74,7 +74,7 @@ export function ReaderSpread({
               // 見た目の地の高さ（丸い錠剤型）は px-2.5 py-1 のまま保ちつつ、
               // タップ対象だけ min-h-[44px] + inline-flex items-center で44pxに広げる。
               // 節ジャンプという主要導線のため、他のタップ対象と同じ基準を満たす。
-              className="inline-flex items-center min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-200"
+              className="inline-flex items-center min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-soft-light dark:bg-soft-dark text-gray-700 dark:text-gray-200"
             >
               {s.label}
             </a>
@@ -90,7 +90,7 @@ export function ReaderSpread({
             <h2
               id={s.anchor}
               data-section={s.anchor}
-              className="flex items-start gap-2.5 rounded-lg bg-gray-50 dark:bg-white/[0.05] px-3 py-2.5 mb-3.5 text-[1.15em] font-bold text-gray-900 dark:text-gray-100"
+              className="flex items-start gap-2.5 rounded-lg bg-soft-light dark:bg-soft-dark px-3 py-2.5 mb-3.5 text-[1.15em] font-bold text-gray-900 dark:text-gray-100"
             >
               <span className="shrink-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm grid place-items-center">
                 {s.n ?? i + 1}

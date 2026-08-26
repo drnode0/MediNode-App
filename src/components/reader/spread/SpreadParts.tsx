@@ -10,7 +10,7 @@ import type { SpreadPart } from '@/lib/reader-spread'
 function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   const [head, ...body] = rows
   return (
-    <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-white/10">
+    <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-white/10 bg-card-light dark:bg-card-dark">
       <table className="w-full text-[1em] border-collapse text-gray-800 dark:text-gray-100">
         <thead>
           <tr className="bg-brand-50 dark:bg-white/[0.06]">
@@ -58,7 +58,7 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
   }
   if (part.kind === 'bignumber') {
     return (
-      <div className="my-4 rounded-lg bg-gray-50 dark:bg-white/[0.04] px-4 py-3.5">
+      <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
         <div className="text-[2em] font-bold text-brand-600 dark:text-brand-300 leading-tight">{part.value}</div>
         <div className="text-[0.9em] text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">
           <Inlines items={part.caption} k="bn" />
@@ -74,13 +74,13 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
   if (part.kind !== 'gonogo') return null
   return (
     <div className="my-4 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-lg bg-gray-50 dark:bg-white/[0.04] px-4 py-3.5">
+      <div className="rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
         <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">こうする</div>
         <ul className="space-y-1.5 leading-relaxed">
           {part.go.map((line, i) => <li key={i}><Inlines items={line} k={`go-${i}`} /></li>)}
         </ul>
       </div>
-      <div className="rounded-lg bg-gray-50 dark:bg-white/[0.04] px-4 py-3.5">
+      <div className="rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
         <div className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">こうしない</div>
         <ul className="space-y-1.5 leading-relaxed">
           {part.noGo.map((line, i) => <li key={i}><Inlines items={line} k={`nogo-${i}`} /></li>)}
