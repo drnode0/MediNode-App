@@ -87,6 +87,11 @@ function extractHasFiles(props: Record<string, Record<string, unknown>>): boolea
 // 同期全体を止めないための保険として置く（cloze-sync の展開上限と同じ考え方）。
 const MAX_TABLE_EXPANDS = 8
 
+// 1つの表につき table_row を取りに行くページ数の上限（1ページ100行 × 5 = 最大500行）。
+// 上限なしにページネーションすると、巨大な表1つで同期コストが青天井になり得るため、
+// 実務上まず超えない行数で頭打ちにする。超えた分は取りこぼすが、同期全体は止めない。
+const MAX_TABLE_ROW_PAGES = 5
+
 // ページ本文（トップレベルブロック）を全ページネーションで取得する。
 // 失敗してもページ全体の同期は止めない（nullで続行）。統計と節分割の両方がこれを使う。
 //
@@ -113,8 +118,19 @@ async function fetchPageBlocks(notion: Client, pageId: string): Promise<NotionBl
       if (b.type !== 'table' || expands >= MAX_TABLE_EXPANDS) continue
       expands++
       try {
-        const rows = await notion.blocks.children.list({ block_id: (b as unknown as { id: string }).id, page_size: 100 })
-        out.push(...(rows.results as unknown as NotionBlockLite[]))
+        const tableId = (b as unknown as { id: string }).id
+        let rowCursor: string | undefined = undefined
+        let rowPage = 0
+        do {
+          const rows = await notion.blocks.children.list({
+            block_id: tableId,
+            page_size: 100,
+            start_cursor: rowCursor,
+          })
+          out.push(...(rows.results as unknown as NotionBlockLite[]))
+          rowPage++
+          rowCursor = rows.has_more && rowPage < MAX_TABLE_ROW_PAGES ? (rows.next_cursor ?? undefined) : undefined
+        } while (rowCursor)
       } catch {
         // 表の中身が取れなくても、そのページの同期自体は続ける。
       }
