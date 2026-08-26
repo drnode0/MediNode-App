@@ -95,10 +95,13 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       .then((doc) => {
         if (reqRef.current !== token) return
         networkOk = true
+        // 誌面は本文の lastEdited とは無関係に公開・再生成されるため、本文の同一性で
+        // 誌面の更新を止めてはいけない。端末の本文が同じでも、新しく公開された誌面は
+        // ここで反映する必要がある。
+        setSpread(getCachedSpread(h.objectID))
         // 端末の本文を表示中で、中身が変わっていないなら差し替えない。
         // 読んでいる最中に同じ内容で入れ替えると、再描画でスクロール位置が動く。
         if (shownFromStore && shownFromStore.lastEdited === doc.lastEdited) return
-        setSpread(getCachedSpread(h.objectID))
         setDoc(doc); setState('idle')
       })
       .catch(() => {
