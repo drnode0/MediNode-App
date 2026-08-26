@@ -333,7 +333,7 @@ function groupBlocks(blocks: ReaderBlock[]): Grouped[] {
   return out
 }
 
-function RenderedBlocks({
+export function RenderedBlocks({
   blocks,
   onImageClick,
   active,
