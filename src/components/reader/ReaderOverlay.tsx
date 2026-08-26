@@ -11,6 +11,7 @@ import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
 import { useReaderMarks } from './ReaderMarksProvider'
 import { ReaderBody } from './ReaderBody'
+import { ReaderSpread } from './spread/ReaderSpread'
 import { ReaderFooter } from './ReaderFooter'
 import { ReaderHelpful } from './ReaderHelpful'
 import { ReaderSearchBar } from './ReaderSearchBar'
@@ -38,6 +39,7 @@ import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 export default function ReaderOverlay({
   hit,
   doc,
+  spread,
   state,
   zoom,
   onClose,
@@ -255,7 +257,10 @@ export default function ReaderOverlay({
   // （H2節・⚡結論・recap行）前提の抽出で、個人・部署ページに条件判定で出し分けるより
   // 「サブスクの読書体験」として一本化する。個人・部署は常に全文
   // （保存された端末設定は上書きしない＝サブスクを開けば従来どおり要点で開く）。
-  const canDigest = !isPersonalDoc
+  // 誌面がある記事では表層が要点の役割を、節ごとの深掘りが全文の役割を引き継ぐので、
+  // 全文｜要点のトグルは出さない（保存された端末設定は上書きしない＝誌面のない記事を
+  // 開けば従来どおり要点で開く）。
+  const canDigest = !isPersonalDoc && !spread
   const effectiveViewMode: ReaderViewMode = canDigest ? viewMode : 'full'
 
   const onToggleBookmark = () => {
@@ -462,18 +467,25 @@ export default function ReaderOverlay({
                 </div>
               </div>
               )}
-              {/* 確信度チップは全文専用（要点にはマーク付き本文がほぼ無く、絞り込む対象がない） */}
-              {effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
+              {/* 確信度チップは全文専用（要点にはマーク付き本文がほぼ無く、絞り込む対象がない）。
+                  誌面でも出さない: ReaderSpread の深掘りは確信度フィルタを持たない（誌面第1版の
+                  仕様・ReaderSpread.tsx 参照）ため、チップを出すと押しても絞り込みが効かない
+                  見掛け倒しのUIになる。 */}
+              {!spread && effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
               <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
-                <ReaderBody
-                  doc={doc}
-                  onImageClick={(u) => onZoom(u)}
-                  active={active}
-                  scaleEm={SCALE_EM[fontScale]}
-                  mode={effectiveViewMode}
-                  owner={hit.owner}
-                />
+                {spread ? (
+                  <ReaderSpread spread={spread} onImageClick={(u) => onZoom(u)} />
+                ) : (
+                  <ReaderBody
+                    doc={doc}
+                    onImageClick={(u) => onZoom(u)}
+                    active={active}
+                    scaleEm={SCALE_EM[fontScale]}
+                    mode={effectiveViewMode}
+                    owner={hit.owner}
+                  />
+                )}
               </ReaderSearchCtx.Provider>
               {/* 「役に立った」・つづけて読む枠はサブスク配信専用（自分のページに出しても意味がない） */}
               {!isPersonalDoc && <ReaderHelpful objectID={hit.objectID} />}
