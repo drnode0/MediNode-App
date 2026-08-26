@@ -62,7 +62,7 @@ describe('GET /api/subscription/page', () => {
     expect(res.status).toBe(200)
     expect(retrieveMock).toHaveBeenCalledWith({ page_id: 'PAGEID' })
     expect(data.doc.title).toBe('T')
-    expect(data.doc.blocks[0]).toEqual({ kind: 'heading', level: 2, inlines: [{ text: 'H' }] })
+    expect(data.doc.blocks[0]).toEqual({ kind: 'heading', level: 2, inlines: [{ text: 'H' }], blockId: 'b1' })
     expect(res.headers.get('Cache-Control')).toContain('max-age=600')
   })
 

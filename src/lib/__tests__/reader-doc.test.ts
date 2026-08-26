@@ -209,3 +209,20 @@ describe('個人・部署リーダー向け拡張', () => {
     expect(unsupportedStats(doc)).toEqual({ unsupported: 3, total: 7, degraded: true })
   })
 })
+
+describe('mapBlocks の blockId', () => {
+  it('段落・見出し・箇条書きに Notion のブロックIDを載せる', () => {
+    const raw = [
+      { id: 'b1', type: 'heading_2', heading_2: { rich_text: [{ plain_text: '1. 見出し' }] } },
+      { id: 'b2', type: 'paragraph', paragraph: { rich_text: [{ plain_text: '本文。' }] } },
+    ]
+    const blocks = mapBlocks(raw as never)
+    expect(blocks[0].blockId).toBe('b1')
+    expect(blocks[1].blockId).toBe('b2')
+  })
+
+  it('IDが無い入力でも落ちない（blockId は undefined）', () => {
+    const blocks = mapBlocks([{ type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'x' }] } }] as never)
+    expect(blocks[0].blockId).toBeUndefined()
+  })
+})

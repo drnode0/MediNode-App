@@ -2,7 +2,13 @@
 // 執筆側が付けた文字色・蛍光マーカーを読者にもそのまま届ける。
 export type ReaderInline = { text: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string; color?: string }
 
-export type ReaderBlock =
+// blockId は Notion のブロックID。編集レイヤー（誌面からの書き戻し）と
+// 個人・部署リーダーのプレースホルダが使う。
+// 既存の IndexedDB・Vercel Data Cache に保存された doc には無いキーなので、
+// 常に optional として扱うこと（欠けていても描画は成立する）。
+type BlockBase = { blockId?: string }
+
+export type ReaderBlock = BlockBase & (
   | { kind: 'heading'; level: 1 | 2 | 3; inlines: ReaderInline[] }
   | { kind: 'paragraph'; inlines: ReaderInline[] }
   | { kind: 'list_item'; ordered: boolean; inlines: ReaderInline[] }
@@ -10,9 +16,9 @@ export type ReaderBlock =
   | { kind: 'image'; url: string; caption: string | null }
   | { kind: 'divider' }
   | { kind: 'table'; rows: ReaderInline[][][] }
-  // blockType/blockId は個人・部署リーダーのプレースホルダ用（Notionのブロックアンカーを組む）。
-  // サブスク側の既存キャッシュには無いキーなので、常に optional として扱うこと。
-  | { kind: 'unsupported'; text: string; blockType?: string; blockId?: string }
+  // blockType は個人・部署リーダーのプレースホルダ用（Notionのブロックアンカーを組む）。
+  | { kind: 'unsupported'; text: string; blockType?: string }
+)
 
 export type ReaderDoc = {
   title: string
@@ -92,6 +98,10 @@ function plain(rich: RichText[] | undefined): string {
 export function mapBlocks(blocks: RawBlock[], pageId?: string, opts?: MapBlocksOptions): ReaderBlock[] {
   const out: ReaderBlock[] = []
   for (const b of blocks || []) {
+    // この b が押すブロックの位置を控えておき、switch のあとでIDを載せる
+    // （各 case に散らすと、あとで case を足したときに足し忘れる）。
+    const start = out.length
+    const blockId = b.id ? String(b.id) : undefined
     switch (b.type) {
       case 'heading_1': out.push({ kind: 'heading', level: 1, inlines: inlines(b.heading_1?.rich_text) }); break
       case 'heading_2': out.push({ kind: 'heading', level: 2, inlines: inlines(b.heading_2?.rich_text) }); break
@@ -122,8 +132,9 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string, opts?: MapBlocksO
         out.push({ kind: 'table', rows }); break
       }
       default:
-        out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]`, blockType: b.type, blockId: b.id ? String(b.id) : undefined })
+        out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]`, blockType: b.type })
     }
+    if (blockId && out.length > start) out[start] = { ...out[start], blockId }
     if (b.children?.length && b.type !== 'callout' && b.type !== 'table') {
       out.push(...mapBlocks(b.children, pageId, opts))
     }
@@ -179,7 +190,7 @@ export function unsupportedStats(doc: ReaderDoc): { unsupported: number; total: 
   return { unsupported, total, degraded }
 }
 
-export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'note' | 'plain'
+export type CalloutRole = 'conclusion' | 'signature' | 'stamp' | 'evidence' | 'disclaimer' | 'note' | 'draft' | 'plain'
 
 // アイコン絵文字は異体字セレクタ/ZWJ を含みうるため includes で判定する。
 export function calloutRole(icon: string | null): CalloutRole {
@@ -190,6 +201,7 @@ export function calloutRole(icon: string | null): CalloutRole {
   if (icon.includes('📚')) return 'evidence'
   if (icon.includes('⚠')) return 'disclaimer'
   if (icon.includes('📝')) return 'note' // 「このページの背景」等のメモ枠
+  if (icon.includes('🎨')) return 'draft' // 制作メモ（画像作成中など）。読者には出さない
   return 'plain'
 }
 
