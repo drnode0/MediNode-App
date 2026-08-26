@@ -21,7 +21,9 @@ type Row = {
 
 export function SpreadCard() {
   const [rows, setRows] = useState<Row[] | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  // 複数行を同時に処理できるよう、処理中のpage_idはSetで持つ。1つのstateに1件しか
+  // 持てない形だと、別行の処理を始めた瞬間に前の行が「処理中」から外れて再操作できてしまう。
+  const [busy, setBusy] = useState<Set<string>>(new Set())
   const [armed, setArmed] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -36,7 +38,10 @@ export function SpreadCard() {
   useEffect(load, [load])
 
   const run = async (pageId: string, publish: boolean) => {
-    setBusy(pageId)
+    // armedの解除はここで同期的に行う（finallyまで待たない）。別行の再生成を押した
+    // ときもここを通るので、fetchが返る前に前の行の「もう一度押すと公開」を必ず消せる。
+    setArmed(null)
+    setBusy((prev) => new Set(prev).add(pageId))
     setMsg(null)
     try {
       const res = await fetch('/api/admin/spread', {
@@ -60,8 +65,12 @@ export function SpreadCard() {
     } catch {
       setMsg('通信に失敗しました。')
     } finally {
-      setBusy(null)
-      setArmed(null)
+      // 行ごとに管理しているbusyから自分のpage_idだけを外す。他行の処理中フラグには触れない。
+      setBusy((prev) => {
+        const next = new Set(prev)
+        next.delete(pageId)
+        return next
+      })
     }
   }
 
@@ -119,16 +128,16 @@ export function SpreadCard() {
                 </span>
                 <button
                   type="button"
-                  disabled={busy === r.page_id}
+                  disabled={busy.has(r.page_id)}
                   onClick={() => run(r.page_id, false)}
                   className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                 >
-                  {busy === r.page_id ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
+                  {busy.has(r.page_id) ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
                   再生成
                 </button>
                 <button
                   type="button"
-                  disabled={busy === r.page_id}
+                  disabled={busy.has(r.page_id)}
                   onClick={() => (armed === r.page_id ? run(r.page_id, true) : setArmed(r.page_id))}
                   className={`inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg disabled:opacity-50 ${
                     armed === r.page_id
