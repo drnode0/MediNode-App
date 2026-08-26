@@ -1,5 +1,6 @@
 'use client'
 import type { ReaderDoc } from './reader-doc'
+import type { SpreadDoc } from './reader-spread'
 
 // 読んだ本文を端末に残す（IndexedDB）。
 //
@@ -22,7 +23,8 @@ const STORE = 'docs'
 // 容量（数百MB〜）から見れば桁が違う。超えたら古い順に捨てる。
 export const MAX_STORED_DOCS = 60
 
-type Entry = { objectID: string; doc: ReaderDoc; at: number }
+// spread は後から足したキー。既存エントリには無いので必ず optional として扱う。
+type Entry = { objectID: string; doc: ReaderDoc; spread?: SpreadDoc | null; at: number }
 
 // 失敗（プライベートモード・容量超過・非対応）は握り潰す。ここが原因で本文が
 // 開かなくなることは絶対に避ける。呼び出し側は常にネットワーク取得を並行して走らせる。
@@ -72,13 +74,35 @@ export async function readStoredDoc(objectID: string): Promise<ReaderDoc | null>
   })
 }
 
-export async function writeStoredDoc(objectID: string, doc: ReaderDoc, now = Date.now()): Promise<void> {
+// Entry から誌面を取り出す純関数（テスト可能にするため分けてある）。
+export function pickStoredSpread(entry: Entry | undefined): SpreadDoc | null {
+  return entry?.spread ?? null
+}
+
+export async function readStoredSpread(objectID: string): Promise<SpreadDoc | null> {
+  const db = await openDb()
+  if (!db) return null
+  const store = tx(db, 'readonly')
+  if (!store) return null
+  return new Promise((resolve) => {
+    const req = store.get(objectID)
+    req.onsuccess = () => resolve(pickStoredSpread(req.result as Entry | undefined))
+    req.onerror = () => resolve(null)
+  })
+}
+
+export async function writeStoredDoc(
+  objectID: string,
+  doc: ReaderDoc,
+  spread: SpreadDoc | null = null,
+  now = Date.now(),
+): Promise<void> {
   const db = await openDb()
   if (!db) return
   const store = tx(db, 'readwrite')
   if (!store) return
   try {
-    store.put({ objectID, doc, at: now } satisfies Entry)
+    store.put({ objectID, doc, spread, at: now } satisfies Entry)
   } catch {
     // 容量超過など。保存できなくても読める状態は変わらないので黙って諦める。
     return

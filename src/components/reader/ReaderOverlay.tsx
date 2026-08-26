@@ -29,6 +29,7 @@ import {
 } from '@/lib/reader-font-scale'
 import { getReaderViewMode, setReaderViewMode, type ReaderViewMode } from '@/lib/reader-digest'
 import type { ReaderDoc } from '@/lib/reader-doc'
+import type { SpreadDoc } from '@/lib/reader-spread'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
 // hit がある間だけ mount されるコンポーネント。その中で useBodyScrollLock() を呼ぶ
@@ -46,6 +47,7 @@ export default function ReaderOverlay({
 }: {
   hit: ReaderHit
   doc: ReaderDoc | null
+  spread?: SpreadDoc | null
   state: 'idle' | 'loading' | 'error'
   zoom: string | null
   onClose: () => void

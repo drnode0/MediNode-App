@@ -6,9 +6,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { recordRecentView } from '@/lib/recent-views'
-import { fetchReaderDoc, getCachedReaderDoc } from '@/lib/reader-prefetch'
-import { readStoredDoc } from '@/lib/reader-doc-store'
+import { fetchReaderDoc, getCachedReaderDoc, getCachedSpread } from '@/lib/reader-prefetch'
+import { readStoredDoc, readStoredSpread } from '@/lib/reader-doc-store'
 import type { ReaderDoc } from '@/lib/reader-doc'
+import type { SpreadDoc } from '@/lib/reader-spread'
 
 const ReaderOverlay = dynamic(() => import('./ReaderOverlay'), { ssr: false })
 
@@ -38,6 +39,7 @@ export function useReader(): ReaderCtx {
 export function ReaderProvider({ children }: { children: React.ReactNode }) {
   const [hit, setHit] = useState<ReaderHit | null>(null)
   const [doc, setDoc] = useState<ReaderDoc | null>(null)
+  const [spread, setSpread] = useState<SpreadDoc | null>(null)
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [zoom, setZoom] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -57,10 +59,10 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
     recordRecentView(h)
     const cached = getCachedReaderDoc(h.objectID)
     if (cached) {
-      setHit(h); setDoc(cached); setState('idle'); setZoom(null)
+      setHit(h); setDoc(cached); setSpread(getCachedSpread(h.objectID)); setState('idle'); setZoom(null)
       return
     }
-    setHit(h); setDoc(null); setState('loading'); setZoom(null)
+    setHit(h); setDoc(null); setSpread(null); setState('loading'); setZoom(null)
 
     // 端末に残した本文（IndexedDB）を先に出す。メモリキャッシュはリロードで消えるので、
     // 「昨日読んだページを今日開く」はここが効く。ネットワーク取得は並行して走らせ、
@@ -81,6 +83,12 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       setDoc(stored)
       // 取得失敗が先に来て error になっていても、ここで読める状態へ戻す。
       setState('idle')
+      // 誌面は本文と同じエントリに入っているが、別読みなので取得完了までにネットワークが
+      // 先に返ることがある。そのときは古い誌面で上書きしない。
+      void readStoredSpread(h.objectID).then((s) => {
+        if (reqRef.current !== token || networkOk) return
+        setSpread(s)
+      })
     })
 
     fetchReaderDoc(h.objectID)
@@ -90,6 +98,7 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
         // 端末の本文を表示中で、中身が変わっていないなら差し替えない。
         // 読んでいる最中に同じ内容で入れ替えると、再描画でスクロール位置が動く。
         if (shownFromStore && shownFromStore.lastEdited === doc.lastEdited) return
+        setSpread(getCachedSpread(h.objectID))
         setDoc(doc); setState('idle')
       })
       .catch(() => {
@@ -133,6 +142,7 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
             <ReaderOverlay
               hit={hit}
               doc={doc}
+              spread={spread}
               state={state}
               zoom={zoom}
               onClose={close}

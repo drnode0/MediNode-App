@@ -5,6 +5,8 @@ import { requirePremiumRequest } from '@/lib/api-guard'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { SUBSCRIPTION_READER_TAG } from '@/lib/reader-cache'
+import { createAdminClient } from '@/lib/supabase/server'
+import type { SpreadDoc } from '@/lib/reader-spread'
 
 // 本文はプレミアム全員で同一なので、Notionからの取得結果をサーバー側（Vercel Data Cache）で
 // 共有キャッシュする。誰かが一度読めば、以後1時間は全員 Notion API 往復なしの即応答になる。
@@ -24,6 +26,26 @@ const getReaderDocCached = (pageId: string, token: string) =>
     { revalidate: 3600, tags: [SUBSCRIPTION_READER_TAG] },
   )()
 
+// 公開済みの誌面だけを引く。無ければ null（＝従来の ReaderBody 描画になる）。
+// Supabase 直読みは Notion API と違って速いので、Data Cache には載せない。
+// 投入時に revalidateSubscriptionReaderDocs() が本文側のタグを失効させる。
+async function getPublishedSpread(pageId: string): Promise<SpreadDoc | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null
+  try {
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('reader_spreads')
+      .select('spread_doc')
+      .eq('page_id', pageId)
+      .eq('status', 'published')
+      .maybeSingle()
+    return (data?.spread_doc as SpreadDoc | undefined) ?? null
+  } catch {
+    // 誌面が引けなくても本文は返す。読めなくなることだけは避ける。
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   // id の検証はセッション解決より先に済ませる（不正な id で認証サーバーへ出ないため）。
   const raw = new URL(req.url).searchParams.get('id')
@@ -39,10 +61,10 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })
 
   try {
-    const doc = await getReaderDocCached(pageId, token)
+    const [doc, spread] = await Promise.all([getReaderDocCached(pageId, token), getPublishedSpread(pageId)])
     // 本文は日次syncでしか変わらないので、ブラウザ側で長めに持たせて再訪のラグをなくす
     // （private: 会員ゲート済みコンテンツを共有キャッシュに載せない）。
-    return NextResponse.json({ doc }, { headers: { 'Cache-Control': 'private, max-age=600, stale-while-revalidate=86400' } })
+    return NextResponse.json({ doc, spread }, { headers: { 'Cache-Control': 'private, max-age=600, stale-while-revalidate=86400' } })
   } catch {
     return NextResponse.json({ error: 'fetch failed' }, { status: 502 })
   }

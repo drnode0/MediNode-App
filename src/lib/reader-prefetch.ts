@@ -1,4 +1,5 @@
 import type { ReaderDoc } from './reader-doc'
+import type { SpreadDoc } from './reader-spread'
 import { getSettings } from './settings'
 import { clearStoredDocs, writeStoredDoc } from './reader-doc-store'
 import { clearIndex } from './notion-index-store'
@@ -12,6 +13,9 @@ import { clearIndex } from './notion-index-store'
 //   personal_/team_… → POST /api/personal/page（自分のトークンを都度渡す・降格式リーダー）
 const TTL_MS = 10 * 60 * 1000
 const docs = new Map<string, { doc: ReaderDoc; at: number }>()
+// 誌面は本文と同じ応答で届くので、同じタイミングで別のMapに置く。
+// fetchReaderDoc の戻り値（ReaderDoc）は変えない。呼び出し側が10箇所以上あるため。
+const spreads = new Map<string, SpreadDoc | null>()
 const inflight = new Map<string, Promise<ReaderDoc>>()
 
 function requestFor(objectID: string): Promise<Response> {
@@ -42,10 +46,13 @@ export function fetchReaderDoc(objectID: string): Promise<ReaderDoc> {
       return r.json()
     })
     .then((d) => {
-      docs.set(objectID, { doc: d.doc as ReaderDoc, at: Date.now() })
+      const doc = d.doc as ReaderDoc
+      const spread = (d.spread as SpreadDoc | undefined) ?? null
+      docs.set(objectID, { doc, at: Date.now() })
+      spreads.set(objectID, spread)
       // 端末にも残す（リロード・PWA再起動を跨いで速く開くため）。失敗は握り潰される。
-      void writeStoredDoc(objectID, d.doc as ReaderDoc)
-      return d.doc as ReaderDoc
+      void writeStoredDoc(objectID, doc, spread)
+      return doc
     })
     .finally(() => {
       inflight.delete(objectID)
@@ -64,6 +71,10 @@ export function getCachedReaderDoc(objectID: string): ReaderDoc | null {
   return hit.doc
 }
 
+export function getCachedSpread(objectID: string): SpreadDoc | null {
+  return spreads.get(objectID) ?? null
+}
+
 // 先読み専用。失敗は握りつぶす（エラーはキャッシュしないので、開く時に普通に再試行される）。
 export function prefetchReaderDoc(objectID: string): void {
   void fetchReaderDoc(objectID).catch(() => {})
@@ -73,6 +84,7 @@ export function prefetchReaderDoc(objectID: string): void {
 // 前の持ち主の個人・部署ページを次のユーザーに見せないため。
 export function clearReaderDocCache(): void {
   docs.clear()
+  spreads.clear()
   inflight.clear()
   void clearStoredDocs()
   // 端末内インデックス（一覧）も消す。本文だけ消しても、前の持ち主のページタイトル・
