@@ -94,6 +94,10 @@ describe('applyOverlay / verifyVerbatim', () => {
     expect(merged.quizzes).toHaveLength(1)
     // 深掘り本文はオーバレイでは触れない
     expect(merged.sections[0].deep).toEqual(draft.sections[0].deep)
+    // 本文は applyOverlay では触れない。ここが緩むと、上書きから本文を書き換える経路ができる。
+    expect(merged.lead).toBe(draft.lead)
+    expect(merged.preface).toBe(draft.preface)
+    expect(merged.tail).toBe(draft.tail)
   })
 
   it('原本に無い文が混ざったら検査で落ちる', () => {
