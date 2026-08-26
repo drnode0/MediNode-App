@@ -79,8 +79,14 @@ export async function PUT(req: Request) {
   return NextResponse.json({ ok: true, status, sections: spread.sections.length })
 }
 
-/** /admin の棚卸し用。誌面の一覧を新しい順に返す。 */
-export async function GET() {
+/**
+ * /admin の棚卸し用。誌面の一覧を新しい順に返す。
+ *
+ * `?check=1` のときだけ、各誌面のNotion原本を引いて最終更新を突き合わせ、
+ * 「原本を直したのに誌面が古いまま」を stale として返す。件数が増えたときに
+ * 毎回Notionへ問い合わせると重くなるため、一覧の素の読み込みでは叩かない。
+ */
+export async function GET(req: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
   const admin = createAdminClient()
@@ -89,5 +95,26 @@ export async function GET() {
     .select('page_id, status, source_last_edited, verified_at, updated_at')
     .order('updated_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'load_failed' }, { status: 500 })
-  return NextResponse.json({ spreads: data ?? [] })
+
+  const rows = data ?? []
+  const check = new URL(req.url).searchParams.get('check') === '1'
+  const token = process.env.SUBSCRIPTION_NOTION_TOKEN
+  if (!check || !token) return NextResponse.json({ spreads: rows })
+
+  const notion = new Client({ auth: token })
+  const withStale = await Promise.all(
+    rows.map(async (r) => {
+      try {
+        const page = await notion.pages.retrieve({ page_id: r.page_id })
+        const last = (page as { last_edited_time?: string }).last_edited_time ?? null
+        // 原本の最終更新が、この誌面を組んだ時点の原本更新より新しければ再生成が要る。
+        const stale = !!last && !!r.source_last_edited && new Date(last) > new Date(r.source_last_edited)
+        return { ...r, stale }
+      } catch {
+        // 原本が引けない（削除・権限変更等）ときは判定しない。誤って「更新あり」と出さない。
+        return { ...r, stale: false }
+      }
+    }),
+  )
+  return NextResponse.json({ spreads: withStale })
 }

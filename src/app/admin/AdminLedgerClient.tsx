@@ -74,6 +74,7 @@ import { BroadcastForm } from './DailyCommandCenter'
 import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
+import { SpreadCard } from './SpreadCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -1156,6 +1157,7 @@ ${label}`,
             {tab === 'analytics' && <EngagementSection />}
             {tab === 'analytics' && <KnowledgeRankingCard />}
             {tab === 'analytics' && <PersonalReaderMetricsCard />}
+            {tab === 'analytics' && <SpreadCard />}
 
             {tab === 'analytics' && (
               <>
