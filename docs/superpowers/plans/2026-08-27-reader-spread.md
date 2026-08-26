@@ -1446,28 +1446,32 @@ git commit -m "refactor: Inlines を共有部品に切り出す（挙動は変�
 5. **`lead` / `preface` / 各節の `deep` / `tail` の4つを全部描く。** どれか1つでも落とすと、
    原本にある本文が誌面から黙って消える。`splitSections` はブロックをこの4つに振り分けるので、
    4つ揃えて初めて原本と同じ量になる
-6. callout の描画は `ReaderBody` の `Block` に委ねる。自前で callout を描くと、
-   🎨制作メモを隠す `draft` role の処理（Task 4）が誌面だけ効かなくなる
+6. 本文の描画は `ReaderBody` の `RenderedBlocks` に委ねる。自前で callout を描くと
+   🎨制作メモを隠す `draft` role の処理（Task 4）が誌面だけ効かなくなり、
+   自前で箇条書きを描くとグルーピングが失われる
 
 - [ ] **Step 1: 深掘りに使うブロック描画を公開する**
 
-`ReaderBody.tsx:308` の `function Block({ ... })` に `export` を付ける。誌面の深掘りは現行本文と同一の見た目でなければならないので、描画を作り直さず再利用する。
+`ReaderBody.tsx` の `function RenderedBlocks({ ... })` に `export` を付ける。**`Block` ではなく `RenderedBlocks` を使うこと。**
+
+理由: `Block` はブロック1個を描くが `list_item` の case を持たない。箇条書きは `groupBlocks` でまとめてから `<ul>` / `<ol>` として描かれるので、`Block` を配列に直接 map すると**箇条書きが1つも描かれずに消える**。医学本文の大半は箇条書きなので、これは致命的になる。`RenderedBlocks` はそのグルーピングを含んだ単位で、`ReaderBody` 自身も本文全体（`blocks={doc.blocks}`）と callout の子に対してこれを使っている。
 
 ```tsx
-export function Block({
-  block,
-  index,
+export function RenderedBlocks({
+  blocks,
   onImageClick,
   active,
+  offset = 0,
 }: {
-  block: ReaderBlock
-  index: number
+  blocks: ReaderBlock[]
   onImageClick: (u: string) => void
   active: Set<Confidence>
+  offset?: number
 }) {
 ```
 
 `active` は確信度フィルタで淡色化する対象の集合。誌面の第1版ではフィルタを持たないので、呼び出し側から空集合を渡す。
+`offset` は `index` の起点。誌面では節ごとに部分配列を渡すので、節をまたいで `index` が衝突しないよう節ごとに異なる起点を渡す。
 
 - [ ] **Step 2: 部品の描画を書く**
 
@@ -1569,14 +1573,18 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
 'use client'
 import { useContext, useMemo, useState } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
-import { Block } from '../ReaderBody'
+import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
-// 誌面の第1版は確信度フィルタを持たない。Block は active を必須で取るので、
+// 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
 const NO_FILTER: Set<Confidence> = new Set()
+
+// 節ごとに index の起点をずらす幅。1つの節が持つブロック数の上限より十分大きく取り、
+// 節をまたいで index（キーと番号なし見出しのアンカーに使う）が衝突しないようにする。
+const SECTION_INDEX_STRIDE = 1000
 
 /**
  * 誌面表示（TEXTBOOK LITE）。
@@ -1607,14 +1615,12 @@ export function ReaderSpread({
     <div className="reader-prose">
       {spread.lead && (
         <div data-tldr="" className="mb-5">
-          <Block block={spread.lead} index={-1} onImageClick={onImageClick} active={NO_FILTER} />
+          <RenderedBlocks blocks={[spread.lead]} onImageClick={onImageClick} active={NO_FILTER} />
         </div>
       )}
 
       {/* 最初のH2より前の本文。ここを描かないと、導入の段落が誌面から黙って消える。 */}
-      {spread.preface.map((b, i) => (
-        <Block key={`p-${i}`} block={b} index={-100 - i} onImageClick={onImageClick} active={NO_FILTER} />
-      ))}
+      <RenderedBlocks blocks={spread.preface} onImageClick={onImageClick} active={NO_FILTER} />
 
       {toc.length > 0 && (
         <nav className="flex flex-wrap gap-1.5 mb-6" aria-label="目次">
@@ -1664,18 +1670,24 @@ export function ReaderSpread({
 
             {isOpen && (
               <div className="mt-2">
-                {s.deep.map((b, bi) => (
-                  <Block key={bi} block={b} index={bi} onImageClick={onImageClick} active={NO_FILTER} />
-                ))}
+                <RenderedBlocks
+                  blocks={s.deep}
+                  onImageClick={onImageClick}
+                  active={NO_FILTER}
+                  offset={(i + 1) * SECTION_INDEX_STRIDE}
+                />
               </div>
             )}
           </section>
         )
       })}
 
-      {spread.tail.map((b, i) => (
-        <Block key={i} block={b} index={1000 + i} onImageClick={onImageClick} active={NO_FILTER} />
-      ))}
+      <RenderedBlocks
+        blocks={spread.tail}
+        onImageClick={onImageClick}
+        active={NO_FILTER}
+        offset={(spread.sections.length + 1) * SECTION_INDEX_STRIDE}
+      />
     </div>
   )
 }
