@@ -8,6 +8,12 @@ import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 import { applyOverlay, buildSpreadDraft, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 
+// pageId の正規化。PUT と PATCH で normalize の中身が違うと、フロントがURLの断片や
+// `subscription_` 接頭辞つきの値を渡したときに片方だけ一致しない事故になる。1本にまとめる。
+function normalizePageId(raw: string | undefined): string {
+  return (raw || '').replace(/^subscription_/, '').replace(/#.*$/, '').trim()
+}
+
 /**
  * 誌面（SpreadDoc）の投入。オーナー専用。
  *
@@ -27,7 +33,7 @@ export async function PUT(req: Request) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 })
   }
-  const pageId = (body.pageId || '').replace(/^subscription_/, '').replace(/#.*$/, '').trim()
+  const pageId = normalizePageId(body.pageId)
   if (!pageId) return NextResponse.json({ error: 'missing pageId' }, { status: 400 })
 
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
@@ -106,6 +112,14 @@ export async function PUT(req: Request) {
  * 読者に届く spread_doc に反映されないため、投入と同じ経路（原本を読む→
  * buildSpreadDraft→sanitizeOverlay→applyOverlay→verifyVerbatim）を通す。
  * status は変えない（公開中の記事なら、承認した設問がその場で読者に出る）。
+ *
+ * ただし「読者に出る spread_doc をその場で組み直す」せいで、承認が公開の裏口に
+ * なってはいけない。原本を直した直後（再生成も公開もまだ）に設問を1件承認すると、
+ * このPATCHが原本から組み直した spread_doc をそのまま保存してしまい、原本の
+ * 編集内容が published の記事に無警告で漏れる。/admin の「原本が更新されています」
+ * 表示はまさにこのズレに気づくために置いてあるので、承認操作がそれを黙って
+ * 解消してしまわないよう、原本の最終更新と保存済み source_last_edited が食い違う
+ * ときは保存せず 409 で拒否し、先に再生成させる。
  */
 export async function PATCH(req: Request) {
   const auth = await requireAdmin()
@@ -117,7 +131,7 @@ export async function PATCH(req: Request) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 })
   }
-  const pageId = (body.pageId || '').trim()
+  const pageId = normalizePageId(body.pageId)
   const quizId = (body.quizId || '').trim()
   if (!pageId || !quizId || typeof body.reviewed !== 'boolean') {
     return NextResponse.json({ error: 'missing_params' }, { status: 400 })
@@ -130,7 +144,7 @@ export async function PATCH(req: Request) {
 
   const { data: existing, error: readError } = await admin
     .from('reader_spreads')
-    .select('overlay, status')
+    .select('overlay, status, source_last_edited')
     .eq('page_id', pageId)
     .maybeSingle()
   if (readError) return NextResponse.json({ error: 'overlay_read_failed' }, { status: 500 })
@@ -156,6 +170,26 @@ export async function PATCH(req: Request) {
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
+  }
+
+  // 原本の最終更新（今取得した lastEdited）と、この誌面を最後に組んだときの
+  // 最終更新（保存済み source_last_edited）を突き合わせる。食い違っていれば
+  // 原本が動いている＝再生成しないまま組み直すと未確認の編集を読者に出すことになる。
+  // どちらか一方が null（原本の最終更新が取れない、または誌面が一度も
+  // source_last_edited を持ったことがない）のときは、そもそも比較ができない。
+  // 「一致している」とみなして通すと事故のほうが起きやすいので、安全側に倒して
+  // 同じく拒否する（比較不能 ＝ 一致とはしない）。
+  const prevEdited = existing.source_last_edited as string | null
+  const sourceChanged =
+    !prevEdited || !lastEdited || new Date(prevEdited).getTime() !== new Date(lastEdited).getTime()
+  if (sourceChanged) {
+    return NextResponse.json(
+      {
+        error: 'source_changed',
+        message: '原本が更新されています。先に再生成してから承認してください。',
+      },
+      { status: 409 },
+    )
   }
 
   const spread = applyOverlay(buildSpreadDraft(doc, pageId), nextOverlay)

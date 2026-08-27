@@ -105,7 +105,13 @@ export function SpreadCard() {
       })
       const d = await res.json()
       if (!res.ok) {
-        setMsg(`失敗しました: ${d.error ?? res.status}`)
+        // source_changed＝原本が更新されているのに再生成しないまま承認しようとした。
+        // 承認は公開の裏口ではないので、先に再生成が要ることが分かる文言にする。
+        setMsg(
+          d.error === 'source_changed'
+            ? '原本が更新されています。先に再生成してから承認してください。'
+            : `失敗しました: ${d.error ?? res.status}`,
+        )
       } else {
         setMsg(reviewed ? '承認しました。' : '取り消しました。')
         load()
@@ -198,19 +204,25 @@ export function SpreadCard() {
                   {armed === r.page_id ? 'もう一度押すと公開' : '公開'}
                 </button>
 
-                {unreviewed.length > 0 && (
+                {r.quizzes.length > 0 && (
                   <button
                     type="button"
                     onClick={() => toggleQuizPanel(r.page_id)}
-                    className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    aria-expanded={quizOpen}
+                    aria-controls={`quiz-panel-${r.page_id}`}
+                    className={
+                      unreviewed.length > 0
+                        ? 'inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                        : 'inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }
                   >
                     <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                    理解チェック（未目視 {unreviewed.length}件）
+                    {unreviewed.length > 0 ? `理解チェック（未目視 ${unreviewed.length}件）` : '理解チェック（目視済み）'}
                   </button>
                 )}
 
                 {quizOpen && (
-                  <div className="w-full mt-1.5 rounded-lg bg-soft-light dark:bg-soft-dark p-3 space-y-2.5">
+                  <div id={`quiz-panel-${r.page_id}`} className="w-full mt-1.5 rounded-lg bg-soft-light dark:bg-soft-dark p-3 space-y-2.5">
                     {r.quizzes.map((q) => {
                       const key = `${r.page_id}:${q.id}`
                       const isBusy = quizBusy.has(key)
