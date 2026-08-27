@@ -78,7 +78,7 @@ describe('splitSections', () => {
     expect(r.lead).toBe(doc.blocks[0])
     expect(r.sections.map((s) => s.n)).toEqual([1, 2])
     expect(r.sections[0].title).toBe('1. 最初に決めるのは目標SpO2である')
-    expect(r.sections[0].anchor).toBe('s1')
+    expect(r.sections[0].anchor).toBe('1')
     expect(r.sections[0].blocks).toEqual([doc.blocks[2]])
     expect(r.sections[1].blocks).toEqual([doc.blocks[4]])
     expect(r.tail).toEqual([doc.blocks[5]])
@@ -212,6 +212,10 @@ export function splitSections(doc: ReaderDoc): SplitResult {
     if (b.kind === 'heading' && b.level === 2) {
       const title = textOf(b.inlines)
       const parsed = parseSectionHeading(b.inlines)
+      // アンカーは sectionAnchor の戻り値をそのまま使う（番号つきなら "1"、番号なしなら "iN"）。
+      // 接頭辞を付けたり別の採番にしたりしないこと。ReaderOverlay の節ジャンプが
+      // [data-section="${sectionNo}"]（Algolia の節番号）で引くので、値がずれると
+      // 横断検索からの節ジャンプが無言で外れる。
       current = { n: parsed?.n ?? null, anchor: sectionAnchor(parsed?.n ?? null, index), title, blocks: [] }
       sections.push(current)
       return
@@ -401,14 +405,14 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('短ラベル・部品・理解チェックを重ねる', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const merged = applyOverlay(draft, {
-      shortLabels: { s1: '目標SpO2' },
-      parts: { s1: { kind: 'bignumber', value: '94%', caption: [{ text: 'デバイスより先に目標値を決める。' }] } },
-      icons: { s1: 'target' },
-      quizzes: [{ id: 'q1', sectionAnchor: 's1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: false }],
+      shortLabels: { '1': '目標SpO2' },
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: 'デバイスより先に目標値を決める。' }] } },
+      icons: { '1': 'target' },
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: false }],
     })
     expect(merged.sections[0].shortLabel).toBe('目標SpO2')
     expect(merged.sections[0].part.kind).toBe('bignumber')
-    expect(merged.icons).toEqual({ s1: 'target' })
+    expect(merged.icons).toEqual({ '1': 'target' })
     expect(merged.quizzes).toHaveLength(1)
     // 深掘り本文はオーバレイでは触れない
     expect(merged.sections[0].deep).toEqual(draft.sections[0].deep)
@@ -417,7 +421,7 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('原本に無い文が混ざったら検査で落ちる', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const bad = applyOverlay(draft, {
-      parts: { s1: { kind: 'bignumber', value: '94%', caption: [{ text: '目標は常に98%以上にする。' }] } },
+      parts: { '1': { kind: 'bignumber', value: '94%', caption: [{ text: '目標は常に98%以上にする。' }] } },
     })
     const r = verifyVerbatim(bad, doc)
     expect(r.ok).toBe(false)
@@ -427,14 +431,14 @@ describe('applyOverlay / verifyVerbatim', () => {
   it('原本の逐語だけなら検査を通る', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const good = applyOverlay(draft, {
-      quizzes: [{ id: 'q1', sectionAnchor: 's1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true }],
+      quizzes: [{ id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true }],
     })
     expect(verifyVerbatim(good, doc)).toEqual({ ok: true, missing: [] })
   })
 
   it('短ラベルは検査の対象にしない（原本に無くてよい）', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
-    const merged = applyOverlay(draft, { shortLabels: { s1: '目標SpO2' } })
+    const merged = applyOverlay(draft, { shortLabels: { '1': '目標SpO2' } })
     expect(verifyVerbatim(merged, doc).ok).toBe(true)
   })
 })
@@ -730,6 +734,11 @@ export function blockText(block: NotionBlockLite): string {
 // 同期全体を止めないための保険として置く（cloze-sync の展開上限と同じ考え方）。
 const MAX_TABLE_EXPANDS = 8
 
+// 1つの表につき table_row を取りに行くページ数の上限（1ページ100行 × 5 = 最大500行）。
+// 上限なしにページネーションすると、巨大な表1つで同期コストが青天井になり得るため、
+// 実務上まず超えない行数で頭打ちにする。超えた分は取りこぼすが、同期全体は止めない。
+const MAX_TABLE_ROW_PAGES = 5
+
 // ページ本文（トップレベルブロック）を全ページネーションで取得する。
 // 失敗してもページ全体の同期は止めない（nullで続行）。統計と節分割の両方がこれを使う。
 //
@@ -756,8 +765,22 @@ async function fetchPageBlocks(notion: Client, pageId: string): Promise<NotionBl
       if (b.type !== 'table' || expands >= MAX_TABLE_EXPANDS) continue
       expands++
       try {
-        const rows = await notion.blocks.children.list({ block_id: (b as { id: string }).id, page_size: 100 })
-        out.push(...(rows.results as unknown as NotionBlockLite[]))
+        // トップレベルと同じくページネーションする。1回だけの取得にすると
+        // 100行を超える表の後半が黙って落ち、この修正の目的（表に書いた本文を
+        // 検索に載せる）が果たせない。
+        const tableId = (b as unknown as { id: string }).id
+        let rowCursor: string | undefined = undefined
+        let rowPage = 0
+        do {
+          const rows = await notion.blocks.children.list({
+            block_id: tableId,
+            page_size: 100,
+            start_cursor: rowCursor,
+          })
+          out.push(...(rows.results as unknown as NotionBlockLite[]))
+          rowPage++
+          rowCursor = rows.has_more && rowPage < MAX_TABLE_ROW_PAGES ? (rows.next_cursor ?? undefined) : undefined
+        } while (rowCursor)
       } catch {
         // 表の中身が取れなくても、そのページの同期自体は続ける。
       }
@@ -867,7 +890,9 @@ Expected: `page_id / spread_doc / overlay / source_last_edited / status / verifi
 | 0026 | reader_spreads | `reader_spreads` | ✅ |
 ```
 
-表の見出し行の直上にある「適用状況（2026-08-03 時点）」の日付を `2026-08-27 時点` に直す。
+見出しの日付は `2026-08-27 時点` に**書き換えないこと**。0024 以降を本番DBで実測していないのに実測日を更新すると、台帳が嘘になる。
+「2026-08-03 時点の記録 + 2026-08-27 以降は未確認」のように、確認済みの範囲が読み取れる形にする。
+0026 は新規なので `⏳ 未適用`、0024・0025 は実測していないので `❓ 未確認` と書く。適用を確認できたら ✅ に直す。
 
 - [ ] **Step 6: コミット**
 
@@ -957,7 +982,7 @@ describe('PUT /api/admin/spread', () => {
   it('原本に無い文を含むオーバレイは400で拒否する', async () => {
     const res = await PUT(req({
       pageId: 'p1',
-      overlay: { parts: { s1: { kind: 'bignumber', value: '99%', caption: [{ text: '原本に無い文。' }] } } },
+      overlay: { parts: { '1': { kind: 'bignumber', value: '99%', caption: [{ text: '原本に無い文。' }] } } },
     }))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -1318,11 +1343,17 @@ const [spread, setSpread] = useState<SpreadDoc | null>(null)
       })
 ```
 
-`fetchReaderDoc(...).then((doc) => {...})` の中、`setDoc(doc); setState('idle')` の直前に足す。
+`fetchReaderDoc(...).then((doc) => {...})` の中、**`if (shownFromStore && shownFromStore.lastEdited === doc.lastEdited) return` の手前**に足す。
 
 ```ts
+        // 誌面は本文の lastEdited とは無関係に公開・再生成されるため、本文の同一性で
+        // 誌面の更新を止めてはいけない。端末の本文が同じでも、新しく公開された誌面は
+        // ここで反映する必要がある。
         setSpread(getCachedSpread(h.objectID))
 ```
+
+**この位置を守ること。** 早期 return の後ろに置くと、本文が同じで誌面だけ新しく公開された場合に、
+古い誌面（または誌面なし）が画面に残り続ける。
 
 `<ReaderOverlay ... />` に `spread={spread}` を渡す。
 
@@ -1412,26 +1443,35 @@ git commit -m "refactor: Inlines を共有部品に切り出す（挙動は変�
 2. 本文のインラインは Task 9 の `Inlines` を通す（`mark[data-reader-search]` の互換）
 3. **検索中は全節の深掘りを開く**（折りたたまれた本文は DOM に無く検索が拾えない）
 4. 深掘りの中身は原本のブロックをそのまま描く
+5. **`lead` / `preface` / 各節の `deep` / `tail` の4つを全部描く。** どれか1つでも落とすと、
+   原本にある本文が誌面から黙って消える。`splitSections` はブロックをこの4つに振り分けるので、
+   4つ揃えて初めて原本と同じ量になる
+6. 本文の描画は `ReaderBody` の `RenderedBlocks` に委ねる。自前で callout を描くと
+   🎨制作メモを隠す `draft` role の処理（Task 4）が誌面だけ効かなくなり、
+   自前で箇条書きを描くとグルーピングが失われる
 
 - [ ] **Step 1: 深掘りに使うブロック描画を公開する**
 
-`ReaderBody.tsx:308` の `function Block({ ... })` に `export` を付ける。誌面の深掘りは現行本文と同一の見た目でなければならないので、描画を作り直さず再利用する。
+`ReaderBody.tsx` の `function RenderedBlocks({ ... })` に `export` を付ける。**`Block` ではなく `RenderedBlocks` を使うこと。**
+
+理由: `Block` はブロック1個を描くが `list_item` の case を持たない。箇条書きは `groupBlocks` でまとめてから `<ul>` / `<ol>` として描かれるので、`Block` を配列に直接 map すると**箇条書きが1つも描かれずに消える**。医学本文の大半は箇条書きなので、これは致命的になる。`RenderedBlocks` はそのグルーピングを含んだ単位で、`ReaderBody` 自身も本文全体（`blocks={doc.blocks}`）と callout の子に対してこれを使っている。
 
 ```tsx
-export function Block({
-  block,
-  index,
+export function RenderedBlocks({
+  blocks,
   onImageClick,
   active,
+  offset = 0,
 }: {
-  block: ReaderBlock
-  index: number
+  blocks: ReaderBlock[]
   onImageClick: (u: string) => void
   active: Set<Confidence>
+  offset?: number
 }) {
 ```
 
 `active` は確信度フィルタで淡色化する対象の集合。誌面の第1版ではフィルタを持たないので、呼び出し側から空集合を渡す。
+`offset` は `index` の起点。誌面では節ごとに部分配列を渡すので、節をまたいで `index` が衝突しないよう節ごとに異なる起点を渡す。
 
 - [ ] **Step 2: 部品の描画を書く**
 
@@ -1533,14 +1573,18 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
 'use client'
 import { useContext, useMemo, useState } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
-import { Block } from '../ReaderBody'
+import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
-// 誌面の第1版は確信度フィルタを持たない。Block は active を必須で取るので、
+// 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
 const NO_FILTER: Set<Confidence> = new Set()
+
+// 節ごとに index の起点をずらす幅。1つの節が持つブロック数の上限より十分大きく取り、
+// 節をまたいで index（キーと番号なし見出しのアンカーに使う）が衝突しないようにする。
+const SECTION_INDEX_STRIDE = 1000
 
 /**
  * 誌面表示（TEXTBOOK LITE）。
@@ -1571,9 +1615,12 @@ export function ReaderSpread({
     <div className="reader-prose">
       {spread.lead && (
         <div data-tldr="" className="mb-5">
-          <Block block={spread.lead} index={-1} onImageClick={onImageClick} active={NO_FILTER} />
+          <RenderedBlocks blocks={[spread.lead]} onImageClick={onImageClick} active={NO_FILTER} />
         </div>
       )}
+
+      {/* 最初のH2より前の本文。ここを描かないと、導入の段落が誌面から黙って消える。 */}
+      <RenderedBlocks blocks={spread.preface} onImageClick={onImageClick} active={NO_FILTER} />
 
       {toc.length > 0 && (
         <nav className="flex flex-wrap gap-1.5 mb-6" aria-label="目次">
@@ -1623,18 +1670,24 @@ export function ReaderSpread({
 
             {isOpen && (
               <div className="mt-2">
-                {s.deep.map((b, bi) => (
-                  <Block key={bi} block={b} index={bi} onImageClick={onImageClick} active={NO_FILTER} />
-                ))}
+                <RenderedBlocks
+                  blocks={s.deep}
+                  onImageClick={onImageClick}
+                  active={NO_FILTER}
+                  offset={(i + 1) * SECTION_INDEX_STRIDE}
+                />
               </div>
             )}
           </section>
         )
       })}
 
-      {spread.tail.map((b, i) => (
-        <Block key={i} block={b} index={1000 + i} onImageClick={onImageClick} active={NO_FILTER} />
-      ))}
+      <RenderedBlocks
+        blocks={spread.tail}
+        onImageClick={onImageClick}
+        active={NO_FILTER}
+        offset={(spread.sections.length + 1) * SECTION_INDEX_STRIDE}
+      />
     </div>
   )
 }
@@ -1801,28 +1854,28 @@ git commit -m "feat: 誌面の有無で描画を出し分ける"
 describe('visibleQuizzes', () => {
   const base = buildSpreadDraft(doc, 'page-1')
   const q = (over: Partial<SpreadQuiz>): SpreadQuiz => ({
-    id: 'q1', sectionAnchor: 's1', question: '？', choices: ['a', 'b'], answerIndex: 0,
+    id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0,
     evidence: 'デバイスより先に目標値を決める。', reviewed: true, ...over,
   })
 
   it('目視済みで根拠が本文にあるものだけ出す', () => {
     const s = { ...base, quizzes: [q({})] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(1)
+    expect(visibleQuizzes(s, '1')).toHaveLength(1)
   })
 
   it('目視前は出さない', () => {
     const s = { ...base, quizzes: [q({ reviewed: false })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 
   it('根拠が本文に無くなったら出さない', () => {
     const s = { ...base, quizzes: [q({ evidence: '原本から消えた文。' })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 
   it('別の節の設問は出さない', () => {
-    const s = { ...base, quizzes: [q({ sectionAnchor: 's2' })] }
-    expect(visibleQuizzes(s, 's1')).toHaveLength(0)
+    const s = { ...base, quizzes: [q({ sectionAnchor: '2' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 })
 ```
@@ -1855,9 +1908,14 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
   const section = spread.sections.find((s) => s.anchor === anchor)
   if (!section) return []
   const corpus = corpusOf({ title: '', icon: null, cover: null, lastEdited: null, blocks: section.deep })
-  return spread.quizzes.filter(
-    (q) => q.sectionAnchor === anchor && q.reviewed && corpus.includes(q.evidence.replace(/[ \t]+/g, ' ')),
-  )
+  return spread.quizzes.filter((q) => {
+    if (q.sectionAnchor !== anchor || !q.reviewed) return false
+    const evidence = q.evidence.trim()
+    // 空文字は String.includes('') が常に true を返すため、検査をすり抜けて
+    // 根拠のない設問を通してしまう。fail-closed で明示的に弾く。
+    if (!evidence) return false
+    return corpus.includes(evidence.replace(/[ \t]+/g, ' '))
+  })
 }
 ```
 
@@ -2208,6 +2266,133 @@ curl -X PUT https://<本番ドメイン>/api/admin/spread \
 
 - Notion「📖 リーダー誌面刷新の設計記録（2026-08-26）」に、公開までの結果と気づきを追記する
 - memory-vault の `medinode-reader-typography` の第5波に、本番化した旨と落とし穴を追記する
+
+---
+
+### Task 16: 理解チェックの目視の関門（/admin）
+
+**Files:**
+- Modify: `src/app/api/admin/spread/route.ts`（PUT で reviewed を落とす／PATCH を新設／GET に quizzes を足す）
+- Modify: `src/lib/admin-audit.ts`（`AdminAction` に `review_quiz` を追加）
+- Modify: `src/app/admin/SpreadCard.tsx`（未目視の設問の一覧と承認）
+- Test: `src/lib/__tests__/admin-spread-route.test.ts`
+
+**Interfaces:**
+- Consumes: Task 7 の `PUT /api/admin/spread`、Task 3 の `SpreadOverlay` / `SpreadQuiz`、Task 13 の `visibleQuizzes`
+- Produces: `PATCH /api/admin/spread`（body: `{ pageId: string; quizId: string; reviewed: boolean }`）／`GET /api/admin/spread` の各行に `quizzes` を追加
+
+**なぜ要るか**: 理解チェックは、承認済み仕様（2026-08-12）の「無査読の誤答選択肢は医学教材として危険」という決定を、「1問ずつオーナーが目視し、目視を通るまで読者に出さない」という条件つきで改めたものである。現状その条件はコード上 `reviewed` という真偽値1つで、値を決めるのは投入する側（制作スキル）である。目視したかどうかは自己申告になっている。ここを、コードの性質として「目視を通らないと読者に出ない」に変える。
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`src/lib/__tests__/admin-spread-route.test.ts` に追記する。
+
+```ts
+describe('目視の関門', () => {
+  it('投入された overlay の設問は reviewed を必ず false に落として保存する', async () => {
+    await PUT(req({
+      pageId: 'p1',
+      overlay: { quizzes: [{ id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: true }] },
+    }))
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.spread_doc.quizzes[0].reviewed).toBe(false)
+    expect(saved.overlay.quizzes[0].reviewed).toBe(false)
+  })
+
+  it('PATCH は指定した設問だけ reviewed を立て、status は変えない', async () => {
+    maybeSingle.mockResolvedValue({
+      data: {
+        overlay: { quizzes: [
+          { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: false },
+          { id: 'q2', sectionAnchor: '1', question: '？？', choices: ['a', 'b'], answerIndex: 1, evidence: '本文。', reviewed: false },
+        ] },
+        status: 'published',
+      },
+      error: null,
+    })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(200)
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.status).toBe('published')
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q1').reviewed).toBe(true)
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q2').reviewed).toBe(false)
+  })
+
+  it('PATCH は管理者でなければ弾く', async () => {
+    const { NextResponse } = await import('next/server')
+    requireAdmin.mockResolvedValue({ ok: false, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(403)
+  })
+})
+```
+
+既存のモックの作り方に合わせること。`maybeSingle` と `PATCH` 用のリクエストヘルパは、既存のヘルパの流儀に沿って足す。
+
+- [ ] **Step 2: テストを走らせて失敗を確認する**
+
+Run: `npx vitest run src/lib/__tests__/admin-spread-route.test.ts`
+Expected: FAIL（`PATCH` が存在しない／`reviewed` が true のまま保存される）
+
+- [ ] **Step 3: PUT で reviewed を落とす**
+
+`src/app/api/admin/spread/route.ts` の PUT で、**投入された overlay の設問だけ** `reviewed: false` にする。保存済み overlay を読み直した場合は**そのままにする**（過去に目視した設問の記録を消さないため）。
+
+```ts
+  let overlay = body.overlay
+  if (overlay) {
+    // 投入された設問は必ず未目視から始める。目視したかどうかを投入側の自己申告に
+    // 委ねると、「目視を通らないと読者に出ない」がコードの性質でなくなる。
+    // 内容が変わった以上、過去の目視は引き継がない。
+    overlay = { ...overlay, quizzes: overlay.quizzes?.map((q) => ({ ...q, reviewed: false })) }
+  } else {
+    // 保存済みの overlay を読み直す場合は、既に立っている目視フラグを保つ。
+    ...（既存の読み直し処理）
+  }
+```
+
+- [ ] **Step 4: PATCH を実装する**
+
+同じファイルに追加する。保存済みの overlay を読み、指定された設問の `reviewed` だけを反転させ、原本から誌面を組み直して保存する。`status` は変えない。
+
+```ts
+/**
+ * 理解チェックの目視。オーナーが1問ずつ見て承認する。
+ *
+ * 誌面（spread_doc）は overlay を原本に重ねて組み直す。フラグだけを書き換えても
+ * 読者に届く spread_doc に反映されないため、投入と同じ経路を通す。
+ * status は変えない（公開中の記事なら、承認した設問がその場で読者に出る）。
+ */
+export async function PATCH(req: Request) { ... }
+```
+
+監査ログの種別は `review_quiz`。`detail` に `pageId` / `quizId` / `reviewed` を入れる（`target_user_id` は uuid 型なので使わない）。
+保存後は `revalidateSubscriptionReaderDocs()` を呼ぶ。
+
+- [ ] **Step 5: GET に設問を足す**
+
+`GET /api/admin/spread` の各行に `quizzes` を含める。`overlay` 列から取り出す（`spread_doc` 全体を返すと重い）。オーナー専用なので、設問・選択肢・正解・根拠をそのまま返してよい。
+
+- [ ] **Step 6: /admin に目視の画面を足す**
+
+`src/app/admin/SpreadCard.tsx` の各行に、未目視の設問がある場合だけ「理解チェック（未目視 N件）」の開閉を出す。開くと1問ずつ、問い・選択肢（正解に印）・根拠の逐語を表示し、「承認」ボタンを置く。目視済みの設問は「目視済み」と表示し、「取り消し」で戻せるようにする。
+
+- `confirm` / `alert` を使わない
+- タップ対象は 44px
+- アイコンに絵文字を使わない
+- 面の色は階調トークン（`bg-soft-light dark:bg-soft-dark` / `bg-card-light dark:bg-card-dark`）
+
+- [ ] **Step 7: テストと型チェック**
+
+Run: `npx vitest run src/lib/__tests__/admin-spread-route.test.ts && npx tsc --noEmit && npm test`
+Expected: 新規テスト PASS・型エラーなし・既存の無関係failure 1件のみ
+
+- [ ] **Step 8: コミット**
+
+```bash
+git add src/app/api/admin/spread/route.ts src/lib/admin-audit.ts src/app/admin/SpreadCard.tsx src/lib/__tests__/admin-spread-route.test.ts
+git commit -m "feat: 理解チェックの目視の関門を /admin に置く"
+```
 
 ---
 
