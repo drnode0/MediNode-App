@@ -14,7 +14,7 @@
 3. **SQL は再実行しても安全に書く**（`if not exists` / `add column if not exists`）。
    取りこぼしを疑ったとき、気軽に流し直せることが最大の防御になる。
 
-## 適用状況（2026-08-03 時点の記録 + 2026-08-27 以降は未確認）
+## 適用状況（0001〜0023 は 2026-08-03 の実測 / 0024〜0026 は 2026-08-27 に確認）
 
 | # | ファイル | 主な作成物 | 本番 |
 |---|---|---|---|
@@ -41,9 +41,9 @@
 | 0021 | early_access_features | `user_settings.early_access_features` | ✅ |
 | 0022 | oauth_states | `oauth_states` | ✅ |
 | 0023 | oauth_states_purge_indexes | `oauth_states_created_at_idx`, `oauth_states_status_completed_at_idx` | ✅ |
-| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ❓ 未確認 |
-| 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps`, `increment_notion_escape()` | ❓ 未確認 |
-| 0026 | reader_spreads | `reader_spreads` | ⏳ 未適用 |
+| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ❓ 未確認 ※3 |
+| 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps`, `increment_notion_escape()` | ✅ ※2 |
+| 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -71,3 +71,7 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
   -H "Accept: application/openapi+json" \
   | python3 -c "import json,sys; print('\n'.join(sorted(json.load(sys.stdin)['paths'])))"
 ```
+
+※2 2026-08-27 に本番DBで実測。`select table_name from information_schema.tables where table_schema='public' and table_name in ('block_type_stats','notion_escape_taps','reader_spreads')` が3件とも返った。
+※3 0024 は列の追加なので上のクエリでは判定できない。確かめるなら
+`select column_name from information_schema.columns where table_schema='public' and table_name='user_settings' and column_name='occupation'`。
