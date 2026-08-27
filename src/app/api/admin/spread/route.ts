@@ -7,6 +7,7 @@ import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 import { applyOverlay, buildSpreadDraft, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
 
 // pageId の正規化。PUT と PATCH で normalize の中身が違うと、フロントがURLの断片や
 // `subscription_` 接頭辞つきの値を渡したときに片方だけ一致しない事故になる。1本にまとめる。
@@ -42,12 +43,15 @@ export async function PUT(req: Request) {
   const admin = createAdminClient()
 
   let doc
+  let notes
   let lastEdited: string | null = null
   try {
     const notion = new Client({ auth: token })
     const page = await notion.pages.retrieve({ page_id: pageId })
     const blocks = await fetchPageBlocks(notion, pageId)
     doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
+    // 誌面ノート（非公開DB）。無ければ null＝照合先は原本だけ。
+    notes = await fetchSpreadNotesBlocks(notion, pageId)
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
@@ -74,7 +78,7 @@ export async function PUT(req: Request) {
   // 再利用した overlay も、ここで必ず正規化してから重ねる。
   overlay = sanitizeOverlay(overlay)
   const spread = applyOverlay(buildSpreadDraft(doc, pageId), overlay)
-  const check = verifyVerbatim(spread, doc)
+  const check = verifyVerbatim(spread, doc, notes)
   if (!check.ok) {
     // 生成側が本文を書き換えた、または原本が変わった。どちらも投入させない。
     return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
@@ -161,12 +165,15 @@ export async function PATCH(req: Request) {
   }
 
   let doc
+  let notes
   let lastEdited: string | null = null
   try {
     const notion = new Client({ auth: token })
     const page = await notion.pages.retrieve({ page_id: pageId })
     const blocks = await fetchPageBlocks(notion, pageId)
     doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
+    // 誌面ノート（非公開DB）。投入時と同じ照合先で組み直す。
+    notes = await fetchSpreadNotesBlocks(notion, pageId)
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
@@ -193,7 +200,7 @@ export async function PATCH(req: Request) {
   }
 
   const spread = applyOverlay(buildSpreadDraft(doc, pageId), nextOverlay)
-  const check = verifyVerbatim(spread, doc)
+  const check = verifyVerbatim(spread, doc, notes)
   if (!check.ok) {
     // 根拠の逐語が原本と食い違っている（原本が変わった）。承認操作では投入させない。
     return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })

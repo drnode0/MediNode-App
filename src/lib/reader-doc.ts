@@ -155,7 +155,8 @@ export const READER_SUPPORTED_BLOCK_TYPES: ReadonlySet<string> = new Set([
   'callout', 'image', 'divider', 'quote', 'table', 'table_row',
 ])
 
-function titleOf(props: Record<string, any> | undefined): string {
+// ページプロパティからタイトル文字列を取り出す（誌面ノートDBの行の特定にも使う）。
+export function pageTitleOf(props: Record<string, any> | undefined): string {
   if (!props) return ''
   for (const p of Object.values(props)) {
     if (p?.type === 'title') return plain(p.title)
@@ -175,7 +176,7 @@ export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?:
   const genre = selectNameOf(page.properties, 'ジャンル')
   const questionType = selectNameOf(page.properties, '問いの型')
   return {
-    title: titleOf(page.properties),
+    title: pageTitleOf(page.properties),
     icon: iconOf(page.icon),
     cover: imageUrlOf(page.cover, pageId ? `id=${encodeURIComponent(pageId)}&cover=1` : null, opts?.imageProxyBase),
     lastEdited: page.last_edited_time ?? null,

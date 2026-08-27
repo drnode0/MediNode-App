@@ -358,28 +358,36 @@ function verbatimTargets(spread: SpreadDoc): string[] {
   return out.map((s) => s.trim()).filter(Boolean)
 }
 
-// 原本の全文（ブロックを跨いだ連結ではなく、ブロックごとの文字列の集合）。
-function corpusOf(doc: ReaderDoc): string {
+// ブロック列の全文（ブロックを跨いだ連結ではなく、ブロックごとの文字列の集合）。
+function corpusOfBlocks(blocks: ReaderBlock[]): string {
   const parts: string[] = []
-  const walk = (blocks: ReaderBlock[]) => {
-    for (const b of blocks) {
+  const walk = (list: ReaderBlock[]) => {
+    for (const b of list) {
       if (b.kind === 'heading' || b.kind === 'paragraph' || b.kind === 'list_item') parts.push(textOf(b.inlines))
       else if (b.kind === 'callout') walk(b.blocks)
       else if (b.kind === 'table') for (const row of b.rows) for (const cell of row) parts.push(textOf(cell))
       else if (b.kind === 'image' && b.caption) parts.push(b.caption)
     }
   }
-  walk(doc.blocks)
+  walk(blocks)
   // 改行と連続空白の揺れを吸収する。文字を落とす正規化はしない（別物を同一視しないため）。
   return parts.join('\n').replace(/[ \t]+/g, ' ')
 }
 
+function corpusOf(doc: ReaderDoc): string {
+  return corpusOfBlocks(doc.blocks)
+}
+
 /**
- * 誌面が原本の逐語だけでできているかを検査する。
+ * 誌面が「原本＋誌面ノート」の逐語だけでできているかを検査する。
  * 落ちたら投入を拒否する。生成側が本文を書き換えたことを意味するため。
+ *
+ * notes は非公開の誌面ノートページ（src/lib/spread-notes.ts）のブロック。
+ * 圧縮文言は公開ページに置けない（公開リンクで読者に見える）ため、照合先だけを
+ * ノートに広げる。渡されなければ従来どおり原本だけで検査する（fail-closed）。
  */
-export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc): { ok: boolean; missing: string[] } {
-  const corpus = corpusOf(doc)
+export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc, notes?: ReaderBlock[] | null): { ok: boolean; missing: string[] } {
+  const corpus = notes && notes.length > 0 ? `${corpusOf(doc)}\n${corpusOfBlocks(notes)}` : corpusOf(doc)
   const missing = verbatimTargets(spread)
     .filter((s) => !corpus.includes(s.replace(/[ \t]+/g, ' ')))
   return { ok: missing.length === 0, missing }

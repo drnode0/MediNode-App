@@ -17,6 +17,7 @@ import { Client } from '@notionhq/client'
 import { fetchPageBlocks } from '../src/lib/notion-page'
 import { mapBlocksToReaderDoc } from '../src/lib/reader-doc'
 import { applyOverlay, buildSpreadDraft, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '../src/lib/reader-spread'
+import { fetchSpreadNotesBlocks } from '../src/lib/spread-notes'
 import { ReaderSpread } from '../src/components/reader/spread/ReaderSpread'
 import { RenderedBlocks } from '../src/components/reader/ReaderBody'
 
@@ -43,11 +44,17 @@ async function main() {
   const env = loadEnvLocal()
   const token = env.SUBSCRIPTION_NOTION_TOKEN
   if (!token) throw new Error('SUBSCRIPTION_NOTION_TOKEN が .env.local にない')
+  // 投入APIと同じく、誌面ノートDBは環境変数で解決する（.env.local から process.env へ渡す）。
+  if (env.SUBSCRIPTION_SPREAD_NOTES_DB && !process.env.SUBSCRIPTION_SPREAD_NOTES_DB) {
+    process.env.SUBSCRIPTION_SPREAD_NOTES_DB = env.SUBSCRIPTION_SPREAD_NOTES_DB
+  }
 
   const notion = new Client({ auth: token })
   const page = await notion.pages.retrieve({ page_id: pageId })
   const blocks = await fetchPageBlocks(notion, pageId)
   const doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
+  const notes = await fetchSpreadNotesBlocks(notion, pageId)
+  console.error(notes ? `誌面ノート: ${notes.length}ブロックを照合先に追加` : '誌面ノート: なし（照合先は原本のみ）')
 
   // --overlay <file>: 投入時に渡すオーバレイ（短ラベル・部品・理解チェック）を先に当てて見る。
   // 通す関門は本番と同じ sanitizeOverlay → applyOverlay → verifyVerbatim。
@@ -59,7 +66,7 @@ async function main() {
   if (process.argv.includes('--reviewed')) {
     spread = { ...spread, quizzes: spread.quizzes.map((q) => ({ ...q, reviewed: true })) }
   }
-  const check = verifyVerbatim(spread, doc)
+  const check = verifyVerbatim(spread, doc, notes)
   if (!check.ok) {
     console.error('逐語一致検査に落ちた:', check.missing)
     process.exit(2)
