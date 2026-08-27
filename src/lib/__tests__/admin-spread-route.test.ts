@@ -5,9 +5,11 @@ const upsert = vi.fn()
 const notionRetrieve = vi.fn()
 const logAdminAction = vi.fn()
 const revalidateSubscriptionReaderDocs = vi.fn()
+// PUT が overlay 省略時に読みに行く既存行、PATCH が読みに行く既存行、どちらも
+// 同じ select().eq().maybeSingle() 経路を通るので1本の vi.fn で共有する。
+const maybeSingle = vi.fn()
 let selectRows: unknown[] = []
-// PUT が overlay 省略時に読みに行く既存行（select().eq().maybeSingle() 経路）。
-let existingOverlayRow: { overlay: unknown } | null = null
+let existingOverlayRow: { overlay: unknown; status?: string } | null = null
 let overlayReadError: unknown = null
 
 vi.mock('@/lib/admin-guard', () => ({ requireAdmin: () => requireAdmin() }))
@@ -19,7 +21,7 @@ vi.mock('@/lib/supabase/server', () => ({
       upsert,
       select: () => ({
         order: () => ({ data: selectRows, error: null }),
-        eq: () => ({ maybeSingle: async () => ({ data: existingOverlayRow, error: overlayReadError }) }),
+        eq: () => ({ maybeSingle }),
       }),
     }),
   }),
@@ -34,10 +36,13 @@ vi.mock('@notionhq/client', () => ({
   Client: class { pages = { retrieve: (...a: unknown[]) => notionRetrieve(...a) } },
 }))
 
-const { PUT, GET } = await import('../../app/api/admin/spread/route')
+const { PUT, PATCH, GET } = await import('../../app/api/admin/spread/route')
 
 const req = (body: unknown) =>
   new Request('http://localhost/api/admin/spread', { method: 'PUT', body: JSON.stringify(body) })
+
+const patchReq = (body: unknown) =>
+  new Request('http://localhost/api/admin/spread', { method: 'PATCH', body: JSON.stringify(body) })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -48,6 +53,9 @@ beforeEach(() => {
   selectRows = []
   existingOverlayRow = null
   overlayReadError = null
+  // 既定は「保存済み行を variable ベースで返す」。PATCH のテストなど、行の中身を
+  // 直接指定したいときだけ maybeSingle.mockResolvedValue で個別に上書きする。
+  maybeSingle.mockImplementation(async () => ({ data: existingOverlayRow, error: overlayReadError }))
 })
 
 describe('PUT /api/admin/spread', () => {
@@ -138,6 +146,44 @@ describe('PUT /api/admin/spread', () => {
   })
 })
 
+describe('目視の関門', () => {
+  it('投入された overlay の設問は reviewed を必ず false に落として保存する', async () => {
+    await PUT(req({
+      pageId: 'p1',
+      overlay: { quizzes: [{ id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: true }] },
+    }))
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.spread_doc.quizzes[0].reviewed).toBe(false)
+    expect(saved.overlay.quizzes[0].reviewed).toBe(false)
+  })
+
+  it('PATCH は指定した設問だけ reviewed を立て、status は変えない', async () => {
+    maybeSingle.mockResolvedValue({
+      data: {
+        overlay: { quizzes: [
+          { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: false },
+          { id: 'q2', sectionAnchor: '1', question: '？？', choices: ['a', 'b'], answerIndex: 1, evidence: '本文。', reviewed: false },
+        ] },
+        status: 'published',
+      },
+      error: null,
+    })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(200)
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.status).toBe('published')
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q1').reviewed).toBe(true)
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q2').reviewed).toBe(false)
+  })
+
+  it('PATCH は管理者でなければ弾く', async () => {
+    const { NextResponse } = await import('next/server')
+    requireAdmin.mockResolvedValue({ ok: false, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(403)
+  })
+})
+
 const getReq = (qs = '') => new Request(`http://localhost/api/admin/spread${qs}`)
 
 describe('GET /api/admin/spread', () => {
@@ -148,15 +194,31 @@ describe('GET /api/admin/spread', () => {
     expect(res.status).toBe(403)
   })
 
-  it('?check=1 が無ければNotionに問い合わせず一覧をそのまま返す', async () => {
+  it('?check=1 が無ければNotionに問い合わせず一覧をそのまま返す（quizzesはoverlayから取り出す）', async () => {
+    const quizzes = [
+      { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: false },
+    ]
     selectRows = [
-      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z' },
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', overlay: { quizzes } },
     ]
     const res = await GET(getReq())
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.spreads).toEqual(selectRows)
+    expect(body.spreads).toEqual([
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', quizzes },
+    ])
+    // overlay 列そのものは応答に残らないこと（spread_doc 同様に重いものは返さない）
+    expect(body.spreads[0].overlay).toBeUndefined()
     expect(notionRetrieve).not.toHaveBeenCalled()
+  })
+
+  it('overlay に quizzes が無い行は quizzes: [] を返す', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z' },
+    ]
+    const res = await GET(getReq())
+    const body = await res.json()
+    expect(body.spreads[0].quizzes).toEqual([])
   })
 
   it('?check=1 かつ原本の最終更新が新しければ stale: true を返す', async () => {

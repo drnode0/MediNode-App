@@ -51,7 +51,13 @@ export async function PUT(req: Request) {
   // 読んで再利用する。ここを body.overlay ?? {} のままにすると、原本を直して「再生成」を
   // 押すたびに短ラベル・部品の指定・オーナーの理解チェックが空のオーバレイで無警告に消える。
   let overlay = body.overlay
-  if (!overlay) {
+  if (overlay) {
+    // 投入された設問は必ず未目視から始める。目視したかどうかを投入側の自己申告に
+    // 委ねると、「目視を通らないと読者に出ない」がコードの性質でなくなる。
+    // 内容が変わった以上、過去の目視は引き継がない（目視は /admin の PATCH でしか立たない）。
+    overlay = { ...overlay, quizzes: overlay.quizzes?.map((q) => ({ ...q, reviewed: false })) }
+  } else {
+    // 保存済みの overlay を読み直す場合は、既に立っている目視フラグを保つ。
     const { data: existing, error: readError } = await admin.from('reader_spreads').select('overlay').eq('page_id', pageId).maybeSingle()
     // 読み取りエラーが発生したときは投入を拒否する。無警告で空のオーバレイで上書きするより、
     // 失敗を知らせて再試行させるほうが安全（fail-closed パターン）。
@@ -94,6 +100,95 @@ export async function PUT(req: Request) {
 }
 
 /**
+ * 理解チェックの目視。オーナーが1問ずつ見て承認する。
+ *
+ * 誌面（spread_doc）は overlay を原本に重ねて組み直す。フラグだけを書き換えても
+ * 読者に届く spread_doc に反映されないため、投入と同じ経路（原本を読む→
+ * buildSpreadDraft→sanitizeOverlay→applyOverlay→verifyVerbatim）を通す。
+ * status は変えない（公開中の記事なら、承認した設問がその場で読者に出る）。
+ */
+export async function PATCH(req: Request) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+
+  let body: { pageId?: string; quizId?: string; reviewed?: boolean }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'bad_json' }, { status: 400 })
+  }
+  const pageId = (body.pageId || '').trim()
+  const quizId = (body.quizId || '').trim()
+  if (!pageId || !quizId || typeof body.reviewed !== 'boolean') {
+    return NextResponse.json({ error: 'missing_params' }, { status: 400 })
+  }
+
+  const token = process.env.SUBSCRIPTION_NOTION_TOKEN
+  if (!token) return NextResponse.json({ error: 'not configured' }, { status: 500 })
+
+  const admin = createAdminClient()
+
+  const { data: existing, error: readError } = await admin
+    .from('reader_spreads')
+    .select('overlay, status')
+    .eq('page_id', pageId)
+    .maybeSingle()
+  if (readError) return NextResponse.json({ error: 'overlay_read_failed' }, { status: 500 })
+  if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  const overlay = sanitizeOverlay((existing.overlay as SpreadOverlay | null) ?? {})
+  const quizzes = overlay.quizzes ?? []
+  if (!quizzes.some((q) => q.id === quizId)) {
+    return NextResponse.json({ error: 'quiz_not_found' }, { status: 404 })
+  }
+  const nextOverlay: SpreadOverlay = {
+    ...overlay,
+    quizzes: quizzes.map((q) => (q.id === quizId ? { ...q, reviewed: body.reviewed as boolean } : q)),
+  }
+
+  let doc
+  let lastEdited: string | null = null
+  try {
+    const notion = new Client({ auth: token })
+    const page = await notion.pages.retrieve({ page_id: pageId })
+    const blocks = await fetchPageBlocks(notion, pageId)
+    doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
+    lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
+  } catch {
+    return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
+  }
+
+  const spread = applyOverlay(buildSpreadDraft(doc, pageId), nextOverlay)
+  const check = verifyVerbatim(spread, doc)
+  if (!check.ok) {
+    // 根拠の逐語が原本と食い違っている（原本が変わった）。承認操作では投入させない。
+    return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
+  }
+
+  const { error } = await admin.from('reader_spreads').upsert({
+    page_id: pageId,
+    spread_doc: spread,
+    overlay: nextOverlay,
+    source_last_edited: lastEdited,
+    status: existing.status,
+    verified_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  if (error) return NextResponse.json({ error: 'save_failed' }, { status: 500 })
+
+  await logAdminAction(admin, {
+    actorEmail: auth.email,
+    action: 'review_quiz',
+    // admin_audit_log.target_user_id は uuid 型なので、pageId は detail に入れる。
+    detail: { pageId, quizId, reviewed: body.reviewed },
+  })
+
+  revalidateSubscriptionReaderDocs()
+
+  return NextResponse.json({ ok: true })
+}
+
+/**
  * /admin の棚卸し用。誌面の一覧を新しい順に返す。
  *
  * `?check=1` のときだけ、各誌面のNotion原本を引いて最終更新を突き合わせ、
@@ -106,11 +201,24 @@ export async function GET(req: Request) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('reader_spreads')
-    .select('page_id, status, source_last_edited, verified_at, updated_at')
+    .select('page_id, status, source_last_edited, verified_at, updated_at, overlay')
     .order('updated_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'load_failed' }, { status: 500 })
 
-  const rows = data ?? []
+  // 理解チェックの目視画面用に quizzes だけ overlay から取り出す。spread_doc 全体を
+  // 返すと重いので載せない。オーナー専用なので設問・選択肢・正解・根拠はそのまま返す。
+  const rows = (data ?? []).map((r) => {
+    const row = r as {
+      page_id: string
+      status: string
+      source_last_edited: string | null
+      verified_at: string | null
+      updated_at: string
+      overlay?: SpreadOverlay | null
+    }
+    const { overlay, ...rest } = row
+    return { ...rest, quizzes: overlay?.quizzes ?? [] }
+  })
   const check = new URL(req.url).searchParams.get('check') === '1'
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
   if (!check || !token) return NextResponse.json({ spreads: rows })

@@ -6,9 +6,10 @@
 // このカードがその気づきの場所になる。データは /api/admin/spread（管理者専用）。
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
+import type { SpreadQuiz } from '@/lib/reader-spread'
 
 type Row = {
   page_id: string
@@ -17,6 +18,7 @@ type Row = {
   verified_at: string | null
   updated_at: string
   stale?: boolean
+  quizzes: SpreadQuiz[]
 }
 
 export function SpreadCard() {
@@ -26,6 +28,11 @@ export function SpreadCard() {
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const [armed, setArmed] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // どの行の理解チェック一覧を開いているか（page_idのSet）。
+  const [openQuiz, setOpenQuiz] = useState<Set<string>>(new Set())
+  // 設問の承認/取り消しは行の再生成・公開ボタンとは別の処理中フラグで持つ。
+  // キーは `${page_id}:${quiz.id}`（同じ設問idが別ページに出ることはないが、念のため揃える）。
+  const [quizBusy, setQuizBusy] = useState<Set<string>>(new Set())
 
   const load = useCallback(() => {
     // 原本の最終更新との突合（stale判定）はNotionへ問い合わせる分、重い。
@@ -74,6 +81,46 @@ export function SpreadCard() {
     }
   }
 
+  const toggleQuizPanel = (pageId: string) => {
+    setOpenQuiz((prev) => {
+      const next = new Set(prev)
+      if (next.has(pageId)) next.delete(pageId)
+      else next.add(pageId)
+      return next
+    })
+  }
+
+  // 理解チェックの目視。承認＝reviewed: true、取り消し＝reviewed: false。
+  // どちらも誌面を組み直して保存し直す（読者に届く spread_doc にフラグを反映するため）ので、
+  // 成功したら一覧を読み込み直す（run と同じ流儀）。
+  const reviewQuiz = async (pageId: string, quizId: string, reviewed: boolean) => {
+    const key = `${pageId}:${quizId}`
+    setQuizBusy((prev) => new Set(prev).add(key))
+    setMsg(null)
+    try {
+      const res = await fetch('/api/admin/spread', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId, quizId, reviewed }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setMsg(`失敗しました: ${d.error ?? res.status}`)
+      } else {
+        setMsg(reviewed ? '承認しました。' : '取り消しました。')
+        load()
+      }
+    } catch {
+      setMsg('通信に失敗しました。')
+    } finally {
+      setQuizBusy((prev) => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
+      })
+    }
+  }
+
   return (
     <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
       <SectionHeading
@@ -99,6 +146,8 @@ export function SpreadCard() {
           {rows.map((r) => {
             const published = r.status === 'published'
             const stale = r.stale === true
+            const unreviewed = r.quizzes.filter((q) => !q.reviewed)
+            const quizOpen = openQuiz.has(r.page_id)
             return (
               <li
                 key={r.page_id}
@@ -148,6 +197,71 @@ export function SpreadCard() {
                   <UploadCloud className="w-3.5 h-3.5 shrink-0" aria-hidden />
                   {armed === r.page_id ? 'もう一度押すと公開' : '公開'}
                 </button>
+
+                {unreviewed.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleQuizPanel(r.page_id)}
+                    className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                    理解チェック（未目視 {unreviewed.length}件）
+                  </button>
+                )}
+
+                {quizOpen && (
+                  <div className="w-full mt-1.5 rounded-lg bg-soft-light dark:bg-soft-dark p-3 space-y-2.5">
+                    {r.quizzes.map((q) => {
+                      const key = `${r.page_id}:${q.id}`
+                      const isBusy = quizBusy.has(key)
+                      return (
+                        <div key={q.id} className="rounded-lg bg-card-light dark:bg-card-dark p-3">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                q.reviewed
+                                  ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60'
+                              }`}
+                            >
+                              {q.reviewed ? '目視済み' : '未目視'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => reviewQuiz(r.page_id, q.id, !q.reviewed)}
+                              className={`inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg disabled:opacity-50 ${
+                                q.reviewed
+                                  ? 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                  : 'bg-brand-600 text-white hover:bg-brand-700'
+                              }`}
+                            >
+                              {isBusy ? <Spinner className="w-3.5 h-3.5" /> : null}
+                              {q.reviewed ? '取り消し' : '承認'}
+                            </button>
+                          </div>
+                          <p className="text-sm font-bold leading-relaxed mb-2">{q.question}</p>
+                          <ul className="space-y-1 mb-2">
+                            {q.choices.map((c, i) => (
+                              <li
+                                key={i}
+                                className={`text-xs px-2 py-1 rounded leading-relaxed ${
+                                  i === q.answerIndex
+                                    ? 'text-brand-700 dark:text-brand-300 font-semibold'
+                                    : 'text-gray-600 dark:text-gray-300'
+                                }`}
+                              >
+                                {i === q.answerIndex ? '○ ' : '　'}
+                                {c}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{q.evidence}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </li>
             )
           })}
