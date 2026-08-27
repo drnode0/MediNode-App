@@ -1,11 +1,17 @@
 'use client'
-import { Inlines } from '../Inlines'
+import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import type { ReaderInline } from '@/lib/reader-doc'
 import type { SpreadPart } from '@/lib/reader-spread'
 
 // 表層の部品。教科書の誌面で「どこを見るか」を形が教える役割を持つ。
 // 現行の本文中の表は本文より小さい全セル枠線だったが、誌面では逆にする。
-// ヘッダ行に地色・横罫のみ・数値セルを大きく太く。
+// ヘッダ行に地色・横罫のみ・数値セルを大きく太く（仕様書「見た目」の節）。
+//
+// 部品の中では太字の自動アンバーマーカー（Inlines の BOLD_MARKER）を止め、
+// 代わりに太字をブランドグリーン＋やや大きめで出す。部品は「数値が主役」の面なので、
+// 蛍光マーカーの面が増えるより、数値そのものが立つほうがパイロット誌面の見え方に近い。
+const BOLD_AS_NUMBER =
+  '[&_.font-bold]:text-brand-700 dark:[&_.font-bold]:text-brand-300 [&_.font-bold]:text-[1.12em]'
 
 function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   const [head, ...body] = rows
@@ -21,7 +27,8 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
             ))}
           </tr>
         </thead>
-        <tbody>
+        {/* 数値強調は本文セルだけ。ヘッダ行（th も font-bold）に効かせると見出しまで緑・特大になる。 */}
+        <tbody className={BOLD_AS_NUMBER}>
           {body.map((row, r) => (
             <tr key={r} className="border-t border-gray-200 dark:border-white/10">
               {row.map((cell, c) => (
@@ -37,25 +44,90 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   )
 }
 
+// 判断フロー。丸数字＋縦の導線で「上から順に試す」を形で示す。
+// step.label が自動分類（"1" "2"…）のときは丸数字と重複するので条件行を出さない。
+// オーバレイで条件（「SpO₂ 85%以上・高CO₂リスクなし」等）が渡されたときだけ条件行になる。
+function FlowSteps({ steps }: { steps: { label: string; inlines: ReaderInline[] }[] }) {
+  return (
+    <ol className="my-4">
+      {steps.map((s, i) => {
+        const condition = s.label !== String(i + 1) ? s.label : null
+        return (
+          <li key={i} className="relative pl-10 pb-4 last:pb-0">
+            {i < steps.length - 1 && (
+              <span aria-hidden="true" className="absolute left-[13px] top-8 bottom-0 w-px bg-brand-200 dark:bg-white/15" />
+            )}
+            <span className="absolute left-0 top-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm font-bold grid place-items-center">
+              {i + 1}
+            </span>
+            {condition && (
+              <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 leading-snug pt-0.5">
+                {condition}
+              </div>
+            )}
+            <div className={`leading-relaxed ${condition ? 'mt-0.5' : 'pt-0.5'} ${BOLD_AS_NUMBER}`}>
+              <Inlines items={s.inlines} k={`step-${i}`} />
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+// 実測値の帯グラフ（パイロット誌面の死亡率ゲージ）。帯の長さは items 中の最大値を100%として
+// 相対で引く（値そのもののパーセントではない。8.7%と17.1%の差を画面幅いっぱいで見せるため）。
+// 面は階調のまま、値と帯だけに色を置く。warn（悪い側の値）は琥珀にする。
+function Gauge({ part }: { part: Extract<SpreadPart, { kind: 'gauge' }> }) {
+  const nums = part.items.map((it) => Number.parseFloat(it.value))
+  const max = Math.max(...nums.filter(Number.isFinite), 0)
+  return (
+    <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
+      {part.title && (
+        <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 mb-2">{part.title}</div>
+      )}
+      <div className="space-y-2.5">
+        {part.items.map((it, i) => {
+          const n = nums[i]
+          const width = max > 0 && Number.isFinite(n) ? Math.max(4, (n / max) * 100) : 0
+          return (
+            <div key={i}>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-[1.3em] font-bold tabular-nums ${it.warn ? 'text-amber-700 dark:text-amber-300' : 'text-brand-700 dark:text-brand-300'}`}>
+                  {it.value}
+                </span>
+                <span className="text-[0.85em] text-gray-600 dark:text-gray-300 leading-snug">
+                  <Inlines items={it.label} k={`gauge-${i}`} />
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 rounded-full bg-gray-200/70 dark:bg-white/10 overflow-hidden" aria-hidden="true">
+                <div
+                  className={`h-full rounded-full ${it.warn ? 'bg-amber-600/80 dark:bg-amber-400/70' : 'bg-brand-600 dark:bg-brand-300'}`}
+                  style={{ width: `${width}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function SpreadPartView({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
+  return (
+    <NoAutoMarkerCtx.Provider value={true}>
+      <SpreadPartBody part={part} />
+    </NoAutoMarkerCtx.Provider>
+  )
+}
+
+function SpreadPartBody({ part }: { part: SpreadPart }) {
+  if (part.kind === 'none') return null
   if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} />
-  if (part.kind === 'flow' || part.kind === 'timeline') {
-    return (
-      <ol className="my-4 space-y-2.5">
-        {part.steps.map((s, i) => (
-          <li key={i} className="flex items-start gap-3">
-            <span className="shrink-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm font-bold grid place-items-center">
-              {s.label}
-            </span>
-            <span className="leading-relaxed pt-0.5">
-              <Inlines items={s.inlines} k={`step-${i}`} />
-            </span>
-          </li>
-        ))}
-      </ol>
-    )
-  }
+  if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} />
+  if (part.kind === 'gauge') return <Gauge part={part} />
   if (part.kind === 'bignumber') {
     return (
       <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
@@ -74,15 +146,17 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
   if (part.kind !== 'gonogo') return null
   return (
     <div className="my-4 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
-        <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">こうする</div>
-        <ul className="space-y-1.5 leading-relaxed">
+      <div className="rounded-lg bg-soft-light dark:bg-soft-dark border-l-2 border-brand-600 px-4 py-3.5">
+        <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">{part.goLabel || 'こうする'}</div>
+        <ul className={`space-y-1.5 leading-relaxed ${BOLD_AS_NUMBER}`}>
           {part.go.map((line, i) => <li key={i}><Inlines items={line} k={`go-${i}`} /></li>)}
         </ul>
       </div>
-      <div className="rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
-        <div className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">こうしない</div>
-        <ul className="space-y-1.5 leading-relaxed">
+      {/* 否定側は面を塗らず（低彩度の色かぶり＝濁り）、見出しと左罫のアクセントだけ赤系にする。 */}
+      <div className="rounded-lg bg-soft-light dark:bg-soft-dark border-l-2 border-red-700 dark:border-red-400 px-4 py-3.5">
+        <div className="text-sm font-bold text-red-700 dark:text-red-300 mb-1.5">{part.noGoLabel || 'こうしない'}</div>
+        {/* 否定側の強調は赤系（境界値・悪化のサイン）。緑で光らせると「推奨」に見えてしまう。 */}
+        <ul className="space-y-1.5 leading-relaxed [&_.font-bold]:text-red-700 dark:[&_.font-bold]:text-red-300 [&_.font-bold]:text-[1.12em]">
           {part.noGo.map((line, i) => <li key={i}><Inlines items={line} k={`nogo-${i}`} /></li>)}
         </ul>
       </div>

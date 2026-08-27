@@ -6,10 +6,18 @@
 // このカードがその気づきの場所になる。データは /api/admin/spread（管理者専用）。
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react'
+import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
-import type { SpreadQuiz } from '@/lib/reader-spread'
+import type { SpreadOverlay, SpreadQuiz } from '@/lib/reader-spread'
+
+// 入力欄に貼られたものから Notion の page_id を取り出す。素のUUID（ハイフン有無どちらも）、
+// `subscription_` 接頭辞つき、NotionのURLを受け付ける。見つからなければ入力をそのまま返し、
+// サーバー側の notion_fetch_failed で気づける（ここで黙って捨てない）。
+function extractPageId(raw: string): string {
+  const m = raw.replace(/-/g, '').match(/[0-9a-f]{32}/i)
+  return m ? m[0] : raw.trim()
+}
 
 type Row = {
   page_id: string
@@ -33,6 +41,10 @@ export function SpreadCard() {
   // 設問の承認/取り消しは行の再生成・公開ボタンとは別の処理中フラグで持つ。
   // キーは `${page_id}:${quiz.id}`（同じ設問idが別ページに出ることはないが、念のため揃える）。
   const [quizBusy, setQuizBusy] = useState<Set<string>>(new Set())
+  // 新規投入の入力。オーバレイは制作スキルが出したJSONをそのまま貼る（任意）。
+  const [newPageId, setNewPageId] = useState('')
+  const [newOverlay, setNewOverlay] = useState('')
+  const [injecting, setInjecting] = useState(false)
 
   const load = useCallback(() => {
     // 原本の最終更新との突合（stale判定）はNotionへ問い合わせる分、重い。
@@ -78,6 +90,54 @@ export function SpreadCard() {
         next.delete(pageId)
         return next
       })
+    }
+  }
+
+  // 新規投入。未公開の下書きを作るだけ（読者には届かない）なので、公開ボタンと違い2度押しは要らない。
+  // 本文は送らない（サーバーがNotion原本から組む）。送るのは page_id とオーバレイだけ。
+  const inject = async () => {
+    const pageId = extractPageId(newPageId)
+    if (!pageId) {
+      setMsg('page_id を入力してください。')
+      return
+    }
+    let overlay: SpreadOverlay | undefined
+    const trimmed = newOverlay.trim()
+    if (trimmed) {
+      try {
+        overlay = JSON.parse(trimmed)
+      } catch {
+        // JSONが壊れたまま送ると、サーバーは「オーバレイ無しのPUT＝保存済みを再利用」と
+        // 解釈しかねない。壊れた入力はここで止める。
+        setMsg('オーバレイのJSONが読めません。貼り直してください。')
+        return
+      }
+    }
+    setInjecting(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/admin/spread', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(overlay ? { pageId, overlay, publish: false } : { pageId, publish: false }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setMsg(
+          d.error === 'verbatim_mismatch'
+            ? `逐語一致で落ちました（原本に無い文）: ${(d.missing ?? []).slice(0, 3).join(' / ')}`
+            : `失敗しました: ${d.error ?? res.status}`,
+        )
+      } else {
+        setMsg('投入しました（未公開）。理解チェックの目視と公開はこの一覧から。')
+        setNewPageId('')
+        setNewOverlay('')
+        load()
+      }
+    } catch {
+      setMsg('通信に失敗しました。')
+    } finally {
+      setInjecting(false)
     }
   }
 
@@ -144,8 +204,39 @@ export function SpreadCard() {
       )}
 
       {rows !== null && rows.length === 0 && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 py-4">まだ誌面はありません。</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 py-4">まだ誌面はありません。下の入力から1枚目を投入できます。</p>
       )}
+
+      {/* 新規投入の入り口。ここができるまでは1枚目をAPIを外から叩いて入れるしかなかった。 */}
+      <div className="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3">
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 inline-flex items-center gap-1.5">
+          <FilePlus2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          新規投入（Notion原本から誌面を組んで下書き保存。読者にはまだ出ません）
+        </p>
+        <input
+          type="text"
+          value={newPageId}
+          onChange={(e) => setNewPageId(e.target.value)}
+          placeholder="page_id（NotionのURLを貼ってもよい）"
+          className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-2.5 py-2 mb-2 text-gray-800 dark:text-gray-100"
+        />
+        <textarea
+          value={newOverlay}
+          onChange={(e) => setNewOverlay(e.target.value)}
+          placeholder="オーバレイJSON（任意。短ラベル・部品・理解チェック。制作スキルの出力をそのまま貼る）"
+          rows={3}
+          className="w-full text-xs font-mono rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-2.5 py-2 mb-2 text-gray-800 dark:text-gray-100"
+        />
+        <button
+          type="button"
+          disabled={injecting || !newPageId.trim()}
+          onClick={inject}
+          className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 text-xs"
+        >
+          {injecting ? <Spinner className="w-3.5 h-3.5" /> : <UploadCloud className="w-3.5 h-3.5 shrink-0" aria-hidden />}
+          投入（未公開の下書きを作る）
+        </button>
+      </div>
 
       {rows !== null && rows.length > 0 && (
         <ul className="space-y-2">

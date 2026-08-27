@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, sanitizeOverlay, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, sanitizeOverlay, sectionDisplay, sectionSources, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
@@ -280,5 +280,165 @@ describe('visibleQuizzes', () => {
   it('根拠が空白とタブだけで目視済みでも出さない', () => {
     const s = { ...base, quizzes: [q({ evidence: '  \t\t  ' })] }
     expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+})
+
+describe('sectionDisplay', () => {
+  const rows = [[t('患者群'), t('目標')], [t('急性疾患の多く'), t('94〜98%')]]
+  const table: ReaderBlock = { kind: 'table', rows }
+  const bullet: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('目標に調整する。') }
+  const recap: ReaderBlock = { kind: 'paragraph', inlines: t('→ 目標範囲を先に決める。') }
+  const section = (deep: ReaderBlock[], part: SpreadPart) =>
+    ({ n: 1, anchor: '1', title: '1. 節', shortLabel: null, part, deep })
+
+  it('比較表の元テーブルと節末の→段落を深掘りから取り分ける', () => {
+    const r = sectionDisplay(section([table, bullet, recap], { kind: 'comparison', rows }))
+    expect(r.recap).toBe(recap)
+    expect(r.deep).toEqual([bullet])
+  })
+
+  it('オーバレイ由来で中身の違う表なら深掘りの表は残す', () => {
+    const other = [[t('別のヘッダ')], [t('別の中身')]]
+    const r = sectionDisplay(section([table, bullet], { kind: 'comparison', rows: other }))
+    expect(r.deep).toEqual([table, bullet])
+  })
+
+  it('→段落が無い節は recap 無しで深掘りが無傷', () => {
+    const r = sectionDisplay(section([bullet], { kind: 'none' }))
+    expect(r.recap).toBeNull()
+    expect(r.deep).toEqual([bullet])
+  })
+
+  it('→段落が複数あれば末尾側の1つだけを recap にする', () => {
+    const first: ReaderBlock = { kind: 'paragraph', inlines: t('→ 途中のまとめ。') }
+    const r = sectionDisplay(section([first, bullet, recap], { kind: 'none' }))
+    expect(r.recap).toBe(recap)
+    expect(r.deep).toEqual([first, bullet])
+  })
+
+  it('保存形（section.deep）には触れない', () => {
+    const deep = [table, bullet, recap]
+    const s = section(deep, { kind: 'comparison', rows })
+    sectionDisplay(s)
+    expect(s.deep).toEqual([table, bullet, recap])
+  })
+})
+
+describe('sectionSources', () => {
+  it('深掘りのリンクラベルを登場順・重複なしで返す（calloutの中も見る）', () => {
+    const deep: ReaderBlock[] = [
+      { kind: 'list_item', ordered: false, inlines: [{ text: '94〜98%。' }, { text: 'BTS guideline 2017', href: 'https://example.com/bts' }] },
+      { kind: 'list_item', ordered: false, inlines: [{ text: '88〜92%。' }, { text: 'BTS guideline 2017', href: 'https://example.com/bts' }] },
+      { kind: 'callout', icon: '📚', color: null, blocks: [
+        { kind: 'paragraph', inlines: [{ text: '野口 2024', href: 'https://example.com/noguchi' }] },
+      ] },
+    ]
+    expect(sectionSources(deep)).toEqual(['BTS guideline 2017', '野口 2024'])
+  })
+
+  it('表の中のリンクは拾わない', () => {
+    const deep: ReaderBlock[] = [
+      { kind: 'table', rows: [[[{ text: 'EMJ 2021', href: 'https://example.com/emj' }]]] },
+    ]
+    expect(sectionSources(deep)).toEqual([])
+  })
+})
+
+describe('gonogo のラベル（goLabel / noGoLabel）', () => {
+  it('sanitizeOverlay を通してもラベルは残り、go/noGo の href だけ落ちる', () => {
+    const part: SpreadPart = {
+      kind: 'gonogo',
+      goLabel: 'NIVを選ぶ',
+      noGoLabel: '侵襲的人工呼吸への移行を判断する',
+      go: [[{ text: 'pH 7.35以下はNIV。', href: 'https://example.com' }]],
+      noGo: [[{ text: 'pH 7.15未満の持続。' }]],
+    }
+    const r = sanitizeOverlay({ parts: { '1': part } })
+    const got = r.parts?.['1']
+    expect(got?.kind).toBe('gonogo')
+    if (got?.kind !== 'gonogo') throw new Error('unreachable')
+    expect(got.goLabel).toBe('NIVを選ぶ')
+    expect(got.noGoLabel).toBe('侵襲的人工呼吸への移行を判断する')
+    expect(got.go[0][0]).toEqual({ text: 'pH 7.35以下はNIV。' })
+  })
+
+  it('ラベルは逐語一致検査の対象にしない（原本に無くてよい）', () => {
+    const d: ReaderDoc = { ...doc, blocks: [doc.blocks[1], { kind: 'paragraph', inlines: t('挿管へ移行する。') }] }
+    const draft = buildSpreadDraft(d, 'p1')
+    const spread = applyOverlay(draft, { parts: { '1': {
+      kind: 'gonogo', goLabel: '原本に無い呼び名', noGoLabel: 'これも呼び名',
+      go: [t('挿管へ移行する。')], noGo: [],
+    } } })
+    expect(verifyVerbatim(spread, d).ok).toBe(true)
+  })
+})
+
+describe('gauge（実測値の帯グラフ）', () => {
+  const gauge: SpreadPart = {
+    kind: 'gauge',
+    title: '院内死亡率（呼び名）',
+    items: [
+      { value: '8.7%', label: [{ text: '88〜92%群' }] },
+      { value: '17.1%', label: [{ text: '97〜100%群', href: 'https://example.com' }], warn: true },
+    ],
+  }
+
+  it('sanitizeOverlay で label の href だけ落ち、value・warn・title は残る', () => {
+    const r = sanitizeOverlay({ parts: { '1': gauge } })
+    const got = r.parts?.['1']
+    if (got?.kind !== 'gauge') throw new Error('unreachable')
+    expect(got.title).toBe('院内死亡率（呼び名）')
+    expect(got.items[1]).toEqual({ value: '17.1%', label: [{ text: '97〜100%群' }], warn: true })
+  })
+
+  it('value と label は逐語一致検査の対象、title は対象外', () => {
+    const d: ReaderDoc = { ...doc, blocks: [doc.blocks[1], { kind: 'paragraph', inlines: t('院内死亡率が88〜92%群8.7%であった。') }] }
+    const draft = buildSpreadDraft(d, 'p1')
+    const ok = applyOverlay(draft, { parts: { '1': { kind: 'gauge', title: '原本に無い呼び名', items: [{ value: '8.7%', label: [{ text: '88〜92%群' }] }] } } })
+    expect(verifyVerbatim(ok, d).ok).toBe(true)
+    const bad = applyOverlay(draft, { parts: { '1': { kind: 'gauge', items: [{ value: '99.9%', label: [{ text: '88〜92%群' }] }] } } })
+    const r = verifyVerbatim(bad, d)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('99.9%')
+  })
+})
+
+describe('extraParts（追加の表層部品）', () => {
+  it('applyOverlay で節に付き、逐語一致検査は主役部品と同じ扱い', () => {
+    const d: ReaderDoc = { ...doc, blocks: [doc.blocks[1], { kind: 'paragraph', inlines: t('死亡率は8.7%であった。') }] }
+    const draft = buildSpreadDraft(d, 'p1')
+    const good = applyOverlay(draft, { extraParts: { '1': [{ kind: 'gauge', items: [{ value: '8.7%', label: [{ text: '死亡率' }] }] }] } })
+    expect(good.sections[0].extraParts).toHaveLength(1)
+    expect(verifyVerbatim(good, d).ok).toBe(true)
+    const bad = applyOverlay(draft, { extraParts: { '1': [{ kind: 'gauge', items: [{ value: '1.2%', label: [{ text: '原本に無い条件' }] }] }] } })
+    expect(verifyVerbatim(bad, d).ok).toBe(false)
+  })
+
+  it('sanitizeOverlay は extraParts でも未知kindを捨て、hrefを落とす', () => {
+    const r = sanitizeOverlay({ extraParts: { '1': [
+      { kind: 'unknown' } as unknown as SpreadPart,
+      { kind: 'bignumber', value: '15 L/分', caption: [{ text: 'リザーバーマスク', href: 'https://example.com' }] },
+    ] } })
+    expect(r.extraParts?.['1']).toEqual([{ kind: 'bignumber', value: '15 L/分', caption: [{ text: 'リザーバーマスク' }] }])
+  })
+})
+
+describe('entries（いまの状況から探す）', () => {
+  it('存在しない節を指す入口は applyOverlay で捨てる', () => {
+    const draft = buildSpreadDraft(doc, 'p1')
+    const r = applyOverlay(draft, { entries: [
+      { label: 'SpO₂ 85%未満', anchor: '2' },
+      { label: '存在しない節へ', anchor: '9' },
+    ] })
+    expect(r.entries).toEqual([{ label: 'SpO₂ 85%未満', anchor: '2' }])
+  })
+
+  it('sanitizeOverlay は label / anchor が空の入口を捨てる', () => {
+    const r = sanitizeOverlay({ entries: [
+      { label: '  ', anchor: '1' },
+      { label: '入口', anchor: '' },
+      { label: '入口', anchor: '1' },
+    ] })
+    expect(r.entries).toEqual([{ label: '入口', anchor: '1' }])
   })
 })

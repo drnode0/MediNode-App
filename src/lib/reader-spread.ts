@@ -18,7 +18,17 @@ export type SpreadPart =
   | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][] }
   | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[] }[] }
   | { kind: 'bignumber'; value: string; caption: ReaderInline[] }
-  | { kind: 'gonogo'; go: ReaderInline[][]; noGo: ReaderInline[][] }
+  // goLabel / noGoLabel は枠の見出し（既定は「こうする」「こうしない」）。
+  // 節6のように「NIVを選ぶ／侵襲的人工呼吸への移行を判断する」の対では、既定ラベルだと
+  // 「こうしない」が誤読になる（移行の判断は禁止事項ではない）ため、オーバレイで名前を渡せる。
+  // shortLabel と同じ表示上の呼び名なので、逐語一致検査の対象にはしない。
+  | { kind: 'gonogo'; go: ReaderInline[][]; noGo: ReaderInline[][]; goLabel?: string; noGoLabel?: string }
+  // 実測値の帯グラフ（パイロット誌面の死亡率ゲージ）。value は本文中の数値の逐語、
+  // label はその値の条件（SpO₂帯など）で、どちらも逐語一致検査の対象。
+  // 帯の長さは表示側が value から導く。title は図の呼び名（shortLabel と同じ表示上の
+  // 命名＝検査の対象外。主張や数値は title に書かず、value / label に逐語で置くこと）。
+  // warn は「悪い側の値」を琥珀で示す表示フラグ。
+  | { kind: 'gauge'; title?: string; items: { value: string; label: ReaderInline[]; warn?: boolean }[] }
   | { kind: 'none' }
 
 export type SpreadSection = {
@@ -27,6 +37,10 @@ export type SpreadSection = {
   title: string
   shortLabel: string | null
   part: SpreadPart
+  // 主役部品（part）に添える追加の部品。パイロット誌面の節1が「比較表＋死亡率ゲージ」の
+  // 2枚構成だったように、1節に複数の表層を置きたいときにオーバレイで渡す。
+  // 逐語一致検査は part と同じ扱い。保存済みの旧 SpreadDoc には無いキーなので optional。
+  extraParts?: SpreadPart[]
   deep: ReaderBlock[]
 }
 
@@ -42,12 +56,18 @@ export type SpreadQuiz = {
   reviewed: boolean
 }
 
+// 「いまの状況から探す」の入口チップ。label は状況の呼び名（表示上の命名＝逐語検査の
+// 対象外）、anchor は飛び先の節。存在しない節を指す入口は applyOverlay で捨てる。
+export type SpreadEntry = { label: string; anchor: string }
+
 export type SpreadDoc = {
   version: 1
   pageId: string
   title: string
   lead: ReaderBlock | null
   preface: ReaderBlock[]
+  // 状況からの入口（パイロット誌面の「いまの状況から探す」）。旧 SpreadDoc には無いキー。
+  entries?: SpreadEntry[]
   sections: SpreadSection[]
   tail: ReaderBlock[]
   quizzes: SpreadQuiz[]
@@ -58,6 +78,8 @@ export type SpreadDoc = {
 export type SpreadOverlay = {
   shortLabels?: Record<string, string>
   parts?: Record<string, SpreadPart>
+  extraParts?: Record<string, SpreadPart[]>
+  entries?: SpreadEntry[]
   icons?: Record<string, string>
   quizzes?: SpreadQuiz[]
 }
@@ -175,7 +197,7 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
 }
 
 // SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
-const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'none'])
+const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'none'])
 
 // part の中の ReaderInline から href だけを落とす（text/bold/italic/code/color は残す）。
 function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
@@ -199,6 +221,8 @@ function stripPartHref(part: SpreadPart): SpreadPart {
       return { ...part, caption: stripInlineHref(part.caption) }
     case 'gonogo':
       return { ...part, go: part.go.map(stripInlineHref), noGo: part.noGo.map(stripInlineHref) }
+    case 'gauge':
+      return { ...part, items: part.items.map((it) => ({ ...it, label: stripInlineHref(it.label) })) }
     case 'none':
       return part
   }
@@ -219,13 +243,29 @@ function stripPartHref(part: SpreadPart): SpreadPart {
  * ReaderInline をそのまま使っており、原本にあるリンクは正当なので落とす理由がない。
  */
 export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
-  if (!overlay.parts) return overlay
-  const parts: Record<string, SpreadPart> = {}
-  for (const [anchor, part] of Object.entries(overlay.parts)) {
-    if (!KNOWN_PART_KINDS.has(part.kind)) continue
-    parts[anchor] = stripPartHref(part)
+  const out = { ...overlay }
+  if (overlay.parts) {
+    const parts: Record<string, SpreadPart> = {}
+    for (const [anchor, part] of Object.entries(overlay.parts)) {
+      if (!KNOWN_PART_KINDS.has(part.kind)) continue
+      parts[anchor] = stripPartHref(part)
+    }
+    out.parts = parts
   }
-  return { ...overlay, parts }
+  // 追加部品（extraParts）も主役部品と同じ関門を通す。
+  if (overlay.extraParts) {
+    const extra: Record<string, SpreadPart[]> = {}
+    for (const [anchor, list] of Object.entries(overlay.extraParts)) {
+      extra[anchor] = list.filter((p) => KNOWN_PART_KINDS.has(p.kind)).map(stripPartHref)
+    }
+    out.extraParts = extra
+  }
+  // 入口チップは label / anchor が空のものを捨てる（存在しない節の除外は applyOverlay で行う。
+  // 節構成を知っているのは下書き側のため）。
+  if (overlay.entries) {
+    out.entries = overlay.entries.filter((e) => e.label?.trim() && e.anchor?.trim())
+  }
+  return out
 }
 
 /**
@@ -233,13 +273,17 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
  * 本文（deep / lead / preface / tail）には一切触れない。触れさせないことが安全装置になる。
  */
 export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDoc {
+  const anchors = new Set(draft.sections.map((s) => s.anchor))
   return {
     ...draft,
     sections: draft.sections.map((s) => ({
       ...s,
       shortLabel: overlay.shortLabels?.[s.anchor] ?? s.shortLabel,
       part: overlay.parts?.[s.anchor] ?? s.part,
+      extraParts: overlay.extraParts?.[s.anchor] ?? s.extraParts,
     })),
+    // 存在しない節を指す入口は黙って捨てる（押しても飛ばないチップを読者に出さない）。
+    entries: (overlay.entries ?? draft.entries ?? []).filter((e) => anchors.has(e.anchor)),
     icons: { ...draft.icons, ...(overlay.icons ?? {}) },
     quizzes: overlay.quizzes ?? draft.quizzes,
   }
@@ -249,8 +293,7 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
 // 短ラベルは目次チップ用の呼び名で原本には無くてよいので、対象に入れない。
 function verbatimTargets(spread: SpreadDoc): string[] {
   const out: string[] = []
-  for (const s of spread.sections) {
-    const p = s.part
+  const collect = (p: SpreadPart) => {
     if (p.kind === 'comparison' || p.kind === 'matrix') {
       for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
     } else if (p.kind === 'flow' || p.kind === 'timeline') {
@@ -258,8 +301,16 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     } else if (p.kind === 'bignumber') {
       out.push(p.value, textOf(p.caption))
     } else if (p.kind === 'gonogo') {
+      // goLabel / noGoLabel は枠の見出し（表示上の命名）なので対象に入れない。
       for (const line of [...p.go, ...p.noGo]) out.push(textOf(line))
+    } else if (p.kind === 'gauge') {
+      // title は図の呼び名（命名）なので対象に入れない。数値と条件は逐語で検査する。
+      for (const it of p.items) out.push(it.value, textOf(it.label))
     }
+  }
+  for (const s of spread.sections) {
+    collect(s.part)
+    for (const p of s.extraParts ?? []) collect(p)
   }
   for (const q of spread.quizzes) out.push(q.evidence)
   return out.map((s) => s.trim()).filter(Boolean)
@@ -312,4 +363,78 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
     if (!evidence) return false
     return corpus.includes(evidence.replace(/[ \t]+/g, ' '))
   })
+}
+
+// ---- 表示専用のビュー導出 ----
+// ここから下は描画のための導出だけを行い、保存された SpreadDoc には一切触れない。
+// visibleQuizzes の逐語照合や verifyVerbatim は保存形（section.deep の全ブロック）に
+// 対して働くので、深掘りから見た目上ブロックを除くのは描画の直前でだけ行う。
+
+function rowsText(rows: ReaderInline[][][]): string {
+  return rows.map((row) => row.map((cell) => textOf(cell)).join('\t')).join('\n')
+}
+
+export type SectionDisplay = {
+  // 節末の「→」段落。表層の「この節の答え」ボックスへ昇格する（パイロット誌面の recap）。
+  recap: ReaderBlock | null
+  // 表層へ昇格したブロック（recap・比較表の元テーブル）を除いた深掘り本文。
+  deep: ReaderBlock[]
+}
+
+/**
+ * 節の深掘りから、表層へ昇格させるブロックを取り分ける。
+ *
+ * 1. part が comparison / matrix で、深掘りの中に同じ中身の表があれば、その表を深掘りから
+ *    除く（原本の表ブロックが classifyPart で表層に昇格した場合の二重表示を消す）。
+ *    照合は行×セルのテキスト一致。JSON往復で参照が切れるため参照比較にはしない。
+ *    オーバレイ由来の part で一致する表が無ければ何も除かない。
+ * 2. 深掘り末尾側の「→」で始まる段落（最後の1つ）を recap として抜く。
+ *    どちらも中身は表層に必ず表示されるので、読者から見える本文は失われない。
+ */
+export function sectionDisplay(section: SpreadSection): SectionDisplay {
+  let deep = section.deep
+  const part = section.part
+  if (part.kind === 'comparison' || part.kind === 'matrix') {
+    const promoted = rowsText(part.rows)
+    const idx = deep.findIndex((b) => b.kind === 'table' && rowsText(b.rows) === promoted)
+    if (idx >= 0) deep = [...deep.slice(0, idx), ...deep.slice(idx + 1)]
+  }
+  let recap: ReaderBlock | null = null
+  for (let i = deep.length - 1; i >= 0; i--) {
+    const b = deep[i]
+    if (b.kind === 'paragraph' && textOf(b.inlines).trimStart().startsWith('→')) {
+      recap = b
+      deep = [...deep.slice(0, i), ...deep.slice(i + 1)]
+      break
+    }
+  }
+  return { recap, deep }
+}
+
+/**
+ * 節の深掘りに出てくる出典リンクのラベルを、登場順・重複なしで返す。
+ * 「この節の根拠を見る」の隣に「BTS guideline 2017・野口 2024…」と添えるためのもの
+ * （パイロット誌面の出典サマリ）。ラベルは原本のリンクテキストそのままで、新しい文は作らない。
+ */
+export function sectionSources(deep: ReaderBlock[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const walk = (blocks: ReaderBlock[]) => {
+    for (const b of blocks) {
+      if (b.kind === 'heading' || b.kind === 'paragraph' || b.kind === 'list_item') {
+        for (const inline of b.inlines) {
+          const label = inline.href ? inline.text.trim() : ''
+          if (label && !seen.has(label)) {
+            seen.add(label)
+            out.push(label)
+          }
+        }
+      } else if (b.kind === 'callout') {
+        walk(b.blocks)
+      }
+      // table 内のリンクは拾わない（表層の部品には出典リンクを載せない前提と揃える）
+    }
+  }
+  walk(deep)
+  return out
 }

@@ -4,7 +4,7 @@
 // mark[data-reader-search] の出し方は ReaderOverlay が DOM を数えて現在位置を
 // 付け替える前提なので、属性と構造を変えないこと。
 import { createContext, useContext } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { Bookmark, ExternalLink } from 'lucide-react'
 import { type ReaderInline } from '@/lib/reader-doc'
 import { CONFIDENCE_MARKS, type Confidence } from '@/lib/reader-confidence'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
@@ -15,14 +15,23 @@ import { findMatchRanges, inlineSegments } from '@/lib/reader-search'
 const MARK_OF: Record<string, Confidence> = Object.fromEntries(
   (Object.entries(CONFIDENCE_MARKS) as [Confidence, string][]).map(([c, mark]) => [mark, c]),
 ) as Record<string, Confidence>
-const MARK_RE = new RegExp(`(${Object.values(CONFIDENCE_MARKS).join('|')})`)
+// 🔖 は参考文献の収録レベル印（この出典に文献カードがある目印。medinode-reference-note §5）。
+// 原本の記法は絵文字のまま、表示時に線画へ変換する。✅⚠️❓→ConfidenceMark と同じ流儀で、
+// 誌面の「絵文字はアイコンに使わない」方針（2026-08-27・線画SVG）に本文表示を揃える。
+const BOOKMARK = '🔖'
+const MARK_RE = new RegExp(`(${[...Object.values(CONFIDENCE_MARKS), BOOKMARK].join('|')})`)
 
-// テキストを確信度マークで分割し、マーク位置に ConfidenceMark を差し込む。
+// テキストを確信度マーク・収録レベル印で分割し、マーク位置に線画アイコンを差し込む。
 function renderText(text: string, key: string) {
   const parts = text.split(MARK_RE)
   return parts.map((seg, i) =>
     MARK_OF[seg] ? (
       <ConfidenceMark key={`${key}-${i}`} kind={MARK_OF[seg]} className="mx-0.5 align-baseline" />
+    ) : seg === BOOKMARK ? (
+      <span key={`${key}-${i}`} className="inline-flex items-baseline text-gray-400 dark:text-gray-500">
+        <Bookmark className="w-[0.9em] h-[0.9em] shrink-0 self-center" aria-hidden="true" strokeWidth={2.2} />
+        <span className="sr-only">（文献カードあり）</span>
+      </span>
     ) : (
       <span key={`${key}-${i}`}>{seg}</span>
     ),
