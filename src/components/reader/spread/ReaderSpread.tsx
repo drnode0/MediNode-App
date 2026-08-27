@@ -4,7 +4,7 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { sectionDisplay, sectionSources, visibleQuizzes } from '@/lib/reader-spread'
+import { displayPreface, displayTail, renameLeadLabel, sectionDisplay, sectionSources, sectionTitleText, visibleQuizzes } from '@/lib/reader-spread'
 import { NoAutoMarkerCtx } from '../Inlines'
 import { KnowledgeTitle } from '@/lib/title-display'
 import type { Confidence } from '@/lib/reader-confidence'
@@ -75,15 +75,22 @@ export function ReaderSpread({
   const [leadOpen, setLeadOpen] = useState(false)
 
   const toc = useMemo(
-    () => spread.sections.map((s) => ({ anchor: s.anchor, label: s.shortLabel || s.title })),
+    () => spread.sections.map((s, i) => ({ anchor: s.anchor, n: s.n ?? i + 1, label: s.shortLabel || sectionTitleText(s) })),
     [spread.sections],
   )
+
+  // 誌面の編集ルール（パイロット準拠・表示のみ）: 構造見出し（# Question / # Answer / # Evidence）と
+  // タイトル重複段落は出さない。🤖査読スタンプは記事末に置かず、対象範囲の但し書きだけ⚡直後に出す。
+  // PubMed検索キーワード例（制作用）は出さない。
+  const preface = useMemo(() => displayPreface(spread.preface, title), [spread.preface, title])
+  const { scope: stampScope, rest: tailBlocks } = useMemo(() => displayTail(spread.tail), [spread.tail])
 
   // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
   // （折りたたまれた要点は DOM に無く、記事内検索が拾えないため。深掘りの全節展開と同じ理屈）。
   const LEAD_VISIBLE = 2
-  const lead = spread.lead
+  // ⚡ボックスの見出し行は誌面の呼び名（「この記事の要点」）に置き換える（パイロット準拠）。
+  const lead = useMemo(() => renameLeadLabel(spread.lead), [spread.lead])
   const leadItems = lead?.kind === 'callout' ? lead.blocks.filter((b) => b.kind === 'list_item').length : 0
   const leadHidden = leadOpen || searching ? 0 : Math.max(0, leadItems - LEAD_VISIBLE)
   const leadView = useMemo(() => {
@@ -139,8 +146,15 @@ export function ReaderSpread({
           </div>
         )}
 
-        {/* 最初のH2より前の本文。ここを描かないと、導入の段落が誌面から黙って消える。 */}
-        <RenderedBlocks blocks={spread.preface} onImageClick={onImageClick} active={NO_FILTER} />
+        {/* 🤖査読スタンプの但し書き（対象範囲）。パイロット誌面と同じ位置＝要点の直後。 */}
+        {stampScope.length > 0 && (
+          <div className="mb-4 text-[0.9em] text-gray-500 dark:text-gray-400">
+            <RenderedBlocks blocks={stampScope} onImageClick={onImageClick} active={NO_FILTER} />
+          </div>
+        )}
+
+        {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落が誌面から黙って消える。 */}
+        <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
 
         {/* 状況からの入口（パイロット誌面の「いまの状況から探す」）。目次より先に置く。
             存在しない節を指す入口は applyOverlay が捨てているので、ここでは無条件に描いてよい。 */}
@@ -170,8 +184,9 @@ export function ReaderSpread({
                 // 見た目の地の高さ（丸い錠剤型）は px-2.5 py-1 のまま保ちつつ、
                 // タップ対象だけ min-h-[44px] + inline-flex items-center で44pxに広げる。
                 // 節ジャンプという主要導線のため、他のタップ対象と同じ基準を満たす。
-                className="inline-flex items-center min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-soft-light dark:bg-soft-dark text-gray-700 dark:text-gray-200"
+                className="inline-flex items-center gap-1 min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-soft-light dark:bg-soft-dark text-gray-700 dark:text-gray-200"
               >
+                <span className="font-bold text-brand-700 dark:text-brand-300 tabular-nums">{s.n}</span>
                 {s.label}
               </a>
             ))}
@@ -195,7 +210,8 @@ export function ReaderSpread({
                 <span className="shrink-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm grid place-items-center">
                   {s.n ?? i + 1}
                 </span>
-                <span className="leading-snug pt-0.5">{s.title}</span>
+                {/* 「1.」の接頭辞は番号バッジと重複するため表示では落とす（パイロット準拠）。 */}
+                <span className="leading-snug pt-0.5">{sectionTitleText(s)}</span>
               </h2>
 
               <SpreadPartView part={s.part} />
@@ -265,7 +281,7 @@ export function ReaderSpread({
         })}
 
         <RenderedBlocks
-          blocks={spread.tail}
+          blocks={tailBlocks}
           onImageClick={onImageClick}
           active={NO_FILTER}
           offset={(spread.sections.length + 1) * SECTION_INDEX_STRIDE}

@@ -12,6 +12,7 @@ import {
   type ReaderDoc,
   type ReaderInline,
 } from './reader-doc'
+import { stripLeadingEmoji } from './labels'
 
 // 表層に出す部品。'none' は表層なし（深掘りだけ）を意味する。
 export type SpreadPart =
@@ -453,4 +454,88 @@ export function sectionSources(deep: ReaderBlock[]): string[] {
   }
   walk(deep)
   return out
+}
+
+// ---- 誌面の編集ルール（パイロット誌面で確定した表示上の整形） ----
+// ここも表示専用。原本と保存された SpreadDoc には触れない。
+// パイロット誌面（最終目標）が本文フォーマットに対して行っていた整形を、そのまま規則にする。
+
+// 誌面では出さない構造見出し。本文フォーマットの英語マーカー（# Question / # Answer / # Evidence）で、
+// 読者向けの情報を持たない。タイトルが問いそのものであり、Evidence は📚calloutの見出しが担う。
+const STRUCTURAL_H1 = new Set(['Question', 'Answer', 'Evidence'])
+
+export function isStructuralHeading(b: ReaderBlock): boolean {
+  return b.kind === 'heading' && b.level === 1 && STRUCTURAL_H1.has(textOf(b.inlines).trim())
+}
+
+/**
+ * 前書きの表示用整形。構造見出しと、タイトルと同文の段落（# Question の直下に
+ * 問いをもう一度書く書式）を除く。タイトルは絵文字を外して比較する。
+ */
+export function displayPreface(preface: ReaderBlock[], title: string): ReaderBlock[] {
+  const bare = stripLeadingEmoji(title).trim()
+  return preface.filter((b) => {
+    if (isStructuralHeading(b)) return false
+    if (b.kind === 'paragraph' && textOf(b.inlines).trim() === bare) return false
+    return true
+  })
+}
+
+// ⚡ボックスの見出し行。原本の書式は「この問いへの答え」だが、誌面の呼び名は
+// 「この記事の要点」（パイロットで確定）。この既知のラベル1つだけを置き換える。
+const LEAD_LABEL_FROM = 'この問いへの答え'
+const LEAD_LABEL_TO = 'この記事の要点'
+
+export function renameLeadLabel(lead: ReaderBlock | null): ReaderBlock | null {
+  if (!lead || lead.kind !== 'callout') return lead
+  return {
+    ...lead,
+    blocks: lead.blocks.map((b) =>
+      b.kind === 'paragraph' && textOf(b.inlines).trim() === LEAD_LABEL_FROM
+        ? { ...b, inlines: [{ text: LEAD_LABEL_TO, bold: true }] }
+        : b,
+    ),
+  }
+}
+
+/**
+ * 🤖査読スタンプ（tail に入る）から、対象範囲の但し書きを取り出す。
+ * パイロット誌面は【査読済み】の宣言を記事末に置かず、⚡ボックス直後に但し書きだけを出す
+ * （宣言行は⚡ボックス末尾の「査読済み：YYYY-MM」と重複するため誌面では出さない）。
+ */
+export function splitStampScope(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: ReaderBlock[] } {
+  const idx = tail.findIndex((b) => b.kind === 'callout' && calloutRole(b.icon) === 'stamp')
+  if (idx < 0) return { scope: [], rest: tail }
+  const stamp = tail[idx]
+  const scope = (stamp.kind === 'callout' ? stamp.blocks : []).filter((b) => {
+    if (b.kind === 'divider') return false
+    if ((b.kind === 'paragraph' || b.kind === 'list_item') && textOf(b.inlines).includes('【査読済み】')) return false
+    return true
+  })
+  return { scope, rest: [...tail.slice(0, idx), ...tail.slice(idx + 1)] }
+}
+
+/**
+ * 制作用の「PubMed検索キーワード例」（段落＋直後の箇条書き）は誌面では出さない（パイロット準拠）。
+ * 読者の動線は文献リンクで足り、検索クエリの羅列は制作側の道具のため。
+ */
+export function dropPubmedExamples(tail: ReaderBlock[]): ReaderBlock[] {
+  const idx = tail.findIndex((b) => b.kind === 'paragraph' && textOf(b.inlines).trim() === 'PubMed検索キーワード例')
+  if (idx < 0) return tail
+  let end = idx + 1
+  while (end < tail.length && tail[end].kind === 'list_item') end++
+  return [...tail.slice(0, idx), ...tail.slice(end)]
+}
+
+/**
+ * 記事末の表示用整形（スタンプの除去・構造見出しの除去・PubMed検索例の除去）をまとめて行う。
+ */
+export function displayTail(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: ReaderBlock[] } {
+  const { scope, rest } = splitStampScope(tail)
+  return { scope, rest: dropPubmedExamples(rest.filter((b) => !isStructuralHeading(b))) }
+}
+
+// 節見出しの「1. 」接頭辞は番号バッジと重複するため、表示では落とす（番号なしH2はそのまま）。
+export function sectionTitleText(s: Pick<SpreadSection, 'n' | 'title'>): string {
+  return s.n != null ? s.title.replace(/^\s*\d+\s*[.．]\s*/, '') : s.title
 }

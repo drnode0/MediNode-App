@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, sanitizeOverlay, sectionDisplay, sectionSources, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, dropPubmedExamples, displayPreface, displayTail, renameLeadLabel, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
@@ -477,5 +477,70 @@ describe('splitSections: 節より後ろの level 1 見出し（# Evidence 以�
   it('節より前の level 1 見出し（# Question）は従来どおり preface に残る', () => {
     const r = splitSections(d)
     expect(r.preface).toEqual([d.blocks[0], d.blocks[1]])
+  })
+})
+
+describe('誌面の編集ルール（パイロット準拠の表示整形）', () => {
+  it('displayPreface: 構造見出しとタイトル重複段落を除き、他は残す', () => {
+    const preface: ReaderBlock[] = [
+      { kind: 'heading', level: 1, inlines: t('Question') },
+      { kind: 'paragraph', inlines: t('酸素療法はどのように使い分ける？') },
+      { kind: 'heading', level: 1, inlines: t('Answer') },
+      { kind: 'paragraph', inlines: t('導入の段落は残る。') },
+    ]
+    const r = displayPreface(preface, '💡 酸素療法はどのように使い分ける？')
+    expect(r).toEqual([preface[3]])
+  })
+
+  it('renameLeadLabel: 見出し行「この問いへの答え」だけを「この記事の要点」に置き換える', () => {
+    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [
+      { kind: 'paragraph', inlines: [{ text: 'この問いへの答え', bold: true }] },
+      { kind: 'list_item', ordered: false, inlines: t('この問いへの答えという語を含む本文は触らない。') },
+    ] }
+    const r = renameLeadLabel(lead)
+    if (r?.kind !== 'callout') throw new Error('unreachable')
+    expect(textOf(r.blocks[0].kind === 'paragraph' ? r.blocks[0].inlines : [])).toBe('この記事の要点')
+    expect(r.blocks[1]).toBe(lead.blocks[1])
+  })
+
+  it('splitStampScope: 🤖スタンプから但し書きだけ取り出し、【査読済み】行と区切り線は出さない', () => {
+    const stamp: ReaderBlock = { kind: 'callout', icon: '🤖', color: 'yellow_background', blocks: [
+      { kind: 'paragraph', inlines: t('【査読済み】 本ページの内容は検証済みです。') },
+      { kind: 'divider' },
+      { kind: 'paragraph', inlines: t('以下は成人・非挿管の急性期を想定した内容です。') },
+    ] }
+    const sig: ReaderBlock = { kind: 'callout', icon: '🧑‍⚕️', color: null, blocks: [] }
+    const { scope, rest } = splitStampScope([sig, stamp])
+    expect(scope).toEqual([stamp.kind === 'callout' ? stamp.blocks[2] : null])
+    expect(rest).toEqual([sig])
+  })
+
+  it('dropPubmedExamples: 段落と直後の箇条書きだけ落とし、その先のブロックは残す', () => {
+    const tail: ReaderBlock[] = [
+      { kind: 'paragraph', inlines: t('PubMed検索キーワード例') },
+      { kind: 'list_item', ordered: false, inlines: t('oxygen therapy target saturation') },
+      { kind: 'list_item', ordered: false, inlines: t('hfnc guideline') },
+      { kind: 'callout', icon: '⚠️', color: null, blocks: [] },
+    ]
+    expect(dropPubmedExamples(tail)).toEqual([tail[3]])
+  })
+
+  it('sectionTitleText: 番号つき節は「1. 」を落とし、番号なし節はそのまま', () => {
+    expect(sectionTitleText({ n: 1, title: '1. 最初に決めるのは目標SpO2である' })).toBe('最初に決めるのは目標SpO2である')
+    expect(sectionTitleText({ n: null, title: 'まとめ' })).toBe('まとめ')
+  })
+
+  it('displayTail: スタンプ・構造見出し・PubMed例をまとめて整形する', () => {
+    const tail: ReaderBlock[] = [
+      { kind: 'callout', icon: '🤖', color: null, blocks: [{ kind: 'paragraph', inlines: t('【査読済み】検証済み。') }, { kind: 'paragraph', inlines: t('対象範囲の但し書き。') }] },
+      { kind: 'heading', level: 1, inlines: t('Evidence') },
+      { kind: 'callout', icon: '📚', color: null, blocks: [] },
+      { kind: 'paragraph', inlines: t('PubMed検索キーワード例') },
+      { kind: 'list_item', ordered: false, inlines: t('query') },
+      { kind: 'callout', icon: '⚠️', color: null, blocks: [] },
+    ]
+    const { scope, rest } = displayTail(tail)
+    expect(scope.map((b) => b.kind)).toEqual(['paragraph'])
+    expect(rest.map((b) => (b.kind === 'callout' ? b.icon : b.kind))).toEqual(['📚', '⚠️'])
   })
 })
