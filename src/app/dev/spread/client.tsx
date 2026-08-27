@@ -55,6 +55,8 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
               cover={payload.cover}
               title={payload.title}
               icon={payload.icon}
+              genre={payload.doc.genre}
+              questionType={payload.doc.questionType}
             />
           </ReaderSearchCtx.Provider>
         </div>

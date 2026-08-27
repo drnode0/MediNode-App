@@ -106,6 +106,8 @@ async function main() {
       cover={doc.cover}
       title={doc.title}
       icon={doc.icon}
+      genre={doc.genre}
+      questionType={doc.questionType}
     />
   )
   fs.writeFileSync(outPath, body, 'utf8')

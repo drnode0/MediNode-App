@@ -29,6 +29,10 @@ export type ReaderDoc = {
   // 「Notionで開く」逃げ道・プレースホルダのリンク先（個人・部署リーダーのみ設定）。
   // サブスク配信は本文防衛のため設定しない（undefined のまま）。
   sourceUrl?: string | null
+  // 誌面のバッジ行用（Notionプロパティ「ジャンル」の先頭と「問いの型」）。
+  // 既存の IndexedDB・Data Cache に保存された doc には無いキーなので常に optional。
+  genre?: string
+  questionType?: string
 }
 
 // mapBlocks / mapBlocksToReaderDoc の挙動オプション。
@@ -159,13 +163,26 @@ function titleOf(props: Record<string, any> | undefined): string {
   return ''
 }
 
+// select / multi_select プロパティの選択名（multi_select は先頭）。無ければ null。
+function selectNameOf(props: Record<string, any> | undefined, key: string): string | null {
+  const p = props?.[key]
+  if (p?.type === 'select') return p.select?.name ?? null
+  if (p?.type === 'multi_select') return p.multi_select?.[0]?.name ?? null
+  return null
+}
+
 export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?: string, opts?: MapBlocksOptions): ReaderDoc {
+  const genre = selectNameOf(page.properties, 'ジャンル')
+  const questionType = selectNameOf(page.properties, '問いの型')
   return {
     title: titleOf(page.properties),
     icon: iconOf(page.icon),
     cover: imageUrlOf(page.cover, pageId ? `id=${encodeURIComponent(pageId)}&cover=1` : null, opts?.imageProxyBase),
     lastEdited: page.last_edited_time ?? null,
     blocks: mapBlocks(blocks, pageId, opts),
+    // 無いときはキー自体を生やさない（既存キャッシュ・スナップショットとの一致を保つ）
+    ...(genre ? { genre } : {}),
+    ...(questionType ? { questionType } : {}),
   }
 }
 

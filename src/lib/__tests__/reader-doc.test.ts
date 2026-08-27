@@ -93,6 +93,24 @@ describe('mapBlocksToReaderDoc', () => {
     expect(doc.cover).toBe('https://cov.test/c.png')
     expect(doc.lastEdited).toBe('2026-07-20T06:11:00.000Z')
   })
+
+  it('ジャンル（multi_selectの先頭）と問いの型（select）を拾う。無ければキー自体を生やさない', () => {
+    const page = {
+      properties: {
+        名前: { type: 'title', title: [rt('酸素療法')] },
+        ジャンル: { type: 'multi_select', multi_select: [{ name: '04.呼吸' }, { name: '99.他' }] },
+        問いの型: { type: 'select', select: { name: '比較・使い分け型' } },
+      },
+    }
+    const doc = mapBlocksToReaderDoc(page as any, [])
+    expect(doc.genre).toBe('04.呼吸')
+    expect(doc.questionType).toBe('比較・使い分け型')
+
+    const bare = mapBlocksToReaderDoc({ properties: { 名前: { type: 'title', title: [rt('x')] } } } as any, [])
+    // 既存の IndexedDB キャッシュと同じ形を保つ（無いときは undefined のまま）
+    expect('genre' in bare).toBe(false)
+    expect('questionType' in bare).toBe(false)
+  })
 })
 
 import { calloutRole, findTldr, tocSections, sectionAnchor, parseSectionHeading, isRecapText } from '../reader-doc'

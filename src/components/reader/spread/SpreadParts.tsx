@@ -13,6 +13,20 @@ import type { SpreadPart } from '@/lib/reader-spread'
 const BOLD_AS_NUMBER =
   '[&_.font-bold]:text-brand-700 dark:[&_.font-bold]:text-brand-300 [&_.font-bold]:text-[1.12em]'
 
+// 先頭列のセルが「主語（補足）」の形なら、補足を小さな2行目に落とす（パイロット誌面の
+// 患者群セルの見え方）。表示上の整形だけで、テキスト自体は原本のまま全部出す。
+function FirstCellText({ cell, k }: { cell: ReaderInline[]; k: string }) {
+  const text = cell.map((i) => i.text).join('')
+  const m = cell.length === 1 && !cell[0].href ? text.match(/^(.+?)（(.{6,})）$/) : null
+  if (!m) return <Inlines items={cell} k={k} />
+  return (
+    <span>
+      <span className="font-medium">{m[1]}</span>
+      <span className="block text-[0.8em] text-gray-500 dark:text-gray-400 leading-snug">{m[2]}</span>
+    </span>
+  )
+}
+
 function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   const [head, ...body] = rows
   return (
@@ -33,7 +47,7 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
             <tr key={r} className="border-t border-gray-200 dark:border-white/10">
               {row.map((cell, c) => (
                 <td key={c} className="px-3 py-2.5 align-top leading-relaxed">
-                  <Inlines items={cell} k={`td-${r}-${c}`} />
+                  {c === 0 ? <FirstCellText cell={cell} k={`td-${r}-${c}`} /> : <Inlines items={cell} k={`td-${r}-${c}`} />}
                 </td>
               ))}
             </tr>
@@ -47,31 +61,74 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
 // 判断フロー。丸数字＋縦の導線で「上から順に試す」を形で示す。
 // step.label が自動分類（"1" "2"…）のときは丸数字と重複するので条件行を出さない。
 // オーバレイで条件（「SpO₂ 85%以上・高CO₂リスクなし」等）が渡されたときだけ条件行になる。
-function FlowSteps({ steps }: { steps: { label: string; inlines: ReaderInline[] }[] }) {
+function FlowSteps({ steps, intro }: { steps: { label: string; inlines: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }) {
   return (
-    <ol className="my-4">
-      {steps.map((s, i) => {
-        const condition = s.label !== String(i + 1) ? s.label : null
-        return (
-          <li key={i} className="relative pl-10 pb-4 last:pb-0">
-            {i < steps.length - 1 && (
-              <span aria-hidden="true" className="absolute left-[13px] top-8 bottom-0 w-px bg-brand-200 dark:bg-white/15" />
-            )}
-            <span className="absolute left-0 top-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm font-bold grid place-items-center">
-              {i + 1}
-            </span>
-            {condition && (
-              <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 leading-snug pt-0.5">
-                {condition}
+    <div className="my-4">
+      {/* フロー全体の前提条件（パイロット誌面の「高CO₂血症リスクなしで SpO₂ 85%以上」）。 */}
+      {intro && intro.length > 0 && (
+        <div className="mb-2.5 rounded-md bg-brand-50 dark:bg-white/[0.06] px-3 py-1.5 text-[0.85em] font-bold text-brand-800 dark:text-brand-200 leading-snug">
+          <Inlines items={intro} k="flow-intro" />
+        </div>
+      )}
+      <ol>
+        {steps.map((s, i) => {
+          const condition = s.label !== String(i + 1) ? s.label : null
+          return (
+            <li key={i} className="relative pl-10 pb-4 last:pb-0">
+              {i < steps.length - 1 && (
+                <span aria-hidden="true" className="absolute left-[13px] top-8 bottom-0 w-px bg-brand-200 dark:bg-white/15" />
+              )}
+              <span className="absolute left-0 top-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm font-bold grid place-items-center">
+                {i + 1}
+              </span>
+              {condition && (
+                <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 leading-snug pt-0.5">
+                  {condition}
+                </div>
+              )}
+              <div className={`leading-relaxed ${condition ? 'mt-0.5' : 'pt-0.5'} ${BOLD_AS_NUMBER}`}>
+                <Inlines items={s.inlines} k={`step-${i}`} />
               </div>
-            )}
-            <div className={`leading-relaxed ${condition ? 'mt-0.5' : 'pt-0.5'} ${BOLD_AS_NUMBER}`}>
-              <Inlines items={s.inlines} k={`step-${i}`} />
-            </div>
-          </li>
-        )
-      })}
-    </ol>
+              {/* ステップの補足行（小さく・薄く）。数値強調はここには効かせない。 */}
+              {s.note && s.note.length > 0 && (
+                <div className="mt-0.5 text-[0.82em] text-gray-500 dark:text-gray-400 leading-snug">
+                  <Inlines items={s.note} k={`note-${i}`} />
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
+// 2枚組の比較カード（パイロット誌面の節5 COT vs HFNC）。
+function Cards({ cards }: { cards: { title: string; lines: ReaderInline[][] }[] }) {
+  return (
+    <div className="my-4 grid gap-3 sm:grid-cols-2">
+      {cards.map((c, i) => (
+        <div key={i} className="rounded-lg bg-soft-light dark:bg-soft-dark border-t-2 border-brand-600 px-4 py-3.5">
+          <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">{c.title}</div>
+          <ul className={`space-y-1.5 leading-relaxed text-[0.95em] ${BOLD_AS_NUMBER}`}>
+            {c.lines.map((line, li) => (
+              <li key={li} className="pl-3.5 relative before:content-[''] before:absolute before:left-0 before:top-[0.7em] before:w-1.5 before:h-1.5 before:rounded-sm before:bg-brand-200 dark:before:bg-brand-300/40">
+                <Inlines items={line} k={`card-${i}-${li}`} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 表層の補足ノート（部品の下に添える一言）。
+function SurfaceNote({ inlines }: { inlines: ReaderInline[] }) {
+  return (
+    <div className={`my-4 rounded-lg border border-brand-200 dark:border-white/15 bg-brand-50/50 dark:bg-white/[0.04] px-4 py-3 text-[0.9em] leading-relaxed text-gray-700 dark:text-gray-200 ${BOLD_AS_NUMBER}`}>
+      <Inlines items={inlines} k="surface-note" />
+    </div>
   )
 }
 
@@ -126,7 +183,9 @@ export function SpreadPartView({ part }: { part: SpreadPart }) {
 function SpreadPartBody({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
   if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} />
-  if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} />
+  if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} intro={part.intro} />
+  if (part.kind === 'cards') return <Cards cards={part.cards} />
+  if (part.kind === 'note') return <SurfaceNote inlines={part.inlines} />
   if (part.kind === 'gauge') return <Gauge part={part} />
   if (part.kind === 'bignumber') {
     return (

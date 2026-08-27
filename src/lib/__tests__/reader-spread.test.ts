@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, dropPubmedExamples, displayPreface, displayTail, renameLeadLabel, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, digestTone, dropPubmedExamples, displayPreface, displayTail, renameLeadLabel, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
@@ -542,5 +542,206 @@ describe('誌面の編集ルール（パイロット準拠の表示整形）', (
     const { scope, rest } = displayTail(tail)
     expect(scope.map((b) => b.kind)).toEqual(['paragraph'])
     expect(rest.map((b) => (b.kind === 'callout' ? b.icon : b.kind))).toEqual(['📚', '⚠️'])
+  })
+})
+
+describe('flow の intro と note（パイロット誌面のフロー部品）', () => {
+  const flowDoc: ReaderDoc = {
+    title: 'x', icon: null, cover: null, lastEdited: null,
+    blocks: [
+      { kind: 'heading', level: 2, inlines: t('2. 鼻カニューレで開始する') },
+      { kind: 'list_item', ordered: false, inlines: t('高CO₂血症リスクなしで SpO₂ 85%以上のとき。') },
+      { kind: 'list_item', ordered: false, inlines: t('鼻カニューレ2〜6 L/分で開始する。') },
+      { kind: 'list_item', ordered: false, inlines: t('6 L/分が上限。回復期は2 L/分まで下げてから中止する。') },
+    ],
+  }
+  const flow: SpreadPart = {
+    kind: 'flow',
+    intro: t('高CO₂血症リスクなしで SpO₂ 85%以上'),
+    steps: [{ label: '開始', inlines: t('鼻カニューレ2〜6 L/分'), note: t('6 L/分が上限。回復期は2 L/分まで下げてから中止する。') }],
+  }
+
+  it('intro と note も逐語一致検査の対象（原本の逐語なら通る）', () => {
+    const draft = buildSpreadDraft(flowDoc, 'p')
+    const good = applyOverlay(draft, { parts: { '2': flow } })
+    expect(verifyVerbatim(good, flowDoc)).toEqual({ ok: true, missing: [] })
+  })
+
+  it('intro が原本に無い文なら検査で落ちる', () => {
+    const draft = buildSpreadDraft(flowDoc, 'p')
+    const bad = applyOverlay(draft, { parts: { '2': { ...flow, intro: t('原本に無い導入文') } } })
+    const r = verifyVerbatim(bad, flowDoc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無い導入文')
+  })
+
+  it('note が原本に無い文なら検査で落ちる', () => {
+    const draft = buildSpreadDraft(flowDoc, 'p')
+    const bad = applyOverlay(draft, {
+      parts: { '2': { kind: 'flow', steps: [{ label: '開始', inlines: t('鼻カニューレ2〜6 L/分'), note: t('原本に無い補足') }] } },
+    })
+    const r = verifyVerbatim(bad, flowDoc)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('原本に無い補足')
+  })
+
+  it('sanitizeOverlay は intro / note の href も落とす', () => {
+    const withHref: SpreadPart = {
+      kind: 'flow',
+      intro: [{ text: '導入', href: 'https://x.test' }],
+      steps: [{ label: 'a', inlines: [{ text: '本文', href: 'https://x.test' }], note: [{ text: '補足', href: 'https://x.test' }] }],
+    }
+    const out = sanitizeOverlay({ parts: { '1': withHref } })
+    const p = out.parts?.['1']
+    if (p?.kind !== 'flow') throw new Error('unreachable')
+    expect(p.intro).toEqual([{ text: '導入' }])
+    expect(p.steps[0].inlines).toEqual([{ text: '本文' }])
+    expect(p.steps[0].note).toEqual([{ text: '補足' }])
+  })
+})
+
+describe('cards（2枚組の比較カード）と note（表層の補足ノート）', () => {
+  const cardDoc: ReaderDoc = {
+    title: 'x', icon: null, cover: null, lastEdited: null,
+    blocks: [
+      { kind: 'heading', level: 2, inlines: t('5. HFNCを検討する') },
+      { kind: 'table', rows: [
+        [t(''), t('通常酸素療法（COT）'), t('HFNC')],
+        [t('流量'), t('吸気需要に届かない'), t('50〜60 L/分まで送気できる')],
+      ] },
+      { kind: 'list_item', ordered: false, inlines: t('高流量か低流量かの線引きは1回換気量以上のガスを供給できるかである。') },
+    ],
+  }
+  const cards: SpreadPart = {
+    kind: 'cards',
+    cards: [
+      { title: '通常酸素療法（COT）', lines: [t('吸気需要に届かない')] },
+      { title: 'HFNC', lines: [t('50〜60 L/分まで送気できる')] },
+    ],
+  }
+
+  it('cards の行は逐語一致検査の対象、title は命名なので対象外', () => {
+    const draft = buildSpreadDraft(cardDoc, 'p')
+    const good = applyOverlay(draft, { parts: { '5': { ...cards, cards: [{ title: '原本に無い呼び名', lines: [t('吸気需要に届かない')] }] } } })
+    expect(verifyVerbatim(good, cardDoc)).toEqual({ ok: true, missing: [] })
+    const bad = applyOverlay(draft, { parts: { '5': { kind: 'cards', cards: [{ title: 'COT', lines: [t('原本に無い行')] }] } } })
+    expect(verifyVerbatim(bad, cardDoc).missing).toContain('原本に無い行')
+  })
+
+  it('note の inlines は逐語一致検査の対象', () => {
+    const draft = buildSpreadDraft(cardDoc, 'p')
+    const good = applyOverlay(draft, { extraParts: { '5': [{ kind: 'note', inlines: t('高流量か低流量かの線引きは1回換気量以上のガスを供給できるかである。') }] } })
+    expect(verifyVerbatim(good, cardDoc)).toEqual({ ok: true, missing: [] })
+    const bad = applyOverlay(draft, { extraParts: { '5': [{ kind: 'note', inlines: t('原本に無いノート') }] } })
+    expect(verifyVerbatim(bad, cardDoc).missing).toContain('原本に無いノート')
+  })
+
+  it('sanitizeOverlay は cards / note を既知kindとして受け入れ、href だけ落とす', () => {
+    const out = sanitizeOverlay({
+      parts: { '5': { kind: 'cards', cards: [{ title: 'COT', lines: [[{ text: 'a', href: 'https://x.test' }]] }] } },
+      extraParts: { '5': [{ kind: 'note', inlines: [{ text: 'n', href: 'https://x.test' }] }] },
+    })
+    const p = out.parts?.['5']
+    if (p?.kind !== 'cards') throw new Error('unreachable')
+    expect(p.cards[0].lines[0]).toEqual([{ text: 'a' }])
+    const ex = out.extraParts?.['5']?.[0]
+    if (ex?.kind !== 'note') throw new Error('unreachable')
+    expect(ex.inlines).toEqual([{ text: 'n' }])
+  })
+
+  it('sectionDisplay: cards の行が全て載っている表は深掘りから除く（表層への昇格）', () => {
+    const draft = buildSpreadDraft(cardDoc, 'p')
+    const merged = applyOverlay(draft, { parts: { '5': cards } })
+    const { deep } = sectionDisplay(merged.sections[0])
+    expect(deep.some((b) => b.kind === 'table')).toBe(false)
+    expect(deep.some((b) => b.kind === 'list_item')).toBe(true)
+  })
+
+  it('sectionDisplay: cards の行が表に無いときは表を残す', () => {
+    const draft = buildSpreadDraft(cardDoc, 'p')
+    const merged = applyOverlay(draft, {
+      parts: { '5': { kind: 'cards', cards: [{ title: 'COT', lines: [t('高流量か低流量かの線引きは1回換気量以上のガスを供給できるかである。')] }] } },
+    })
+    const { deep } = sectionDisplay(merged.sections[0])
+    expect(deep.some((b) => b.kind === 'table')).toBe(true)
+  })
+})
+
+describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要点ボックス）', () => {
+  it('sectionDisplay: 凡例段落（確信度の見方）と末尾の区切り線は深掘りに出さない', () => {
+    const d: ReaderDoc = {
+      title: 'x', icon: null, cover: null, lastEdited: null,
+      blocks: [
+        { kind: 'heading', level: 2, inlines: t('6. まとめ') },
+        { kind: 'list_item', ordered: false, inlines: t('本文の行。') },
+        { kind: 'divider' },
+        { kind: 'paragraph', inlines: [{ text: '確信度の見方：', bold: true }, { text: ' ✅ 確立／⚠️ 諸説あり' }] },
+        { kind: 'divider' },
+      ],
+    }
+    const draft = buildSpreadDraft(d, 'p')
+    const { deep } = sectionDisplay(draft.sections[0])
+    expect(deep).toEqual([{ kind: 'list_item', ordered: false, inlines: t('本文の行。') }])
+  })
+
+  it('displayTail: 参考文献の箇条書きから「引用：」以降（引用文と本文リンク）を出さない', () => {
+    const tail: ReaderBlock[] = [
+      { kind: 'callout', icon: '📚', color: null, blocks: [] },
+      { kind: 'list_item', ordered: false, inlines: [
+        { text: 'BTS Guideline（2017） ', bold: true },
+        { text: '中核ガイドライン。引用：“The recommended target …” ' },
+        { text: '本文', href: 'https://x.test' },
+      ] },
+      { kind: 'list_item', ordered: false, inlines: t('引用を含まない行はそのまま。') },
+    ]
+    const { rest } = displayTail(tail)
+    const items = rest.filter((b) => b.kind === 'list_item')
+    expect(textOf(items[0].kind === 'list_item' ? items[0].inlines : [])).toBe('BTS Guideline（2017） 中核ガイドライン。')
+    expect(items[1]).toEqual(tail[2])
+  })
+
+  it('splitDigest: 見出し行・要点の箇条書き・査読済み行（foot）に分ける（区切り線は出さない）', () => {
+    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [
+      { kind: 'paragraph', inlines: [{ text: 'この記事の要点', bold: true }] },
+      { kind: 'list_item', ordered: false, inlines: t('要点1。') },
+      { kind: 'list_item', ordered: false, inlines: t('要点2。') },
+      { kind: 'divider' },
+      { kind: 'paragraph', inlines: [{ text: '査読済み：2026-08', bold: true }, { text: ' 主要根拠：BTS 2017' }] },
+    ] }
+    const r = splitDigest(lead)
+    expect(r.heading).toBe('この記事の要点')
+    expect(r.items.map((b) => textOf(b.kind === 'list_item' ? b.inlines : []))).toEqual(['要点1。', '要点2。'])
+    expect(r.foot.map((b) => b.kind)).toEqual(['paragraph'])
+  })
+
+  it('splitDigest: lead が無い・callout でないときは空を返す', () => {
+    expect(splitDigest(null)).toEqual({ heading: null, items: [], foot: [] })
+    expect(splitDigest({ kind: 'paragraph', inlines: t('x') })).toEqual({ heading: null, items: [], foot: [] })
+  })
+
+  it('digestTone: 蛍光マーカー（_background）だけ落とし、太字と文字色は残す', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'list_item', ordered: false, inlines: [
+        { text: '94〜98%', bold: true, color: 'red_background' },
+        { text: 'を目標とする', color: 'red' },
+      ] },
+    ]
+    const r = digestTone(blocks)
+    expect(r[0].kind === 'list_item' && r[0].inlines).toEqual([
+      { text: '94〜98%', bold: true },
+      { text: 'を目標とする', color: 'red' },
+    ])
+    // 元の配列には触れない（表示専用の導出）
+    expect(blocks[0].kind === 'list_item' && blocks[0].inlines[0].color).toBe('red_background')
+  })
+
+  it('reviewedDateOf: ⚡ボックスの査読済み行から年月を取り出す', () => {
+    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: null, blocks: [
+      { kind: 'paragraph', inlines: t('この記事の要点') },
+      { kind: 'paragraph', inlines: [{ text: '査読済み：2026-08', bold: true }, { text: ' 主要根拠：BTS 2017' }] },
+    ] }
+    expect(reviewedDateOf(lead)).toBe('2026-08')
+    expect(reviewedDateOf(null)).toBeNull()
+    expect(reviewedDateOf({ kind: 'callout', icon: '⚡', color: null, blocks: [{ kind: 'paragraph', inlines: t('要点だけ') }] })).toBeNull()
   })
 })

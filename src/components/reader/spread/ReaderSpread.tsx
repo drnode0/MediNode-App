@@ -4,10 +4,11 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { displayPreface, displayTail, renameLeadLabel, sectionDisplay, sectionSources, sectionTitleText, visibleQuizzes } from '@/lib/reader-spread'
+import { digestTone, displayPreface, displayTail, renameLeadLabel, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, visibleQuizzes } from '@/lib/reader-spread'
 import { NoAutoMarkerCtx } from '../Inlines'
+import { ConfidenceMark } from '../ConfidenceMark'
 import { KnowledgeTitle } from '@/lib/title-display'
-import type { Confidence } from '@/lib/reader-confidence'
+import { CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
 // 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
@@ -53,6 +54,8 @@ export function ReaderSpread({
   cover,
   title,
   icon,
+  genre,
+  questionType,
 }: {
   spread: SpreadDoc
   onImageClick: (url: string) => void
@@ -68,6 +71,10 @@ export function ReaderSpread({
   // その時の原本（doc.title / doc.icon）を渡す。更新日と揃えて「今の原本」を出すため。
   title: string
   icon: string | null
+  // バッジ行（パイロット誌面の「04.呼吸・比較・使い分け型」）。原本のNotionプロパティ由来で、
+  // 更新日と同じ「今の原本」の流儀で渡してもらう。古いキャッシュには無いので optional。
+  genre?: string | null
+  questionType?: string | null
 }) {
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
@@ -89,16 +96,17 @@ export function ReaderSpread({
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
   // （折りたたまれた要点は DOM に無く、記事内検索が拾えないため。深掘りの全節展開と同じ理屈）。
   const LEAD_VISIBLE = 2
-  // ⚡ボックスの見出し行は誌面の呼び名（「この記事の要点」）に置き換える（パイロット準拠）。
-  const lead = useMemo(() => renameLeadLabel(spread.lead), [spread.lead])
-  const leadItems = lead?.kind === 'callout' ? lead.blocks.filter((b) => b.kind === 'list_item').length : 0
-  const leadHidden = leadOpen || searching ? 0 : Math.max(0, leadItems - LEAD_VISIBLE)
-  const leadView = useMemo(() => {
-    if (!lead || lead.kind !== 'callout' || leadHidden === 0) return lead
-    let kept = 0
-    // 箇条書き以外（見出し行・区切り線・査読済み行）は残し、箇条書きだけ先頭2件に畳む。
-    return { ...lead, blocks: lead.blocks.filter((b) => b.kind !== 'list_item' || ++kept <= LEAD_VISIBLE) }
-  }, [lead, leadHidden])
+  // ⚡ボックスの見出し行は誌面の呼び名（「この記事の要点」）に置き換え、
+  // 「見出し帯／要点の箇条書き／査読済み行」に分けて自前の枠で組む（パイロット準拠）。
+  // 蛍光マーカーは要点ボックス内では太字＝ブランドグリーンの強調に置き換わる（digestTone）。
+  const digest = useMemo(() => splitDigest(renameLeadLabel(spread.lead)), [spread.lead])
+  const digestItems = useMemo(() => digestTone(digest.items), [digest])
+  const digestFoot = useMemo(() => digestTone(digest.foot), [digest])
+  const leadHidden = leadOpen || searching ? 0 : Math.max(0, digestItems.length - LEAD_VISIBLE)
+  const visibleItems = leadHidden > 0 ? digestItems.slice(0, LEAD_VISIBLE) : digestItems
+  // バッジ行（ジャンル・問いの型・査読済み年月）。査読年月は⚡ボックスの査読済み行から導く。
+  const reviewed = useMemo(() => reviewedDateOf(spread.lead), [spread.lead])
+  const badges = [genre, questionType, reviewed ? `査読済み ${reviewed}` : null].filter((v): v is string => !!v)
 
   return (
     // reader-prose の直下に倍率ラッパーを1枚だけ挟む（ReaderBody.tsx と同じ入れ子）。
@@ -108,11 +116,24 @@ export function ReaderSpread({
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
         {/* 更新日・カバー画像は ReaderBody.tsx と同じ見た目・同じ順序・同じ位置
             （本文冒頭・lead より前）で出す。誌面化した記事でもここが黙って消えないように。 */}
-        {lastEdited && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-            更新 {new Date(lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+        {/* 更新日の行に確信度の凡例を常設する（パイロット誌面の上部バーの凡例に相当）。
+            本文フォーマットの凡例段落は誌面では出さない（sectionDisplay / displayTail）ため、
+            凡例はここが唯一の置き場所になる。 */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          {lastEdited ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              更新 {new Date(lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+            </p>
+          ) : <span />}
+          <p className="text-[0.68rem] text-gray-400 dark:text-gray-500 flex items-center gap-2 whitespace-nowrap">
+            {(['ok', 'caut', 'unk'] as const).map((k) => (
+              <span key={k} className="inline-flex items-center gap-0.5">
+                <ConfidenceMark kind={k} />
+                <span aria-hidden="true">{CONFIDENCE_LABEL[k]}</span>
+              </span>
+            ))}
           </p>
-        )}
+        </div>
         {cover && (
           <button type="button" onClick={() => onImageClick(cover)} className="block w-full mb-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -123,26 +144,47 @@ export function ReaderSpread({
             記事タイトルを出す。ここが無いと、誌面化した記事だけ「何を読んでいるか」が
             画面から失われる（ReaderOverlay のヘッダの aria-label はスクリーンリーダー用で
             画面には見えない）。ページアイコンの扱いも ReaderBody.tsx と揃える。 */}
+        {/* バッジ行（パイロット誌面のキッカー）。ジャンル・問いの型は原本のNotionプロパティ、
+            査読年月は⚡ボックスの査読済み行から。無いものは黙って出さない。 */}
+        {badges.length > 0 && (
+          <p className="text-[0.78em] text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap gap-x-3 gap-y-0.5">
+            {badges.map((b, i) => (
+              <span key={b} className={i === 0 ? 'font-bold text-brand-700 dark:text-brand-300' : ''}>{b}</span>
+            ))}
+          </p>
+        )}
         <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
           <KnowledgeTitle title={title} level={icon?.startsWith('http') ? null : icon} />
         </h2>
 
-        {leadView && (
-          // data-tldr は付けない。spread.lead は必ず conclusion role の callout で、
-          // 中で RenderedBlocks が data-tldr を出す（ReaderBody.tsx）。ここにも付けると
-          // 入れ子で二重になり、将来 querySelectorAll で数える処理が入ったときに二重計上する。
-          <div className="mb-5">
-            <RenderedBlocks blocks={[leadView]} onImageClick={onImageClick} active={NO_FILTER} />
-            {(leadHidden > 0 || (leadOpen && leadItems > LEAD_VISIBLE)) && (
-              <button
-                type="button"
-                onClick={() => setLeadOpen((v) => !v)}
-                aria-expanded={leadOpen}
-                className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 -mt-2"
-              >
-                {leadHidden > 0 ? `残り${leadHidden}件の要点を表示` : '要点を閉じる'}
-              </button>
-            )}
+        {spread.lead && (
+          // 要点ボックス（パイロット誌面の「この記事の要点」）。緑のヘッダー帯つきの枠で
+          // 自前に組むため、RenderedBlocks の conclusion 描画（data-tldr 付き）は通らない。
+          // ReaderNavBar が IntersectionObserver の対象に [data-tldr] を探すので、ここに付ける。
+          <div data-tldr="" className="mb-5 rounded-xl border-[1.5px] border-brand-600 dark:border-brand-400/70 overflow-hidden shadow-sm bg-card-light dark:bg-card-dark">
+            <div className="bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-1.5 text-[0.85em] font-bold tracking-[0.06em] text-white">
+              {digest.heading || 'この記事の要点'}
+            </div>
+            <div className="px-3.5 py-3 [&_.font-bold]:text-brand-800 dark:[&_.font-bold]:text-brand-300">
+              <NoAutoMarkerCtx.Provider value={true}>
+                <RenderedBlocks blocks={visibleItems} onImageClick={onImageClick} active={NO_FILTER} />
+                {(leadHidden > 0 || (leadOpen && digestItems.length > LEAD_VISIBLE)) && (
+                  <button
+                    type="button"
+                    onClick={() => setLeadOpen((v) => !v)}
+                    aria-expanded={leadOpen}
+                    className="text-[0.82em] font-bold text-brand-700 dark:text-brand-300 min-h-[44px] px-1"
+                  >
+                    {leadHidden > 0 ? `残り${leadHidden}件の要点を表示 ▾` : '要点を閉じる ▴'}
+                  </button>
+                )}
+                {digestFoot.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 text-[0.8em] text-gray-500 dark:text-gray-400 [&_.font-bold]:text-gray-600 dark:[&_.font-bold]:text-gray-300">
+                    <RenderedBlocks blocks={digestFoot} onImageClick={onImageClick} active={NO_FILTER} />
+                  </div>
+                )}
+              </NoAutoMarkerCtx.Provider>
+            </div>
           </div>
         )}
 

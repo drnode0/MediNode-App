@@ -483,6 +483,8 @@ export default function ReaderOverlay({
                     cover={doc.cover}
                     title={doc.title}
                     icon={doc.icon}
+                    genre={doc.genre}
+                    questionType={doc.questionType}
                   />
                 ) : (
                   <ReaderBody

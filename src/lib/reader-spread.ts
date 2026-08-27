@@ -17,8 +17,16 @@ import { stripLeadingEmoji } from './labels'
 // 表層に出す部品。'none' は表層なし（深掘りだけ）を意味する。
 export type SpreadPart =
   | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][] }
-  | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[] }[] }
+  // intro はフロー全体の前提条件（「高CO₂血症リスクなしで SpO₂ 85%以上」等）、
+  // note は各ステップに添える小さな補足行。どちらも医学的内容なので逐語一致検査の対象
+  // （label だけが表示上の命名＝対象外）。旧 SpreadDoc には無いキーなので optional。
+  | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }
   | { kind: 'bignumber'; value: string; caption: ReaderInline[] }
+  // 2枚組の比較カード（パイロット誌面の節5 COT vs HFNC）。title はカードの呼び名
+  // （命名＝検査対象外）、lines は逐語一致検査の対象。
+  | { kind: 'cards'; cards: { title: string; lines: ReaderInline[][] }[] }
+  // 表層の補足ノート（パイロット誌面の「高流量か低流量かの線引きは…」等）。逐語一致検査の対象。
+  | { kind: 'note'; inlines: ReaderInline[] }
   // goLabel / noGoLabel は枠の見出し（既定は「こうする」「こうしない」）。
   // 節6のように「NIVを選ぶ／侵襲的人工呼吸への移行を判断する」の対では、既定ラベルだと
   // 「こうしない」が誤読になる（移行の判断は禁止事項ではない）ため、オーバレイで名前を渡せる。
@@ -214,7 +222,7 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
 }
 
 // SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
-const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'none'])
+const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'none'])
 
 // part の中の ReaderInline から href だけを落とす（text/bold/italic/code/color は残す）。
 function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
@@ -233,13 +241,21 @@ function stripPartHref(part: SpreadPart): SpreadPart {
       return { ...part, rows: part.rows.map((row) => row.map(stripInlineHref)) }
     case 'flow':
     case 'timeline':
-      return { ...part, steps: part.steps.map((s) => ({ ...s, inlines: stripInlineHref(s.inlines) })) }
+      return {
+        ...part,
+        ...(part.intro ? { intro: stripInlineHref(part.intro) } : {}),
+        steps: part.steps.map((s) => ({ ...s, inlines: stripInlineHref(s.inlines), ...(s.note ? { note: stripInlineHref(s.note) } : {}) })),
+      }
     case 'bignumber':
       return { ...part, caption: stripInlineHref(part.caption) }
     case 'gonogo':
       return { ...part, go: part.go.map(stripInlineHref), noGo: part.noGo.map(stripInlineHref) }
     case 'gauge':
       return { ...part, items: part.items.map((it) => ({ ...it, label: stripInlineHref(it.label) })) }
+    case 'cards':
+      return { ...part, cards: part.cards.map((c) => ({ ...c, lines: c.lines.map(stripInlineHref) })) }
+    case 'note':
+      return { ...part, inlines: stripInlineHref(part.inlines) }
     case 'none':
       return part
   }
@@ -314,7 +330,16 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     if (p.kind === 'comparison' || p.kind === 'matrix') {
       for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
     } else if (p.kind === 'flow' || p.kind === 'timeline') {
-      for (const step of p.steps) out.push(textOf(step.inlines))
+      if (p.intro) out.push(textOf(p.intro))
+      for (const step of p.steps) {
+        out.push(textOf(step.inlines))
+        if (step.note) out.push(textOf(step.note))
+      }
+    } else if (p.kind === 'cards') {
+      // title はカードの呼び名（命名）なので対象に入れない。
+      for (const c of p.cards) for (const line of c.lines) out.push(textOf(line))
+    } else if (p.kind === 'note') {
+      out.push(textOf(p.inlines))
     } else if (p.kind === 'bignumber') {
       out.push(p.value, textOf(p.caption))
     } else if (p.kind === 'gonogo') {
@@ -416,6 +441,19 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
     const idx = deep.findIndex((b) => b.kind === 'table' && rowsText(b.rows) === promoted)
     if (idx >= 0) deep = [...deep.slice(0, idx), ...deep.slice(idx + 1)]
   }
+  if (part.kind === 'cards') {
+    // カードの全行が載っている表は「表層へ昇格した表」とみなして深掘りから除く
+    // （comparison の二重表示除去と同じ理屈。行が1つも無いカードでは何も除かない）。
+    const lines = part.cards.flatMap((c) => c.lines.map((l) => textOf(l)))
+    if (lines.length > 0) {
+      const idx = deep.findIndex((b) => {
+        if (b.kind !== 'table') return false
+        const cells = new Set(b.rows.flatMap((row) => row.map((cell) => textOf(cell))))
+        return lines.every((l) => cells.has(l))
+      })
+      if (idx >= 0) deep = [...deep.slice(0, idx), ...deep.slice(idx + 1)]
+    }
+  }
   let recap: ReaderBlock | null = null
   for (let i = deep.length - 1; i >= 0; i--) {
     const b = deep[i]
@@ -425,7 +463,16 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
       break
     }
   }
+  // 凡例段落（「確信度の見方：…」）は誌面では出さない（凡例は誌面の上部に常設するため。
+  // パイロット準拠）。段落を除いた結果、深掘り末尾に残る区切り線も出さない。
+  deep = deep.filter((b) => !isLegendParagraph(b))
+  while (deep.length > 0 && deep[deep.length - 1].kind === 'divider') deep = deep.slice(0, -1)
   return { recap, deep }
+}
+
+// 本文フォーマットの凡例段落（「確信度の見方：」で始まる）。誌面では上部の凡例が担う。
+export function isLegendParagraph(b: ReaderBlock): boolean {
+  return b.kind === 'paragraph' && textOf(b.inlines).trim().startsWith('確信度の見方')
 }
 
 /**
@@ -528,11 +575,91 @@ export function dropPubmedExamples(tail: ReaderBlock[]): ReaderBlock[] {
 }
 
 /**
- * 記事末の表示用整形（スタンプの除去・構造見出しの除去・PubMed検索例の除去）をまとめて行う。
+ * 参考文献の箇条書きから「引用：」以降（原文引用と直後の本文リンク）を出さない（パイロット準拠）。
+ * 誌面の文献一覧は「何の文献か」の一行案内に絞り、原文引用は原本（Notion・全文表示）に温存する。
+ * 「引用：」を含まない行はそのまま。
+ */
+export function compressReferenceItems(blocks: ReaderBlock[]): ReaderBlock[] {
+  return blocks.map((b) => {
+    if (b.kind !== 'list_item') return b
+    const at = b.inlines.findIndex((i) => i.text.includes('引用：'))
+    if (at < 0) return b
+    const kept = b.inlines.slice(0, at)
+    const headText = b.inlines[at].text.slice(0, b.inlines[at].text.indexOf('引用：')).trimEnd()
+    if (headText) kept.push({ ...b.inlines[at], text: headText })
+    return { ...b, inlines: kept }
+  })
+}
+
+/**
+ * 記事末の表示用整形（スタンプの除去・構造見出しの除去・PubMed検索例の除去・
+ * 凡例段落の除去・参考文献の圧縮）をまとめて行う。
  */
 export function displayTail(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: ReaderBlock[] } {
   const { scope, rest } = splitStampScope(tail)
-  return { scope, rest: dropPubmedExamples(rest.filter((b) => !isStructuralHeading(b))) }
+  const cleaned = rest.filter((b) => !isStructuralHeading(b) && !isLegendParagraph(b))
+  return { scope, rest: compressReferenceItems(dropPubmedExamples(cleaned)) }
+}
+
+// ---- 要点ボックス（⚡）の表示用導出 ----
+
+export type DigestParts = { heading: string | null; items: ReaderBlock[]; foot: ReaderBlock[] }
+
+/**
+ * ⚡ボックスの中身を「見出し行／要点の箇条書き／査読済み行など（foot）」に分ける。
+ * 誌面はこの3つを自前の枠（緑ヘッダー帯つきのボックス）で組み直し、展開ボタンを枠内に置く。
+ * 区切り線は枠のヘッダーと余白が担うので出さない。
+ */
+export function splitDigest(lead: ReaderBlock | null): DigestParts {
+  if (!lead || lead.kind !== 'callout') return { heading: null, items: [], foot: [] }
+  let heading: string | null = null
+  const items: ReaderBlock[] = []
+  const foot: ReaderBlock[] = []
+  for (const b of lead.blocks) {
+    if (b.kind === 'divider') continue
+    if (b.kind === 'list_item') {
+      items.push(b)
+      continue
+    }
+    if (heading === null && items.length === 0 && b.kind === 'paragraph') {
+      heading = textOf(b.inlines).trim()
+      continue
+    }
+    foot.push(b)
+  }
+  return { heading, items, foot }
+}
+
+/**
+ * 要点ボックス内の蛍光マーカー（_background）だけ落とす表示用の導出。
+ * 原本の赤マーカー強調は、誌面の要点ボックスでは太字＝ブランドグリーンの数値強調に
+ * 置き換わる（パイロット準拠）。文字色（単色系）と太字はそのまま残す。
+ */
+export function digestTone(blocks: ReaderBlock[]): ReaderBlock[] {
+  const strip = (list: ReaderInline[]): ReaderInline[] =>
+    list.map((i) => {
+      if (!i.color || !i.color.endsWith('_background')) return i
+      const { color: _color, ...rest } = i
+      return rest
+    })
+  return blocks.map((b) => {
+    if (b.kind === 'paragraph' || b.kind === 'heading') return { ...b, inlines: strip(b.inlines) }
+    if (b.kind === 'list_item') return { ...b, inlines: strip(b.inlines) }
+    return b
+  })
+}
+
+/**
+ * ⚡ボックスの「査読済み：YYYY-MM」からバッジ行に出す年月を取り出す。無ければ null。
+ */
+export function reviewedDateOf(lead: ReaderBlock | null): string | null {
+  if (!lead || lead.kind !== 'callout') return null
+  for (const b of lead.blocks) {
+    if (b.kind !== 'paragraph' && b.kind !== 'list_item') continue
+    const m = textOf(b.inlines).match(/査読済み[：:]\s*(\d{4}-\d{2})/)
+    if (m) return m[1]
+  }
+  return null
 }
 
 // 節見出しの「1. 」接頭辞は番号バッジと重複するため、表示では落とす（番号なしH2はそのまま）。
