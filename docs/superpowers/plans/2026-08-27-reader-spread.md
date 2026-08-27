@@ -2269,6 +2269,133 @@ curl -X PUT https://<本番ドメイン>/api/admin/spread \
 
 ---
 
+### Task 16: 理解チェックの目視の関門（/admin）
+
+**Files:**
+- Modify: `src/app/api/admin/spread/route.ts`（PUT で reviewed を落とす／PATCH を新設／GET に quizzes を足す）
+- Modify: `src/lib/admin-audit.ts`（`AdminAction` に `review_quiz` を追加）
+- Modify: `src/app/admin/SpreadCard.tsx`（未目視の設問の一覧と承認）
+- Test: `src/lib/__tests__/admin-spread-route.test.ts`
+
+**Interfaces:**
+- Consumes: Task 7 の `PUT /api/admin/spread`、Task 3 の `SpreadOverlay` / `SpreadQuiz`、Task 13 の `visibleQuizzes`
+- Produces: `PATCH /api/admin/spread`（body: `{ pageId: string; quizId: string; reviewed: boolean }`）／`GET /api/admin/spread` の各行に `quizzes` を追加
+
+**なぜ要るか**: 理解チェックは、承認済み仕様（2026-08-12）の「無査読の誤答選択肢は医学教材として危険」という決定を、「1問ずつオーナーが目視し、目視を通るまで読者に出さない」という条件つきで改めたものである。現状その条件はコード上 `reviewed` という真偽値1つで、値を決めるのは投入する側（制作スキル）である。目視したかどうかは自己申告になっている。ここを、コードの性質として「目視を通らないと読者に出ない」に変える。
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`src/lib/__tests__/admin-spread-route.test.ts` に追記する。
+
+```ts
+describe('目視の関門', () => {
+  it('投入された overlay の設問は reviewed を必ず false に落として保存する', async () => {
+    await PUT(req({
+      pageId: 'p1',
+      overlay: { quizzes: [{ id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: true }] },
+    }))
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.spread_doc.quizzes[0].reviewed).toBe(false)
+    expect(saved.overlay.quizzes[0].reviewed).toBe(false)
+  })
+
+  it('PATCH は指定した設問だけ reviewed を立て、status は変えない', async () => {
+    maybeSingle.mockResolvedValue({
+      data: {
+        overlay: { quizzes: [
+          { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: false },
+          { id: 'q2', sectionAnchor: '1', question: '？？', choices: ['a', 'b'], answerIndex: 1, evidence: '本文。', reviewed: false },
+        ] },
+        status: 'published',
+      },
+      error: null,
+    })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(200)
+    const saved = upsert.mock.calls[0][0]
+    expect(saved.status).toBe('published')
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q1').reviewed).toBe(true)
+    expect(saved.overlay.quizzes.find((q: { id: string }) => q.id === 'q2').reviewed).toBe(false)
+  })
+
+  it('PATCH は管理者でなければ弾く', async () => {
+    const { NextResponse } = await import('next/server')
+    requireAdmin.mockResolvedValue({ ok: false, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) })
+    const res = await PATCH(patchReq({ pageId: 'p1', quizId: 'q1', reviewed: true }))
+    expect(res.status).toBe(403)
+  })
+})
+```
+
+既存のモックの作り方に合わせること。`maybeSingle` と `PATCH` 用のリクエストヘルパは、既存のヘルパの流儀に沿って足す。
+
+- [ ] **Step 2: テストを走らせて失敗を確認する**
+
+Run: `npx vitest run src/lib/__tests__/admin-spread-route.test.ts`
+Expected: FAIL（`PATCH` が存在しない／`reviewed` が true のまま保存される）
+
+- [ ] **Step 3: PUT で reviewed を落とす**
+
+`src/app/api/admin/spread/route.ts` の PUT で、**投入された overlay の設問だけ** `reviewed: false` にする。保存済み overlay を読み直した場合は**そのままにする**（過去に目視した設問の記録を消さないため）。
+
+```ts
+  let overlay = body.overlay
+  if (overlay) {
+    // 投入された設問は必ず未目視から始める。目視したかどうかを投入側の自己申告に
+    // 委ねると、「目視を通らないと読者に出ない」がコードの性質でなくなる。
+    // 内容が変わった以上、過去の目視は引き継がない。
+    overlay = { ...overlay, quizzes: overlay.quizzes?.map((q) => ({ ...q, reviewed: false })) }
+  } else {
+    // 保存済みの overlay を読み直す場合は、既に立っている目視フラグを保つ。
+    ...（既存の読み直し処理）
+  }
+```
+
+- [ ] **Step 4: PATCH を実装する**
+
+同じファイルに追加する。保存済みの overlay を読み、指定された設問の `reviewed` だけを反転させ、原本から誌面を組み直して保存する。`status` は変えない。
+
+```ts
+/**
+ * 理解チェックの目視。オーナーが1問ずつ見て承認する。
+ *
+ * 誌面（spread_doc）は overlay を原本に重ねて組み直す。フラグだけを書き換えても
+ * 読者に届く spread_doc に反映されないため、投入と同じ経路を通す。
+ * status は変えない（公開中の記事なら、承認した設問がその場で読者に出る）。
+ */
+export async function PATCH(req: Request) { ... }
+```
+
+監査ログの種別は `review_quiz`。`detail` に `pageId` / `quizId` / `reviewed` を入れる（`target_user_id` は uuid 型なので使わない）。
+保存後は `revalidateSubscriptionReaderDocs()` を呼ぶ。
+
+- [ ] **Step 5: GET に設問を足す**
+
+`GET /api/admin/spread` の各行に `quizzes` を含める。`overlay` 列から取り出す（`spread_doc` 全体を返すと重い）。オーナー専用なので、設問・選択肢・正解・根拠をそのまま返してよい。
+
+- [ ] **Step 6: /admin に目視の画面を足す**
+
+`src/app/admin/SpreadCard.tsx` の各行に、未目視の設問がある場合だけ「理解チェック（未目視 N件）」の開閉を出す。開くと1問ずつ、問い・選択肢（正解に印）・根拠の逐語を表示し、「承認」ボタンを置く。目視済みの設問は「目視済み」と表示し、「取り消し」で戻せるようにする。
+
+- `confirm` / `alert` を使わない
+- タップ対象は 44px
+- アイコンに絵文字を使わない
+- 面の色は階調トークン（`bg-soft-light dark:bg-soft-dark` / `bg-card-light dark:bg-card-dark`）
+
+- [ ] **Step 7: テストと型チェック**
+
+Run: `npx vitest run src/lib/__tests__/admin-spread-route.test.ts && npx tsc --noEmit && npm test`
+Expected: 新規テスト PASS・型エラーなし・既存の無関係failure 1件のみ
+
+- [ ] **Step 8: コミット**
+
+```bash
+git add src/app/api/admin/spread/route.ts src/lib/admin-audit.ts src/app/admin/SpreadCard.tsx src/lib/__tests__/admin-spread-route.test.ts
+git commit -m "feat: 理解チェックの目視の関門を /admin に置く"
+```
+
+---
+
 ## 後回しにしたもの（本計画の範囲外）
 
 - **編集レイヤー**（`PATCH /api/admin/notion-block`・`SUBSCRIPTION_NOTION_WRITE_TOKEN`）。仕様書の段4。パイロットに必須ではないので、誌面が実機で見えてから着手する。Task 4 で blockId を通してあるので前提は満たしている
