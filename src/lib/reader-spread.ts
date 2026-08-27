@@ -117,13 +117,29 @@ export function splitSections(doc: ReaderDoc): SplitResult {
   const sections: SplitSection[] = []
   const tail: ReaderBlock[] = []
   let current: SplitSection | null = null
+  // 最後の節より後ろに入った領域（`# Evidence` 以降）にいるか。
+  let afterSections = false
 
   doc.blocks.forEach((b, index) => {
-    if (b.kind === 'callout' && calloutRole(b.icon) === 'conclusion' && !lead && !current) {
+    if (b.kind === 'callout' && calloutRole(b.icon) === 'conclusion' && !lead && !current && !afterSections) {
       lead = b
       return
     }
     if (isTailBlock(b)) {
+      tail.push(b)
+      return
+    }
+    // 節が始まったあとの level 1 見出し（`# Evidence` など）は、その節を閉じて以降を記事末へ送る。
+    // これが無いと、📚callout だけが tail に拾われ、その下に続く参考文献の箇条書きと
+    // PubMed検索例が「最後の節の深掘り」に飲み込まれる（畳まれた中に文献一覧が隠れる）。
+    // 節より前の `# Question` `# Answer` は sections.length === 0 なのでここを通らない。
+    if (b.kind === 'heading' && b.level === 1 && sections.length > 0) {
+      current = null
+      afterSections = true
+      tail.push(b)
+      return
+    }
+    if (afterSections) {
       tail.push(b)
       return
     }

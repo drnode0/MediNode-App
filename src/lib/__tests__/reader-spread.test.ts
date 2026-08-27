@@ -442,3 +442,40 @@ describe('entries（いまの状況から探す）', () => {
     expect(r.entries).toEqual([{ label: '入口', anchor: '1' }])
   })
 })
+
+describe('splitSections: 節より後ろの level 1 見出し（# Evidence 以降）', () => {
+  // 実物のサブスク本文の並び。`# Evidence` は level 1 で、📚callout の下に参考文献の
+  // 箇条書きと PubMed検索例が続く。level 2 の節ではないので、対処しないと最後の節に飲み込まれる。
+  const d: ReaderDoc = {
+    title: 'T', icon: null, cover: null, lastEdited: null,
+    blocks: [
+      /* 0 */ { kind: 'heading', level: 1, inlines: t('Question') },
+      /* 1 */ { kind: 'paragraph', inlines: t('酸素はどう使い分ける？') },
+      /* 2 */ { kind: 'heading', level: 2, inlines: t('1. 目標SpO2から決める') },
+      /* 3 */ { kind: 'list_item', ordered: false, inlines: t('94〜98%を目標にする。') },
+      /* 4 */ { kind: 'heading', level: 1, inlines: t('Evidence') },
+      /* 5 */ { kind: 'callout', icon: '📚', color: null, blocks: [{ kind: 'paragraph', inlines: t('まず当たるべき文献・ガイドライン') }] },
+      /* 6 */ { kind: 'list_item', ordered: false, inlines: t('BTS guideline 2017 — 中核ガイドライン') },
+      /* 7 */ { kind: 'paragraph', inlines: t('PubMed検索キーワード例') },
+      /* 8 */ { kind: 'callout', icon: '⚠️', color: null, blocks: [{ kind: 'paragraph', inlines: t('本ページは学習用の情報です。') }] },
+    ],
+  }
+
+  it('参考文献の箇条書きと PubMed検索例が節の深掘りに飲み込まれない', () => {
+    const r = splitSections(d)
+    expect(r.sections).toHaveLength(1)
+    expect(r.sections[0].blocks).toEqual([d.blocks[3]])
+    expect(r.tail).toContain(d.blocks[6])
+    expect(r.tail).toContain(d.blocks[7])
+  })
+
+  it('`# Evidence` 見出し自体も記事末に出す（文献一覧の見出しが消えない）', () => {
+    const r = splitSections(d)
+    expect(r.tail).toContain(d.blocks[4])
+  })
+
+  it('節より前の level 1 見出し（# Question）は従来どおり preface に残る', () => {
+    const r = splitSections(d)
+    expect(r.preface).toEqual([d.blocks[0], d.blocks[1]])
+  })
+})
