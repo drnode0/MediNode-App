@@ -433,26 +433,35 @@ export type SectionDisplay = {
  * 2. 深掘り末尾側の「→」で始まる段落（最後の1つ）を recap として抜く。
  *    どちらも中身は表層に必ず表示されるので、読者から見える本文は失われない。
  */
+// cards へ昇格しきった表かの判定。ヘッダ行と先頭列（行ラベル）はカードの構造
+// （タイトルと条目の並び）が引き受けるので対象外。それ以外の本文セルが
+// 「カードに載っている」か「空・ダッシュの飾りセル」だけで構成されるときに限り
+// 昇格済みとみなす。部分集合の一致で除くと、カードに載らなかったセルが
+// 誌面のどこにも出なくなる（本文の静かな欠落）ため、向きはこちらで固定する。
+function tableCoveredByCards(rows: ReaderInline[][][], covered: Set<string>): boolean {
+  const body = rows.slice(1).flatMap((row) => row.slice(1)).map((cell) => textOf(cell).trim())
+  if (!body.some((t) => covered.has(t))) return false
+  return body.every((t) => t === '' || t === '—' || t === '-' || covered.has(t))
+}
+
 export function sectionDisplay(section: SpreadSection): SectionDisplay {
   let deep = section.deep
   const part = section.part
+  // 表層へ昇格した表を深掘りから除く（中身は表層に必ず表示されることが前提の除去）。
+  const dropTable = (matches: (rows: ReaderInline[][][]) => boolean) => {
+    const idx = deep.findIndex((b) => b.kind === 'table' && matches(b.rows))
+    if (idx >= 0) deep = deep.filter((_, i) => i !== idx)
+  }
   if (part.kind === 'comparison' || part.kind === 'matrix') {
     const promoted = rowsText(part.rows)
-    const idx = deep.findIndex((b) => b.kind === 'table' && rowsText(b.rows) === promoted)
-    if (idx >= 0) deep = [...deep.slice(0, idx), ...deep.slice(idx + 1)]
+    dropTable((rows) => rowsText(rows) === promoted)
   }
   if (part.kind === 'cards') {
-    // カードの全行が載っている表は「表層へ昇格した表」とみなして深掘りから除く
-    // （comparison の二重表示除去と同じ理屈。行が1つも無いカードでは何も除かない）。
-    const lines = part.cards.flatMap((c) => c.lines.map((l) => textOf(l)))
-    if (lines.length > 0) {
-      const idx = deep.findIndex((b) => {
-        if (b.kind !== 'table') return false
-        const cells = new Set(b.rows.flatMap((row) => row.map((cell) => textOf(cell))))
-        return lines.every((l) => cells.has(l))
-      })
-      if (idx >= 0) deep = [...deep.slice(0, idx), ...deep.slice(idx + 1)]
-    }
+    const covered = new Set(
+      [...part.cards.flatMap((c) => c.lines.map((l) => textOf(l).trim())), ...part.cards.map((c) => c.title.trim())]
+        .filter(Boolean),
+    )
+    if (covered.size > 0) dropTable((rows) => tableCoveredByCards(rows, covered))
   }
   let recap: ReaderBlock | null = null
   for (let i = deep.length - 1; i >= 0; i--) {
@@ -465,14 +474,20 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
   }
   // 凡例段落（「確信度の見方：…」）は誌面では出さない（凡例は誌面の上部に常設するため。
   // パイロット準拠）。段落を除いた結果、深掘り末尾に残る区切り線も出さない。
-  deep = deep.filter((b) => !isLegendParagraph(b))
-  while (deep.length > 0 && deep[deep.length - 1].kind === 'divider') deep = deep.slice(0, -1)
+  // 何も除くものが無い節では配列をコピーしない（毎レンダー呼ばれる導出のため）。
+  if (deep.some(isLegendParagraph)) deep = deep.filter((b) => !isLegendParagraph(b))
+  let end = deep.length
+  while (end > 0 && deep[end - 1].kind === 'divider') end--
+  if (end < deep.length) deep = deep.slice(0, end)
   return { recap, deep }
 }
 
 // 本文フォーマットの凡例段落（「確信度の見方：」で始まる）。誌面では上部の凡例が担う。
+// 「確信度の見方は…」のような通常の本文を巻き込まないよう、直後の区切り記号まで要求する。
 export function isLegendParagraph(b: ReaderBlock): boolean {
-  return b.kind === 'paragraph' && textOf(b.inlines).trim().startsWith('確信度の見方')
+  if (b.kind !== 'paragraph') return false
+  if (!(b.inlines[0]?.text ?? '').trimStart().startsWith('確信度の見方')) return false
+  return /^確信度の見方[：:]/.test(textOf(b.inlines).trim())
 }
 
 /**
@@ -528,22 +543,12 @@ export function displayPreface(preface: ReaderBlock[], title: string): ReaderBlo
   })
 }
 
-// ⚡ボックスの見出し行。原本の書式は「この問いへの答え」だが、誌面の呼び名は
-// 「この記事の要点」（パイロットで確定）。この既知のラベル1つだけを置き換える。
-const LEAD_LABEL_FROM = 'この問いへの答え'
+// ⚡ボックスの見出しとして扱う既知のラベル行。原本の書式は「この問いへの答え」で、
+// 誌面の呼び名は「この記事の要点」（パイロットで確定）。既知のラベルのときだけ
+// 見出し帯に昇格させる。既知でない先頭段落は本文（結論文そのもの等）の可能性が
+// あるので body に残し、原本の順序・装飾・検索ハイライトのまま描く。
+const LEAD_LABELS = new Set(['この問いへの答え', 'この記事の要点'])
 const LEAD_LABEL_TO = 'この記事の要点'
-
-export function renameLeadLabel(lead: ReaderBlock | null): ReaderBlock | null {
-  if (!lead || lead.kind !== 'callout') return lead
-  return {
-    ...lead,
-    blocks: lead.blocks.map((b) =>
-      b.kind === 'paragraph' && textOf(b.inlines).trim() === LEAD_LABEL_FROM
-        ? { ...b, inlines: [{ text: LEAD_LABEL_TO, bold: true }] }
-        : b,
-    ),
-  }
-}
 
 /**
  * 🤖査読スタンプ（tail に入る）から、対象範囲の但し書きを取り出す。
@@ -577,18 +582,35 @@ export function dropPubmedExamples(tail: ReaderBlock[]): ReaderBlock[] {
 /**
  * 参考文献の箇条書きから「引用：」以降（原文引用と直後の本文リンク）を出さない（パイロット準拠）。
  * 誌面の文献一覧は「何の文献か」の一行案内に絞り、原文引用は原本（Notion・全文表示）に温存する。
- * 「引用：」を含まない行はそのまま。
+ *
+ * 対象は 📚callout（文献一覧の見出し）より後ろの箇条書きだけ。tail 全体に掛けると、
+ * 免責や注記の箇条書きが本文中の「引用：」で切り落とされる誤爆が起きる。
+ * 「引用：」の検出は連結テキストで行う（Notionのリッチテキストは書式の境目でインラインが
+ * 割れるため、単一インライン内の includes では不発になる）。切った結果が空になる行は出さない。
  */
 export function compressReferenceItems(blocks: ReaderBlock[]): ReaderBlock[] {
-  return blocks.map((b) => {
-    if (b.kind !== 'list_item') return b
-    const at = b.inlines.findIndex((i) => i.text.includes('引用：'))
-    if (at < 0) return b
-    const kept = b.inlines.slice(0, at)
-    const headText = b.inlines[at].text.slice(0, b.inlines[at].text.indexOf('引用：')).trimEnd()
-    if (headText) kept.push({ ...b.inlines[at], text: headText })
-    return { ...b, inlines: kept }
-  })
+  const start = blocks.findIndex((b) => b.kind === 'callout' && calloutRole(b.icon) === 'evidence')
+  if (start < 0) return blocks
+  return blocks
+    .map((b, index) => {
+      if (index <= start || b.kind !== 'list_item') return b
+      const at = textOf(b.inlines).search(/引用[：:]/)
+      if (at < 0) return b
+      const kept: ReaderInline[] = []
+      let used = 0
+      for (const inline of b.inlines) {
+        if (used + inline.text.length <= at) {
+          kept.push(inline)
+          used += inline.text.length
+          continue
+        }
+        const cut = inline.text.slice(0, at - used).trimEnd()
+        if (cut) kept.push({ ...inline, text: cut })
+        break
+      }
+      return kept.length > 0 ? { ...b, inlines: kept } : null
+    })
+    .filter((b): b is ReaderBlock => b !== null)
 }
 
 /**
@@ -603,31 +625,30 @@ export function displayTail(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: 
 
 // ---- 要点ボックス（⚡）の表示用導出 ----
 
-export type DigestParts = { heading: string | null; items: ReaderBlock[]; foot: ReaderBlock[] }
+export type DigestParts = { heading: string | null; body: ReaderBlock[]; foot: ReaderBlock[] }
 
 /**
- * ⚡ボックスの中身を「見出し行／要点の箇条書き／査読済み行など（foot）」に分ける。
+ * ⚡ボックスの中身を「見出し帯／本文（body）／査読済み行など（foot）」に分ける。
  * 誌面はこの3つを自前の枠（緑ヘッダー帯つきのボックス）で組み直し、展開ボタンを枠内に置く。
+ *
+ * 見出し帯へ昇格するのは、先頭の段落が既知のラベル（LEAD_LABELS）のときだけ。
+ * body はラベルの後ろから最後の箇条書きまでを原本の順序のまま持つ（箇条書きの間に
+ * 補足段落があっても並べ替えない）。foot は最後の箇条書きより後ろ（査読済み行）。
  * 区切り線は枠のヘッダーと余白が担うので出さない。
  */
 export function splitDigest(lead: ReaderBlock | null): DigestParts {
-  if (!lead || lead.kind !== 'callout') return { heading: null, items: [], foot: [] }
-  let heading: string | null = null
-  const items: ReaderBlock[] = []
-  const foot: ReaderBlock[] = []
-  for (const b of lead.blocks) {
-    if (b.kind === 'divider') continue
-    if (b.kind === 'list_item') {
-      items.push(b)
-      continue
-    }
-    if (heading === null && items.length === 0 && b.kind === 'paragraph') {
-      heading = textOf(b.inlines).trim()
-      continue
-    }
-    foot.push(b)
-  }
-  return { heading, items, foot }
+  if (!lead || lead.kind !== 'callout') return { heading: null, body: [], foot: [] }
+  const blocks = lead.blocks.filter((b) => b.kind !== 'divider')
+  const first = blocks[0]
+  const labeled = first?.kind === 'paragraph' && LEAD_LABELS.has(textOf(first.inlines).trim())
+  const heading = labeled ? LEAD_LABEL_TO : null
+  const rest = blocks.slice(labeled ? 1 : 0)
+  let lastItem = -1
+  rest.forEach((b, i) => {
+    if (b.kind === 'list_item') lastItem = i
+  })
+  if (lastItem < 0) return { heading, body: rest, foot: [] }
+  return { heading, body: rest.slice(0, lastItem + 1), foot: rest.slice(lastItem + 1) }
 }
 
 /**
@@ -642,22 +663,23 @@ export function digestTone(blocks: ReaderBlock[]): ReaderBlock[] {
       const { color: _color, ...rest } = i
       return rest
     })
-  return blocks.map((b) => {
-    if (b.kind === 'paragraph' || b.kind === 'heading') return { ...b, inlines: strip(b.inlines) }
-    if (b.kind === 'list_item') return { ...b, inlines: strip(b.inlines) }
-    return b
-  })
+  return blocks.map((b) =>
+    b.kind === 'paragraph' || b.kind === 'heading' || b.kind === 'list_item'
+      ? { ...b, inlines: strip(b.inlines) }
+      : b,
+  )
 }
 
 /**
  * ⚡ボックスの「査読済み：YYYY-MM」からバッジ行に出す年月を取り出す。無ければ null。
+ * 原本側の書式ゆらぎ（2026/08・2026年8月・月1桁）は YYYY-MM に正規化して受ける。
  */
 export function reviewedDateOf(lead: ReaderBlock | null): string | null {
   if (!lead || lead.kind !== 'callout') return null
   for (const b of lead.blocks) {
     if (b.kind !== 'paragraph' && b.kind !== 'list_item') continue
-    const m = textOf(b.inlines).match(/査読済み[：:]\s*(\d{4}-\d{2})/)
-    if (m) return m[1]
+    const m = textOf(b.inlines).match(/査読済み[：:]\s*(\d{4})[-/年]\s*(\d{1,2})/)
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}`
   }
   return null
 }

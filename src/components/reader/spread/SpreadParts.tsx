@@ -1,7 +1,8 @@
 'use client'
+import { memo } from 'react'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import type { ReaderInline } from '@/lib/reader-doc'
-import type { SpreadPart } from '@/lib/reader-spread'
+import { textOf, type SpreadPart } from '@/lib/reader-spread'
 
 // 表層の部品。教科書の誌面で「どこを見るか」を形が教える役割を持つ。
 // 現行の本文中の表は本文より小さい全セル枠線だったが、誌面では逆にする。
@@ -14,15 +15,21 @@ const BOLD_AS_NUMBER =
   '[&_.font-bold]:text-brand-700 dark:[&_.font-bold]:text-brand-300 [&_.font-bold]:text-[1.12em]'
 
 // 先頭列のセルが「主語（補足）」の形なら、補足を小さな2行目に落とす（パイロット誌面の
-// 患者群セルの見え方）。表示上の整形だけで、テキスト自体は原本のまま全部出す。
+// 患者群セルの見え方）。割るのは括弧が1組だけで末尾で閉じるセルに限る（2組あるセルを
+// 割ると括弧の対応が壊れる）。分割後も必ず Inlines で描く。素のテキストで描くと
+// 検索ハイライト（mark[data-reader-search]）・確信度マークの線画化・太字装飾が
+// このセルだけ落ちる（昇格した表は深掘りから除かれるため、検索の逃げ場も無い）。
 function FirstCellText({ cell, k }: { cell: ReaderInline[]; k: string }) {
-  const text = cell.map((i) => i.text).join('')
-  const m = cell.length === 1 && !cell[0].href ? text.match(/^(.+?)（(.{6,})）$/) : null
+  const m = cell.length === 1 && !cell[0].href ? textOf(cell).match(/^([^（）]+)（([^（）]{6,})）$/) : null
   if (!m) return <Inlines items={cell} k={k} />
   return (
     <span>
-      <span className="font-medium">{m[1]}</span>
-      <span className="block text-[0.8em] text-gray-500 dark:text-gray-400 leading-snug">{m[2]}</span>
+      <span className="font-medium">
+        <Inlines items={[{ ...cell[0], text: m[1] }]} k={`${k}-main`} />
+      </span>
+      <span className="block text-[0.8em] text-gray-500 dark:text-gray-400 leading-snug">
+        <Inlines items={[{ ...cell[0], text: m[2] }]} k={`${k}-sub`} />
+      </span>
     </span>
   )
 }
@@ -171,14 +178,16 @@ function Gauge({ part }: { part: Extract<SpreadPart, { kind: 'gauge' }> }) {
   )
 }
 
-export function SpreadPartView({ part }: { part: SpreadPart }) {
+// part は保存済みスナップショット由来で参照が安定しているので memo が効く。
+// これが無いと検索の1キーストロークごとに全節の表・カード・フローが描き直される。
+export const SpreadPartView = memo(function SpreadPartView({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
   return (
     <NoAutoMarkerCtx.Provider value={true}>
       <SpreadPartBody part={part} />
     </NoAutoMarkerCtx.Provider>
   )
-}
+})
 
 function SpreadPartBody({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null

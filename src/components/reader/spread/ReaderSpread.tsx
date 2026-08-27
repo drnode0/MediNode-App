@@ -4,11 +4,12 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { digestTone, displayPreface, displayTail, renameLeadLabel, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, visibleQuizzes } from '@/lib/reader-spread'
+import { digestTone, displayPreface, displayTail, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, visibleQuizzes } from '@/lib/reader-spread'
 import { NoAutoMarkerCtx } from '../Inlines'
-import { ConfidenceMark } from '../ConfidenceMark'
+import { ConfidenceLegend } from '../ConfidenceMark'
 import { KnowledgeTitle } from '@/lib/title-display'
-import { CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
+import { stripLeadingEmoji } from '@/lib/labels'
+import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
 // 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
@@ -96,17 +97,39 @@ export function ReaderSpread({
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
   // （折りたたまれた要点は DOM に無く、記事内検索が拾えないため。深掘りの全節展開と同じ理屈）。
   const LEAD_VISIBLE = 2
-  // ⚡ボックスの見出し行は誌面の呼び名（「この記事の要点」）に置き換え、
-  // 「見出し帯／要点の箇条書き／査読済み行」に分けて自前の枠で組む（パイロット準拠）。
-  // 蛍光マーカーは要点ボックス内では太字＝ブランドグリーンの強調に置き換わる（digestTone）。
-  const digest = useMemo(() => splitDigest(renameLeadLabel(spread.lead)), [spread.lead])
-  const digestItems = useMemo(() => digestTone(digest.items), [digest])
-  const digestFoot = useMemo(() => digestTone(digest.foot), [digest])
-  const leadHidden = leadOpen || searching ? 0 : Math.max(0, digestItems.length - LEAD_VISIBLE)
-  const visibleItems = leadHidden > 0 ? digestItems.slice(0, LEAD_VISIBLE) : digestItems
-  // バッジ行（ジャンル・問いの型・査読済み年月）。査読年月は⚡ボックスの査読済み行から導く。
-  const reviewed = useMemo(() => reviewedDateOf(spread.lead), [spread.lead])
-  const badges = [genre, questionType, reviewed ? `査読済み ${reviewed}` : null].filter((v): v is string => !!v)
+  // ⚡ボックスは「見出し帯／本文（原本の順序のまま）／査読済み行」に分けて自前の枠で組む
+  // （パイロット準拠）。蛍光マーカーは枠内では太字＝ブランドグリーンの強調に置き換わる（digestTone）。
+  const digest = useMemo(() => {
+    const d = splitDigest(spread.lead)
+    return { heading: d.heading, body: digestTone(d.body), foot: digestTone(d.foot), reviewed: reviewedDateOf(spread.lead) }
+  }, [spread.lead])
+  // 折りたたみは「先頭2件の箇条書きまで見せる」。箇条書き以外のブロックは位置のまま扱う。
+  const itemIndexes = useMemo(
+    () => digest.body.reduce<number[]>((acc, b, i) => (b.kind === 'list_item' ? (acc.push(i), acc) : acc), []),
+    [digest],
+  )
+  const collapsible = itemIndexes.length > LEAD_VISIBLE
+  const collapsed = collapsible && !leadOpen && !searching
+  const visibleBody = collapsed ? digest.body.slice(0, itemIndexes[LEAD_VISIBLE - 1] + 1) : digest.body
+  const leadHidden = collapsed ? itemIndexes.length - LEAD_VISIBLE : 0
+  // バッジ行（ジャンル・問いの型・査読済み年月）。セレクト値は他画面と同じく先頭絵文字を
+  // 外して出す。ジャンルだけ強調（パイロット誌面のキッカー）で、位置ではなく種類で決める。
+  const badges = useMemo(() => {
+    const g = genre ? stripLeadingEmoji(genre).trim() : ''
+    const q = questionType ? stripLeadingEmoji(questionType).trim() : ''
+    const r = digest.reviewed ? `査読済み ${digest.reviewed}` : ''
+    return [
+      ...(g ? [{ text: g, accent: true }] : []),
+      ...(q ? [{ text: q, accent: false }] : []),
+      ...(r ? [{ text: r, accent: false }] : []),
+    ]
+  }, [genre, questionType, digest])
+  // 節ごとの表示導出（表層への昇格・出典サマリ・見せてよい理解チェック）。spread は
+  // 不変スナップショットなので1回で全節分を導出し、検索の1文字ごとに再計算しない。
+  const sectionViews = useMemo(
+    () => new Map(spread.sections.map((s) => [s.anchor, { ...sectionDisplay(s), sources: sectionSources(s.deep), quizzes: visibleQuizzes(spread, s.anchor) }])),
+    [spread],
+  )
 
   return (
     // reader-prose の直下に倍率ラッパーを1枚だけ挟む（ReaderBody.tsx と同じ入れ子）。
@@ -118,21 +141,16 @@ export function ReaderSpread({
             （本文冒頭・lead より前）で出す。誌面化した記事でもここが黙って消えないように。 */}
         {/* 更新日の行に確信度の凡例を常設する（パイロット誌面の上部バーの凡例に相当）。
             本文フォーマットの凡例段落は誌面では出さない（sectionDisplay / displayTail）ため、
-            凡例はここが唯一の置き場所になる。 */}
-        <div className="flex items-center justify-between gap-2 mb-2">
+            スクロール前の読者にはここが唯一の凡例になる。狭い画面では行ごと折り返す。 */}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-2">
           {lastEdited ? (
             <p className="text-xs text-gray-400 dark:text-gray-500">
               更新 {new Date(lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
             </p>
           ) : <span />}
-          <p className="text-[0.68rem] text-gray-400 dark:text-gray-500 flex items-center gap-2 whitespace-nowrap">
-            {(['ok', 'caut', 'unk'] as const).map((k) => (
-              <span key={k} className="inline-flex items-center gap-0.5">
-                <ConfidenceMark kind={k} />
-                <span aria-hidden="true">{CONFIDENCE_LABEL[k]}</span>
-              </span>
-            ))}
-          </p>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <ConfidenceLegend marks={['ok', 'caut', 'unk']} itemClassName="text-[0.68rem] text-gray-400 dark:text-gray-500" />
+          </span>
         </div>
         {cover && (
           <button type="button" onClick={() => onImageClick(cover)} className="block w-full mb-3">
@@ -149,7 +167,7 @@ export function ReaderSpread({
         {badges.length > 0 && (
           <p className="text-[0.78em] text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap gap-x-3 gap-y-0.5">
             {badges.map((b, i) => (
-              <span key={b} className={i === 0 ? 'font-bold text-brand-700 dark:text-brand-300' : ''}>{b}</span>
+              <span key={`${i}-${b.text}`} className={b.accent ? 'font-bold text-brand-700 dark:text-brand-300' : ''}>{b.text}</span>
             ))}
           </p>
         )}
@@ -167,8 +185,9 @@ export function ReaderSpread({
             </div>
             <div className="px-3.5 py-3 [&_.font-bold]:text-brand-800 dark:[&_.font-bold]:text-brand-300">
               <NoAutoMarkerCtx.Provider value={true}>
-                <RenderedBlocks blocks={visibleItems} onImageClick={onImageClick} active={NO_FILTER} />
-                {(leadHidden > 0 || (leadOpen && digestItems.length > LEAD_VISIBLE)) && (
+                <RenderedBlocks blocks={visibleBody} onImageClick={onImageClick} active={NO_FILTER} />
+                {/* 検索中は全件表示に固定するので、押しても変わらないボタンは出さない。 */}
+                {collapsible && !searching && (
                   <button
                     type="button"
                     onClick={() => setLeadOpen((v) => !v)}
@@ -178,9 +197,9 @@ export function ReaderSpread({
                     {leadHidden > 0 ? `残り${leadHidden}件の要点を表示 ▾` : '要点を閉じる ▴'}
                   </button>
                 )}
-                {digestFoot.length > 0 && (
+                {digest.foot.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 text-[0.8em] text-gray-500 dark:text-gray-400 [&_.font-bold]:text-gray-600 dark:[&_.font-bold]:text-gray-300">
-                    <RenderedBlocks blocks={digestFoot} onImageClick={onImageClick} active={NO_FILTER} />
+                    <RenderedBlocks blocks={digest.foot} onImageClick={onImageClick} active={NO_FILTER} />
                   </div>
                 )}
               </NoAutoMarkerCtx.Provider>
@@ -237,10 +256,9 @@ export function ReaderSpread({
 
         {spread.sections.map((s, i) => {
           const isOpen = searching || open.has(s.anchor)
-          // 表層へ昇格させるブロック（節末の→段落・比較表の元テーブル）を深掘りから取り分ける。
-          // 表示専用の導出で、保存された SpreadDoc（visibleQuizzes の照合対象）には触れない。
-          const { recap, deep } = sectionDisplay(s)
-          const sources = sectionSources(s.deep)
+          // 表層へ昇格させるブロック（節末の→段落・比較表の元テーブル）を深掘りから取り分けた
+          // 導出（sectionViews）。表示専用で、保存された SpreadDoc には触れない。
+          const { recap, deep, sources, quizzes } = sectionViews.get(s.anchor)!
           return (
             <section key={s.anchor} className="mb-8">
               {/* data-section は横断検索の節ジャンプと ReaderNavBar が使う。値を変えないこと。 */}
@@ -315,7 +333,7 @@ export function ReaderSpread({
               )}
 
               {/* 理解チェックは節の末尾（パイロット誌面と同じ）。深掘りを開かなくても見える。 */}
-              {visibleQuizzes(spread, s.anchor).map((q) => (
+              {quizzes.map((q) => (
                 <SpreadQuizCard key={q.id} quiz={q} />
               ))}
             </section>

@@ -2,8 +2,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import { ChevronDown, Zap, List } from 'lucide-react'
 import { findTldr, tocSections, type ReaderDoc, type ReaderBlock } from '@/lib/reader-doc'
-import { docConfidenceMarks, CONFIDENCE_LABEL, type Confidence } from '@/lib/reader-confidence'
-import { ConfidenceMark } from './ConfidenceMark'
+import { docConfidenceMarks, type Confidence } from '@/lib/reader-confidence'
+import { ConfidenceLegend, ConfidenceMark } from './ConfidenceMark'
 import { sectionHeadingParts } from '@/lib/title-display'
 
 // ⚡結論 callout の子ブロックを読める平文へ畳み込む（表・画像・区切り線は無視）。
@@ -216,12 +216,7 @@ export function ReaderNavBar({
 
             {marks.length > 0 && (
               <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-gray-200 dark:border-gray-700">
-                {marks.map((m) => (
-                  <span key={m} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                    <ConfidenceMark kind={m} />
-                    {CONFIDENCE_LABEL[m]}
-                  </span>
-                ))}
+                <ConfidenceLegend marks={marks} itemClassName="text-xs text-gray-500 dark:text-gray-400" />
               </div>
             )}
           </div>

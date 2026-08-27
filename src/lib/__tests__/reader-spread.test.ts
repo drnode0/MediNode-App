@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, digestTone, dropPubmedExamples, displayPreface, displayTail, renameLeadLabel, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
@@ -492,17 +492,6 @@ describe('誌面の編集ルール（パイロット準拠の表示整形）', (
     expect(r).toEqual([preface[3]])
   })
 
-  it('renameLeadLabel: 見出し行「この問いへの答え」だけを「この記事の要点」に置き換える', () => {
-    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [
-      { kind: 'paragraph', inlines: [{ text: 'この問いへの答え', bold: true }] },
-      { kind: 'list_item', ordered: false, inlines: t('この問いへの答えという語を含む本文は触らない。') },
-    ] }
-    const r = renameLeadLabel(lead)
-    if (r?.kind !== 'callout') throw new Error('unreachable')
-    expect(textOf(r.blocks[0].kind === 'paragraph' ? r.blocks[0].inlines : [])).toBe('この記事の要点')
-    expect(r.blocks[1]).toBe(lead.blocks[1])
-  })
-
   it('splitStampScope: 🤖スタンプから但し書きだけ取り出し、【査読済み】行と区切り線は出さない', () => {
     const stamp: ReaderBlock = { kind: 'callout', icon: '🤖', color: 'yellow_background', blocks: [
       { kind: 'paragraph', inlines: t('【査読済み】 本ページの内容は検証済みです。') },
@@ -700,23 +689,47 @@ describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要�
     expect(items[1]).toEqual(tail[2])
   })
 
-  it('splitDigest: 見出し行・要点の箇条書き・査読済み行（foot）に分ける（区切り線は出さない）', () => {
+  it('splitDigest: 見出しラベル・本文・査読済み行（foot）に分ける（区切り線は出さない）', () => {
     const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: 'yellow_background', blocks: [
-      { kind: 'paragraph', inlines: [{ text: 'この記事の要点', bold: true }] },
+      { kind: 'paragraph', inlines: [{ text: 'この問いへの答え', bold: true }] },
       { kind: 'list_item', ordered: false, inlines: t('要点1。') },
       { kind: 'list_item', ordered: false, inlines: t('要点2。') },
       { kind: 'divider' },
       { kind: 'paragraph', inlines: [{ text: '査読済み：2026-08', bold: true }, { text: ' 主要根拠：BTS 2017' }] },
     ] }
     const r = splitDigest(lead)
+    // 見出し帯は誌面の呼び名に置き換わる（パイロット準拠）
     expect(r.heading).toBe('この記事の要点')
-    expect(r.items.map((b) => textOf(b.kind === 'list_item' ? b.inlines : []))).toEqual(['要点1。', '要点2。'])
+    expect(r.body.map((b) => textOf(b.kind === 'list_item' ? b.inlines : []))).toEqual(['要点1。', '要点2。'])
     expect(r.foot.map((b) => b.kind)).toEqual(['paragraph'])
   })
 
+  it('splitDigest: 箇条書きの間の段落は並べ替えず body に原本の順序のまま残す', () => {
+    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: null, blocks: [
+      { kind: 'paragraph', inlines: t('この記事の要点') },
+      { kind: 'list_item', ordered: false, inlines: t('要点1。') },
+      { kind: 'paragraph', inlines: t('補足の段落。') },
+      { kind: 'list_item', ordered: false, inlines: t('要点2。') },
+    ] }
+    const r = splitDigest(lead)
+    expect(r.body.map((b) => (b.kind === 'list_item' ? 'li' : b.kind))).toEqual(['li', 'paragraph', 'li'])
+    expect(r.foot).toEqual([])
+  })
+
+  it('splitDigest: 先頭段落が既知ラベルでなければ見出しに吸わず body に残す（結論文を平文化しない）', () => {
+    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: null, blocks: [
+      { kind: 'paragraph', inlines: t('目標SpO₂から決める。') },
+      { kind: 'list_item', ordered: false, inlines: t('要点1。') },
+    ] }
+    const r = splitDigest(lead)
+    expect(r.heading).toBeNull()
+    expect(r.body).toHaveLength(2)
+    expect(r.body[0]).toBe(lead.kind === 'callout' ? lead.blocks[0] : null)
+  })
+
   it('splitDigest: lead が無い・callout でないときは空を返す', () => {
-    expect(splitDigest(null)).toEqual({ heading: null, items: [], foot: [] })
-    expect(splitDigest({ kind: 'paragraph', inlines: t('x') })).toEqual({ heading: null, items: [], foot: [] })
+    expect(splitDigest(null)).toEqual({ heading: null, body: [], foot: [] })
+    expect(splitDigest({ kind: 'paragraph', inlines: t('x') })).toEqual({ heading: null, body: [], foot: [] })
   })
 
   it('digestTone: 蛍光マーカー（_background）だけ落とし、太字と文字色は残す', () => {
@@ -735,13 +748,74 @@ describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要�
     expect(blocks[0].kind === 'list_item' && blocks[0].inlines[0].color).toBe('red_background')
   })
 
-  it('reviewedDateOf: ⚡ボックスの査読済み行から年月を取り出す', () => {
-    const lead: ReaderBlock = { kind: 'callout', icon: '⚡', color: null, blocks: [
+  it('reviewedDateOf: ⚡ボックスの査読済み行から年月を取り出し、書式ゆらぎは正規化する', () => {
+    const withDate = (text: string): ReaderBlock => ({ kind: 'callout', icon: '⚡', color: null, blocks: [
       { kind: 'paragraph', inlines: t('この記事の要点') },
-      { kind: 'paragraph', inlines: [{ text: '査読済み：2026-08', bold: true }, { text: ' 主要根拠：BTS 2017' }] },
-    ] }
-    expect(reviewedDateOf(lead)).toBe('2026-08')
+      { kind: 'paragraph', inlines: [{ text, bold: true }, { text: ' 主要根拠：BTS 2017' }] },
+    ] })
+    expect(reviewedDateOf(withDate('査読済み：2026-08'))).toBe('2026-08')
+    expect(reviewedDateOf(withDate('査読済み：2026/8'))).toBe('2026-08')
+    expect(reviewedDateOf(withDate('査読済み: 2026年8月'))).toBe('2026-08')
     expect(reviewedDateOf(null)).toBeNull()
     expect(reviewedDateOf({ kind: 'callout', icon: '⚡', color: null, blocks: [{ kind: 'paragraph', inlines: t('要点だけ') }] })).toBeNull()
+  })
+
+  it('sectionDisplay: cards に載っていない本文セルが残る表は除かない（内容の欠落を防ぐ）', () => {
+    const d: ReaderDoc = {
+      title: 'x', icon: null, cover: null, lastEdited: null,
+      blocks: [
+        { kind: 'heading', level: 2, inlines: t('5. HFNCを検討する') },
+        { kind: 'table', rows: [
+          [t(''), t('COT'), t('HFNC')],
+          [t('流量'), t('吸気需要に届かない'), t('50〜60 L/分まで送気できる')],
+          [t('禁忌'), t('特になし'), t('鼻閉では使えない')],
+        ] },
+      ],
+    }
+    const draft = buildSpreadDraft(d, 'p')
+    const merged = applyOverlay(draft, {
+      parts: { '5': { kind: 'cards', cards: [
+        { title: 'COT', lines: [t('吸気需要に届かない')] },
+        { title: 'HFNC', lines: [t('50〜60 L/分まで送気できる')] },
+      ] } },
+    })
+    // 禁忌行（特になし・鼻閉では使えない）がカードに無いので、表は深掘りに残る
+    const { deep } = sectionDisplay(merged.sections[0])
+    expect(deep.some((b) => b.kind === 'table')).toBe(true)
+  })
+
+  it('compressReferenceItems: 📚calloutより前の箇条書きには触れない（免責等の誤爆防止）', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'list_item', ordered: false, inlines: t('本文の注記。引用：の語を含んでも触らない。') },
+      { kind: 'callout', icon: '📚', color: null, blocks: [] },
+      { kind: 'list_item', ordered: false, inlines: t('文献。引用：“quote”') },
+    ]
+    const r = compressReferenceItems(blocks)
+    expect(r[0]).toBe(blocks[0])
+    expect(textOf(r[2].kind === 'list_item' ? r[2].inlines : [])).toBe('文献。')
+  })
+
+  it('compressReferenceItems: 「引用」と「：」がインラインの境目で割れていても切れる', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'callout', icon: '📚', color: null, blocks: [] },
+      { kind: 'list_item', ordered: false, inlines: [
+        { text: 'タイトル — 解説。' },
+        { text: '引用', bold: true },
+        { text: '：“quote” ' },
+        { text: '本文', href: 'https://x.test' },
+      ] },
+    ]
+    const r = compressReferenceItems(blocks)
+    expect(textOf(r[1].kind === 'list_item' ? r[1].inlines : [])).toBe('タイトル — 解説。')
+  })
+
+  it('compressReferenceItems: 引用だけの行は空ブロックを残さず出さない', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'callout', icon: '📚', color: null, blocks: [] },
+      { kind: 'list_item', ordered: false, inlines: t('引用：“quote only”') },
+      { kind: 'list_item', ordered: false, inlines: t('残る行。') },
+    ]
+    const r = compressReferenceItems(blocks)
+    expect(r.map((b) => (b.kind === 'list_item' ? textOf(b.inlines) : b.kind))).toEqual(['callout', '残る行。'])
   })
 })

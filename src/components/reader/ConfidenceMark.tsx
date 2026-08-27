@@ -19,3 +19,18 @@ export function ConfidenceMark({ kind, className = '' }: { kind: Confidence; cla
     </span>
   )
 }
+
+// 確信度の凡例（マーク＋ラベルの並び）。目次バーのドロップダウンと誌面の上部で共用する。
+// 見せ方（文字サイズ・色）は置き場所ごとに違うので itemClassName で受ける。
+export function ConfidenceLegend({ marks, itemClassName = '' }: { marks: readonly Confidence[]; itemClassName?: string }) {
+  return (
+    <>
+      {marks.map((m) => (
+        <span key={m} className={`flex items-center gap-1 whitespace-nowrap ${itemClassName}`}>
+          <ConfidenceMark kind={m} />
+          {CONFIDENCE_LABEL[m]}
+        </span>
+      ))}
+    </>
+  )
+}
