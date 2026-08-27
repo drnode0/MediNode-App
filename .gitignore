@@ -39,3 +39,4 @@ DEV_HANDOFF.md
 STRIPE_GOLIVE.md
 NOTE_HANDOFF.md
 .env*
+.preview/

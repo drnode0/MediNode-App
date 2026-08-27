@@ -4,7 +4,8 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { visibleQuizzes } from '@/lib/reader-spread'
+import { sectionDisplay, sectionSources, visibleQuizzes } from '@/lib/reader-spread'
+import { NoAutoMarkerCtx } from '../Inlines'
 import { KnowledgeTitle } from '@/lib/title-display'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { SpreadDoc } from '@/lib/reader-spread'
@@ -71,11 +72,26 @@ export function ReaderSpread({
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [leadOpen, setLeadOpen] = useState(false)
 
   const toc = useMemo(
     () => spread.sections.map((s) => ({ anchor: s.anchor, label: s.shortLabel || s.title })),
     [spread.sections],
   )
+
+  // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
+  // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
+  // （折りたたまれた要点は DOM に無く、記事内検索が拾えないため。深掘りの全節展開と同じ理屈）。
+  const LEAD_VISIBLE = 2
+  const lead = spread.lead
+  const leadItems = lead?.kind === 'callout' ? lead.blocks.filter((b) => b.kind === 'list_item').length : 0
+  const leadHidden = leadOpen || searching ? 0 : Math.max(0, leadItems - LEAD_VISIBLE)
+  const leadView = useMemo(() => {
+    if (!lead || lead.kind !== 'callout' || leadHidden === 0) return lead
+    let kept = 0
+    // 箇条書き以外（見出し行・区切り線・査読済み行）は残し、箇条書きだけ先頭2件に畳む。
+    return { ...lead, blocks: lead.blocks.filter((b) => b.kind !== 'list_item' || ++kept <= LEAD_VISIBLE) }
+  }, [lead, leadHidden])
 
   return (
     // reader-prose の直下に倍率ラッパーを1枚だけ挟む（ReaderBody.tsx と同じ入れ子）。
@@ -104,17 +120,46 @@ export function ReaderSpread({
           <KnowledgeTitle title={title} level={icon?.startsWith('http') ? null : icon} />
         </h2>
 
-        {spread.lead && (
+        {leadView && (
           // data-tldr は付けない。spread.lead は必ず conclusion role の callout で、
           // 中で RenderedBlocks が data-tldr を出す（ReaderBody.tsx）。ここにも付けると
           // 入れ子で二重になり、将来 querySelectorAll で数える処理が入ったときに二重計上する。
           <div className="mb-5">
-            <RenderedBlocks blocks={[spread.lead]} onImageClick={onImageClick} active={NO_FILTER} />
+            <RenderedBlocks blocks={[leadView]} onImageClick={onImageClick} active={NO_FILTER} />
+            {(leadHidden > 0 || (leadOpen && leadItems > LEAD_VISIBLE)) && (
+              <button
+                type="button"
+                onClick={() => setLeadOpen((v) => !v)}
+                aria-expanded={leadOpen}
+                className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 -mt-2"
+              >
+                {leadHidden > 0 ? `残り${leadHidden}件の要点を表示` : '要点を閉じる'}
+              </button>
+            )}
           </div>
         )}
 
         {/* 最初のH2より前の本文。ここを描かないと、導入の段落が誌面から黙って消える。 */}
         <RenderedBlocks blocks={spread.preface} onImageClick={onImageClick} active={NO_FILTER} />
+
+        {/* 状況からの入口（パイロット誌面の「いまの状況から探す」）。目次より先に置く。
+            存在しない節を指す入口は applyOverlay が捨てているので、ここでは無条件に描いてよい。 */}
+        {(spread.entries?.length ?? 0) > 0 && (
+          <div className="mb-4 rounded-lg bg-soft-light dark:bg-soft-dark px-3.5 py-3">
+            <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 mb-1">いまの状況から探す</div>
+            <div className="flex flex-wrap gap-1.5">
+              {spread.entries!.map((e) => (
+                <a
+                  key={`${e.anchor}-${e.label}`}
+                  href={`#${e.anchor}`}
+                  className="inline-flex items-center min-h-[44px] text-[0.85em] px-3 py-1 rounded-full border border-brand-200 dark:border-white/15 bg-card-light dark:bg-card-dark text-brand-700 dark:text-brand-300"
+                >
+                  {e.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {toc.length > 0 && (
           <nav className="flex flex-wrap gap-1.5 mb-6" aria-label="目次">
@@ -135,6 +180,10 @@ export function ReaderSpread({
 
         {spread.sections.map((s, i) => {
           const isOpen = searching || open.has(s.anchor)
+          // 表層へ昇格させるブロック（節末の→段落・比較表の元テーブル）を深掘りから取り分ける。
+          // 表示専用の導出で、保存された SpreadDoc（visibleQuizzes の照合対象）には触れない。
+          const { recap, deep } = sectionDisplay(s)
+          const sources = sectionSources(s.deep)
           return (
             <section key={s.anchor} className="mb-8">
               {/* data-section は横断検索の節ジャンプと ReaderNavBar が使う。値を変えないこと。 */}
@@ -150,10 +199,21 @@ export function ReaderSpread({
               </h2>
 
               <SpreadPartView part={s.part} />
-
-              {visibleQuizzes(spread, s.anchor).map((q) => (
-                <SpreadQuizCard key={q.id} quiz={q} />
+              {(s.extraParts ?? []).map((p, pi) => (
+                <SpreadPartView key={pi} part={p} />
               ))}
+
+              {recap && (
+                // パイロット誌面の recap（「この節の答え」）。中身は原本の→段落そのもので、
+                // RenderedBlocks 経由で描くので検索ハイライトも通常どおり効く。
+                // 背景のある箱なので自動アンバーマーカーは止める（Inlines の方針と同じ）。
+                <div className="my-4 rounded-lg border-l-2 border-brand-600 bg-brand-50/60 dark:bg-white/[0.05] px-4 py-3">
+                  <div className="text-[0.8em] font-bold text-brand-700 dark:text-brand-300 mb-0.5">この節の答え</div>
+                  <NoAutoMarkerCtx.Provider value={true}>
+                    <RenderedBlocks blocks={[recap]} onImageClick={onImageClick} active={NO_FILTER} />
+                  </NoAutoMarkerCtx.Provider>
+                </div>
+              )}
 
               {/* 検索中は searching || open.has(...) で isOpen が常に真になり、全節が開いた
                   状態になる（記事内検索が DOM 上の mark[data-reader-search] を数えるため）。
@@ -161,31 +221,45 @@ export function ReaderSpread({
                   つもりのクリックが has() 判定で誤って open に追加され、検索終了後にその節が
                   開いたまま残ってしまう。isOpen の計算式自体は変えず、検索中はボタンを
                   disabled にして個別開閉の操作自体を塞ぐ。 */}
-              <button
-                type="button"
-                disabled={searching}
-                onClick={() => setOpen((prev) => {
-                  const next = new Set(prev)
-                  if (next.has(s.anchor)) next.delete(s.anchor)
-                  else next.add(s.anchor)
-                  return next
-                })}
-                aria-expanded={isOpen}
-                className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 disabled:no-underline disabled:opacity-60 disabled:cursor-default"
-              >
-                {isOpen ? 'この節の根拠を閉じる' : 'この節の根拠を見る'}
-              </button>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <button
+                  type="button"
+                  disabled={searching}
+                  onClick={() => setOpen((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(s.anchor)) next.delete(s.anchor)
+                    else next.add(s.anchor)
+                    return next
+                  })}
+                  aria-expanded={isOpen}
+                  className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 disabled:no-underline disabled:opacity-60 disabled:cursor-default"
+                >
+                  {isOpen ? 'この節の根拠を閉じる' : 'この節の根拠を見る'}
+                </button>
+                {/* 出典サマリ（パイロット誌面と同じ位置）。ラベルは深掘りのリンクテキストの
+                    登場順・重複なしで、閉じた状態でも「どの文献で立っている節か」が見える。 */}
+                {!isOpen && sources.length > 0 && (
+                  <span className="text-[0.75em] text-gray-400 dark:text-gray-500 leading-snug">
+                    {sources.join('・')}
+                  </span>
+                )}
+              </div>
 
               {isOpen && (
                 <div className="mt-2">
                   <RenderedBlocks
-                    blocks={s.deep}
+                    blocks={deep}
                     onImageClick={onImageClick}
                     active={NO_FILTER}
                     offset={(i + 1) * SECTION_INDEX_STRIDE}
                   />
                 </div>
               )}
+
+              {/* 理解チェックは節の末尾（パイロット誌面と同じ）。深掘りを開かなくても見える。 */}
+              {visibleQuizzes(spread, s.anchor).map((q) => (
+                <SpreadQuizCard key={q.id} quiz={q} />
+              ))}
             </section>
           )
         })}
