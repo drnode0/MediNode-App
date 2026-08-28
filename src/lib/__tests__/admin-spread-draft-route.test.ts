@@ -46,7 +46,7 @@ describe('GET /api/admin/spread/draft（編集画面の下書き取得）', () =
   })
 
   it('原本・誌面ノート・保存済みオーバレイを返す（誌面そのものは返さない）', async () => {
-    const res = await GET(get('?pageId=3c5fd756737081eebaa3eb48c38e98f9'))
+    const res = await GET(get('?pageId=abcdef0123456789abcdef0123456789'))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.doc.title).toBe('酸素療法')
@@ -60,8 +60,8 @@ describe('GET /api/admin/spread/draft（編集画面の下書き取得）', () =
   })
 
   it('pageId は subscription_ 接頭辞とURL断片を落として使う', async () => {
-    await GET(get('?pageId=subscription_3c5fd756737081eebaa3eb48c38e98f9%23block'))
-    expect(notionRetrieve).toHaveBeenCalledWith({ page_id: '3c5fd756737081eebaa3eb48c38e98f9' })
+    await GET(get('?pageId=subscription_abcdef0123456789abcdef0123456789%23block'))
+    expect(notionRetrieve).toHaveBeenCalledWith({ page_id: 'abcdef0123456789abcdef0123456789' })
   })
 
   it('pageId が無ければ400（Notionに触らない）', async () => {

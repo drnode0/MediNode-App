@@ -4,7 +4,7 @@ import { verifyVerbatim, buildSpreadDraft, applyOverlay } from '../reader-spread
 import type { ReaderDoc } from '../reader-doc'
 
 const t = (text: string) => [{ text }]
-const PAGE_ID = '3c5fd756737081eebaa3eb48c38e98f9'
+const PAGE_ID = 'abcdef0123456789abcdef0123456789'
 
 // ノートDBの行（タイトルに記事の pageId を含む）と、その本文を返すスタブ。
 function stubClient(rows: { id: string; title: string }[], noteBlocks: Record<string, unknown[]>): NotesClient {
@@ -43,7 +43,7 @@ describe('fetchSpreadNotesBlocks（非公開の誌面ノートDB）', () => {
     const client = stubClient(
       [
         { id: 'other', title: '別の記事 0123456789abcdef0123456789abcdef' },
-        { id: 'n1', title: `酸素療法 3c5fd756-7370-81ee-baa3-eb48c38e98f9` },
+        { id: 'n1', title: `記事名 abcdef01-2345-6789-abcd-ef0123456789` },
       ],
       { n1: [{ id: 'b1', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: '圧縮の一文' }] } }] },
     )
