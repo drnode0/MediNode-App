@@ -30,6 +30,14 @@
   --h2-ink: #14543e;
   --h2-bg: #e9f2ee;
   --card: #ffffff;
+  --chip-g1: rgba(255, 255, 255, 0.95);
+  --chip-g2: rgba(238, 246, 242, 0.8);
+  --hi: rgba(255, 255, 255, 0.7);
+  /* 誌面は自分の紙（--paper）を敷く。アプリの面の色をそのまま使うと、
+     誌面の中の枠なし部品（要点ボックス・目次チップ）だけ地の色が食い違う。 */
+  background: var(--paper);
+  color: var(--ink);
+  letter-spacing: 0.02em;
 }
 
 :global(.dark) .spread {
@@ -52,6 +60,9 @@
   --h2-ink: #eef1f2;
   --h2-bg: #232b35;
   --card: #232b35;
+  --chip-g1: rgba(255, 255, 255, 0.07);
+  --chip-g2: rgba(255, 255, 255, 0.03);
+  --hi: rgba(255, 255, 255, 0.06);
 }
 
 /* ===== キッカー（ジャンル・問いの型・査読済み） ===== */
@@ -74,7 +85,6 @@
   overflow: hidden;
   margin-bottom: 1rem;
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.05);
-  background: var(--paper);
 }
 .digestHead {
   background: linear-gradient(180deg, var(--brand-grad), var(--brand));
@@ -184,18 +194,61 @@
   white-space: pre;
 }
 
-/* ===== 目次チップ ===== */
+/* ===== 目次チップ（追従） =====
+   パイロットの nav.toc と同じく、読み進めると上端に貼り付き、現在地のチップが緑に反転する。
+   スクロール容器の上下パディング（pt-4）ぶんだけ負のオフセットを取って隙間を塞ぐ。 */
+.tocBar {
+  position: sticky;
+  top: -1rem;
+  z-index: 12;
+  margin-bottom: 1.8rem;
+  padding-top: 1rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--brand-line);
+}
+.tocRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
 .toc {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.45rem;
-  margin-bottom: 1.8rem;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 0.45rem 0.2rem;
+  flex: 1;
+  min-width: 0;
 }
 .toc::-webkit-scrollbar {
   display: none;
+}
+/* 読了バー（パイロットの .progress）。追従バーの下端に細く引く。 */
+.progress {
+  height: 2px;
+  background: var(--brand);
+  border-radius: 0 999px 999px 0;
+  transition: width 0.15s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress {
+    transition: none;
+  }
+}
+/* 凡例は狭い画面では畳む（チップの横幅を優先する） */
+.barLegend {
+  display: none;
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--muted);
+  gap: 0.7em;
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .barLegend {
+    display: flex;
+  }
 }
 .tocLink {
   display: inline-flex;
@@ -210,8 +263,17 @@
   border-radius: 999px;
   padding: 0.28em 0.85em 0.28em 0.35em;
   color: var(--ink);
-  background: var(--paper);
-  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.06);
+  background: linear-gradient(180deg, var(--chip-g1), var(--chip-g2));
+  box-shadow: inset 0 1px 0 var(--hi), 0 1px 2px rgba(20, 60, 45, 0.06);
+}
+.tocLink.current {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tocLink.current .badge {
+  background: #fff;
+  color: var(--brand);
 }
 .badge {
   width: 1.5em;
@@ -240,11 +302,18 @@
   line-height: 1.55;
   font-weight: 700;
   font-feature-settings: "palt";
+  letter-spacing: 0.02em;
   color: var(--h2-ink);
   background: var(--h2-bg);
   border-radius: 10px;
   padding: 0.5rem 0.8rem 0.5rem 0.6rem;
   margin-bottom: 1rem;
+}
+/* globals.css の `.reader-prose h2 { letter-spacing: 0 }`（詳細度 0,1,1）を上回らせる。
+   値は inherit にして、誌面の地（.spread の 0.02em＝16px基準の0.32px）をそのまま継ぐ
+   （見出しで 0.02em を書き直すと見出しの字送りで再計算され、パイロットより広くなる）。 */
+.spread .secHead {
+  letter-spacing: inherit;
 }
 .secHead .badge {
   font-size: 0.78rem;
@@ -278,6 +347,14 @@
   padding: 0.75em 0.8em;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
+  /* 「24%ベンチュリーマス／ク」のような語中での折り返しを避ける（禁則を厳しく取る）。 */
+  line-break: strict;
+  word-break: keep-all;
+}
+/* 先頭列（項目名）が細く潰れて縦積みになるのを防ぐ。 */
+.spec td:first-child,
+.spec th:first-child {
+  min-width: 7.5em;
 }
 .spec td.num {
   font-size: 1.4em;
@@ -654,6 +731,7 @@
 .quizOpts button {
   text-align: left;
   font: inherit;
+  letter-spacing: normal;
   font-size: 0.88rem;
   color: var(--ink);
   border: 1px solid var(--line);

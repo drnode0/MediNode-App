@@ -1,5 +1,5 @@
 'use client'
-import { useContext, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState, type RefObject } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
@@ -58,6 +58,7 @@ export function ReaderSpread({
   icon,
   genre,
   questionType,
+  scrollRef,
 }: {
   spread: SpreadDoc
   onImageClick: (url: string) => void
@@ -77,11 +78,36 @@ export function ReaderSpread({
   // 更新日と同じ「今の原本」の流儀で渡してもらう。古いキャッシュには無いので optional。
   genre?: string | null
   questionType?: string | null
+  // 追従目次の現在地と読了バーの計算に使うスクロール容器（ReaderOverlay と同じもの）。
+  scrollRef?: RefObject<HTMLDivElement | null>
 }) {
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [leadOpen, setLeadOpen] = useState(false)
+  // 追従目次の現在地と読了バー。スクロール容器を持つ側（ReaderOverlay・devハーネス）から
+  // 渡してもらう。渡されないとき（静的描画）は現在地を出さず、バーは0%のままにする。
+  const [current, setCurrent] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
+  useEffect(() => {
+    const el = scrollRef?.current
+    if (!el) return
+    const onScroll = () => {
+      const denom = el.scrollHeight - el.clientHeight
+      setProgress(denom > 0 ? Math.min(100, Math.max(0, (el.scrollTop / denom) * 100)) : 0)
+      // 現在地は「追従バーの下端より上にある最後の節見出し」。
+      const top = el.getBoundingClientRect().top + 96
+      let hit: string | null = null
+      for (const node of el.querySelectorAll<HTMLElement>('[data-section]')) {
+        if (node.getBoundingClientRect().top <= top) hit = node.dataset.section ?? null
+        else break
+      }
+      setCurrent(hit)
+    }
+    onScroll()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollRef])
 
   const toc = useMemo(
     () => spread.sections.map((s, i) => ({ anchor: s.anchor, n: s.n ?? i + 1, label: s.shortLabel || sectionTitleText(s) })),
@@ -149,7 +175,8 @@ export function ReaderSpread({
               更新 {new Date(lastEdited).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
             </p>
           ) : <span />}
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          {/* 広い画面では追従バー側に凡例が出るので、ここは畳んで二重に出さない。 */}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:hidden">
             <ConfidenceLegend marks={['ok', 'caut', 'unk']} itemClassName="text-[0.68rem] text-gray-400 dark:text-gray-500" />
           </span>
         </div>
@@ -256,14 +283,29 @@ export function ReaderSpread({
         )}
 
         {toc.length > 0 && (
-          <nav className={styles.toc} aria-label="目次">
-            {toc.map((s) => (
-              <a key={s.anchor} href={`#${s.anchor}`} className={styles.tocLink}>
-                <span className={styles.badge}>{s.n}</span>
-                {s.label}
-              </a>
-            ))}
-          </nav>
+          // 追従目次（パイロットの nav.toc）。読み進めると上端に貼り付き、現在地が反転する。
+          // 読了バーもここに引く。既存の ReaderNavBar は誌面では出さない（同じ役割で形が違う）。
+          <div className={styles.tocBar}>
+            <div className={styles.tocRow}>
+              <nav className={styles.toc} aria-label="目次">
+                {toc.map((s) => (
+                  <a
+                    key={s.anchor}
+                    href={`#${s.anchor}`}
+                    aria-current={current === s.anchor ? 'true' : undefined}
+                    className={`${styles.tocLink} ${current === s.anchor ? styles.current : ''}`}
+                  >
+                    <span className={styles.badge}>{s.n}</span>
+                    {s.label}
+                  </a>
+                ))}
+              </nav>
+              <span className={styles.barLegend}>
+                <ConfidenceLegend marks={['ok', 'caut', 'unk']} />
+              </span>
+            </div>
+            <div className={styles.progress} style={{ width: `${progress}%` }} aria-hidden="true" />
+          </div>
         )}
 
         {spread.sections.map((s, i) => {

@@ -48,7 +48,7 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
       {/* ReaderOverlay と同じく、スクロールはこの容器が持つ（ReaderNavBar の sticky・読了バーの前提）。 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pt-4 pb-20 scroll-pt-14">
         <div className="mx-auto w-full max-w-2xl">
-          <ReaderNavBar doc={payload.doc} scrollRef={scrollRef} active={NO_FILTER} />
+          {/* 誌面は自前の追従目次を持つため ReaderNavBar は出さない（ReaderOverlay と同じ扱い）。 */}
           <ReaderSearchCtx.Provider value={query}>
             <ReaderSpread
               spread={payload.spread}
@@ -59,6 +59,7 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
               icon={payload.icon}
               genre={payload.doc.genre}
               questionType={payload.doc.questionType}
+              scrollRef={scrollRef}
             />
           </ReaderSearchCtx.Provider>
         </div>

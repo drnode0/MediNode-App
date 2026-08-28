@@ -472,7 +472,10 @@ export default function ReaderOverlay({
                   仕様・ReaderSpread.tsx 参照）ため、チップを出すと押しても絞り込みが効かない
                   見掛け倒しのUIになる。 */}
               {!spread && effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
-              <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />
+              {/* 誌面は自前の追従目次（チップ＋現在地＋読了バー）を持つ（パイロット準拠）。
+                  ReaderNavBar のドロップダウン目次と役割が重なり、上端で2本のバーが
+                  重なって見えるため、誌面のときはこちらを出さない。 */}
+              {!spread && <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />}
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 {spread ? (
                   <ReaderSpread
@@ -485,6 +488,7 @@ export default function ReaderOverlay({
                     icon={doc.icon}
                     genre={doc.genre}
                     questionType={doc.questionType}
+                    scrollRef={scrollRef}
                   />
                 ) : (
                   <ReaderBody
