@@ -763,3 +763,69 @@
 .quizFb b {
   color: var(--brand-deep);
 }
+
+/* ===== 記事末尾: 実践・文献・免責 ===== */
+/* 移植元は .preview/pilot-original.html の446〜465行（値はそのまま）。
+   末尾の3つはアプリ既定の callout ではなく、ここの枠で組む（ReaderSpread.tsx）。 */
+.practice {
+  border: 1.5px solid var(--brand);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 2.4rem 0 1.6rem;
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.05);
+}
+.practice h3 {
+  background: var(--brand-tint);
+  color: var(--brand-deep);
+  font-size: 0.9rem;
+  padding: 0.45rem 0.95rem;
+  /* パイロットの見出しはブラウザ既定の太字。Tailwind の preflight が h1〜h6 の
+     font-weight を inherit に落とすので、ここで戻す（.vsCol h3 と同じ扱い）。 */
+  font-weight: 700;
+}
+/* globals.css の `.reader-prose h3 { letter-spacing: 0 }`（詳細度 0,1,1）を上回らせる。
+   値は inherit にして誌面の地の字送りを継ぐ（.secHead と同じ扱い）。 */
+.spread .practice h3,
+.spread .refs h3 {
+  letter-spacing: inherit;
+}
+.practice .body {
+  padding: 0.75rem 0.95rem;
+  font-size: 0.95rem;
+}
+.practice .note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+}
+.refs h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+  font-weight: 700;
+}
+.refs ol {
+  padding-left: 1.4em;
+  font-size: 0.85rem;
+  color: var(--muted);
+  /* パイロットは ol 既定の番号。preflight が list-style を none にするので戻す。 */
+  list-style: decimal;
+}
+.refs li {
+  margin-bottom: 0.5em;
+}
+/* パイロットの `.refs b` に当たる指定。誌面の太字は Inlines が .font-bold で描く。
+   パイロットで `<b>` が出るのは一覧の中だけなので、見出し（h3）まで 600 に落とさないよう
+   ol の中に限る（.refs h3 の 700 を詳細度で食わせない）。 */
+.refs ol :global(.font-bold) {
+  color: var(--ink);
+  font-weight: 600;
+}
+.disclaimer {
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  margin-top: 1.6rem;
+  padding-top: 0.9rem;
+}

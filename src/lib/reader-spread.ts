@@ -649,6 +649,59 @@ export function displayTail(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: 
   return { scope, rest: compressReferenceItems(dropPubmedExamples(cleaned)) }
 }
 
+/**
+ * 記事末尾を、誌面が自前の枠で組む3つ（実践・文献・免責）とそれ以外に分ける表示専用の導出。
+ * パイロット誌面は末尾を .practice / .refs / .disclaimer の3つで組んでおり、アプリ既定の
+ * callout（薄い面と丸い絵文字アイコン）のままでは誌面にならないため、描き分けの口だけを作る。
+ *
+ * 分類は既存の calloutRole だけで決める（キーワード一致や新しい判定規則は作らない）。
+ * practice / refsHead は callout そのものを返す（見出し行は誌面側が中身の先頭から取る）。
+ * disclaimer は callout の中身を返す（誌面は枠ではなく上罫線つきの段落として出すため）。
+ * refsItems は文献の callout より後ろの箇条書き（compressReferenceItems と同じ範囲の取り方）。
+ * どの口にも入らないブロックは必ず rest に残す（黙って消さない）。同じ役割の callout が
+ * 複数あるときは最初のものだけを採り、2つ目以降は rest に残す。
+ */
+export type TailParts = {
+  practice: ReaderBlock | null
+  refsHead: ReaderBlock | null
+  refsItems: ReaderBlock[]
+  disclaimer: ReaderBlock[]
+  rest: ReaderBlock[]
+}
+
+export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
+  let practice: ReaderBlock | null = null
+  let refsHead: ReaderBlock | null = null
+  let disclaimerTaken = false
+  const disclaimer: ReaderBlock[] = []
+  const refsItems: ReaderBlock[] = []
+  const rest: ReaderBlock[] = []
+  for (const b of blocks) {
+    if (b.kind === 'callout') {
+      const role = calloutRole(b.icon)
+      if (role === 'signature' && !practice) {
+        practice = b
+        continue
+      }
+      if (role === 'evidence' && !refsHead) {
+        refsHead = b
+        continue
+      }
+      if (role === 'disclaimer' && !disclaimerTaken) {
+        disclaimerTaken = true
+        disclaimer.push(...b.blocks)
+        continue
+      }
+    }
+    if (b.kind === 'list_item' && refsHead) {
+      refsItems.push(b)
+      continue
+    }
+    rest.push(b)
+  }
+  return { practice, refsHead, refsItems, disclaimer, rest }
+}
+
 // ---- 要点ボックス（⚡）の表示用導出 ----
 
 export type DigestParts = { heading: string | null; body: ReaderBlock[]; foot: ReaderBlock[] }

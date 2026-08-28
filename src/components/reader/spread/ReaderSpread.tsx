@@ -4,18 +4,56 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { digestTone, displayPreface, displayTail, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, visibleQuizzes } from '@/lib/reader-spread'
+import { digestTone, displayPreface, displayTail, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import { ConfidenceLegend } from '../ConfidenceMark'
+import { Stethoscope } from 'lucide-react'
 import styles from './spread.module.css'
 import { KnowledgeTitle } from '@/lib/title-display'
 import { stripLeadingEmoji } from '@/lib/labels'
 import type { Confidence } from '@/lib/reader-confidence'
+import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
 // 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
 const NO_FILTER: Set<Confidence> = new Set()
+
+// 自前の枠の中で描ける「文字のブロック」からインラインを取り出す。文字を持たないブロック
+// （画像など）は空を返し、呼び出し側が共通レンダラへ回す。
+const inlinesOf = (b: ReaderBlock): ReaderInline[] =>
+  b.kind === 'paragraph' || b.kind === 'list_item' || b.kind === 'heading' ? b.inlines : []
+
+/**
+ * callout の中身を「見出し行（1行目）／その後ろ」に分ける。区切り線は枠の余白が担うので
+ * 出さない（⚡ボックスの splitDigest と同じ流儀）。文字を持たない先頭ブロックは見出し帯に
+ * 上げず、本文側に残す（見出しが空の帯にならないように）。
+ */
+function splitCalloutHead(block: ReaderBlock | null): { head: ReaderBlock | null; body: ReaderBlock[] } {
+  const blocks = block?.kind === 'callout' ? block.blocks.filter((b) => b.kind !== 'divider') : []
+  const head = blocks[0] && inlinesOf(blocks[0]).length > 0 ? blocks[0] : null
+  return { head, body: head ? blocks.slice(1) : blocks }
+}
+
+/**
+ * 記事末尾の枠の中の1ブロック。文字のブロックは自前の段落で描き、インラインの描画は
+ * Inlines に委ねる（検索ハイライトと確信度マークがそこにあるため、自前で文字列を組まない）。
+ * 文字を持たないブロックは黙って消さず、共通レンダラに渡す。
+ */
+function TailBlock({ block, k, className, onImageClick }: {
+  block: ReaderBlock
+  k: string
+  className?: string
+  onImageClick: (url: string) => void
+}) {
+  const inlines = inlinesOf(block)
+  if (inlines.length === 0) return <RenderedBlocks blocks={[block]} onImageClick={onImageClick} active={NO_FILTER} />
+  return (
+    <p className={className}>
+      <Inlines items={inlines} k={k} />
+    </p>
+  )
+}
 
 // 節ごとに index の起点をずらす幅。
 // 注意: これは RenderedBlocks の offset 本来の契約（blocks が doc 全体の一部であるときの
@@ -119,6 +157,12 @@ export function ReaderSpread({
   // PubMed検索キーワード例（制作用）は出さない。
   const preface = useMemo(() => displayPreface(spread.preface, title), [spread.preface, title])
   const { scope: stampScope, rest: tailBlocks } = useMemo(() => displayTail(spread.tail), [spread.tail])
+  // 記事末尾は「実践（署名）／文献／免責」の3つを誌面が自前の枠で組む（パイロット準拠）。
+  // アプリ既定の callout の見た目（薄い面と丸い絵文字アイコン）では誌面にならないため。
+  // どの枠にも入らないブロックだけを従来どおり共通レンダラに渡す。
+  const tail = useMemo(() => splitTailBlocks(tailBlocks), [tailBlocks])
+  const practice = useMemo(() => splitCalloutHead(tail.practice), [tail.practice])
+  const refs = useMemo(() => splitCalloutHead(tail.refsHead), [tail.refsHead])
 
   // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
@@ -382,12 +426,77 @@ export function ReaderSpread({
           )
         })}
 
+        {/* 3つの枠のどれにも入らない末尾ブロック（従来どおりの描画）。枠より前に出して
+            原本の読み順を保つ（パイロット誌面は実践・文献・免責を記事の最後に置く）。 */}
         <RenderedBlocks
-          blocks={tailBlocks}
+          blocks={tail.rest}
           onImageClick={onImageClick}
           active={NO_FILTER}
           offset={(spread.sections.length + 1) * SECTION_INDEX_STRIDE}
         />
+
+        {/* 枠の中は⚡ボックス・但し書きと同じく自動マーカーを出さない
+            （パイロットの実践・文献は太字に琥珀の地を敷かない）。 */}
+        <NoAutoMarkerCtx.Provider value={true}>
+          {/* 実践（🧑‍⚕️署名）。外枠＋見出し帯＋本文。見出しのアイコンは線画で、
+              callout 既定の丸いアバターや絵文字は出さない。 */}
+          {(practice.head || practice.body.length > 0) && (
+            <div className={styles.practice}>
+              {practice.head && (
+                <h3>
+                  <span className="inline-flex items-baseline mr-[0.35em]">
+                    <Stethoscope className="w-[0.9em] h-[0.9em] shrink-0 self-center" aria-hidden="true" strokeWidth={2.2} />
+                  </span>
+                  <Inlines items={inlinesOf(practice.head)} k="practice-head" />
+                </h3>
+              )}
+              <div className={styles.body}>
+                {practice.body.map((b, i) => (
+                  <TailBlock
+                    key={i}
+                    block={b}
+                    k={`practice-${i}`}
+                    // 「※」で始まる断り書きは上罫線つきの小さいグレーで出す（パイロットの .note）。
+                    className={inlinesOf(b).length > 0 && textOf(inlinesOf(b)).trimStart().startsWith('※') ? styles.note : undefined}
+                    onImageClick={onImageClick}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 文献（📚）。パイロットは箱をやめ、素の見出し＋番号つきの一覧で出す。 */}
+          {(refs.head || refs.body.length > 0 || tail.refsItems.length > 0) && (
+            <div className={styles.refs}>
+              {refs.head && (
+                <h3>
+                  <Inlines items={inlinesOf(refs.head)} k="refs-head" />
+                </h3>
+              )}
+              {refs.body.map((b, i) => (
+                <TailBlock key={i} block={b} k={`refs-body-${i}`} onImageClick={onImageClick} />
+              ))}
+              {tail.refsItems.length > 0 && (
+                <ol>
+                  {tail.refsItems.map((b, i) => (
+                    <li key={i}>
+                      <Inlines items={inlinesOf(b)} k={`refs-${i}`} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+
+          {/* 免責（⚠️）。箱をやめ、上罫線つきの小さいグレー段落にする。 */}
+          {tail.disclaimer.length > 0 && (
+            <div className={styles.disclaimer}>
+              {tail.disclaimer.map((b, i) => (
+                <TailBlock key={i} block={b} k={`disclaimer-${i}`} onImageClick={onImageClick} />
+              ))}
+            </div>
+          )}
+        </NoAutoMarkerCtx.Provider>
       </div>
     </div>
   )

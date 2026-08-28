@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart } from '../reader-spread'
 
@@ -817,5 +817,61 @@ describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要�
     ]
     const r = compressReferenceItems(blocks)
     expect(r.map((b) => (b.kind === 'list_item' ? textOf(b.inlines) : b.kind))).toEqual(['callout', '残る行。'])
+  })
+})
+
+describe('splitTailBlocks（記事末尾を実践・文献・免責の口に分ける）', () => {
+  const practice: ReaderBlock = { kind: 'callout', icon: '🧑‍⚕️', color: null, blocks: [
+    { kind: 'paragraph', inlines: t('集中治療医の実践') },
+    { kind: 'paragraph', inlines: t('吸気努力を見極めて処方する。') },
+    { kind: 'paragraph', inlines: t('※筆者の実践です。') },
+  ] }
+  const refsHead: ReaderBlock = { kind: 'callout', icon: '📚', color: null, blocks: [
+    { kind: 'paragraph', inlines: t('まず当たるべき文献・ガイドライン') },
+  ] }
+  const ref1: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('BTS Guideline（2017）') }
+  const ref2: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('ERS/ATS guidelines（2017）') }
+  const disclaimer: ReaderBlock = { kind: 'callout', icon: '⚠️', color: null, blocks: [
+    { kind: 'paragraph', inlines: t('本ページは学習用の情報です。') },
+  ] }
+
+  it('署名・文献・免責をそれぞれの口に入れ、文献の箇条書きは refsItems に集める', () => {
+    const r = splitTailBlocks([practice, refsHead, ref1, ref2, disclaimer])
+    expect(r.practice).toBe(practice)
+    expect(r.refsHead).toBe(refsHead)
+    expect(r.refsItems).toEqual([ref1, ref2])
+    // 免責は callout そのものではなく中身（枠は誌面が自前で組む）
+    expect(r.disclaimer).toEqual(disclaimer.kind === 'callout' ? disclaimer.blocks : [])
+    expect(r.rest).toEqual([])
+  })
+
+  it('分類できないブロックは黙って捨てず rest に残す', () => {
+    const para: ReaderBlock = { kind: 'paragraph', inlines: t('末尾の普通の段落。') }
+    const note: ReaderBlock = { kind: 'callout', icon: '📝', color: null, blocks: [] }
+    const r = splitTailBlocks([para, practice, note])
+    expect(r.rest).toEqual([para, note])
+    expect(r.practice).toBe(practice)
+  })
+
+  it('文献の callout が無いときは refsItems が空で、箇条書きは rest に残る', () => {
+    const r = splitTailBlocks([ref1, ref2])
+    expect(r.refsHead).toBeNull()
+    expect(r.refsItems).toEqual([])
+    expect(r.rest).toEqual([ref1, ref2])
+  })
+
+  it('同じ役割の callout が2つあるときは最初だけ採り、2つ目は rest に残す', () => {
+    const practice2: ReaderBlock = { kind: 'callout', icon: '🧑‍⚕️', color: null, blocks: [
+      { kind: 'paragraph', inlines: t('2つ目の署名。') },
+    ] }
+    const disclaimer2: ReaderBlock = { kind: 'callout', icon: '⚠️', color: null, blocks: [
+      { kind: 'paragraph', inlines: t('2つ目の免責。') },
+    ] }
+    const refsHead2: ReaderBlock = { kind: 'callout', icon: '📚', color: null, blocks: [] }
+    const r = splitTailBlocks([practice, practice2, refsHead, refsHead2, disclaimer, disclaimer2])
+    expect(r.practice).toBe(practice)
+    expect(r.refsHead).toBe(refsHead)
+    expect(r.disclaimer).toEqual(disclaimer.kind === 'callout' ? disclaimer.blocks : [])
+    expect(r.rest).toEqual([practice2, refsHead2, disclaimer2])
   })
 })
