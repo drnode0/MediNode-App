@@ -396,10 +396,19 @@ function corpusOf(doc: ReaderDoc): string {
  * ノートに広げる。渡されなければ従来どおり原本だけで検査する（fail-closed）。
  */
 export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc, notes?: ReaderBlock[] | null): { ok: boolean; missing: string[] } {
-  const corpus = notes && notes.length > 0 ? `${corpusOf(doc)}\n${corpusOfBlocks(notes)}` : corpusOf(doc)
-  const missing = verbatimTargets(spread)
-    .filter((s) => !corpus.includes(s.replace(/[ \t]+/g, ' ')))
+  const ok = makeVerbatimChecker(doc, notes)
+  const missing = verbatimTargets(spread).filter((s) => !ok(s))
   return { ok: missing.length === 0, missing }
+}
+
+/**
+ * 1文だけの逐語照合器。編集画面が入力欄ごとに「この文は原本（＋誌面ノート）にあるか」を
+ * 即座に出すために使う。正規化は verifyVerbatim と同一（ここが割れると、画面では通るのに
+ * 保存で落ちる、という食い違いが生まれる）。
+ */
+export function makeVerbatimChecker(doc: ReaderDoc, notes?: ReaderBlock[] | null): (s: string) => boolean {
+  const corpus = notes && notes.length > 0 ? `${corpusOf(doc)}\n${corpusOfBlocks(notes)}` : corpusOf(doc)
+  return (s: string) => corpus.includes(s.replace(/[ \t]+/g, ' '))
 }
 
 /**
