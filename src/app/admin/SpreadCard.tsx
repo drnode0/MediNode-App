@@ -6,7 +6,7 @@
 // このカードがその気づきの場所になる。データは /api/admin/spread（管理者専用）。
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2 } from 'lucide-react'
+import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2, Pencil } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
 import type { SpreadOverlay, SpreadQuiz } from '@/lib/reader-spread'
@@ -281,6 +281,14 @@ export function SpreadCard() {
                   {busy.has(r.page_id) ? <Spinner className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
                   再生成
                 </button>
+                {/* 表層の整え（短ラベル・部品・入口・理解チェック）はプレビュー付きの編集画面で行う。 */}
+                <a
+                  href={`/admin/spread-edit?pageId=${encodeURIComponent(r.page_id)}`}
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <Pencil className="w-3.5 h-3.5" aria-hidden />
+                  誌面を整える
+                </a>
                 <button
                   type="button"
                   disabled={busy.has(r.page_id)}
