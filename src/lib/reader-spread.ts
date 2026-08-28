@@ -20,11 +20,14 @@ export type SpreadPart =
   // intro はフロー全体の前提条件（「高CO₂血症リスクなしで SpO₂ 85%以上」等）、
   // note は各ステップに添える小さな補足行。どちらも医学的内容なので逐語一致検査の対象
   // （label だけが表示上の命名＝対象外）。旧 SpreadDoc には無いキーなので optional。
-  | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }
+  // dose は流量など「大きく出す数値」（パイロットの .flow-dev .dose）。医学的内容なので
+  // intro / note と同じく逐語一致検査の対象で、label だけが表示上の命名＝対象外。
+  | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[]; dose?: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }
   | { kind: 'bignumber'; value: string; caption: ReaderInline[] }
   // 2枚組の比較カード（パイロット誌面の節5 COT vs HFNC）。title はカードの呼び名
-  // （命名＝検査対象外）、lines は逐語一致検査の対象。
-  | { kind: 'cards'; cards: { title: string; lines: ReaderInline[][] }[] }
+  // （命名＝検査対象外）、lines は逐語一致検査の対象。primary は主役側のカードで、
+  // 見出し帯を塗る（パイロットの .vs-col.hero）。表示上の指定なので検査の対象外。
+  | { kind: 'cards'; cards: { title: string; lines: ReaderInline[][]; primary?: boolean }[] }
   // 表層の補足ノート（パイロット誌面の「高流量か低流量かの線引きは…」等）。逐語一致検査の対象。
   | { kind: 'note'; inlines: ReaderInline[] }
   // goLabel / noGoLabel は枠の見出し（既定は「こうする」「こうしない」）。
@@ -244,7 +247,12 @@ function stripPartHref(part: SpreadPart): SpreadPart {
       return {
         ...part,
         ...(part.intro ? { intro: stripInlineHref(part.intro) } : {}),
-        steps: part.steps.map((s) => ({ ...s, inlines: stripInlineHref(s.inlines), ...(s.note ? { note: stripInlineHref(s.note) } : {}) })),
+        steps: part.steps.map((s) => ({
+          ...s,
+          inlines: stripInlineHref(s.inlines),
+          ...(s.dose ? { dose: stripInlineHref(s.dose) } : {}),
+          ...(s.note ? { note: stripInlineHref(s.note) } : {}),
+        })),
       }
     case 'bignumber':
       return { ...part, caption: stripInlineHref(part.caption) }
@@ -333,6 +341,7 @@ function verbatimTargets(spread: SpreadDoc): string[] {
       if (p.intro) out.push(textOf(p.intro))
       for (const step of p.steps) {
         out.push(textOf(step.inlines))
+        if (step.dose) out.push(textOf(step.dose))
         if (step.note) out.push(textOf(step.note))
       }
     } else if (p.kind === 'cards') {

@@ -1,45 +1,35 @@
 'use client'
 import { useState } from 'react'
+import { ConfidenceMark } from '../ConfidenceMark'
 import type { SpreadQuiz } from '@/lib/reader-spread'
+import s from './spread.module.css'
 
 // 節末の理解チェック。採点は端末の中だけで完結し、サーバーには何も送らない
-// （既存のクイズ・SRSと同じ方針）。正誤を出したあと、根拠の逐語をそのまま見せる。
+// （既存のクイズ・SRSと同じ方針）。見た目はパイロット誌面の .quiz（淡い琥珀の面・
+// 枠線つきの選択肢・正解は緑枠／誤答は赤枠）。
 export function SpreadQuizCard({ quiz }: { quiz: SpreadQuiz }) {
   const [picked, setPicked] = useState<number | null>(null)
   const answered = picked !== null
   return (
-    <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
-      <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 mb-1.5">理解チェック</div>
-      <p className="font-bold leading-relaxed mb-2.5">{quiz.question}</p>
-      <div className="space-y-1.5">
+    <div className={s.quiz}>
+      <div className={s.quizQ}>
+        <ConfidenceMark kind="ok" /> 理解チェック：{quiz.question}
+      </div>
+      <div className={s.quizOpts}>
         {quiz.choices.map((c, i) => {
           const correct = i === quiz.answerIndex
-          // 面には彩度のある色を敷かない（誌面の配色原則）。正解は面の塗りではなく
-          // アクセント（文字色＋左の細枠線）で示す。面は階調トークンのまま。
-          const tone = !answered
-            ? 'bg-card-light dark:bg-card-dark'
-            : correct
-              ? 'bg-card-light dark:bg-card-dark border-l-2 border-brand-600 text-brand-700 dark:text-brand-300 font-bold'
-              : i === picked
-                ? 'bg-gray-100 dark:bg-white/[0.08] line-through text-gray-500 dark:text-gray-400'
-                : 'bg-card-light dark:bg-card-dark opacity-60'
+          const tone = !answered ? '' : correct ? s.ok : i === picked ? s.ng : ''
           return (
-            <button
-              key={i}
-              type="button"
-              disabled={answered}
-              onClick={() => setPicked(i)}
-              className={`block w-full text-left px-3 py-2.5 rounded-lg min-h-[44px] leading-relaxed ${tone}`}
-            >
+            <button key={i} type="button" disabled={answered} onClick={() => setPicked(i)} className={tone}>
               {c}
             </button>
           )
         })}
       </div>
       {answered && (
-        <p className="text-[0.85em] text-gray-600 dark:text-gray-300 mt-2.5 leading-relaxed">
-          {quiz.evidence}
-        </p>
+        // 解説はまだ原本にないため、根拠の逐語をそのまま出す（パイロットは書き下ろしの
+        // 解説文を置いている。解説文を誌面ノートに用意したらここへ差し替える）。
+        <p className={s.quizFb}>{quiz.evidence}</p>
       )}
     </div>
   )

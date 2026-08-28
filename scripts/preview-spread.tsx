@@ -11,15 +11,15 @@
  * 使い方:
  *   npx tsx scripts/preview-spread.tsx <pageId> <出力先.html> [--dark]
  */
+// 注意: 誌面のコンポーネントはCSSモジュール（spread.module.css）を読むため、
+// このスクリプト（tsx直実行）からは import できない。HTMLの目視は devサーバーの
+// /dev/spread と .preview/build-snapshot.mts で行う。ここは逐語検査とJSON書き出し専用。
 import fs from 'node:fs'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { Client } from '@notionhq/client'
 import { fetchPageBlocks } from '../src/lib/notion-page'
 import { mapBlocksToReaderDoc } from '../src/lib/reader-doc'
 import { applyOverlay, buildSpreadDraft, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '../src/lib/reader-spread'
 import { fetchSpreadNotesBlocks } from '../src/lib/spread-notes'
-import { ReaderSpread } from '../src/components/reader/spread/ReaderSpread'
-import { RenderedBlocks } from '../src/components/reader/ReaderBody'
 
 function loadEnvLocal(): Record<string, string> {
   const out: Record<string, string> = {}
@@ -53,7 +53,19 @@ async function main() {
   const page = await notion.pages.retrieve({ page_id: pageId })
   const blocks = await fetchPageBlocks(notion, pageId)
   const doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
-  const notes = await fetchSpreadNotesBlocks(notion, pageId)
+  // --notes-file <path>: 誌面ノートDBの代わりにローカルのテキスト（1行1文）を照合先にする。
+  // devハーネス専用の口で、投入API（PUT/PATCH）は常に非公開DBだけを見る。
+  // ノートDBを接続する前に見た目を確かめたいときに使う。
+  const notesIdx = process.argv.indexOf('--notes-file')
+  const notes =
+    notesIdx > 0
+      ? fs
+          .readFileSync(process.argv[notesIdx + 1], 'utf8')
+          .split('\n')
+          .map((l) => l.replace(/^[-・\s]+/, '').trim())
+          .filter((l) => l && !l.startsWith('#'))
+          .map((text) => ({ kind: 'list_item' as const, ordered: false, inlines: [{ text }] }))
+      : await fetchSpreadNotesBlocks(notion, pageId)
   console.error(notes ? `誌面ノート: ${notes.length}ブロックを照合先に追加` : '誌面ノート: なし（照合先は原本のみ）')
 
   // --overlay <file>: 投入時に渡すオーバレイ（短ラベル・部品・理解チェック）を先に当てて見る。
@@ -89,36 +101,8 @@ async function main() {
     console.error(`JSONを書いた: ${process.argv[jsonIdx + 1]}`)
   }
 
-  // --open: 深掘りを開いた状態の中身も確かめる。ReaderSpread は深掘りを useState で
-  // 畳んでいるため、静的描画では閉じた表層しかHTMLに出ない。開いたときに本文（確信度マーク・
-  // 🔖・出典リンク）がどう出るかは、深掘りのブロックを直接描いて確認する。
-  if (process.argv.includes('--open')) {
-    const deep = renderToStaticMarkup(
-      <>
-        {spread.sections.map((s) => (
-          <RenderedBlocks key={s.anchor} blocks={s.deep} onImageClick={() => {}} active={new Set()} />
-        ))}
-      </>
-    )
-    fs.writeFileSync(outPath.replace(/\.html$/, '-open.html'), deep, 'utf8')
-    console.error(`深掘りHTMLを書いた: ${outPath.replace(/\.html$/, '-open.html')}`)
-  }
-
-  const body = renderToStaticMarkup(
-    <ReaderSpread
-      spread={spread}
-      onImageClick={() => {}}
-      scaleEm="1em"
-      lastEdited={doc.lastEdited}
-      cover={doc.cover}
-      title={doc.title}
-      icon={doc.icon}
-      genre={doc.genre}
-      questionType={doc.questionType}
-    />
-  )
-  fs.writeFileSync(outPath, body, 'utf8')
-  console.error(`\n本文HTMLを書いた: ${outPath}（この後 Tailwind のCSSを被せる）`)
+  // HTMLの目視は devサーバー（/dev/spread）と .preview/build-snapshot.mts で行う。
+  // 誌面のコンポーネントはCSSモジュールを読むため、ここからは描画できない。
 }
 
 main().catch((e) => {

@@ -26,7 +26,9 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-800">
-      <div className="shrink-0 flex items-center gap-2 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+      {/* data-harness-bar: 静止スナップショット（.preview/build-snapshot.mts）が
+          このツールバーだけを隠すための目印。 */}
+      <div data-harness-bar className="shrink-0 flex items-center gap-2 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
         <input
           type="search"
           value={query}

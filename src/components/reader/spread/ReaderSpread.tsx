@@ -5,8 +5,9 @@ import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
 import { digestTone, displayPreface, displayTail, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, visibleQuizzes } from '@/lib/reader-spread'
-import { NoAutoMarkerCtx } from '../Inlines'
+import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import { ConfidenceLegend } from '../ConfidenceMark'
+import styles from './spread.module.css'
 import { KnowledgeTitle } from '@/lib/title-display'
 import { stripLeadingEmoji } from '@/lib/labels'
 import type { Confidence } from '@/lib/reader-confidence'
@@ -135,7 +136,7 @@ export function ReaderSpread({
     // reader-prose の直下に倍率ラッパーを1枚だけ挟む（ReaderBody.tsx と同じ入れ子）。
     // reader-prose 自体は字間・約物・iOS Dynamic Type 追従の組版CSSを持つので、
     // ラッパーを reader-prose の外に出したり中身側の各要素にバラして掛けたりしない。
-    <div className="reader-prose">
+    <div className={`reader-prose ${styles.spread}`}>
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
         {/* 更新日・カバー画像は ReaderBody.tsx と同じ見た目・同じ順序・同じ位置
             （本文冒頭・lead より前）で出す。誌面化した記事でもここが黙って消えないように。 */}
@@ -165,9 +166,9 @@ export function ReaderSpread({
         {/* バッジ行（パイロット誌面のキッカー）。ジャンル・問いの型は原本のNotionプロパティ、
             査読年月は⚡ボックスの査読済み行から。無いものは黙って出さない。 */}
         {badges.length > 0 && (
-          <p className="text-[0.78em] text-gray-500 dark:text-gray-400 mb-1 flex flex-wrap gap-x-3 gap-y-0.5">
+          <p className={`${styles.kicker} mb-1`}>
             {badges.map((b, i) => (
-              <span key={`${i}-${b.text}`} className={b.accent ? 'font-bold text-brand-700 dark:text-brand-300' : ''}>{b.text}</span>
+              <span key={`${i}-${b.text}`} className={b.accent ? styles.tag : undefined}>{b.text}</span>
             ))}
           </p>
         )}
@@ -176,30 +177,43 @@ export function ReaderSpread({
         </h2>
 
         {spread.lead && (
-          // 要点ボックス（パイロット誌面の「この記事の要点」）。緑のヘッダー帯つきの枠で
-          // 自前に組むため、RenderedBlocks の conclusion 描画（data-tldr 付き）は通らない。
+          // 要点ボックス（パイロット誌面の「この記事の要点」）。緑のヘッダー帯・四角い
+          // チェックボックス風マーカー・査読済み行の脚注は spread.module.css が持つ。
+          // 箇条書きは共通レンダラに渡さず自前で組む（渡すと list-disc の丸ポチになる）。
           // ReaderNavBar が IntersectionObserver の対象に [data-tldr] を探すので、ここに付ける。
-          <div data-tldr="" className="mb-5 rounded-xl border-[1.5px] border-brand-600 dark:border-brand-400/70 overflow-hidden shadow-sm bg-card-light dark:bg-card-dark">
-            <div className="bg-gradient-to-b from-brand-500 to-brand-600 px-3.5 py-1.5 text-[0.85em] font-bold tracking-[0.06em] text-white">
-              {digest.heading || 'この記事の要点'}
-            </div>
-            <div className="px-3.5 py-3 [&_.font-bold]:text-brand-800 dark:[&_.font-bold]:text-brand-300">
+          <div data-tldr="" className={styles.digest}>
+            <div className={styles.digestHead}>{digest.heading || 'この記事の要点'}</div>
+            <div className={styles.digestBody}>
               <NoAutoMarkerCtx.Provider value={true}>
-                <RenderedBlocks blocks={visibleBody} onImageClick={onImageClick} active={NO_FILTER} />
+                <ul>
+                  {visibleBody.map((b, i) =>
+                    b.kind === 'list_item' || b.kind === 'paragraph' ? (
+                      <li key={i}>
+                        <Inlines items={b.inlines} k={`digest-${i}`} />
+                      </li>
+                    ) : null,
+                  )}
+                </ul>
                 {/* 検索中は全件表示に固定するので、押しても変わらないボタンは出さない。 */}
                 {collapsible && !searching && (
                   <button
                     type="button"
                     onClick={() => setLeadOpen((v) => !v)}
                     aria-expanded={leadOpen}
-                    className="text-[0.82em] font-bold text-brand-700 dark:text-brand-300 min-h-[44px] px-1"
+                    className={styles.digestMore}
                   >
                     {leadHidden > 0 ? `残り${leadHidden}件の要点を表示 ▾` : '要点を閉じる ▴'}
                   </button>
                 )}
                 {digest.foot.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 text-[0.8em] text-gray-500 dark:text-gray-400 [&_.font-bold]:text-gray-600 dark:[&_.font-bold]:text-gray-300">
-                    <RenderedBlocks blocks={digest.foot} onImageClick={onImageClick} active={NO_FILTER} />
+                  <div className={styles.digestReview}>
+                    {digest.foot.map((b, i) =>
+                      b.kind === 'paragraph' || b.kind === 'list_item' ? (
+                        <p key={i}>
+                          <Inlines items={b.inlines} k={`digest-foot-${i}`} />
+                        </p>
+                      ) : null,
+                    )}
                   </div>
                 )}
               </NoAutoMarkerCtx.Provider>
@@ -207,10 +221,19 @@ export function ReaderSpread({
           </div>
         )}
 
-        {/* 🤖査読スタンプの但し書き（対象範囲）。パイロット誌面と同じ位置＝要点の直後。 */}
+        {/* 🤖査読スタンプの但し書き（対象範囲）。パイロット誌面と同じ位置＝要点の直後で、
+            淡い緑の面に置く（パイロットの .scope）。 */}
         {stampScope.length > 0 && (
-          <div className="mb-4 text-[0.9em] text-gray-500 dark:text-gray-400">
-            <RenderedBlocks blocks={stampScope} onImageClick={onImageClick} active={NO_FILTER} />
+          <div className={styles.scope}>
+            <NoAutoMarkerCtx.Provider value={true}>
+              {stampScope.map((b, i) =>
+                b.kind === 'paragraph' || b.kind === 'list_item' ? (
+                  <p key={i}>
+                    <Inlines items={b.inlines} k={`scope-${i}`} />
+                  </p>
+                ) : null,
+              )}
+            </NoAutoMarkerCtx.Provider>
           </div>
         )}
 
@@ -220,15 +243,11 @@ export function ReaderSpread({
         {/* 状況からの入口（パイロット誌面の「いまの状況から探す」）。目次より先に置く。
             存在しない節を指す入口は applyOverlay が捨てているので、ここでは無条件に描いてよい。 */}
         {(spread.entries?.length ?? 0) > 0 && (
-          <div className="mb-4 rounded-lg bg-soft-light dark:bg-soft-dark px-3.5 py-3">
-            <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 mb-1">いまの状況から探す</div>
-            <div className="flex flex-wrap gap-1.5">
+          <div className={styles.entries}>
+            <div className={styles.entriesTitle}>いまの状況から探す</div>
+            <div className={styles.entriesRow}>
               {spread.entries!.map((e) => (
-                <a
-                  key={`${e.anchor}-${e.label}`}
-                  href={`#${e.anchor}`}
-                  className="inline-flex items-center min-h-[44px] text-[0.85em] px-3 py-1 rounded-full border border-brand-200 dark:border-white/15 bg-card-light dark:bg-card-dark text-brand-700 dark:text-brand-300"
-                >
+                <a key={`${e.anchor}-${e.label}`} href={`#${e.anchor}`} className={styles.entry}>
                   {e.label}
                 </a>
               ))}
@@ -237,17 +256,10 @@ export function ReaderSpread({
         )}
 
         {toc.length > 0 && (
-          <nav className="flex flex-wrap gap-1.5 mb-6" aria-label="目次">
+          <nav className={styles.toc} aria-label="目次">
             {toc.map((s) => (
-              <a
-                key={s.anchor}
-                href={`#${s.anchor}`}
-                // 見た目の地の高さ（丸い錠剤型）は px-2.5 py-1 のまま保ちつつ、
-                // タップ対象だけ min-h-[44px] + inline-flex items-center で44pxに広げる。
-                // 節ジャンプという主要導線のため、他のタップ対象と同じ基準を満たす。
-                className="inline-flex items-center gap-1 min-h-[44px] text-[0.8em] px-2.5 py-1 rounded-full bg-soft-light dark:bg-soft-dark text-gray-700 dark:text-gray-200"
-              >
-                <span className="font-bold text-brand-700 dark:text-brand-300 tabular-nums">{s.n}</span>
+              <a key={s.anchor} href={`#${s.anchor}`} className={styles.tocLink}>
+                <span className={styles.badge}>{s.n}</span>
                 {s.label}
               </a>
             ))}
@@ -260,18 +272,12 @@ export function ReaderSpread({
           // 導出（sectionViews）。表示専用で、保存された SpreadDoc には触れない。
           const { recap, deep, sources, quizzes } = sectionViews.get(s.anchor)!
           return (
-            <section key={s.anchor} className="mb-8">
+            <section key={s.anchor} className={styles.section}>
               {/* data-section は横断検索の節ジャンプと ReaderNavBar が使う。値を変えないこと。 */}
-              <h2
-                id={s.anchor}
-                data-section={s.anchor}
-                className="flex items-start gap-2.5 rounded-lg bg-soft-light dark:bg-soft-dark px-3 py-2.5 mb-3.5 text-[1.15em] font-bold text-gray-900 dark:text-gray-100"
-              >
-                <span className="shrink-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm grid place-items-center">
-                  {s.n ?? i + 1}
-                </span>
+              <h2 id={s.anchor} data-section={s.anchor} className={styles.secHead}>
+                <span className={styles.badge}>{s.n ?? i + 1}</span>
                 {/* 「1.」の接頭辞は番号バッジと重複するため表示では落とす（パイロット準拠）。 */}
-                <span className="leading-snug pt-0.5">{sectionTitleText(s)}</span>
+                <span>{sectionTitleText(s)}</span>
               </h2>
 
               <SpreadPartView part={s.part} />
@@ -279,14 +285,15 @@ export function ReaderSpread({
                 <SpreadPartView key={pi} part={p} />
               ))}
 
-              {recap && (
-                // パイロット誌面の recap（「この節の答え」）。中身は原本の→段落そのもので、
-                // RenderedBlocks 経由で描くので検索ハイライトも通常どおり効く。
-                // 背景のある箱なので自動アンバーマーカーは止める（Inlines の方針と同じ）。
-                <div className="my-4 rounded-lg border-l-2 border-brand-600 bg-brand-50/60 dark:bg-white/[0.05] px-4 py-3">
-                  <div className="text-[0.8em] font-bold text-brand-700 dark:text-brand-300 mb-0.5">この節の答え</div>
+              {recap && recap.kind === 'paragraph' && (
+                // パイロット誌面の recap（「この節の答え」）。中身は原本の→段落そのもの。
+                // 共通レンダラには「→で始まる段落はティール色の枠にする」既定があり、
+                // それを通すと枠が二重になり色も外れるので、ここでは Inlines で直接描く
+                // （検索ハイライトと確信度マークは Inlines が担うので失われない）。
+                <div className={styles.recap}>
+                  <span className={styles.eyebrow}>この節の答え</span>
                   <NoAutoMarkerCtx.Provider value={true}>
-                    <RenderedBlocks blocks={[recap]} onImageClick={onImageClick} active={NO_FILTER} />
+                    <Inlines items={recap.inlines} k={`recap-${s.anchor}`} />
                   </NoAutoMarkerCtx.Provider>
                 </div>
               )}
@@ -297,29 +304,22 @@ export function ReaderSpread({
                   つもりのクリックが has() 判定で誤って open に追加され、検索終了後にその節が
                   開いたまま残ってしまう。isOpen の計算式自体は変えず、検索中はボタンを
                   disabled にして個別開閉の操作自体を塞ぐ。 */}
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <button
-                  type="button"
-                  disabled={searching}
-                  onClick={() => setOpen((prev) => {
-                    const next = new Set(prev)
-                    if (next.has(s.anchor)) next.delete(s.anchor)
-                    else next.add(s.anchor)
-                    return next
-                  })}
-                  aria-expanded={isOpen}
-                  className="text-[0.85em] text-brand-700 dark:text-brand-300 underline min-h-[44px] px-1 disabled:no-underline disabled:opacity-60 disabled:cursor-default"
-                >
-                  {isOpen ? 'この節の根拠を閉じる' : 'この節の根拠を見る'}
-                </button>
-                {/* 出典サマリ（パイロット誌面と同じ位置）。ラベルは深掘りのリンクテキストの
-                    登場順・重複なしで、閉じた状態でも「どの文献で立っている節か」が見える。 */}
-                {!isOpen && sources.length > 0 && (
-                  <span className="text-[0.75em] text-gray-400 dark:text-gray-500 leading-snug">
-                    {sources.join('・')}
-                  </span>
-                )}
-              </div>
+              <button
+                type="button"
+                disabled={searching}
+                onClick={() => setOpen((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(s.anchor)) next.delete(s.anchor)
+                  else next.add(s.anchor)
+                  return next
+                })}
+                aria-expanded={isOpen}
+                className={styles.deepToggle}
+              >
+                {/* パイロットと同じ「▸ この節の根拠を見る」＋出典サマリの1行。 */}
+                <span className={styles.t}>{isOpen ? '▾ この節の根拠を閉じる' : '▸ この節の根拠を見る'}</span>
+                {sources.length > 0 && <span className={styles.src}>{sources.join('・')}</span>}
+              </button>
 
               {isOpen && (
                 <div className="mt-2">

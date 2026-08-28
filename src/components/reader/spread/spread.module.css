@@ -1,0 +1,687 @@
+/*
+ * 誌面（TEXTBOOK LITE）の見た目。パイロット誌面（.preview/pilot-original.html）の
+ * スタイル定義を1対1で移した実装で、誌面の見た目の正本はこのファイル。
+ *
+ * 経緯: 当初は共通レンダラ（ReaderBody の RenderedBlocks）の既定の見た目に
+ * 個別の上書きを重ねる作りにしたため、パイロットが独自に定義している見た目
+ * （四角い箇条書きマーカー・枠の形・塗りヘッダー等）が上書きし忘れた箇所で
+ * すべてアプリの既定に戻っていた。以後、誌面の部品はここのクラスで組む。
+ *
+ * ダークは .dark 基準（このリポジトリの規約。@media は使わない）。
+ */
+
+.spread {
+  --brand: #196b4f;
+  --brand-deep: #14543e;
+  --brand-grad: #1d7a5a;
+  --brand-tint: #e9f2ee;
+  --brand-tint-2: #f3f8f5;
+  --brand-line: rgba(25, 107, 79, 0.16);
+  --ink: #1f2937;
+  --muted: #64716b;
+  --paper: #ffffff;
+  --line: #e2e8e4;
+  --nogo: #b23b32;
+  --nogo-bg: #b23b32;
+  --nogo-tint: #faf0ee;
+  --nogo-line: #ecccc8;
+  --amber-tint: #fdf6e7;
+  --warn: #b45309;
+  --h2-ink: #14543e;
+  --h2-bg: #e9f2ee;
+  --card: #ffffff;
+}
+
+:global(.dark) .spread {
+  --brand: #37a985;
+  --brand-deep: #a9d3bf;
+  --brand-grad: #2e8f6f;
+  --brand-tint: #263039;
+  --brand-tint-2: #1a2129;
+  --brand-line: rgba(120, 210, 175, 0.2);
+  --ink: #e9edef;
+  --muted: #a3aeb8;
+  --paper: #151b23;
+  --line: #37424d;
+  --nogo: #e58077;
+  --nogo-bg: #8f3129;
+  --nogo-tint: #2a1f22;
+  --nogo-line: #4a2c30;
+  --amber-tint: #1a2129;
+  --warn: #e6ad4e;
+  --h2-ink: #eef1f2;
+  --h2-bg: #232b35;
+  --card: #232b35;
+}
+
+/* ===== キッカー（ジャンル・問いの型・査読済み） ===== */
+.kicker {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em 1em;
+}
+.kicker .tag {
+  color: var(--brand-deep);
+  font-weight: 600;
+}
+
+/* ===== この記事の要点 ===== */
+.digest {
+  border: 1.5px solid var(--brand);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.05);
+  background: var(--paper);
+}
+.digestHead {
+  background: linear-gradient(180deg, var(--brand-grad), var(--brand));
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  letter-spacing: 0.06em;
+}
+.digestBody {
+  padding: 0.8rem 0.9rem 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1.9;
+  color: var(--ink);
+}
+.digestBody ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.digestBody li {
+  padding-left: 1.1em;
+  position: relative;
+  margin-bottom: 0.5em;
+}
+/* パイロットの四角いチェックボックス風マーカー（共通レンダラの丸ポチではない） */
+.digestBody li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 0.5em;
+  height: 0.5em;
+  background: var(--brand-tint);
+  border: 1.5px solid var(--brand);
+  border-radius: 2px;
+}
+.digestBody :global(.font-bold) {
+  color: var(--brand-deep);
+}
+.digestMore {
+  font-size: 0.82rem;
+  color: var(--brand-deep);
+  font-weight: 700;
+  padding: 0.2em 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.digestReview {
+  border-top: 1px solid var(--line);
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.digestReview :global(.font-bold) {
+  color: var(--muted);
+}
+
+/* ===== 対象範囲の但し書き ===== */
+.scope {
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--brand-tint-2);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  margin-bottom: 1.2rem;
+  line-height: 1.8;
+}
+
+/* ===== いまの状況から探す ===== */
+.entries {
+  margin-bottom: 1.2rem;
+}
+.entriesTitle {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+.entriesRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.entry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--brand-deep);
+  background: var(--brand-tint-2);
+  border: 1px solid var(--brand-line);
+  border-radius: 999px;
+  padding: 0.28em 0.9em;
+}
+.entry::after {
+  content: " →";
+  white-space: pre;
+}
+
+/* ===== 目次チップ ===== */
+.toc {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  margin-bottom: 1.8rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.45rem 0.2rem;
+}
+.toc::-webkit-scrollbar {
+  display: none;
+}
+.tocLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  flex: none;
+  min-height: 44px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--brand-line);
+  border-radius: 999px;
+  padding: 0.28em 0.85em 0.28em 0.35em;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.06);
+}
+.badge {
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85em;
+  font-weight: 700;
+  flex: none;
+}
+
+/* ===== 節 ===== */
+.section {
+  margin-bottom: 2.6rem;
+  scroll-margin-top: 6rem;
+}
+.secHead {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-size: 1.13rem;
+  line-height: 1.55;
+  font-weight: 700;
+  font-feature-settings: "palt";
+  color: var(--h2-ink);
+  background: var(--h2-bg);
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem 0.5rem 0.6rem;
+  margin-bottom: 1rem;
+}
+.secHead .badge {
+  font-size: 0.78rem;
+  width: 1.9em;
+  height: 1.9em;
+  margin-top: 0.22em;
+}
+
+/* ===== 部品: 比較表 ===== */
+.tableWrap {
+  overflow-x: auto;
+  margin: 0.6rem 0 1rem;
+}
+.spec {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.spec th {
+  background: var(--brand-tint);
+  color: var(--brand-deep);
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-align: left;
+  padding: 0.55em 0.8em;
+  border-bottom: 2px solid var(--brand);
+}
+.spec td {
+  padding: 0.75em 0.8em;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.spec td.num {
+  font-size: 1.4em;
+  font-weight: 800;
+  color: var(--brand);
+  font-feature-settings: "palt";
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.spec td small {
+  font-size: 0.8em;
+  color: var(--muted);
+  font-weight: 400;
+  display: block;
+}
+.unit {
+  font-size: 0.55em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ===== 部品: 大きい数値（用量反応） ===== */
+.stats {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem 0.9rem 0.75rem;
+  margin: 0 0 1rem;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+}
+.statsTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+  line-height: 1.6;
+}
+.statsRow {
+  display: flex;
+  gap: 0.6rem;
+}
+.stat {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.statV {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.stat.warn .statV,
+.warn .statV {
+  color: var(--nogo);
+}
+.statL {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.gauge {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-tint);
+  margin: 0.35rem 0 0.3rem;
+  overflow: hidden;
+}
+.gauge .fill {
+  display: block;
+  height: 6px;
+  background: var(--brand);
+  border-radius: 999px;
+}
+.warn .gauge .fill {
+  background: var(--nogo);
+}
+
+/* ===== 部品: 判断フロー ===== */
+.flow {
+  margin: 0.6rem 0 1rem;
+}
+.flowCond {
+  border: 1.5px solid var(--brand);
+  border-radius: 10px;
+  background: var(--brand-tint-2);
+  padding: 0.5rem 0.9rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.flowDev {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+  display: flex;
+  align-items: baseline;
+  gap: 0.7em;
+  flex-wrap: wrap;
+  color: var(--ink);
+  line-height: 1.7;
+}
+.flowDev .name {
+  font-weight: 700;
+}
+/* 大きく出すのは数値（dose）だけ。強調（太字）は色だけ変えて字は大きくしない
+   （パイロットは .dose と .kv を別扱いにしている）。 */
+.flowDev .dose {
+  font-size: 1.35em;
+  font-weight: 800;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.flowDev :global(.font-bold) {
+  color: var(--brand-deep);
+}
+.flowDev small {
+  font-size: 0.8em;
+  color: var(--muted);
+  font-weight: 400;
+  display: block;
+  white-space: normal;
+}
+.flowLink {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.15rem 0 0.15rem 1.1rem;
+  position: relative;
+  min-height: 2.1rem;
+}
+.flowLink::before {
+  content: "";
+  position: absolute;
+  left: 1.35rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--brand);
+}
+.flowLink::after {
+  content: "";
+  position: absolute;
+  left: calc(1.35rem - 3.2px);
+  bottom: 0;
+  border-left: 4.2px solid transparent;
+  border-right: 4.2px solid transparent;
+  border-top: 6px solid var(--brand);
+}
+.why {
+  margin-left: 1.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  background: var(--brand-tint);
+  border-radius: 999px;
+  padding: 0.1em 0.8em;
+}
+
+/* ===== 部品: VS比較 ===== */
+.vs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.vsCol {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+}
+.vsCol h3 {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  background: var(--brand-tint-2);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+.vsCol.hero h3 {
+  background: var(--brand);
+  color: #fff;
+  border-bottom-color: var(--brand);
+}
+.vsCol ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.vsCol li {
+  margin-bottom: 0.4em;
+}
+/* カード内も、大きく出すのは数値（dose）だけ。 */
+.vsCol .dose {
+  font-size: 1.3em;
+  font-weight: 800;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.vsCol :global(.font-bold) {
+  font-weight: 700;
+  color: var(--brand-deep);
+}
+.vsNote {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+  line-height: 1.8;
+}
+.vsNote :global(.font-bold) {
+  color: var(--ink);
+}
+
+/* ===== 部品: Go/No-Go ===== */
+.gonogo {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.6rem 0 1rem;
+}
+.panel {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+}
+.panel h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  color: #fff;
+}
+.panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.panel li {
+  padding-left: 1.05em;
+  position: relative;
+  margin-bottom: 0.35em;
+}
+.panel li::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+}
+.go {
+  background: var(--brand-tint-2);
+}
+.go h3 {
+  background: var(--brand);
+}
+.go li::before {
+  color: var(--brand);
+}
+.go :global(.font-bold) {
+  font-weight: 800;
+  color: var(--brand-deep);
+}
+.stop {
+  background: var(--nogo-tint);
+  border-color: var(--nogo-line);
+}
+.stop h3 {
+  background: var(--nogo-bg);
+}
+.stop li::before {
+  color: var(--nogo);
+}
+.stop :global(.font-bold) {
+  font-weight: 800;
+  color: var(--nogo);
+}
+.contra {
+  font-size: 0.8rem;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  line-height: 1.8;
+  margin: 0.6rem 0 1rem;
+}
+.contra :global(.font-bold) {
+  color: var(--ink);
+}
+
+/* ===== 節の答え（recap） ===== */
+.recap {
+  background: var(--brand-tint-2);
+  border: 1px solid var(--brand-line);
+  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  font-size: 0.93rem;
+  line-height: 1.9;
+  color: var(--ink);
+  margin: 1rem 0 0.7rem;
+}
+.eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--brand);
+  margin-bottom: 0.25em;
+}
+
+/* ===== 深掘りの開閉 ===== */
+.deepToggle {
+  padding: 0.65rem 0.2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+}
+.deepToggle .t {
+  font-weight: 700;
+  color: var(--brand-deep);
+  white-space: nowrap;
+}
+.deepToggle .src {
+  font-size: 0.9em;
+}
+.deepToggle:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ===== 理解チェック ===== */
+.quiz {
+  background: var(--amber-tint);
+  border-radius: 12px;
+  padding: 0.8rem 0.95rem 0.9rem;
+  margin-top: 0.9rem;
+}
+.quizQ {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 0.55rem;
+  color: var(--ink);
+  line-height: 1.7;
+}
+.quizOpts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.quizOpts button {
+  text-align: left;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0.45em 0.8em;
+  min-height: 44px;
+  cursor: pointer;
+  line-height: 1.7;
+}
+.quizOpts button:disabled {
+  cursor: default;
+}
+.quizOpts button.ok {
+  border-color: var(--brand);
+  background: rgba(53, 160, 120, 0.16);
+  font-weight: 700;
+}
+.quizOpts button.ng {
+  border-color: var(--nogo);
+  background: rgba(178, 59, 50, 0.12);
+}
+.quizFb {
+  font-size: 0.85rem;
+  margin-top: 0.55rem;
+  color: var(--ink);
+  line-height: 1.8;
+}
+.quizFb b {
+  color: var(--brand-deep);
+}

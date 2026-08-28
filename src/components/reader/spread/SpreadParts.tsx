@@ -3,60 +3,88 @@ import { memo } from 'react'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import type { ReaderInline } from '@/lib/reader-doc'
 import { textOf, type SpreadPart } from '@/lib/reader-spread'
+import s from './spread.module.css'
 
-// 表層の部品。教科書の誌面で「どこを見るか」を形が教える役割を持つ。
-// 現行の本文中の表は本文より小さい全セル枠線だったが、誌面では逆にする。
-// ヘッダ行に地色・横罫のみ・数値セルを大きく太く（仕様書「見た目」の節）。
-//
-// 部品の中では太字の自動アンバーマーカー（Inlines の BOLD_MARKER）を止め、
-// 代わりに太字をブランドグリーン＋やや大きめで出す。部品は「数値が主役」の面なので、
-// 蛍光マーカーの面が増えるより、数値そのものが立つほうがパイロット誌面の見え方に近い。
-const BOLD_AS_NUMBER =
-  '[&_.font-bold]:text-brand-700 dark:[&_.font-bold]:text-brand-300 [&_.font-bold]:text-[1.12em]'
+// 表層の部品。見た目の正本は spread.module.css（パイロット誌面からの1対1移植）。
+// ここではマークアップと、パイロットが手作業で付けていた印（数値セル・主役カード）の
+// 導出だけを行う。
 
-// 先頭列のセルが「主語（補足）」の形なら、補足を小さな2行目に落とす（パイロット誌面の
-// 患者群セルの見え方）。割るのは括弧が1組だけで末尾で閉じるセルに限る（2組あるセルを
-// 割ると括弧の対応が壊れる）。分割後も必ず Inlines で描く。素のテキストで描くと
-// 検索ハイライト（mark[data-reader-search]）・確信度マークの線画化・太字装飾が
-// このセルだけ落ちる（昇格した表は深掘りから除かれるため、検索の逃げ場も無い）。
-function FirstCellText({ cell, k }: { cell: ReaderInline[]; k: string }) {
+// 数値セル（パイロットの td.num）の判定。単位つきの数値・範囲だけを大きな緑にする。
+// 「本ページの対象外」のような文はここを通らない。
+const NUM_CELL = /^\d[\d.,]*\s*(?:[〜~–-]\s*\d[\d.,]*)?\s*(%|％|L\/分|mL|mg|時間)?$/
+
+// カードの行の中で「大きく出す数値」（パイロットの .dose）を見分ける。
+// 強調（太字）のうち、数値と単位だけでできているものに限る。文の強調は大きくしない。
+function CardLine({ line, k }: { line: ReaderInline[]; k: string }) {
+  return (
+    <>
+      {line.map((inline, i) =>
+        inline.bold && NUM_CELL.test(inline.text.trim()) ? (
+          <span key={i} className={s.dose}>
+            <Inlines items={[inline]} k={`${k}-${i}`} />
+          </span>
+        ) : (
+          <Inlines key={i} items={[inline]} k={`${k}-${i}`} />
+        ),
+      )}
+    </>
+  )
+}
+
+// 末尾の単位（%）はパイロットと同じく小さく添える。
+function NumCell({ text }: { text: string }) {
+  const m = text.match(/^(.*?)(%|％)$/)
+  if (!m) return <>{text}</>
+  return (
+    <>
+      {m[1]}
+      <span className={s.unit}>{m[2]}</span>
+    </>
+  )
+}
+
+// 先頭列のセルが「主語（補足）」の形なら、補足を小さな2行目に落とす（パイロットの患者群セル）。
+// 割るのは括弧が1組だけで末尾で閉じるセルに限る。分割後も必ず Inlines で描く
+// （素のテキストだと検索ハイライト・確信度マークの線画化・装飾がこのセルだけ落ちる）。
+function FirstCell({ cell, k }: { cell: ReaderInline[]; k: string }) {
   const m = cell.length === 1 && !cell[0].href ? textOf(cell).match(/^([^（）]+)（([^（）]{6,})）$/) : null
   if (!m) return <Inlines items={cell} k={k} />
   return (
-    <span>
-      <span className="font-medium">
-        <Inlines items={[{ ...cell[0], text: m[1] }]} k={`${k}-main`} />
-      </span>
-      <span className="block text-[0.8em] text-gray-500 dark:text-gray-400 leading-snug">
+    <>
+      <Inlines items={[{ ...cell[0], text: m[1] }]} k={`${k}-main`} />
+      <small>
         <Inlines items={[{ ...cell[0], text: m[2] }]} k={`${k}-sub`} />
-      </span>
-    </span>
+      </small>
+    </>
   )
 }
 
 function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   const [head, ...body] = rows
   return (
-    <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-white/10 bg-card-light dark:bg-card-dark">
-      <table className="w-full text-[1em] border-collapse text-gray-800 dark:text-gray-100">
+    <div className={s.tableWrap}>
+      <table className={s.spec}>
         <thead>
-          <tr className="bg-brand-50 dark:bg-white/[0.06]">
+          <tr>
             {head?.map((cell, c) => (
-              <th key={c} className="text-left font-bold px-3 py-2.5 align-top leading-relaxed">
+              <th key={c}>
                 <Inlines items={cell} k={`th-${c}`} />
               </th>
             ))}
           </tr>
         </thead>
-        {/* 数値強調は本文セルだけ。ヘッダ行（th も font-bold）に効かせると見出しまで緑・特大になる。 */}
-        <tbody className={BOLD_AS_NUMBER}>
+        <tbody>
           {body.map((row, r) => (
-            <tr key={r} className="border-t border-gray-200 dark:border-white/10">
-              {row.map((cell, c) => (
-                <td key={c} className="px-3 py-2.5 align-top leading-relaxed">
-                  {c === 0 ? <FirstCellText cell={cell} k={`td-${r}-${c}`} /> : <Inlines items={cell} k={`td-${r}-${c}`} />}
-                </td>
-              ))}
+            <tr key={r}>
+              {row.map((cell, c) => {
+                const text = textOf(cell).trim()
+                const isNum = c > 0 && NUM_CELL.test(text)
+                return (
+                  <td key={c} className={isNum ? s.num : undefined}>
+                    {isNum ? <NumCell text={text} /> : c === 0 ? <FirstCell cell={cell} k={`td-${r}-${c}`} /> : <Inlines items={cell} k={`td-${r}-${c}`} />}
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>
@@ -65,62 +93,94 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
   )
 }
 
-// 判断フロー。丸数字＋縦の導線で「上から順に試す」を形で示す。
-// step.label が自動分類（"1" "2"…）のときは丸数字と重複するので条件行を出さない。
-// オーバレイで条件（「SpO₂ 85%以上・高CO₂リスクなし」等）が渡されたときだけ条件行になる。
-function FlowSteps({ steps, intro }: { steps: { label: string; inlines: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }) {
+// 判断フロー。前提条件のボックス → 条件チップつきの導線 → デバイスのカード、の順に積む
+// （パイロットの .flow-cond / .flow-link / .flow-dev）。丸数字は使わない。
+function FlowSteps({
+  steps,
+  intro,
+}: {
+  steps: { label: string; inlines: ReaderInline[]; dose?: ReaderInline[]; note?: ReaderInline[] }[]
+  intro?: ReaderInline[]
+}) {
   return (
-    <div className="my-4">
-      {/* フロー全体の前提条件（パイロット誌面の「高CO₂血症リスクなしで SpO₂ 85%以上」）。 */}
+    <div className={s.flow}>
       {intro && intro.length > 0 && (
-        <div className="mb-2.5 rounded-md bg-brand-50 dark:bg-white/[0.06] px-3 py-1.5 text-[0.85em] font-bold text-brand-800 dark:text-brand-200 leading-snug">
+        <div className={s.flowCond}>
           <Inlines items={intro} k="flow-intro" />
         </div>
       )}
-      <ol>
-        {steps.map((s, i) => {
-          const condition = s.label !== String(i + 1) ? s.label : null
-          return (
-            <li key={i} className="relative pl-10 pb-4 last:pb-0">
-              {i < steps.length - 1 && (
-                <span aria-hidden="true" className="absolute left-[13px] top-8 bottom-0 w-px bg-brand-200 dark:bg-white/15" />
-              )}
-              <span className="absolute left-0 top-0 w-7 h-7 rounded-full bg-brand-600 text-white text-sm font-bold grid place-items-center">
-                {i + 1}
+      {steps.map((step, i) => {
+        // label が自動分類（"1" "2"…）のときは条件チップを出さない
+        const condition = step.label !== String(i + 1) ? step.label : null
+        return (
+          <div key={i}>
+            {(condition || i > 0 || intro) && (
+              <div className={s.flowLink}>{condition && <span className={s.why}>{condition}</span>}</div>
+            )}
+            <div className={s.flowDev}>
+              <span className={s.name}>
+                <Inlines items={step.inlines} k={`step-${i}`} />
               </span>
-              {condition && (
-                <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 leading-snug pt-0.5">
-                  {condition}
-                </div>
+              {step.dose && step.dose.length > 0 && (
+                <span className={s.dose}>
+                  <Inlines items={step.dose} k={`dose-${i}`} />
+                </span>
               )}
-              <div className={`leading-relaxed ${condition ? 'mt-0.5' : 'pt-0.5'} ${BOLD_AS_NUMBER}`}>
-                <Inlines items={s.inlines} k={`step-${i}`} />
-              </div>
-              {/* ステップの補足行（小さく・薄く）。数値強調はここには効かせない。 */}
-              {s.note && s.note.length > 0 && (
-                <div className="mt-0.5 text-[0.82em] text-gray-500 dark:text-gray-400 leading-snug">
-                  <Inlines items={s.note} k={`note-${i}`} />
-                </div>
+              {step.note && step.note.length > 0 && (
+                <small>
+                  <Inlines items={step.note} k={`note-${i}`} />
+                </small>
               )}
-            </li>
-          )
-        })}
-      </ol>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// 2枚組の比較カード（パイロット誌面の節5 COT vs HFNC）。
-function Cards({ cards }: { cards: { title: string; lines: ReaderInline[][] }[] }) {
+// 実測値の帯グラフ（パイロットの .stats）。3列を横に並べ、値・帯・ラベルの順に積む。
+// 帯の長さは items 中の最大値を100%とした相対（値そのもののパーセントではない）。
+function Stats({ part }: { part: Extract<SpreadPart, { kind: 'gauge' }> }) {
+  const nums = part.items.map((it) => Number.parseFloat(it.value))
+  const max = Math.max(...nums.filter(Number.isFinite), 0)
   return (
-    <div className="my-4 grid gap-3 sm:grid-cols-2">
+    <div className={s.stats}>
+      {part.title && <div className={s.statsTitle}>{part.title}</div>}
+      <div className={s.statsRow}>
+        {part.items.map((it, i) => {
+          const n = nums[i]
+          const width = max > 0 && Number.isFinite(n) ? Math.max(4, (n / max) * 100) : 0
+          return (
+            <div key={i} className={`${s.stat} ${it.warn ? s.warn : ''}`}>
+              <span className={s.statV}>
+                <NumCell text={it.value} />
+              </span>
+              <span className={s.gauge} aria-hidden="true">
+                <span className={s.fill} style={{ width: `${width}%` }} />
+              </span>
+              <span className={s.statL}>
+                <Inlines items={it.label} k={`gauge-${i}`} />
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// 2枚組の比較カード（パイロットの .vs）。主役側（primary）はヘッダーを塗る。
+function Cards({ cards }: { cards: { title: string; lines: ReaderInline[][]; primary?: boolean }[] }) {
+  return (
+    <div className={s.vs}>
       {cards.map((c, i) => (
-        <div key={i} className="rounded-lg bg-soft-light dark:bg-soft-dark border-t-2 border-brand-600 px-4 py-3.5">
-          <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">{c.title}</div>
-          <ul className={`space-y-1.5 leading-relaxed text-[0.95em] ${BOLD_AS_NUMBER}`}>
+        <div key={i} className={`${s.vsCol} ${c.primary ? s.hero : ''}`}>
+          <h3>{c.title}</h3>
+          <ul>
             {c.lines.map((line, li) => (
-              <li key={li} className="pl-3.5 relative before:content-[''] before:absolute before:left-0 before:top-[0.7em] before:w-1.5 before:h-1.5 before:rounded-sm before:bg-brand-200 dark:before:bg-brand-300/40">
-                <Inlines items={line} k={`card-${i}-${li}`} />
+              <li key={li}>
+                <CardLine line={line} k={`card-${i}-${li}`} />
               </li>
             ))}
           </ul>
@@ -130,56 +190,6 @@ function Cards({ cards }: { cards: { title: string; lines: ReaderInline[][] }[] 
   )
 }
 
-// 表層の補足ノート（部品の下に添える一言）。
-function SurfaceNote({ inlines }: { inlines: ReaderInline[] }) {
-  return (
-    <div className={`my-4 rounded-lg border border-brand-200 dark:border-white/15 bg-brand-50/50 dark:bg-white/[0.04] px-4 py-3 text-[0.9em] leading-relaxed text-gray-700 dark:text-gray-200 ${BOLD_AS_NUMBER}`}>
-      <Inlines items={inlines} k="surface-note" />
-    </div>
-  )
-}
-
-// 実測値の帯グラフ（パイロット誌面の死亡率ゲージ）。帯の長さは items 中の最大値を100%として
-// 相対で引く（値そのもののパーセントではない。8.7%と17.1%の差を画面幅いっぱいで見せるため）。
-// 面は階調のまま、値と帯だけに色を置く。warn（悪い側の値）は琥珀にする。
-function Gauge({ part }: { part: Extract<SpreadPart, { kind: 'gauge' }> }) {
-  const nums = part.items.map((it) => Number.parseFloat(it.value))
-  const max = Math.max(...nums.filter(Number.isFinite), 0)
-  return (
-    <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
-      {part.title && (
-        <div className="text-[0.8em] font-bold text-gray-500 dark:text-gray-400 mb-2">{part.title}</div>
-      )}
-      <div className="space-y-2.5">
-        {part.items.map((it, i) => {
-          const n = nums[i]
-          const width = max > 0 && Number.isFinite(n) ? Math.max(4, (n / max) * 100) : 0
-          return (
-            <div key={i}>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-[1.3em] font-bold tabular-nums ${it.warn ? 'text-amber-700 dark:text-amber-300' : 'text-brand-700 dark:text-brand-300'}`}>
-                  {it.value}
-                </span>
-                <span className="text-[0.85em] text-gray-600 dark:text-gray-300 leading-snug">
-                  <Inlines items={it.label} k={`gauge-${i}`} />
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 rounded-full bg-gray-200/70 dark:bg-white/10 overflow-hidden" aria-hidden="true">
-                <div
-                  className={`h-full rounded-full ${it.warn ? 'bg-amber-600/80 dark:bg-amber-400/70' : 'bg-brand-600 dark:bg-brand-300'}`}
-                  style={{ width: `${width}%` }}
-                />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// part は保存済みスナップショット由来で参照が安定しているので memo が効く。
-// これが無いと検索の1キーストロークごとに全節の表・カード・フローが描き直される。
 export const SpreadPartView = memo(function SpreadPartView({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
   return (
@@ -194,38 +204,55 @@ function SpreadPartBody({ part }: { part: SpreadPart }) {
   if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} />
   if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} intro={part.intro} />
   if (part.kind === 'cards') return <Cards cards={part.cards} />
-  if (part.kind === 'note') return <SurfaceNote inlines={part.inlines} />
-  if (part.kind === 'gauge') return <Gauge part={part} />
+  if (part.kind === 'note') {
+    // 表層の補足（パイロットの .vs-note / .contra）。枠の無い小さな本文で置く。
+    return (
+      <p className={s.vsNote}>
+        <Inlines items={part.inlines} k="surface-note" />
+      </p>
+    )
+  }
+  if (part.kind === 'gauge') return <Stats part={part} />
   if (part.kind === 'bignumber') {
     return (
-      <div className="my-4 rounded-lg bg-soft-light dark:bg-soft-dark px-4 py-3.5">
-        <div className="text-[2em] font-bold text-brand-600 dark:text-brand-300 leading-tight">{part.value}</div>
-        <div className="text-[0.9em] text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">
-          <Inlines items={part.caption} k="bn" />
+      <div className={s.stats}>
+        <div className={s.statsRow}>
+          <div className={s.stat}>
+            <span className={s.statV}>
+              <NumCell text={part.value} />
+            </span>
+            <span className={s.statL}>
+              <Inlines items={part.caption} k="bn" />
+            </span>
+          </div>
         </div>
       </div>
     )
   }
-  // ここまでで none/comparison/matrix/flow/timeline/bignumber は return 済み。
-  // 残るは 'gonogo' のはずだが、SpreadPart は分岐先の kind が 'comparison' | 'matrix' の
-  // ように複数リテラルの共用体になっている変種を含み、TypeScript の判別共用体の絞り込みが
-  // 直前までの if だけでは 'gonogo' 単独まで追い切れない（TSの既知の制限）。
-  // 明示チェックで確定させる。'gonogo' 以外がここに来ることは型上ありえない。
+  // ここまでで none/comparison/matrix/flow/timeline/cards/note/gauge/bignumber は return 済み。
+  // 残るは 'gonogo' のはずだが、SpreadPart は 'comparison' | 'matrix' のように複数リテラルの
+  // 共用体を含む変種があり、TypeScript の絞り込みが直前までの if だけでは追い切れない。
   if (part.kind !== 'gonogo') return null
   return (
-    <div className="my-4 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-lg bg-soft-light dark:bg-soft-dark border-l-2 border-brand-600 px-4 py-3.5">
-        <div className="text-sm font-bold text-brand-700 dark:text-brand-300 mb-1.5">{part.goLabel || 'こうする'}</div>
-        <ul className={`space-y-1.5 leading-relaxed ${BOLD_AS_NUMBER}`}>
-          {part.go.map((line, i) => <li key={i}><Inlines items={line} k={`go-${i}`} /></li>)}
+    <div className={s.gonogo}>
+      <div className={`${s.panel} ${s.go}`}>
+        <h3>{part.goLabel || 'こうする'}</h3>
+        <ul>
+          {part.go.map((line, i) => (
+            <li key={i}>
+              <Inlines items={line} k={`go-${i}`} />
+            </li>
+          ))}
         </ul>
       </div>
-      {/* 否定側は面を塗らず（低彩度の色かぶり＝濁り）、見出しと左罫のアクセントだけ赤系にする。 */}
-      <div className="rounded-lg bg-soft-light dark:bg-soft-dark border-l-2 border-red-700 dark:border-red-400 px-4 py-3.5">
-        <div className="text-sm font-bold text-red-700 dark:text-red-300 mb-1.5">{part.noGoLabel || 'こうしない'}</div>
-        {/* 否定側の強調は赤系（境界値・悪化のサイン）。緑で光らせると「推奨」に見えてしまう。 */}
-        <ul className="space-y-1.5 leading-relaxed [&_.font-bold]:text-red-700 dark:[&_.font-bold]:text-red-300 [&_.font-bold]:text-[1.12em]">
-          {part.noGo.map((line, i) => <li key={i}><Inlines items={line} k={`nogo-${i}`} /></li>)}
+      <div className={`${s.panel} ${s.stop}`}>
+        <h3>{part.noGoLabel || 'こうしない'}</h3>
+        <ul>
+          {part.noGo.map((line, i) => (
+            <li key={i}>
+              <Inlines items={line} k={`nogo-${i}`} />
+            </li>
+          ))}
         </ul>
       </div>
     </div>
