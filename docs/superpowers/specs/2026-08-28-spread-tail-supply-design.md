@@ -51,7 +51,8 @@ disclaimer: ReaderBlock[]; rest: ReaderBlock[] }`。分類できないブロッ�
 ReaderSpread が3つを自前の枠で組む。CSSは `spread.module.css` にパイロットから1対1で移植する。
 
 - 実践: 緑1.5px枠・角丸12px、見出しは緑tintの帯（`--brand-tint` / `--brand-deep`）。
-  callout の丸アイコンは出さない。「※」で始まる行は上罫線＋0.75rem・グレー。
+  見出しにはパイロットと同じ線画の聴診器（lucide-react の Stethoscope）を置き、
+  callout の丸アイコン（絵文字のアバター）は出さない。「※」で始まる行は上罫線＋0.75rem・グレー。
 - 文献: 見出しは箱をやめて 0.95rem の素の見出し。項目は番号つき `ol`
   （padding-left 1.4em・0.85rem・グレー、太字だけ濃い色）。
 - 免責: 上罫線＋0.78rem・グレー。
