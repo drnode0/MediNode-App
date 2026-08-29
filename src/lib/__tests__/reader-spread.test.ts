@@ -505,26 +505,6 @@ describe('extraParts（追加の表層部品）', () => {
   })
 })
 
-describe('entries（いまの状況から探す）', () => {
-  it('存在しない節を指す入口は applyOverlay で捨てる', () => {
-    const draft = buildSpreadDraft(doc, 'p1')
-    const r = applyOverlay(draft, { entries: [
-      { label: 'SpO₂ 85%未満', anchor: '2' },
-      { label: '存在しない節へ', anchor: '9' },
-    ] })
-    expect(r.entries).toEqual([{ label: 'SpO₂ 85%未満', anchor: '2' }])
-  })
-
-  it('sanitizeOverlay は label / anchor が空の入口を捨てる', () => {
-    const r = sanitizeOverlay({ entries: [
-      { label: '  ', anchor: '1' },
-      { label: '入口', anchor: '' },
-      { label: '入口', anchor: '1' },
-    ] })
-    expect(r.entries).toEqual([{ label: '入口', anchor: '1' }])
-  })
-})
-
 describe('splitSections: 節より後ろの level 1 見出し（# Evidence 以降）', () => {
   // 実物のサブスク本文の並び。`# Evidence` は level 1 で、📚callout の下に参考文献の
   // 箇条書きと PubMed検索例が続く。level 2 の節ではないので、対処しないと最後の節に飲み込まれる。

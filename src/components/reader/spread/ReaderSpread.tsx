@@ -346,21 +346,6 @@ export function ReaderSpread({
         {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落が誌面から黙って消える。 */}
         <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
 
-        {/* 状況からの入口（パイロット誌面の「いまの状況から探す」）。目次より先に置く。
-            存在しない節を指す入口は applyOverlay が捨てているので、ここでは無条件に描いてよい。 */}
-        {(spread.entries?.length ?? 0) > 0 && (
-          <div className={styles.entries}>
-            <div className={styles.entriesTitle}>いまの状況から探す</div>
-            <div className={styles.entriesRow}>
-              {spread.entries!.map((e) => (
-                <a key={`${e.anchor}-${e.label}`} href={`#${e.anchor}`} className={styles.entry}>
-                  {e.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
         {toc.length > 0 && (
           // 追従目次（パイロットの nav.toc）。読み進めると上端に貼り付き、現在地が反転する。
           // 読了バーもここに引く。既存の ReaderNavBar は誌面では出さない（同じ役割で形が違う）。

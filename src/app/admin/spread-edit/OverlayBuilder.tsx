@@ -12,7 +12,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
@@ -553,40 +553,7 @@ function SectionEditor({
   )
 }
 
-// ---------------------------------------------------------------- 入口・参考文献・理解チェック
-
-function EntriesEditor({ overlay, onChange, sections }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; sections: SectionInfo[] }) {
-  const entries = overlay.entries ?? []
-  const set = (list: SpreadEntry[]) => onChange({ ...overlay, entries: list.length ? list : undefined })
-  return (
-    <div className="mb-4">
-      <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">いまの状況から探す（入口チップ）</div>
-      {entries.map((e, i) => (
-        <div key={i} className="flex items-center gap-1 mb-1">
-          <input
-            value={e.label}
-            onChange={(ev) => set(entries.map((x, j) => (j === i ? { ...x, label: ev.target.value } : x)))}
-            placeholder="状況の呼び名（例: SpO₂ 85%未満）"
-            className="flex-1 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1"
-          />
-          <select
-            value={e.anchor}
-            onChange={(ev) => set(entries.map((x, j) => (j === i ? { ...x, anchor: ev.target.value } : x)))}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-1 py-1 bg-transparent"
-          >
-            {sections.map((s) => (
-              <option key={s.anchor} value={s.anchor}>節{s.n ?? s.anchor}</option>
-            ))}
-          </select>
-          <IconButton title="削除" onClick={() => set(entries.filter((_, j) => j !== i))}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
-        </div>
-      ))}
-      <button type="button" onClick={() => set([...entries, { label: '', anchor: sections[0]?.anchor ?? '1' }])} className="text-[11px] text-brand-700 dark:text-brand-300 inline-flex items-center gap-1">
-        <Plus className="w-3.5 h-3.5" aria-hidden />入口を足す
-      </button>
-    </div>
-  )
-}
+// ---------------------------------------------------------------- 参考文献・理解チェック
 
 // 参考文献の圧縮行。誌面の一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
 // 出典の略記と1行説明は原本に無いので、非公開の誌面ノートに置いた行から選ぶ
@@ -847,7 +814,6 @@ export function OverlayBuilder({
   }, [draft, refItems])
   return (
     <div>
-      <EntriesEditor overlay={overlay} onChange={onChange} sections={sections} />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}

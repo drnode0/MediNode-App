@@ -166,39 +166,6 @@
   line-height: 1.9;
 }
 
-/* ===== いまの状況から探す ===== */
-.entries {
-  margin-bottom: 1.2rem;
-}
-.entriesTitle {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 0.4rem;
-}
-.entriesRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.entry {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--brand-deep);
-  background: var(--brand-tint-2);
-  border: 1px solid var(--brand-line);
-  border-radius: 999px;
-  padding: 0.28em 0.9em;
-}
-.entry::after {
-  content: " →";
-  white-space: pre;
-}
-
 /* ===== 目次チップ（追従） =====
    パイロットの nav.toc と同じく、読み進めると上端に貼り付き、現在地のチップが緑に反転する。
    スクロール容器の上下パディング（pt-4）ぶんだけ負のオフセットを取って隙間を塞ぐ。 */

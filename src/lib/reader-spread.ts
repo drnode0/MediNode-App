@@ -76,10 +76,6 @@ export type SpreadQuiz = {
   explanation?: string
 }
 
-// 「いまの状況から探す」の入口チップ。label は状況の呼び名（表示上の命名＝逐語検査の
-// 対象外）、anchor は飛び先の節。存在しない節を指す入口は applyOverlay で捨てる。
-export type SpreadEntry = { label: string; anchor: string }
-
 // 参考文献の圧縮行。title / source / note は非公開の誌面ノート_DB に置き、3つとも
 // 逐語一致検査の対象。title は原本の完全タイトルを縮めたもので、頭の語が落ちたり途中が
 // 略語に置き換わったりするため、文言から「原本のどの文献行か」を当てにいくと別の文献の
@@ -96,8 +92,6 @@ export type SpreadDoc = {
   title: string
   lead: ReaderBlock | null
   preface: ReaderBlock[]
-  // 状況からの入口（パイロット誌面の「いまの状況から探す」）。旧 SpreadDoc には無いキー。
-  entries?: SpreadEntry[]
   sections: SpreadSection[]
   tail: ReaderBlock[]
   // 参考文献の圧縮行。無ければ誌面は原本の箇条書きをそのまま出す（旧 SpreadDoc には
@@ -112,7 +106,6 @@ export type SpreadOverlay = {
   shortLabels?: Record<string, string>
   parts?: Record<string, SpreadPart>
   extraParts?: Record<string, SpreadPart[]>
-  entries?: SpreadEntry[]
   refs?: SpreadRef[]
   icons?: Record<string, string>
   quizzes?: SpreadQuiz[]
@@ -349,11 +342,6 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
     }
     out.extraParts = extra
   }
-  // 入口チップは label / anchor が空のものを捨てる（存在しない節の除外は applyOverlay で行う。
-  // 節構成を知っているのは下書き側のため）。
-  if (overlay.entries) {
-    out.entries = overlay.entries.filter((e) => e.label?.trim() && e.anchor?.trim())
-  }
   // 参考文献の圧縮行は行の取捨とキー・文言の正規化を sanitizeRefs に集める
   // （編集画面のビルダーも同じ1本を引き、関門の入力が中と外で割れないようにしている）。
   if (overlay.refs) {
@@ -367,7 +355,6 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
  * 本文（deep / lead / preface / tail）には一切触れない。触れさせないことが安全装置になる。
  */
 export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDoc {
-  const anchors = new Set(draft.sections.map((s) => s.anchor))
   return {
     ...draft,
     sections: draft.sections.map((s) => ({
@@ -376,8 +363,6 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
       part: overlay.parts?.[s.anchor] ?? s.part,
       extraParts: overlay.extraParts?.[s.anchor] ?? s.extraParts,
     })),
-    // 存在しない節を指す入口は黙って捨てる（押しても飛ばないチップを読者に出さない）。
-    entries: (overlay.entries ?? draft.entries ?? []).filter((e) => anchors.has(e.anchor)),
     // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、誌面は原本の
     // 箇条書きを出す。ここでも本文（tail のブロック）には触れない。
     refs: overlay.refs ?? draft.refs,
