@@ -17,3 +17,8 @@ SpreadDoc / SpreadOverlay / ReaderBlock に足すキーは必ず optional（保�
   Minor carry: splitCalloutHead / TailBlock はコンポーネントローカルで単体テストが無い（.tsx のテストが無い既存流儀に合わせた）
   Minor carry: 免責は callout（⚠️）だけを拾う。素の段落の免責は rest に残る（calloutRole だけを使う制約を優先）
   注意: .preview/ は .gitignore 対象なので style-diff.mjs の変更はコミットに入らない（各自の手元にだけ在る）
+段1b: complete (commit cd54372, review clean; style-diff 27ペア差分0（ライト・ダーク）、全体1359件通過、tsc clean; 行間をパイロットへ)
+  指定漏れ5件＋値違い11件を 1.9 に揃えた。番号バッジは .tocLink 側に置いて継承させる
+  （.badge に直接書くと節見出しの番号バッジまで巻き込むため。パイロットも継承で実現している）。
+  Minor carry: 1b の報告書の申し送りに事実誤り1件（table.spec は対応表に有り、パイロットは 1.65 を明示。
+    アプリ側も 1.65 で一致しているので実害なし）
