@@ -259,6 +259,7 @@ export function SpreadEditClient() {
                       icon={draft.doc.icon}
                       genre={draft.doc.genre}
                       questionType={draft.doc.questionType}
+                      origin={draft.doc.origin}
                       scrollRef={scrollRef}
                     />
                   </ReaderSearchCtx.Provider>
