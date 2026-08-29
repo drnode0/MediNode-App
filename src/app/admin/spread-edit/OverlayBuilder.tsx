@@ -12,7 +12,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { sectionTitleText, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { displayTail, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, emptyRef, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
@@ -592,7 +592,7 @@ function RefsEditor({ overlay, onChange, checker, own, notes }: { overlay: Sprea
         checker={checker}
         own={own}
         notes={notes}
-        ownLabel="記事末の原本"
+        ownLabel="記事末の文献一覧"
       />
     </Field>
   )
@@ -709,16 +709,18 @@ export function OverlayBuilder({
     () => draft.sections.map((s) => ({ anchor: s.anchor, n: s.n, title: s.title, autoKind: s.part.kind, deep: s.deep })),
     [draft],
   )
-  // 参考文献の候補は記事末（原本の文献一覧）から出す。短いタイトルは原本の完全タイトルの
+  // 参考文献の候補は記事末の文献一覧の行だけから出す。短いタイトルは原本の完全タイトルの
   // 前方一致になることが多いので、原本の行を入れてから削るのが早い。
-  const tailLines = useMemo(() => candidateLines(draft.tail), [draft])
+  // tail 全体を拾うと、PubMed検索キーワード例・免責・署名まで候補に並んで選びにくくなるので、
+  // 誌面が実際に文献一覧として出す範囲（displayTail → splitTailBlocks の refsItems）に揃える。
+  const refLines = useMemo(() => candidateLines(splitTailBlocks(displayTail(draft.tail).rest).refsItems), [draft])
   return (
     <div>
       <EntriesEditor overlay={overlay} onChange={onChange} sections={sections} />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}
-      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={tailLines} notes={noteLines} />
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={refLines} notes={noteLines} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} />
     </div>
   )

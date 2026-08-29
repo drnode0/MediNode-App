@@ -349,8 +349,14 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
 
 // 部品と理解チェックが持つ「原本に由来するはずの文」を集める。
 // 短ラベルは目次チップ用の呼び名で原本には無くてよいので、対象に入れない。
+//
+// 集める先を string ではなく string | undefined で持つ。保存形は JSON で、編集画面の
+// 「JSONを直接編集」やAPIへの直接PUTからは型どおりでない（キーの欠けた）値が入りうる。
+// そこで例外にすると、編集画面は useMemo の中で落ちて画面ごと消え、APIは 400 の
+// verbatim_mismatch ではなく 500 になる。欠けたキーは空文字として扱い、末尾の
+// filter(Boolean) で対象から外す（sanitizeOverlay が `r.title?.trim()` で守っているのと同じ流儀）。
 function verbatimTargets(spread: SpreadDoc): string[] {
-  const out: string[] = []
+  const out: (string | undefined)[] = []
   const collect = (p: SpreadPart) => {
     if (p.kind === 'comparison' || p.kind === 'matrix') {
       for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
@@ -384,7 +390,7 @@ function verbatimTargets(spread: SpreadDoc): string[] {
   // 参考文献の圧縮行は3つとも対象に入れる。source と note は原本に無く誌面ノートにあるので、
   // ノートにも原本にも無い文言（生成側が書いた説明）はここで弾かれる。
   for (const r of spread.refs ?? []) out.push(r.title, r.source, r.note)
-  return out.map((s) => s.trim()).filter(Boolean)
+  return out.map((s) => (s ?? '').trim()).filter(Boolean)
 }
 
 // ブロック列の全文（ブロックを跨いだ連結ではなく、ブロックごとの文字列の集合）。
@@ -445,7 +451,9 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
   const corpus = corpusOf({ title: '', icon: null, cover: null, lastEdited: null, blocks: section.deep })
   return spread.quizzes.filter((q) => {
     if (q.sectionAnchor !== anchor || !q.reviewed) return false
-    const evidence = q.evidence.trim()
+    // evidence のキーごと無い設問（JSONを直接編集した投入・APIへの直接PUT）でも
+    // 例外にせず、空文字として扱って下の fail-closed に落とす（verbatimTargets と同じ扱い）。
+    const evidence = (q.evidence ?? '').trim()
     // 空文字は String.includes('') が常に true を返すため、検査をすり抜けて
     // 根拠のない設問を通してしまう。fail-closed で明示的に弾く。
     if (!evidence) return false

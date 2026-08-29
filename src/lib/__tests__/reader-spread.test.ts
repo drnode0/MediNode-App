@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
-import type { SpreadQuiz, SpreadPart } from '../reader-spread'
+import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
 
@@ -279,6 +279,15 @@ describe('visibleQuizzes', () => {
 
   it('根拠が空白とタブだけで目視済みでも出さない', () => {
     const s = { ...base, quizzes: [q({ evidence: '  \t\t  ' })] }
+    expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+
+  it('evidence のキーごと無い設問でも落ちず、出さない（JSONを直接編集した投入・APIへの直接PUT）', () => {
+    // 保存形は JSON で、編集画面の「JSONを直接編集」やAPIへの直接PUTからは
+    // キーの欠けた設問が入りうる。例外で画面ごと落とさず、fail-closed で伏せる。
+    const broken = { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, reviewed: true } as SpreadQuiz
+    const s = { ...base, quizzes: [broken] }
+    expect(() => visibleQuizzes(s, '1')).not.toThrow()
     expect(visibleQuizzes(s, '1')).toHaveLength(0)
   })
 })
@@ -942,5 +951,22 @@ describe('refs（参考文献の圧縮行）', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const merged = applyOverlay(draft, { refs: [{ title: '出典の略記が無い文献', source: '', note: '' }] })
     expect(verifyVerbatim(merged, doc, notes)).toEqual({ ok: true, missing: [] })
+  })
+
+  it('source / note のキーごと無い行でも落ちない（JSONを直接編集した投入・APIへの直接PUT）', () => {
+    // 3キー揃っていない JSON は「JSONを直接編集」の窓口からもAPIへの直接PUTからも入りうる。
+    // 例外にすると編集画面が useMemo の中で落ち、APIは 400（verbatim_mismatch）ではなく 500 になる。
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, { refs: [{ title: '出典の略記が無い文献' } as SpreadRef] })
+    expect(() => verifyVerbatim(merged, doc, notes)).not.toThrow()
+    expect(verifyVerbatim(merged, doc, notes)).toEqual({ ok: true, missing: [] })
+  })
+
+  it('キーが欠けていても、あるキーの文言は従来どおり検査される', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, { refs: [{ title: '誰も書いていない短いタイトル' } as SpreadRef] })
+    const r = verifyVerbatim(merged, doc, notes)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toEqual(['誰も書いていない短いタイトル'])
   })
 })

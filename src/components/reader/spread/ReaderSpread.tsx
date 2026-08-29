@@ -472,8 +472,11 @@ export function ReaderSpread({
             </div>
           )}
 
-          {/* 文献（📚）。パイロットは箱をやめ、素の見出し＋番号つきの一覧で出す。 */}
-          {(refs.head || refs.body.length > 0 || compactRefs.length > 0 || tail.refsItems.length > 0) && (
+          {/* 文献（📚）。パイロットは箱をやめ、素の見出し＋番号つきの一覧で出す。
+              出す条件は原本の文献 callout があること。圧縮行だけを条件に入れると、
+              原本に callout の無い誌面に refs を供給したとき、見出しの無い一覧が
+              単独で出てしまう（パイロットの文献は必ず見出しを伴う）。 */}
+          {(refs.head || refs.body.length > 0 || tail.refsItems.length > 0) && (
             <div className={styles.refs}>
               {refs.head && (
                 <h3>
@@ -484,14 +487,24 @@ export function ReaderSpread({
                 <TailBlock key={i} block={b} k={`refs-body-${i}`} onImageClick={onImageClick} />
               ))}
               {/* 圧縮行があればそれで組む（パイロットの1行＝太字の短いタイトル・丸括弧の出典・
-                  1行説明）。出典の略記が無い文献では丸括弧ごと出さない。 */}
+                  1行説明）。出典の略記が無い文献では丸括弧ごと出さない。
+                  3つとも Inlines に描かせる。生テキストで置くと、記事内検索が文献一覧を
+                  拾えず（ハイライトも件数の数え上げも Inlines の mark を見ている）、
+                  確信度マーク（✅⚠️❓）と収録レベル印（🔖）も線画アイコンに変換されず
+                  絵文字のまま出てしまう。 */}
               {compactRefs.length > 0 ? (
                 <ol>
                   {compactRefs.map((r, i) => (
                     <li key={i}>
-                      <b>{r.title}</b>
-                      {r.source ? `（${r.source}）` : ''}
-                      {r.note}
+                      <b>
+                        <Inlines items={[{ text: r.title ?? '' }]} k={`refs-compact-${i}-title`} />
+                      </b>
+                      {r.source ? (
+                        <>
+                          （<Inlines items={[{ text: r.source }]} k={`refs-compact-${i}-source`} />）
+                        </>
+                      ) : null}
+                      <Inlines items={[{ text: r.note ?? '' }]} k={`refs-compact-${i}-note`} />
                     </li>
                   ))}
                 </ol>
