@@ -1,4 +1,4 @@
-// アプリ内リーダーの「誌面」表示（TEXTBOOK LITE）のデータ模型。
+// アプリ内リーダーの「スプレッド」表示（TEXTBOOK LITE）のデータ模型。
 // 設計: docs/superpowers/specs/2026-08-27-reader-spread-design.md
 //
 // 本文は必ず Notion原本由来の ReaderBlock をそのまま抱える（生成側が本文を書かない）。
@@ -17,8 +17,8 @@ import { stripLeadingEmoji } from './labels'
 /**
  * reader_spreads.page_id の正準形（ハイフンなし32桁の小文字）。
  *
- * 誌面は「/admin から投入して Supabase に保存」「配信APIが page_id で引いて読者に返す」の
- * 2経路で同じ値を扱う。ここが揃っていないと、投入した誌面が読者に1件も届かない
+ * スプレッドは「/admin から投入して Supabase に保存」「配信APIが page_id で引いて読者に返す」の
+ * 2経路で同じ値を扱う。ここが揃っていないと、投入したスプレッドが読者に1件も届かない
  * （読者側の記事IDは Algolia の objectID＝ハイフンありのUUID、保存側はハイフンなし32桁、
  * という食い違いが実際に起きた）。書く側と読む側の両方で必ずこの関数を通すこと。
  *
@@ -49,18 +49,18 @@ export type SpreadPart =
   // intro / note と同じく逐語一致検査の対象で、label だけが表示上の命名＝対象外。
   | { kind: 'flow' | 'timeline'; steps: { label: string; inlines: ReaderInline[]; dose?: ReaderInline[]; note?: ReaderInline[] }[]; intro?: ReaderInline[] }
   | { kind: 'bignumber'; value: string; caption: ReaderInline[] }
-  // 2枚組の比較カード（パイロット誌面の節5 COT vs HFNC）。title はカードの呼び名
+  // 2枚組の比較カード（パイロット版の節5 COT vs HFNC）。title はカードの呼び名
   // （命名＝検査対象外）、lines は逐語一致検査の対象。primary は主役側のカードで、
   // 見出し帯を塗る（パイロットの .vs-col.hero）。表示上の指定なので検査の対象外。
   | { kind: 'cards'; cards: { title: string; lines: ReaderInline[][]; primary?: boolean }[] }
-  // 表層の補足ノート（パイロット誌面の「高流量か低流量かの線引きは…」等）。逐語一致検査の対象。
+  // 表層の補足ノート（パイロット版の「高流量か低流量かの線引きは…」等）。逐語一致検査の対象。
   | { kind: 'note'; inlines: ReaderInline[] }
   // goLabel / noGoLabel は枠の見出し（既定は「こうする」「こうしない」）。
   // 節6のように「NIVを選ぶ／侵襲的人工呼吸への移行を判断する」の対では、既定ラベルだと
   // 「こうしない」が誤読になる（移行の判断は禁止事項ではない）ため、オーバレイで名前を渡せる。
   // shortLabel と同じ表示上の呼び名なので、逐語一致検査の対象にはしない。
   | { kind: 'gonogo'; go: ReaderInline[][]; noGo: ReaderInline[][]; goLabel?: string; noGoLabel?: string }
-  // 実測値の帯グラフ（パイロット誌面の死亡率ゲージ）。value は本文中の数値の逐語、
+  // 実測値の帯グラフ（パイロット版の死亡率ゲージ）。value は本文中の数値の逐語、
   // label はその値の条件（SpO₂帯など）で、どちらも逐語一致検査の対象。
   // 帯の長さは表示側が value から導く。title は図の呼び名（shortLabel と同じ表示上の
   // 命名＝検査の対象外。主張や数値は title に書かず、value / label に逐語で置くこと）。
@@ -74,7 +74,7 @@ export type SpreadSection = {
   title: string
   shortLabel: string | null
   part: SpreadPart
-  // 主役部品（part）に添える追加の部品。パイロット誌面の節1が「比較表＋死亡率ゲージ」の
+  // 主役部品（part）に添える追加の部品。パイロット版の節1が「比較表＋死亡率ゲージ」の
   // 2枚構成だったように、1節に複数の表層を置きたいときにオーバレイで渡す。
   // 逐語一致検査は part と同じ扱い。保存済みの旧 SpreadDoc には無いキーなので optional。
   extraParts?: SpreadPart[]
@@ -92,16 +92,16 @@ export type SpreadQuiz = {
   // オーナーの目視フラグ。false の間は読者に出さない。
   reviewed: boolean
   // 正解の言い直し（パイロットの「正解：」に続く太字の部分）。書き下ろしなので
-  // 非公開の誌面ノート_DBに置く。逐語一致検査の対象。
+  // 非公開のスプレッドノート_DBに置く。逐語一致検査の対象。
   // 保存済みの SpreadDoc には無いキーなので optional。
   answerLead?: string
-  // 言い直しに続く解説の地の文。同じく誌面ノートに置き、逐語一致検査の対象。
-  // これが無ければ正解の面は従来どおり根拠の逐語を出す（供給していない誌面の
+  // 言い直しに続く解説の地の文。同じくスプレッドノートに置き、逐語一致検査の対象。
+  // これが無ければ正解の面は従来どおり根拠の逐語を出す（供給していないスプレッドの
   // 出力を1文字も変えない fail-safe）。
   explanation?: string
 }
 
-// 参考文献の圧縮行。title / source / note は非公開の誌面ノート_DB に置き、3つとも
+// 参考文献の圧縮行。title / source / note は非公開のスプレッドノート_DB に置き、3つとも
 // 逐語一致検査の対象。title は原本の完全タイトルを縮めたもので、頭の語が落ちたり途中が
 // 略語に置き換わったりするため、文言から「原本のどの文献行か」を当てにいくと別の文献の
 // リンクを読者に出しうる。そこで指す先は sourceId（原本の文献行のブロックID）で明示する。
@@ -119,8 +119,8 @@ export type SpreadDoc = {
   preface: ReaderBlock[]
   sections: SpreadSection[]
   tail: ReaderBlock[]
-  // 参考文献の圧縮行。無ければ誌面は原本の箇条書きをそのまま出す（旧 SpreadDoc には
-  // 無いキーなので optional。保存済みの誌面が壊れないよう、必ず「無ければ従来どおり」に倒す）。
+  // 参考文献の圧縮行。無ければスプレッドは原本の箇条書きをそのまま出す（旧 SpreadDoc には
+  // 無いキーなので optional。保存済みのスプレッドが壊れないよう、必ず「無ければ従来どおり」に倒す）。
   refs?: SpreadRef[]
   quizzes: SpreadQuiz[]
   icons: Record<string, string>
@@ -310,15 +310,15 @@ function stripPartHref(part: SpreadPart): SpreadPart {
 }
 
 /**
- * 参考文献の圧縮行を、誌面に載せる前に正規化する。
+ * 参考文献の圧縮行を、スプレッドに載せる前に正規化する。
  *
- * 1. title の無い行を捨てる（誌面の一覧に空の項番だけが並ぶのを防ぐ）。
+ * 1. title の無い行を捨てる（スプレッドの一覧に空の項番だけが並ぶのを防ぐ）。
  *    source（略記の出典）と note（1行説明）は空でも通す。出典の略記が無い文献があるため。
  * 2. 既知のキー（title / source / note / sourceId）だけを通す。部品側の stripPartHref と
  *    同じ構えで、「生成側にURLを書かせない」を型と正規化の両方で担保する。
  *    JSONを直接編集する窓口・APIへの直接PUTからは href などの未知のキーが混ざりうる。
  * 3. 3つの文言を trim する。逐語一致検査は trim して照合するので、trim せずに通すと
- *    末尾に空白を持ったタイトルが検査を抜けてそのまま誌面に出る。
+ *    末尾に空白を持ったタイトルが検査を抜けてそのままスプレッドに出る。
  *
  * 保存形は JSON なので、キーが欠けていても値が文字列でなくても落ちないようにする。
  */
@@ -388,7 +388,7 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
       part: overlay.parts?.[s.anchor] ?? s.part,
       extraParts: overlay.extraParts?.[s.anchor] ?? s.extraParts,
     })),
-    // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、誌面は原本の
+    // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、スプレッドは原本の
     // 箇条書きを出す。ここでも本文（tail のブロック）には触れない。
     refs: overlay.refs ?? draft.refs,
     icons: { ...draft.icons, ...(overlay.icons ?? {}) },
@@ -436,9 +436,9 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     for (const p of s.extraParts ?? []) collect(p)
   }
   // 理解チェックは根拠の逐語に加えて、書き下ろしの解説（正解の言い直しと地の文）も対象に入れる。
-  // どちらも原本には無く誌面ノートにあるので、ノートにも原本にも無い文言はここで弾かれる。
+  // どちらも原本には無くスプレッドノートにあるので、ノートにも原本にも無い文言はここで弾かれる。
   for (const q of spread.quizzes) out.push(q.evidence, q.answerLead, q.explanation)
-  // 参考文献の圧縮行は3つとも対象に入れる。source と note は原本に無く誌面ノートにあるので、
+  // 参考文献の圧縮行は3つとも対象に入れる。source と note は原本に無くスプレッドノートにあるので、
   // ノートにも原本にも無い文言（生成側が書いた説明）はここで弾かれる。
   for (const r of spread.refs ?? []) out.push(r.title, r.source, r.note)
   return out.map((s) => (s ?? '').trim()).filter(Boolean)
@@ -465,10 +465,10 @@ function corpusOf(doc: ReaderDoc): string {
 }
 
 /**
- * 誌面が「原本＋誌面ノート」の逐語だけでできているかを検査する。
+ * スプレッドが「原本＋スプレッドノート」の逐語だけでできているかを検査する。
  * 落ちたら投入を拒否する。生成側が本文を書き換えたことを意味するため。
  *
- * notes は非公開の誌面ノートページ（src/lib/spread-notes.ts）のブロック。
+ * notes は非公開のスプレッドノートページ（src/lib/spread-notes.ts）のブロック。
  * 圧縮文言は公開ページに置けない（公開リンクで読者に見える）ため、照合先だけを
  * ノートに広げる。渡されなければ従来どおり原本だけで検査する（fail-closed）。
  */
@@ -479,7 +479,7 @@ export function verifyVerbatim(spread: SpreadDoc, doc: ReaderDoc, notes?: Reader
 }
 
 /**
- * 1文だけの逐語照合器。編集画面が入力欄ごとに「この文は原本（＋誌面ノート）にあるか」を
+ * 1文だけの逐語照合器。編集画面が入力欄ごとに「この文は原本（＋スプレッドノート）にあるか」を
  * 即座に出すために使う。正規化は verifyVerbatim と同一（ここが割れると、画面では通るのに
  * 保存で落ちる、という食い違いが生まれる）。
  */
@@ -517,7 +517,7 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
  *
  * 解説（explanation）が供給されているときだけ「正解：＋言い直し」＋解説に差し替え、
  * 無ければ null を返す。null は「従来どおり根拠の逐語（evidence）を出す」の意味で、
- * 供給していない誌面の出力を1文字も変えないための fail-safe。
+ * 供給していないスプレッドの出力を1文字も変えないための fail-safe。
  *
  * lead は「正解：」に続く太字の部分。空文字なら「正解：」だけを太字にする。
  * キーが欠けた設問（JSONを直接編集した投入・APIへの直接PUT）でも落ちないよう、
@@ -539,7 +539,7 @@ function rowsText(rows: ReaderInline[][][]): string {
 }
 
 export type SectionDisplay = {
-  // 節末の「→」段落。表層の「この節の答え」ボックスへ昇格する（パイロット誌面の recap）。
+  // 節末の「→」段落。表層の「この節の答え」ボックスへ昇格する（パイロット版の recap）。
   recap: ReaderBlock | null
   // 表層へ昇格したブロック（recap・比較表の元テーブル）を除いた深掘り本文。
   deep: ReaderBlock[]
@@ -559,7 +559,7 @@ export type SectionDisplay = {
 // （タイトルと条目の並び）が引き受けるので対象外。それ以外の本文セルが
 // 「カードに載っている」か「空・ダッシュの飾りセル」だけで構成されるときに限り
 // 昇格済みとみなす。部分集合の一致で除くと、カードに載らなかったセルが
-// 誌面のどこにも出なくなる（本文の静かな欠落）ため、向きはこちらで固定する。
+// スプレッドのどこにも出なくなる（本文の静かな欠落）ため、向きはこちらで固定する。
 function tableCoveredByCards(rows: ReaderInline[][][], covered: Set<string>): boolean {
   const body = rows.slice(1).flatMap((row) => row.slice(1)).map((cell) => textOf(cell).trim())
   if (!body.some((t) => covered.has(t))) return false
@@ -594,7 +594,7 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
       break
     }
   }
-  // 凡例段落（「確信度の見方：…」）は誌面では出さない（凡例は誌面の上部に常設するため。
+  // 凡例段落（「確信度の見方：…」）はスプレッドでは出さない（凡例はスプレッドの上部に常設するため。
   // パイロット準拠）。段落を除いた結果、深掘り末尾に残る区切り線も出さない。
   // 何も除くものが無い節では配列をコピーしない（毎レンダー呼ばれる導出のため）。
   if (deep.some(isLegendParagraph)) deep = deep.filter((b) => !isLegendParagraph(b))
@@ -604,7 +604,7 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
   return { recap, deep }
 }
 
-// 本文フォーマットの凡例段落（「確信度の見方：」で始まる）。誌面では上部の凡例が担う。
+// 本文フォーマットの凡例段落（「確信度の見方：」で始まる）。スプレッドでは上部の凡例が担う。
 // 「確信度の見方は…」のような通常の本文を巻き込まないよう、直後の区切り記号まで要求する。
 export function isLegendParagraph(b: ReaderBlock): boolean {
   if (b.kind !== 'paragraph') return false
@@ -615,7 +615,7 @@ export function isLegendParagraph(b: ReaderBlock): boolean {
 /**
  * 節の深掘りに出てくる出典リンクのラベルを、登場順・重複なしで返す。
  * 「この節の根拠を見る」の隣に「BTS guideline 2017・野口 2024…」と添えるためのもの
- * （パイロット誌面の出典サマリ）。ラベルは原本のリンクテキストそのままで、新しい文は作らない。
+ * （パイロット版の出典サマリ）。ラベルは原本のリンクテキストそのままで、新しい文は作らない。
  */
 export function sectionSources(deep: ReaderBlock[]): string[] {
   const seen = new Set<string>()
@@ -640,11 +640,11 @@ export function sectionSources(deep: ReaderBlock[]): string[] {
   return out
 }
 
-// ---- 誌面の編集ルール（パイロット誌面で確定した表示上の整形） ----
+// ---- スプレッドの編集ルール（パイロット版で確定した表示上の整形） ----
 // ここも表示専用。原本と保存された SpreadDoc には触れない。
-// パイロット誌面（最終目標）が本文フォーマットに対して行っていた整形を、そのまま規則にする。
+// パイロット版（最終目標）が本文フォーマットに対して行っていた整形を、そのまま規則にする。
 
-// 誌面では出さない構造見出し。本文フォーマットの英語マーカー（# Question / # Answer / # Evidence）で、
+// スプレッドでは出さない構造見出し。本文フォーマットの英語マーカー（# Question / # Answer / # Evidence）で、
 // 読者向けの情報を持たない。タイトルが問いそのものであり、Evidence は📚calloutの見出しが担う。
 const STRUCTURAL_H1 = new Set(['Question', 'Answer', 'Evidence'])
 
@@ -666,7 +666,7 @@ export function displayPreface(preface: ReaderBlock[], title: string): ReaderBlo
 }
 
 // ⚡ボックスの見出しとして扱う既知のラベル行。原本の書式は「この問いへの答え」で、
-// 誌面の呼び名は「この記事の要点」（パイロットで確定）。既知のラベルのときだけ
+// スプレッドの呼び名は「この記事の要点」（パイロットで確定）。既知のラベルのときだけ
 // 見出し帯に昇格させる。既知でない先頭段落は本文（結論文そのもの等）の可能性が
 // あるので body に残し、原本の順序・装飾・検索ハイライトのまま描く。
 const LEAD_LABELS = new Set(['この問いへの答え', 'この記事の要点'])
@@ -674,8 +674,8 @@ const LEAD_LABEL_TO = 'この記事の要点'
 
 /**
  * 🤖査読スタンプ（tail に入る）から、対象範囲の但し書きを取り出す。
- * パイロット誌面は【査読済み】の宣言を記事末に置かず、⚡ボックス直後に但し書きだけを出す
- * （宣言行は⚡ボックス末尾の「査読済み：YYYY-MM」と重複するため誌面では出さない）。
+ * パイロット版は【査読済み】の宣言を記事末に置かず、⚡ボックス直後に但し書きだけを出す
+ * （宣言行は⚡ボックス末尾の「査読済み：YYYY-MM」と重複するためスプレッドでは出さない）。
  */
 export function splitStampScope(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: ReaderBlock[] } {
   const idx = tail.findIndex((b) => b.kind === 'callout' && calloutRole(b.icon) === 'stamp')
@@ -690,7 +690,7 @@ export function splitStampScope(tail: ReaderBlock[]): { scope: ReaderBlock[]; re
 }
 
 /**
- * 制作用の「PubMed検索キーワード例」（段落＋直後の箇条書き）は誌面では出さない（パイロット準拠）。
+ * 制作用の「PubMed検索キーワード例」（段落＋直後の箇条書き）はスプレッドでは出さない（パイロット準拠）。
  * 読者の動線は文献リンクで足り、検索クエリの羅列は制作側の道具のため。
  */
 export function dropPubmedExamples(tail: ReaderBlock[]): ReaderBlock[] {
@@ -703,7 +703,7 @@ export function dropPubmedExamples(tail: ReaderBlock[]): ReaderBlock[] {
 
 /**
  * 参考文献の箇条書きから「引用：」以降（原文引用と直後の本文リンク）を出さない（パイロット準拠）。
- * 誌面の文献一覧は「何の文献か」の一行案内に絞り、原文引用は原本（Notion・全文表示）に温存する。
+ * スプレッドの文献一覧は「何の文献か」の一行案内に絞り、原文引用は原本（Notion・全文表示）に温存する。
  *
  * 対象は 📚callout（文献一覧の見出し）より後ろの箇条書きだけ。tail 全体に掛けると、
  * 免責や注記の箇条書きが本文中の「引用：」で切り落とされる誤爆が起きる。
@@ -754,13 +754,13 @@ function tailBeforeRefCompression(tail: ReaderBlock[]): ReaderBlock[] {
 }
 
 /**
- * 記事末尾を、誌面が自前の枠で組む3つ（実践・文献・免責）とそれ以外に分ける表示専用の導出。
- * パイロット誌面は末尾を .practice / .refs / .disclaimer の3つで組んでおり、アプリ既定の
- * callout（薄い面と丸い絵文字アイコン）のままでは誌面にならないため、描き分けの口だけを作る。
+ * 記事末尾を、スプレッドが自前の枠で組む3つ（実践・文献・免責）とそれ以外に分ける表示専用の導出。
+ * パイロット版は末尾を .practice / .refs / .disclaimer の3つで組んでおり、アプリ既定の
+ * callout（薄い面と丸い絵文字アイコン）のままではスプレッドにならないため、描き分けの口だけを作る。
  *
  * 分類は既存の calloutRole だけで決める（キーワード一致や新しい判定規則は作らない）。
- * practice / refsHead は callout そのものを返す（見出し行は誌面側が中身の先頭から取る）。
- * disclaimer は callout の中身を返す（誌面は枠ではなく上罫線つきの段落として出すため）。
+ * practice / refsHead は callout そのものを返す（見出し行はスプレッド側が中身の先頭から取る）。
+ * disclaimer は callout の中身を返す（スプレッドは枠ではなく上罫線つきの段落として出すため）。
  * refsItems は文献の callout より後ろの箇条書き（compressReferenceItems と同じ範囲の取り方）。
  * どの口にも入らないブロックは必ず rest に残す（黙って消さない）。同じ役割の callout が
  * 複数あるときは最初のものだけを採り、2つ目以降は rest に残す。
@@ -807,7 +807,7 @@ export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
 }
 
 /**
- * 誌面の文献一覧のもとになる、原本の文献行。
+ * スプレッドの文献一覧のもとになる、原本の文献行。
  * 関門（refLinkage）とタイトルのリンク（refHrefs）が同じ行を見るようにするための1本。
  * ここが割れると「関門を通ったのにリンクが付かない」といった食い違いが生まれる。
  * ブロックIDは落とさずそのまま返す（圧縮行の紐づけが指す先になるため）。
@@ -821,7 +821,7 @@ export function refItemsOf(tail: ReaderBlock[]): ReaderBlock[] {
 
 // ---- 参考文献の圧縮行と原本の文献行の紐づけ ----
 //
-// 圧縮行（SpreadRef）は非公開の誌面ノート由来で、原本の完全タイトルを縮めたもの。
+// 圧縮行（SpreadRef）は非公開のスプレッドノート由来で、原本の完全タイトルを縮めたもの。
 // 実データ（酸素の記事の7行）では「Official ERS/ATS clinical practice guidelines:
 // noninvasive ventilation for acute respiratory failure」に対する圧縮行が
 // 「ERS/ATS clinical practice guidelines: NIV for acute respiratory failure」のように、
@@ -867,8 +867,8 @@ export function refItemIndex(refsItems: ReaderBlock[]): Map<string, number> {
  * 圧縮行と原本の文献行の紐づけの検査結果。
  *
  * dropped … 原本の文献行のうち、どの圧縮行からも指されていないもの。
- *   逐語一致検査は「誌面に書いた文言が原本かノートにあるか」しか見ないので、
- *   圧縮行を1行書き忘れた（＝原本にある文献が誌面から消えた）ことは検出できない。
+ *   逐語一致検査は「スプレッドに書いた文言が原本かノートにあるか」しか見ないので、
+ *   圧縮行を1行書き忘れた（＝原本にある文献がスプレッドから消えた）ことは検出できない。
  * dangling … 指す先が原本に無い圧縮行（原本が書き換わって行が消えた・紐づけを持たない）。
  *   別の行に付け替えると読者に違う文献のリンクを出すので、当てにいかず止める。
  *
@@ -879,8 +879,8 @@ export type RefLinkage = { dropped: ReaderBlock[]; dangling: SpreadRef[] }
 /**
  * 原本の文献行と圧縮行の紐づけを突き合わせる。
  *
- * refs が未指定・空のときは両方とも空配列を返す。圧縮行を供給していない誌面は原本の
- * 箇条書きをそのまま出すので、そもそも減りようがない（既存の誌面の保存を止めない fail-safe）。
+ * refs が未指定・空のときは両方とも空配列を返す。圧縮行を供給していないスプレッドは原本の
+ * 箇条書きをそのまま出すので、そもそも減りようがない（既存のスプレッドの保存を止めない fail-safe）。
  */
 export function refLinkage(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): RefLinkage {
   if (!refs || refs.length === 0) return { dropped: [], dangling: [] }
@@ -918,7 +918,7 @@ export type DigestParts = { heading: string | null; body: ReaderBlock[]; foot: R
 
 /**
  * ⚡ボックスの中身を「見出し帯／本文（body）／査読済み行など（foot）」に分ける。
- * 誌面はこの3つを自前の枠（緑ヘッダー帯つきのボックス）で組み直し、展開ボタンを枠内に置く。
+ * スプレッドはこの3つを自前の枠（緑ヘッダー帯つきのボックス）で組み直し、展開ボタンを枠内に置く。
  *
  * 見出し帯へ昇格するのは、先頭の段落が既知のラベル（LEAD_LABELS）のときだけ。
  * body はラベルの後ろから最後の箇条書きまでを原本の順序のまま持つ（箇条書きの間に
@@ -942,7 +942,7 @@ export function splitDigest(lead: ReaderBlock | null): DigestParts {
 
 /**
  * 要点ボックス内の蛍光マーカー（_background）だけ落とす表示用の導出。
- * 原本の赤マーカー強調は、誌面の要点ボックスでは太字＝ブランドグリーンの数値強調に
+ * 原本の赤マーカー強調は、スプレッドの要点ボックスでは太字＝ブランドグリーンの数値強調に
  * 置き換わる（パイロット準拠）。文字色（単色系）と太字はそのまま残す。
  */
 export function digestTone(blocks: ReaderBlock[]): ReaderBlock[] {

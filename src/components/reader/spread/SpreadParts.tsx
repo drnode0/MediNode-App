@@ -5,7 +5,7 @@ import type { ReaderInline } from '@/lib/reader-doc'
 import { textOf, type SpreadPart } from '@/lib/reader-spread'
 import s from './spread.module.css'
 
-// 表層の部品。見た目の正本は spread.module.css（パイロット誌面からの1対1移植）。
+// 表層の部品。見た目の正本は spread.module.css（パイロット版からの1対1移植）。
 // ここではマークアップと、パイロットが手作業で付けていた印（数値セル・主役カード）の
 // 導出だけを行う。
 

@@ -13,7 +13,7 @@ import { clearIndex } from './notion-index-store'
 //   personal_/team_… → POST /api/personal/page（自分のトークンを都度渡す・降格式リーダー）
 const TTL_MS = 10 * 60 * 1000
 const docs = new Map<string, { doc: ReaderDoc; at: number }>()
-// 誌面は本文と同じ応答で届くので、同じタイミングで別のMapに置く。
+// スプレッドは本文と同じ応答で届くので、同じタイミングで別のMapに置く。
 // fetchReaderDoc の戻り値（ReaderDoc）は変えない。呼び出し側が10箇所以上あるため。
 const spreads = new Map<string, SpreadDoc | null>()
 const inflight = new Map<string, Promise<ReaderDoc>>()

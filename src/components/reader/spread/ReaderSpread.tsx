@@ -15,7 +15,7 @@ import type { Confidence } from '@/lib/reader-confidence'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import type { SpreadDoc } from '@/lib/reader-spread'
 
-// 誌面の第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
+// スプレッドの第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
 const NO_FILTER: Set<Confidence> = new Set()
 
@@ -70,7 +70,7 @@ function TailBlock({ block, k, className, onImageClick }: {
 const SECTION_INDEX_STRIDE = 1000
 
 /**
- * 誌面表示（TEXTBOOK LITE）。
+ * スプレッド表示（TEXTBOOK LITE）。
  *
  * 二層構造: 表層＝情報の型に応じた部品（見て分かる）／深掘り＝現行の密な本文
  * （確かめられる）。深掘りは節ごとに開く。
@@ -79,15 +79,15 @@ const SECTION_INDEX_STRIDE = 1000
  * RenderedBlocks は ReaderBody 本体が本文全体・callout の子に対して使っているのと同じ
  * グルーピング単位（連続する list_item を ul/ol にまとめる等）で、callout の draft role
  * 処理も含む。自前で個別ブロックを描き直すと、箇条書きのグルーピングが失われたり、
- * 🎨制作メモを隠す draft role の処理が誌面だけ効かなくなったりする。
+ * 🎨制作メモを隠す draft role の処理がスプレッドだけ効かなくなったりする。
  *
  * 検索中は全節を開く。折りたたんだ本文は DOM に無く、ReaderOverlay の
  * 記事内検索（mark[data-reader-search] を数える）が拾えないため。
  *
  * 注意: ここで呼ぶ RenderedBlocks は ReaderSourceCtx.Provider を張らずに使っている
  * （ReaderBody.tsx は張っており、未対応ブロックの「Notionで開く」リンクに使われる）。
- * 誌面は公開済みサブスク記事にしか付かず、sourceUrl は個人・部署ページでしか
- * 非nullにならないため現状は無害だが、将来 doc.sourceUrl を誌面側にも流用するときは
+ * スプレッドは公開済みサブスク記事にしか付かず、sourceUrl は個人・部署ページでしか
+ * 非nullにならないため現状は無害だが、将来 doc.sourceUrl をスプレッド側にも流用するときは
  * ここに Provider が要ることを忘れないこと。
  */
 export function ReaderSpread({
@@ -107,16 +107,16 @@ export function ReaderSpread({
   // Aaボタンの文字サイズ（SCALE_EM の値）。ReaderBody と同じ受け口で、
   // em なので iOS Dynamic Type と乗算で合成される。
   scaleEm?: string
-  // 更新日とカバー画像は誌面スナップショット（SpreadDoc）には焼き込まない。
+  // 更新日とカバー画像はスプレッドスナップショット（SpreadDoc）には焼き込まない。
   // 「今の原本の状態」なので、doc を持つ ReaderOverlay から毎回渡してもらう
   // （SpreadDoc の型は変えない。理由は下のコメント参照）。
   lastEdited: string | null
   cover: string | null
-  // タイトルも同じ流儀。保存された誌面のタイトル（spread.title）ではなく、
+  // タイトルも同じ流儀。保存されたスプレッドのタイトル（spread.title）ではなく、
   // その時の原本（doc.title / doc.icon）を渡す。更新日と揃えて「今の原本」を出すため。
   title: string
   icon: string | null
-  // バッジ行（パイロット誌面の「04.呼吸・比較・使い分け型」）。原本のNotionプロパティ由来で、
+  // バッジ行（パイロット版の「04.呼吸・比較・使い分け型」）。原本のNotionプロパティ由来で、
   // 更新日と同じ「今の原本」の流儀で渡してもらう。古いキャッシュには無いので optional。
   genre?: string | null
   questionType?: string | null
@@ -180,26 +180,26 @@ export function ReaderSpread({
     }
   }, [toc])
 
-  // 誌面の編集ルール（パイロット準拠・表示のみ）: 構造見出し（# Question / # Answer / # Evidence）と
+  // スプレッドの編集ルール（パイロット準拠・表示のみ）: 構造見出し（# Question / # Answer / # Evidence）と
   // タイトル重複段落は出さない。🤖査読スタンプは記事末に置かず、対象範囲の但し書きだけ⚡直後に出す。
   // PubMed検索キーワード例（制作用）は出さない。
   const preface = useMemo(() => displayPreface(spread.preface, title), [spread.preface, title])
   const { scope: stampScope, rest: tailBlocks } = useMemo(() => displayTail(spread.tail), [spread.tail])
-  // 記事末尾は「実践（署名）／文献／免責」の3つを誌面が自前の枠で組む（パイロット準拠）。
-  // アプリ既定の callout の見た目（薄い面と丸い絵文字アイコン）では誌面にならないため。
+  // 記事末尾は「実践（署名）／文献／免責」の3つをスプレッドが自前の枠で組む（パイロット準拠）。
+  // アプリ既定の callout の見た目（薄い面と丸い絵文字アイコン）ではスプレッドにならないため。
   // どの枠にも入らないブロックだけを従来どおり共通レンダラに渡す。
   const tail = useMemo(() => splitTailBlocks(tailBlocks), [tailBlocks])
   const practice = useMemo(() => splitCalloutHead(tail.practice), [tail.practice])
   const refs = useMemo(() => splitCalloutHead(tail.refsHead), [tail.refsHead])
-  // 文献一覧の圧縮行（短いタイトル・略記の出典・1行説明）。非公開の誌面ノート由来で、
+  // 文献一覧の圧縮行（短いタイトル・略記の出典・1行説明）。非公開のスプレッドノート由来で、
   // オーバレイが構造として持つ。無ければ原本の箇条書きをそのまま出す（fail-safe）。
   const compactRefs = spread.refs ?? []
   // 圧縮行のタイトルの飛び先。href は圧縮行が指す原本の文献行から引く
   // （SpreadRef は href を持たない）。指す先が無ければ null＝リンクにしない。
-  // 投入時の関門で取りこぼしと指す先の喪失は止まるので、読者に届く誌面では紐づいている。
+  // 投入時の関門で取りこぼしと指す先の喪失は止まるので、読者に届くスプレッドでは紐づいている。
   const refLinks = useMemo(() => refHrefs(refItemsOf(spread.tail), spread.refs), [spread.tail, spread.refs])
 
-  // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
+  // ⚡結論の箇条書きを先頭2件で畳む（パイロット版の「残りN件の要点を表示」＝未決2の採用形）。
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
   // （折りたたまれた要点は DOM に無く、記事内検索が拾えないため。深掘りの全節展開と同じ理屈）。
   const LEAD_VISIBLE = 2
@@ -219,7 +219,7 @@ export function ReaderSpread({
   const visibleBody = collapsed ? digest.body.slice(0, itemIndexes[LEAD_VISIBLE - 1] + 1) : digest.body
   const leadHidden = collapsed ? itemIndexes.length - LEAD_VISIBLE : 0
   // バッジ行（ジャンル・問いの型・査読済み年月）。セレクト値は他画面と同じく先頭絵文字を
-  // 外して出す。ジャンルだけ強調（パイロット誌面のキッカー）で、位置ではなく種類で決める。
+  // 外して出す。ジャンルだけ強調（パイロット版のキッカー）で、位置ではなく種類で決める。
   const badges = useMemo(() => {
     const g = genre ? stripLeadingEmoji(genre).trim() : ''
     const q = questionType ? stripLeadingEmoji(questionType).trim() : ''
@@ -244,9 +244,9 @@ export function ReaderSpread({
     <div className={`reader-prose ${styles.spread}`}>
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
         {/* 更新日・カバー画像は ReaderBody.tsx と同じ見た目・同じ順序・同じ位置
-            （本文冒頭・lead より前）で出す。誌面化した記事でもここが黙って消えないように。 */}
-        {/* 更新日の行に確信度の凡例を常設する（パイロット誌面の上部バーの凡例に相当）。
-            本文フォーマットの凡例段落は誌面では出さない（sectionDisplay / displayTail）ため、
+            （本文冒頭・lead より前）で出す。スプレッド化した記事でもここが黙って消えないように。 */}
+        {/* 更新日の行に確信度の凡例を常設する（パイロット版の上部バーの凡例に相当）。
+            本文フォーマットの凡例段落はスプレッドでは出さない（sectionDisplay / displayTail）ため、
             スクロール前の読者にはここが唯一の凡例になる。狭い画面では行ごと折り返す。 */}
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-2">
           {lastEdited ? (
@@ -266,10 +266,10 @@ export function ReaderSpread({
           </button>
         )}
         {/* ReaderBody.tsx と同じ見た目・同じ位置（カバー画像の直後・lead より前）で
-            記事タイトルを出す。ここが無いと、誌面化した記事だけ「何を読んでいるか」が
+            記事タイトルを出す。ここが無いと、スプレッド化した記事だけ「何を読んでいるか」が
             画面から失われる（ReaderOverlay のヘッダの aria-label はスクリーンリーダー用で
             画面には見えない）。ページアイコンの扱いも ReaderBody.tsx と揃える。 */}
-        {/* バッジ行（パイロット誌面のキッカー）。ジャンル・問いの型は原本のNotionプロパティ、
+        {/* バッジ行（パイロット版のキッカー）。ジャンル・問いの型は原本のNotionプロパティ、
             査読年月は⚡ボックスの査読済み行から。無いものは黙って出さない。 */}
         {badges.length > 0 && (
           <p className={`${styles.kicker} mb-1`}>
@@ -283,7 +283,7 @@ export function ReaderSpread({
         </h2>
 
         {spread.lead && (
-          // 要点ボックス（パイロット誌面の「この記事の要点」）。緑のヘッダー帯・四角い
+          // 要点ボックス（パイロット版の「この記事の要点」）。緑のヘッダー帯・四角い
           // チェックボックス風マーカー・査読済み行の脚注は spread.module.css が持つ。
           // 箇条書きは共通レンダラに渡さず自前で組む（渡すと list-disc の丸ポチになる）。
           // ReaderNavBar が IntersectionObserver の対象に [data-tldr] を探すので、ここに付ける。
@@ -327,7 +327,7 @@ export function ReaderSpread({
           </div>
         )}
 
-        {/* 🤖査読スタンプの但し書き（対象範囲）。パイロット誌面と同じ位置＝要点の直後で、
+        {/* 🤖査読スタンプの但し書き（対象範囲）。パイロット版と同じ位置＝要点の直後で、
             淡い緑の面に置く（パイロットの .scope）。 */}
         {stampScope.length > 0 && (
           <div className={styles.scope}>
@@ -343,12 +343,12 @@ export function ReaderSpread({
           </div>
         )}
 
-        {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落が誌面から黙って消える。 */}
+        {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落がスプレッドから黙って消える。 */}
         <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
 
         {toc.length > 0 && (
           // 追従目次（パイロットの nav.toc）。読み進めると上端に貼り付き、現在地が反転する。
-          // 読了バーもここに引く。既存の ReaderNavBar は誌面では出さない（同じ役割で形が違う）。
+          // 読了バーもここに引く。既存の ReaderNavBar はスプレッドでは出さない（同じ役割で形が違う）。
           <div className={styles.tocBar}>
             <div className={styles.tocRow}>
               <nav
@@ -396,7 +396,7 @@ export function ReaderSpread({
               ))}
 
               {recap && recap.kind === 'paragraph' && (
-                // パイロット誌面の recap（「この節の答え」）。中身は原本の→段落そのもの。
+                // パイロット版の recap（「この節の答え」）。中身は原本の→段落そのもの。
                 // 共通レンダラには「→で始まる段落はティール色の枠にする」既定があり、
                 // それを通すと枠が二重になり色も外れるので、ここでは Inlines で直接描く
                 // （検索ハイライトと確信度マークは Inlines が担うので失われない）。
@@ -442,7 +442,7 @@ export function ReaderSpread({
                 </div>
               )}
 
-              {/* 理解チェックは節の末尾（パイロット誌面と同じ）。深掘りを開かなくても見える。 */}
+              {/* 理解チェックは節の末尾（パイロット版と同じ）。深掘りを開かなくても見える。 */}
               {quizzes.map((q) => (
                 <SpreadQuizCard key={q.id} quiz={q} />
               ))}
@@ -451,7 +451,7 @@ export function ReaderSpread({
         })}
 
         {/* 3つの枠のどれにも入らない末尾ブロック（従来どおりの描画）。枠より前に出して
-            原本の読み順を保つ（パイロット誌面は実践・文献・免責を記事の最後に置く）。 */}
+            原本の読み順を保つ（パイロット版は実践・文献・免責を記事の最後に置く）。 */}
         <RenderedBlocks
           blocks={tail.rest}
           onImageClick={onImageClick}
@@ -491,7 +491,7 @@ export function ReaderSpread({
 
           {/* 文献（📚）。パイロットは箱をやめ、素の見出し＋番号つきの一覧で出す。
               出す条件は原本の文献 callout があること。圧縮行だけを条件に入れると、
-              原本に callout の無い誌面に refs を供給したとき、見出しの無い一覧が
+              原本に callout の無いスプレッドに refs を供給したとき、見出しの無い一覧が
               単独で出てしまう（パイロットの文献は必ず見出しを伴う）。 */}
           {(refs.head || refs.body.length > 0 || tail.refsItems.length > 0) && (
             <div className={styles.refs}>

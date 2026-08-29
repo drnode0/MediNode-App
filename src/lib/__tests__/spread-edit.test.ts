@@ -45,7 +45,7 @@ describe('makeVerbatimChecker（1文の逐語照合）', () => {
     expect(ok('どこにも無い文')).toBe(false)
   })
 
-  it('誌面ノートを渡すとノートの文も通る', () => {
+  it('スプレッドノートを渡すとノートの文も通る', () => {
     const notes: ReaderBlock[] = [{ kind: 'list_item', ordered: false, inlines: t('ノートの一文') }]
     const ok = makeVerbatimChecker(doc, notes)
     expect(ok('ノートの一文')).toBe(true)

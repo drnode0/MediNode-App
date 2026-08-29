@@ -32,7 +32,7 @@ afterEach(() => {
   delete process.env.SUBSCRIPTION_SPREAD_NOTES_DB
 })
 
-describe('fetchSpreadNotesBlocks（非公開の誌面ノートDB）', () => {
+describe('fetchSpreadNotesBlocks（非公開のスプレッドノートDB）', () => {
   it('環境変数が無ければ null（照合先は原本のみ）', async () => {
     const client = stubClient([{ id: 'n1', title: PAGE_ID }], {})
     expect(await fetchSpreadNotesBlocks(client, PAGE_ID)).toBeNull()
@@ -67,7 +67,7 @@ describe('fetchSpreadNotesBlocks（非公開の誌面ノートDB）', () => {
   })
 })
 
-describe('verifyVerbatim と誌面ノートの合成', () => {
+describe('verifyVerbatim とスプレッドノートの合成', () => {
   const doc: ReaderDoc = {
     title: 'x', icon: null, cover: null, lastEdited: null,
     blocks: [

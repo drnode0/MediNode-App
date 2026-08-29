@@ -83,8 +83,8 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       setDoc(stored)
       // 取得失敗が先に来て error になっていても、ここで読める状態へ戻す。
       setState('idle')
-      // 誌面は本文と同じエントリに入っているが、別読みなので取得完了までにネットワークが
-      // 先に返ることがある。そのときは古い誌面で上書きしない。
+      // スプレッドは本文と同じエントリに入っているが、別読みなので取得完了までにネットワークが
+      // 先に返ることがある。そのときは古いスプレッドで上書きしない。
       void readStoredSpread(h.objectID).then((s) => {
         if (reqRef.current !== token || networkOk) return
         setSpread(s)
@@ -95,8 +95,8 @@ export function ReaderProvider({ children }: { children: React.ReactNode }) {
       .then((doc) => {
         if (reqRef.current !== token) return
         networkOk = true
-        // 誌面は本文の lastEdited とは無関係に公開・再生成されるため、本文の同一性で
-        // 誌面の更新を止めてはいけない。端末の本文が同じでも、新しく公開された誌面は
+        // スプレッドは本文の lastEdited とは無関係に公開・再生成されるため、本文の同一性で
+        // スプレッドの更新を止めてはいけない。端末の本文が同じでも、新しく公開されたスプレッドは
         // ここで反映する必要がある。
         setSpread(getCachedSpread(h.objectID))
         // 端末の本文を表示中で、中身が変わっていないなら差し替えない。

@@ -257,8 +257,8 @@ export default function ReaderOverlay({
   // （H2節・⚡結論・recap行）前提の抽出で、個人・部署ページに条件判定で出し分けるより
   // 「サブスクの読書体験」として一本化する。個人・部署は常に全文
   // （保存された端末設定は上書きしない＝サブスクを開けば従来どおり要点で開く）。
-  // 誌面がある記事では表層が要点の役割を、節ごとの深掘りが全文の役割を引き継ぐので、
-  // 全文｜要点のトグルは出さない（保存された端末設定は上書きしない＝誌面のない記事を
+  // スプレッドがある記事では表層が要点の役割を、節ごとの深掘りが全文の役割を引き継ぐので、
+  // 全文｜要点のトグルは出さない（保存された端末設定は上書きしない＝スプレッドのない記事を
   // 開けば従来どおり要点で開く）。
   const canDigest = !isPersonalDoc && !spread
   const effectiveViewMode: ReaderViewMode = canDigest ? viewMode : 'full'
@@ -468,13 +468,13 @@ export default function ReaderOverlay({
               </div>
               )}
               {/* 確信度チップは全文専用（要点にはマーク付き本文がほぼ無く、絞り込む対象がない）。
-                  誌面でも出さない: ReaderSpread の深掘りは確信度フィルタを持たない（誌面第1版の
+                  スプレッドでも出さない: ReaderSpread の深掘りは確信度フィルタを持たない（スプレッド第1版の
                   仕様・ReaderSpread.tsx 参照）ため、チップを出すと押しても絞り込みが効かない
                   見掛け倒しのUIになる。 */}
               {!spread && effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
-              {/* 誌面は自前の追従目次（チップ＋現在地＋読了バー）を持つ（パイロット準拠）。
+              {/* スプレッドは自前の追従目次（チップ＋現在地＋読了バー）を持つ（パイロット準拠）。
                   ReaderNavBar のドロップダウン目次と役割が重なり、上端で2本のバーが
-                  重なって見えるため、誌面のときはこちらを出さない。 */}
+                  重なって見えるため、スプレッドのときはこちらを出さない。 */}
               {!spread && <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />}
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 {spread ? (

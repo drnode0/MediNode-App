@@ -20,7 +20,7 @@ export function ConfidenceMark({ kind, className = '' }: { kind: Confidence; cla
   )
 }
 
-// 確信度の凡例（マーク＋ラベルの並び）。目次バーのドロップダウンと誌面の上部で共用する。
+// 確信度の凡例（マーク＋ラベルの並び）。目次バーのドロップダウンとスプレッドの上部で共用する。
 // 見せ方（文字サイズ・色）は置き場所ごとに違うので itemClassName で受ける。
 export function ConfidenceLegend({ marks, itemClassName = '' }: { marks: readonly Confidence[]; itemClassName?: string }) {
   return (

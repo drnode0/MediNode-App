@@ -68,7 +68,7 @@ describe('PUT /api/admin/spread', () => {
     expect(res.status).toBe(403)
   })
 
-  it('原本から誌面を組んで保存する', async () => {
+  it('原本からスプレッドを組んで保存する', async () => {
     const res = await PUT(req({ pageId: 'p1' }))
     expect(res.status).toBe(200)
     const saved = upsert.mock.calls[0][0]
@@ -167,8 +167,8 @@ describe('PUT /api/admin/spread', () => {
 })
 
 describe('文献を減らさない関門', () => {
-  // 原本に文献行が2つあり、圧縮行（refs）を供給する誌面。圧縮行が1つだけなら、
-  // 残り1件は誌面から黙って消える。逐語一致検査は「書いた文言が原本かノートにあるか」
+  // 原本に文献行が2つあり、圧縮行（refs）を供給するスプレッド。圧縮行が1つだけなら、
+  // 残り1件はスプレッドから黙って消える。逐語一致検査は「書いた文言が原本かノートにあるか」
   // しか見ないので、この抜けは検出できない。ビルダーを通らない経路（JSONを直接編集した
   // 投入・APIへの直接PUT）でも止まるよう、投入APIにも同じ関門を置く。
   const REF_BLOCKS: unknown[] = [
@@ -224,7 +224,7 @@ describe('文献を減らさない関門', () => {
     expect(upsert).not.toHaveBeenCalled()
   })
 
-  it('圧縮行を供給しない誌面は従来どおり通る（供給していない誌面の出力を変えない）', async () => {
+  it('圧縮行を供給しないスプレッドは従来どおり通る（供給していないスプレッドの出力を変えない）', async () => {
     const res = await PUT(req({ pageId: 'p1', overlay: { shortLabels: { '1': 'ラベル' } } }))
     expect(res.status).toBe(200)
     expect(upsert).toHaveBeenCalled()
@@ -447,7 +447,7 @@ describe('GET /api/admin/spread', () => {
     selectRows = [
       { page_id: 'p1', status: 'published', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: '2026-08-01T00:00:00.000Z', updated_at: '2026-08-01T00:00:00.000Z' },
     ]
-    // 原本の最終更新（beforeEachで2026-08-20）が誌面の source_last_edited（2026-08-01）より新しい
+    // 原本の最終更新（beforeEachで2026-08-20）がスプレッドの source_last_edited（2026-08-01）より新しい
     const res = await GET(getReq('?check=1'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -455,11 +455,11 @@ describe('GET /api/admin/spread', () => {
     expect(body.spreads[0].stale).toBe(true)
   })
 
-  it('?check=1 でも原本が誌面より古ければ stale: false', async () => {
+  it('?check=1 でも原本がスプレッドより古ければ stale: false', async () => {
     selectRows = [
       { page_id: 'p1', status: 'published', source_last_edited: '2026-08-25T00:00:00.000Z', verified_at: '2026-08-25T00:00:00.000Z', updated_at: '2026-08-25T00:00:00.000Z' },
     ]
-    // beforeEachのnotionRetrieveは last_edited_time: 2026-08-20 なので誌面の方が新しい
+    // beforeEachのnotionRetrieveは last_edited_time: 2026-08-20 なのでスプレッドの方が新しい
     const res = await GET(getReq('?check=1'))
     const body = await res.json()
     expect(body.spreads[0].stale).toBe(false)

@@ -1,14 +1,14 @@
 'use client'
 
-// 誌面の編集レイヤー（オーナー専用）。
+// スプレッドの編集レイヤー（オーナー専用）。
 //
-// 直せるのは「オーバレイ」だけで、本文は直せない。誌面の本文は Notion原本の逐語で、
-// アプリから書き換える経路を作らないことが誌面の設計の要（そこを緩めると、読者に出る
-// 医学本文が原本と食い違う経路ができる）。文言を変えたいときは原本か誌面ノートを直す。
+// 直せるのは「オーバレイ」だけで、本文は直せない。スプレッドの本文は Notion原本の逐語で、
+// アプリから書き換える経路を作らないことがスプレッドの設計の要（そこを緩めると、読者に出る
+// 医学本文が原本と食い違う経路ができる）。文言を変えたいときは原本かスプレッドノートを直す。
 //
 // 編集はクリック操作のビルダー（OverlayBuilder）が主で、JSONは畳んだ中に残す
 // （Claudeの制作スキルとやり取りする窓口。どちらを触っても同じオーバレイを編集する）。
-// 画面は「今の原本＋編集中のオーバレイ」から誌面を組み直して即座に描く。保存は
+// 画面は「今の原本＋編集中のオーバレイ」からスプレッドを組み直して即座に描く。保存は
 // PUT /api/admin/spread（下書き）で、サーバーが同じ関門（sanitize→apply→逐語検査）を
 // もう一度通す。ここでの検査は速く気づくためのもので、関門の代わりではない。
 
@@ -66,19 +66,19 @@ export function SpreadEditClient() {
     }
   }, [])
 
-  // 原本＋誌面ノートに対する1文照合（入力欄の赤枠）と、候補に出す誌面ノートの行。
+  // 原本＋スプレッドノートに対する1文照合（入力欄の赤枠）と、候補に出すスプレッドノートの行。
   const checker = useMemo(() => (draft ? makeVerbatimChecker(draft.doc, draft.notes) : () => true), [draft])
   const noteLines = useMemo(() => (draft ? candidateLines(draft.notes) : []), [draft])
   const base = useMemo(() => (draft ? buildSpreadDraft(draft.doc, 'preview') : null), [draft])
 
-  // 編集中のオーバレイから誌面を組み直す。
+  // 編集中のオーバレイからスプレッドを組み直す。
   const built = useMemo(() => {
     if (!draft || !base) return null
     const spread = applyOverlay(base, sanitizeOverlay(overlay))
     // 編集中は理解チェックを見えるようにする（保存時は必ず未目視に戻り、/admin の承認でしか読者に出ない）。
     const shown = { ...spread, quizzes: spread.quizzes.map((q) => ({ ...q, reviewed: true })) }
     const check = verifyVerbatim(spread, draft.doc, draft.notes)
-    // 参考文献の紐づけ（圧縮行を供給した誌面で、原本の文献行が黙って減っていないか。
+    // 参考文献の紐づけ（圧縮行を供給したスプレッドで、原本の文献行が黙って減っていないか。
     // 圧縮行が指す先を失っていないか）。逐語一致検査とは別の穴なので別に持ち、
     // 保存の可否は3つを合わせて決める。
     const linkage = refLinkage(refItemsOf(spread.tail), spread.refs)
@@ -110,7 +110,7 @@ export function SpreadEditClient() {
         )
         return
       }
-      setMsg('下書きとして保存しました。読者に出すには /admin の誌面カードで理解チェックを承認し、公開してください。')
+      setMsg('下書きとして保存しました。読者に出すには /admin のスプレッドカードで理解チェックを承認し、公開してください。')
     } catch {
       setMsg('保存に失敗しました')
     } finally {
@@ -119,7 +119,7 @@ export function SpreadEditClient() {
   }
 
   useEffect(() => {
-    // ?pageId= が付いていれば開いた時点で読み込む（/admin の誌面カードからの導線）。
+    // ?pageId= が付いていれば開いた時点で読み込む（/admin のスプレッドカードからの導線）。
     const q = new URLSearchParams(window.location.search).get('pageId')
     if (q) {
       setPageId(q)
@@ -130,10 +130,10 @@ export function SpreadEditClient() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <div className="max-w-[1500px] mx-auto p-5">
-        <h1 className="text-lg font-bold mb-1">誌面の編集</h1>
+        <h1 className="text-lg font-bold mb-1">スプレッドの編集</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
           部品の追加・並び替え・文選び・強調はここでできます。本文そのものは原本の逐語なので、
-          文言を変えるときは Notion の原本か誌面ノートを直してから「読み込む」を押し直してください。
+          文言を変えるときは Notion の原本かスプレッドノートを直してから「読み込む」を押し直してください。
         </p>
 
         <div className="flex flex-wrap gap-2 items-center mb-4 sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 py-2">
@@ -160,10 +160,10 @@ export function SpreadEditClient() {
             {saving ? <Spinner /> : '下書きとして保存'}
           </button>
           {built && built.missing.length > 0 && (
-            <span className="text-xs text-red-600 dark:text-red-400">原本・誌面ノートに無い文が {built.missing.length} 件</span>
+            <span className="text-xs text-red-600 dark:text-red-400">原本・スプレッドノートに無い文が {built.missing.length} 件</span>
           )}
           {built && built.refsMissing.length > 0 && (
-            <span className="text-xs text-red-600 dark:text-red-400">誌面から漏れた原本の文献行が {built.refsMissing.length} 件</span>
+            <span className="text-xs text-red-600 dark:text-red-400">スプレッドから漏れた原本の文献行が {built.refsMissing.length} 件</span>
           )}
           {built && built.refsDangling.length > 0 && (
             <span className="text-xs text-red-600 dark:text-red-400">指す先を失った圧縮行が {built.refsDangling.length} 件</span>
@@ -182,7 +182,7 @@ export function SpreadEditClient() {
 
               {built.missing.length > 0 && (
                 <div className="mb-3 text-sm text-red-600 dark:text-red-400">
-                  <p className="font-bold">原本にも誌面ノートにも無い文（このままでは保存できません）</p>
+                  <p className="font-bold">原本にもスプレッドノートにも無い文（このままでは保存できません）</p>
                   <ul className="list-disc pl-5 mt-1 space-y-0.5">
                     {built.missing.map((m) => (
                       <li key={m}>{m}</li>
@@ -192,7 +192,7 @@ export function SpreadEditClient() {
               )}
 
               {/* 参考文献の取りこぼし。逐語一致検査は「書いた文言が原本かノートにあるか」しか
-                  見ないので、圧縮行の書き忘れ（＝誌面から文献が1件消える）はここでしか出ない。 */}
+                  見ないので、圧縮行の書き忘れ（＝スプレッドから文献が1件消える）はここでしか出ない。 */}
               {built.refsMissing.length > 0 && (
                 <div className="mb-3 text-sm text-red-600 dark:text-red-400">
                   <p className="font-bold">どの圧縮行からも指されていない原本の文献行（このままでは保存できません）</p>
@@ -242,7 +242,7 @@ export function SpreadEditClient() {
 
             <div>
               <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
-                プレビュー（読者に出る誌面。誌面ノート {draft.notes.length > 0 ? `${noteLines.length}行` : 'なし'}）
+                プレビュー（読者に出るスプレッド。スプレッドノート {draft.notes.length > 0 ? `${noteLines.length}行` : 'なし'}）
               </div>
               <div
                 ref={scrollRef}

@@ -74,7 +74,7 @@ export async function readStoredDoc(objectID: string): Promise<ReaderDoc | null>
   })
 }
 
-// Entry から誌面を取り出す純関数（テスト可能にするため分けてある）。
+// Entry からスプレッドを取り出す純関数（テスト可能にするため分けてある）。
 export function pickStoredSpread(entry: Entry | undefined): SpreadDoc | null {
   return entry?.spread ?? null
 }

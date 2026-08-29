@@ -307,7 +307,7 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'accounts', label: 'アカウント', icon: Users },
   { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
   { key: 'delivery', label: '通知・配信', icon: Megaphone },
-  { key: 'spread', label: '誌面', icon: BookOpen },
+  { key: 'spread', label: 'スプレッド', icon: BookOpen },
 ]
 
 export function AdminLedgerClient() {
@@ -1057,9 +1057,9 @@ ${label}`,
           </div>
         )}
 
-        {/* 📖 誌面タブ（台帳データ非依存・自己完結）。投入・再生成・公開という制作/公開の操作なので、
+        {/* 📖 スプレッドタブ（台帳データ非依存・自己完結）。投入・再生成・公開という制作/公開の操作なので、
             数字を読む分析タブとは切り離す。delivery と同じく loading/rows を待たず出す。 */}
-        {/* 台帳（/api/admin/ledger）の取得が失敗しても誌面タブは使えるようにする。誌面の投入・承認・
+        {/* 台帳（/api/admin/ledger）の取得が失敗してもスプレッドタブは使えるようにする。スプレッドの投入・承認・
             公開は台帳データを1つも使っておらず、無関係なAPIの失敗で公開の導線が止まる理由が無い。 */}
         {tab === 'spread' && (
           <div className="mt-2 mb-8">

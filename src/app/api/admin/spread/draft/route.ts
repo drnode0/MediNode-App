@@ -8,14 +8,14 @@ import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
 import { canonicalPageId, type SpreadOverlay } from '@/lib/reader-spread'
 
 /**
- * 誌面の編集画面が使う下書きの取り出し。オーナー専用。
+ * スプレッドの編集画面が使う下書きの取り出し。オーナー専用。
  *
- * 返すのは「原本（ReaderDoc）／保存済みオーバレイ／誌面ノートのブロック」の3つ。
+ * 返すのは「原本（ReaderDoc）／保存済みオーバレイ／スプレッドノートのブロック」の3つ。
  * 画面はこれを材料に、オーバレイを直すたびに buildSpreadDraft → applyOverlay →
  * verifyVerbatim を手元で回して即座にプレビューと逐語検査の結果を出す。
  *
- * 誌面（spread_doc）そのものは返さない。編集中の見た目は必ず「今の原本＋今のオーバレイ」から
- * 組み直したものにしたいため（保存済みの誌面を編集の土台にすると、原本が動いたときに
+ * スプレッド（spread_doc）そのものは返さない。編集中の見た目は必ず「今の原本＋今のオーバレイ」から
+ * 組み直したものにしたいため（保存済みのスプレッドを編集の土台にすると、原本が動いたときに
  * 画面と保存内容が食い違う）。保存は従来どおり PUT /api/admin/spread が行い、
  * 本文はクライアントから受け取らない。
  */

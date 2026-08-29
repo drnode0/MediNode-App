@@ -90,7 +90,7 @@ function CalloutBlock({
 }) {
   const role = calloutRole(block.icon)
 
-  // 制作メモ（🎨=draft）は読者向けの誌面には出さない。
+  // 制作メモ（🎨=draft）は読者向けの本文には出さない。
   if (role === 'draft') return null
 
   if (role === 'conclusion') {

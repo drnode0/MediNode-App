@@ -1,8 +1,8 @@
 'use client'
 
-// 誌面（TEXTBOOK LITE・アプリ内リーダー表示）の棚卸し（/admin 誌面タブ）。
-// 誌面は「原本から組み直して保存」という公開操作を経て読者に届く。原本（Notion）を直した
-// あと再生成を忘れると、検索結果には新しい文が出るのに誌面だけ古いままというズレが起きる。
+// スプレッド（TEXTBOOK LITE・アプリ内リーダー表示）の棚卸し（/admin スプレッドタブ）。
+// スプレッドは「原本から組み直して保存」という公開操作を経て読者に届く。原本（Notion）を直した
+// あと再生成を忘れると、検索結果には新しい文が出るのにスプレッドだけ古いままというズレが起きる。
 // このカードがその気づきの場所になる。データは /api/admin/spread（管理者専用）。
 
 import { useCallback, useEffect, useState } from 'react'
@@ -13,7 +13,7 @@ import { canonicalPageId, quizFeedback, type SpreadOverlay, type SpreadQuiz } fr
 
 // 投入・再生成が落ちたときの文言。関門が2つ（逐語一致検査と参考文献の紐づけ）あり、
 // どちらも押した人がその場で直せるものなので、素のエラー名ではなく何が食い違ったかを出す。
-// 文言は誌面の編集画面（spread-edit/SpreadEditClient）と揃える。片方だけに文言があると、
+// 文言はスプレッドの編集画面（spread-edit/SpreadEditClient）と揃える。片方だけに文言があると、
 // この画面から押した人だけが「失敗しました: refs_incomplete」を見ることになる。
 function failureMessage(d: { error?: string; missing?: string[]; dangling?: string[] }, status: number): string {
   // verbatim_mismatch＝生成側が本文を書き換えた、または原本が変わった。
@@ -22,8 +22,8 @@ function failureMessage(d: { error?: string; missing?: string[]; dangling?: stri
     return `逐語一致で落ちました（原本に無い文）: ${(d.missing ?? []).slice(0, 3).join(' / ')}`
   }
   // refs_incomplete＝参考文献の圧縮行と原本の文献行の紐づけが揃っていない。
-  // 紐づけ（sourceId）を持たない古い refs が保存された誌面や、原本に文献が1行増えた誌面で出る。
-  // 直す場所は誌面の編集画面なので、漏れた原本の行と指す先を失った圧縮行を並べて出す。
+  // 紐づけ（sourceId）を持たない古い refs が保存されたスプレッドや、原本に文献が1行増えたスプレッドで出る。
+  // 直す場所はスプレッドの編集画面なので、漏れた原本の行と指す先を失った圧縮行を並べて出す。
   if (d.error === 'refs_incomplete') {
     return `参考文献の紐づけが揃っていません。漏れた原本の行: ${(d.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(d.dangling ?? []).join(' / ') || 'なし'}`
   }
@@ -152,7 +152,7 @@ export function SpreadCard() {
   }
 
   // 理解チェックの目視。承認＝reviewed: true、取り消し＝reviewed: false。
-  // どちらも誌面を組み直して保存し直す（読者に届く spread_doc にフラグを反映するため）ので、
+  // どちらもスプレッドを組み直して保存し直す（読者に届く spread_doc にフラグを反映するため）ので、
   // 成功したら一覧を読み込み直す（run と同じ流儀）。
   const reviewQuiz = async (pageId: string, quizId: string, reviewed: boolean) => {
     const key = `${pageId}:${quizId}`
@@ -191,9 +191,9 @@ export function SpreadCard() {
   return (
     <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 mb-4">
       <SectionHeading
-        title="誌面（アプリ内リーダー表示）"
-        caption="原本（Notion）から組み直して保存＝誌面。原本を直したあと再生成を忘れると、検索結果には新しい文が出るのに誌面だけ古いままになる。"
-        help="再生成＝原本から誌面を組み直して下書き保存（読者にはまだ出ない）。公開＝それを読者向けに切り替える。逐語一致検査に落ちると保存されない。「原本が更新されています」はこのカードを開いたときにNotionの最終更新と突き合わせて出す（毎回は問い合わせない）。"
+        title="スプレッド（アプリ内リーダー表示）"
+        caption="原本（Notion）から組み直して保存＝スプレッド。原本を直したあと再生成を忘れると、検索結果には新しい文が出るのにスプレッドだけ古いままになる。"
+        help="再生成＝原本からスプレッドを組み直して下書き保存（読者にはまだ出ない）。公開＝それを読者向けに切り替える。逐語一致検査に落ちると保存されない。「原本が更新されています」はこのカードを開いたときにNotionの最終更新と突き合わせて出す（毎回は問い合わせない）。"
       />
 
       {msg && <p className="text-xs mb-2 text-gray-600 dark:text-gray-300">{msg}</p>}
@@ -205,14 +205,14 @@ export function SpreadCard() {
       )}
 
       {rows !== null && rows.length === 0 && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 py-4">まだ誌面はありません。下の入力から1枚目を投入できます。</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 py-4">まだスプレッドはありません。下の入力から1枚目を投入できます。</p>
       )}
 
       {/* 新規投入の入り口。ここができるまでは1枚目をAPIを外から叩いて入れるしかなかった。 */}
       <div className="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2 inline-flex items-center gap-1.5">
           <FilePlus2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
-          新規投入（Notion原本から誌面を組んで下書き保存。読者にはまだ出ません）
+          新規投入（Notion原本からスプレッドを組んで下書き保存。読者にはまだ出ません）
         </p>
         <input
           type="text"
@@ -288,7 +288,7 @@ export function SpreadCard() {
                   className="inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <Pencil className="w-3.5 h-3.5" aria-hidden />
-                  誌面を整える
+                  スプレッドを整える
                 </a>
                 <button
                   type="button"

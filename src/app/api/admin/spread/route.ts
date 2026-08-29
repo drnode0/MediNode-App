@@ -10,12 +10,12 @@ import { applyOverlay, buildSpreadDraft, canonicalPageId, refItemsOf, refLinkage
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
 
 /**
- * 誌面（SpreadDoc）の投入。オーナー専用。
+ * スプレッド（SpreadDoc）の投入。オーナー専用。
  *
  * 本文はクライアントから受け取らない。サーバーがNotion原本を読んで組み立て、
  * 制作スキルから渡されるのは上書き（短ラベル・部品・理解チェック・アイコン）だけにする。
  * こうすると (1) 本文の逐語一致が構造上保証され、(2) Notionの署名URL（約1時間で失効）が
- * 誌面に焼き付く事故も起きない（mapBlocksToReaderDoc に pageId を渡すと
+ * スプレッドに焼き付く事故も起きない（mapBlocksToReaderDoc に pageId を渡すと
  * 画像が /api/subscription/image の安定プロキシURLになる）。
  */
 export async function PUT(req: Request) {
@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
     const page = await notion.pages.retrieve({ page_id: pageId })
     const blocks = await fetchPageBlocks(notion, pageId)
     doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
-    // 誌面ノート（非公開DB）。無ければ null＝照合先は原本だけ。
+    // スプレッドノート（非公開DB）。無ければ null＝照合先は原本だけ。
     notes = await fetchSpreadNotesBlocks(notion, pageId)
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
@@ -77,13 +77,13 @@ export async function PUT(req: Request) {
     // 生成側が本文を書き換えた、または原本が変わった。どちらも投入させない。
     return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
   }
-  // 参考文献の紐づけ。圧縮行（refs）を入れた誌面の文献一覧はその配列だけになるので、
-  // 書き忘れた1件は誌面から消える。逐語一致検査は「書いた文言が原本かノートにあるか」しか
+  // 参考文献の紐づけ。圧縮行（refs）を入れたスプレッドの文献一覧はその配列だけになるので、
+  // 書き忘れた1件はスプレッドから消える。逐語一致検査は「書いた文言が原本かノートにあるか」しか
   // 見ないため、この抜けはそこでは見つからない。指す先を失った圧縮行（原本が書き換わって
   // 行が消えた・紐づけを持たない）も同じく止める。別の行に付け替えると読者に違う文献の
   // リンクを出すため。ビルダーだけでなくここでも止めるのは、「JSONを直接編集」の窓口と
   // APIへの直接PUTがビルダーを通らないため。
-  // 圧縮行を供給していない誌面は refLinkage が必ず両方とも空を返す（従来の投入を止めない）。
+  // 圧縮行を供給していないスプレッドは refLinkage が必ず両方とも空を返す（従来の投入を止めない）。
   const linkage = refLinkage(refItemsOf(spread.tail), spread.refs)
   if (linkage.dropped.length > 0 || linkage.dangling.length > 0) {
     return NextResponse.json(
@@ -115,7 +115,7 @@ export async function PUT(req: Request) {
     detail: { pageId, sections: spread.sections.length, quizzes: spread.quizzes.length },
   })
 
-  // 誌面は /api/subscription/page の応答に同梱するので、本文と同じタグで失効させる。
+  // スプレッドは /api/subscription/page の応答に同梱するので、本文と同じタグで失効させる。
   revalidateSubscriptionReaderDocs()
 
   return NextResponse.json({ ok: true, status, sections: spread.sections.length })
@@ -124,7 +124,7 @@ export async function PUT(req: Request) {
 /**
  * 理解チェックの目視。オーナーが1問ずつ見て承認する。
  *
- * 誌面（spread_doc）は overlay を原本に重ねて組み直す。フラグだけを書き換えても
+ * スプレッド（spread_doc）は overlay を原本に重ねて組み直す。フラグだけを書き換えても
  * 読者に届く spread_doc に反映されないため、投入と同じ経路（原本を読む→
  * buildSpreadDraft→sanitizeOverlay→applyOverlay→verifyVerbatim）を通す。
  * status は変えない（公開中の記事なら、承認した設問がその場で読者に出る）。
@@ -184,17 +184,17 @@ export async function PATCH(req: Request) {
     const page = await notion.pages.retrieve({ page_id: pageId })
     const blocks = await fetchPageBlocks(notion, pageId)
     doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
-    // 誌面ノート（非公開DB）。投入時と同じ照合先で組み直す。
+    // スプレッドノート（非公開DB）。投入時と同じ照合先で組み直す。
     notes = await fetchSpreadNotesBlocks(notion, pageId)
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
   }
 
-  // 原本の最終更新（今取得した lastEdited）と、この誌面を最後に組んだときの
+  // 原本の最終更新（今取得した lastEdited）と、このスプレッドを最後に組んだときの
   // 最終更新（保存済み source_last_edited）を突き合わせる。食い違っていれば
   // 原本が動いている＝再生成しないまま組み直すと未確認の編集を読者に出すことになる。
-  // どちらか一方が null（原本の最終更新が取れない、または誌面が一度も
+  // どちらか一方が null（原本の最終更新が取れない、またはスプレッドが一度も
   // source_last_edited を持ったことがない）のときは、そもそも比較ができない。
   // 「一致している」とみなして通すと事故のほうが起きやすいので、安全側に倒して
   // 同じく拒否する（比較不能 ＝ 一致とはしない）。
@@ -242,10 +242,10 @@ export async function PATCH(req: Request) {
 }
 
 /**
- * /admin の棚卸し用。誌面の一覧を新しい順に返す。
+ * /admin の棚卸し用。スプレッドの一覧を新しい順に返す。
  *
- * `?check=1` のときだけ、各誌面のNotion原本を引いて最終更新を突き合わせ、
- * 「原本を直したのに誌面が古いまま」を stale として返す。件数が増えたときに
+ * `?check=1` のときだけ、各スプレッドのNotion原本を引いて最終更新を突き合わせ、
+ * 「原本を直したのにスプレッドが古いまま」を stale として返す。件数が増えたときに
  * 毎回Notionへ問い合わせると重くなるため、一覧の素の読み込みでは叩かない。
  */
 export async function GET(req: Request) {
@@ -282,7 +282,7 @@ export async function GET(req: Request) {
       try {
         const page = await notion.pages.retrieve({ page_id: r.page_id })
         const last = (page as { last_edited_time?: string }).last_edited_time ?? null
-        // 原本の最終更新が、この誌面を組んだ時点の原本更新より新しければ再生成が要る。
+        // 原本の最終更新が、このスプレッドを組んだ時点の原本更新より新しければ再生成が要る。
         const stale = !!last && !!r.source_last_edited && new Date(last) > new Date(r.source_last_edited)
         return { ...r, stale }
       } catch {

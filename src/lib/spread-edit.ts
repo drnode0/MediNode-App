@@ -1,5 +1,5 @@
-// 誌面の編集画面（/admin/spread-edit）の道具箱。
-// 「文はタイプさせず、原本と誌面ノートから選ばせる」ための候補抽出と、
+// スプレッドの編集画面（/admin/spread-edit）の道具箱。
+// 「文はタイプさせず、原本とスプレッドノートから選ばせる」ための候補抽出と、
 // 部品の空雛形を持つ。ここは純関数だけ（描画は SpreadEditClient 側）。
 import { calloutRole, type ReaderBlock } from './reader-doc'
 import { textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
@@ -57,7 +57,7 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
 // 参考文献の圧縮行の雛形。編集画面は「原本のどの文献行か」を先に選ばせるので、
 // 紐づけ（sourceId＝原本の文献行のブロックID）はここで必ず決まる。
 // title には選んだ行の文言をそのまま初期値に入れる（人がここから削って1行に縮める）。
-// source（略記の出典）と note（1行説明）は誌面ノートの行から選んで埋める。
+// source（略記の出典）と note（1行説明）はスプレッドノートの行から選んで埋める。
 export function refForItem(sourceId: string, title: string): SpreadRef {
   return { sourceId, title, source: '', note: '' }
 }
@@ -68,7 +68,7 @@ export function withRefs(overlay: SpreadOverlay, refs: SpreadRef[]): SpreadOverl
   return { ...overlay, refs: refs.length > 0 ? refs : undefined }
 }
 
-// 編集画面のセグメント（文節）に許す色。Notionの色名のうち、誌面の面で意味が立つものだけ。
+// 編集画面のセグメント（文節）に許す色。Notionの色名のうち、スプレッドの面で意味が立つものだけ。
 // 既定（未指定）は部品の意味色（強調＝緑、否定側＝赤）に任せる。
 export const SEGMENT_COLORS = [
   { value: '', label: '既定（部品の意味色）' },

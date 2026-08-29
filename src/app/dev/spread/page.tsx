@@ -1,7 +1,7 @@
-// 誌面（ReaderSpread）のdevハーネス（development限定）。
+// スプレッド（ReaderSpread）のdevハーネス（development限定）。
 // 実物のNotion原本から scripts/preview-spread.tsx --json で書き出した SpreadDoc を
 // そのまま描く。ログインもSupabaseも要らない（仕様書「実データのプレビューは
-// 既存の src/app/dev/reader を使う」の誌面版）。
+// 既存の src/app/dev/reader を使う」のスプレッド版）。
 //
 // 使い方:
 //   npx tsx scripts/preview-spread.tsx <pageId> /dev/null \

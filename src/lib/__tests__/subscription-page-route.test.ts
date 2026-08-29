@@ -7,7 +7,7 @@ const { retrieveMock, listMock, guardMock, maybeSingleMock, eqMock } = vi.hoiste
 vi.mock('@notionhq/client', () => ({
   Client: class { pages = { retrieve: retrieveMock }; blocks = { children: { list: listMock } } },
 }))
-// spread_doc（誌面の保存データ）は未目視の設問を含んだまま保存される。
+// spread_doc（スプレッドの保存データ）は未目視の設問を含んだまま保存される。
 // /admin はそれをそのまま読むが、サブスク公開側のこのルートは reviewed: true だけに絞って
 // 返す必要がある（関門はサーバー側にも要る）。ここではSupabaseをチェーン可能なモックにする。
 // eq の引数（どの page_id で引いたか）を検証したいので、チェーンを自己参照で組む。
@@ -135,8 +135,8 @@ describe('GET /api/subscription/page', () => {
 
   // 読者側の記事ID（Algoliaの objectID）はハイフンありのUUIDで来る。一方 reader_spreads の
   // page_id はハイフンなし32桁で保存されている（/admin のブラウザ側がそう送るため）。
-  // 揃えないと投入した誌面が1件も引けず、読者には従来表示のままになる。
-  it('ハイフンありのIDで来ても、誌面はハイフンなし32桁で引く', async () => {
+  // 揃えないと投入したスプレッドが1件も引けず、読者には従来表示のままになる。
+  it('ハイフンありのIDで来ても、スプレッドはハイフンなし32桁で引く', async () => {
     allow()
     retrieveMock.mockResolvedValue({
       last_edited_time: '2026-07-20T00:00:00.000Z',

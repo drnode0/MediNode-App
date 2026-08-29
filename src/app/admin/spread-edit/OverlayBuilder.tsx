@@ -1,14 +1,14 @@
 'use client'
 
-// 誌面のオーバレイを、JSONを書かずにクリックと文選びで組む編集ビルダー。
+// スプレッドのオーバレイを、JSONを書かずにクリックと文選びで組む編集ビルダー。
 //
-// 文の入力欄はすべて逐語照合つき: 原本にも誌面ノートにも無い文はその場で赤くなる。
-// 「候補」ボタンで、その節の原本の文・表セル・誌面ノートの行から選んで入れられるので、
+// 文の入力欄はすべて逐語照合つき: 原本にもスプレッドノートにも無い文はその場で赤くなる。
+// 「候補」ボタンで、その節の原本の文・表セル・スプレッドノートの行から選んで入れられるので、
 // 通常はタイプせずに済む（選んだ文は構造上必ず逐語検査を通る）。
 //
 // 装飾は既定では意味で付く（強調＝部品の意味色、doseは大きな数値、warnは赤、primaryは塗り）。
 // 例外的に文節ごとの色（SEGMENT_COLORS）も選べるが、サイズの自由指定は持たない
-// （誌面の完成度＝パイロット準拠の統一が目標のため）。
+// （スプレッドの完成度＝パイロット準拠の統一が目標のため）。
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
@@ -78,7 +78,7 @@ function PickerMenu({ label, groups, onPick }: { label: string; groups: PickerGr
   )
 }
 
-// 候補（原本＋誌面ノート）から1文選ぶドロップダウン。
+// 候補（原本＋スプレッドノート）から1文選ぶドロップダウン。
 // ownLabel は原本側の見出し。既定は節の中で使うときの呼び名で、記事末（参考文献）から
 // 使うときだけ差し替える。
 function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }: { own: string[]; notes: string[]; onPick: (s: string) => void; ownLabel?: string }) {
@@ -87,7 +87,7 @@ function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }
       label="候補"
       groups={[
         { label: ownLabel, items: own.map((s) => ({ key: s, text: s })) },
-        { label: '誌面ノート', items: notes.map((s) => ({ key: s, text: s })) },
+        { label: 'スプレッドノート', items: notes.map((s) => ({ key: s, text: s })) },
       ]}
       onPick={onPick}
     />
@@ -172,7 +172,7 @@ function InlinesEditor({
         >
           ＋文節（強調や色を部分にかける単位）
         </button>
-        {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にも誌面ノートにも無い文です</span>}
+        {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
       </div>
     </div>
   )
@@ -269,7 +269,7 @@ function VerbatimInput({
       />
       <div className="flex items-center gap-2 pt-0.5">
         <CandidatePicker own={own} notes={notes} onPick={onChange} ownLabel={ownLabel} />
-        {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にも誌面ノートにも無い文です</span>}
+        {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
       </div>
     </div>
   )
@@ -555,14 +555,14 @@ function SectionEditor({
 
 // ---------------------------------------------------------------- 参考文献・理解チェック
 
-// 参考文献の圧縮行。誌面の一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
-// 出典の略記と1行説明は原本に無いので、非公開の誌面ノートに置いた行から選ぶ
+// 参考文献の圧縮行。スプレッドの一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
+// 出典の略記と1行説明は原本に無いので、非公開のスプレッドノートに置いた行から選ぶ
 // （3つとも逐語照合つき。原本にもノートにも無い文字列は赤くなり、保存も止まる）。
 //
 // 行を足すときは、まず「原本のどの文献行か」を候補から選ぶ。選んだ時点で紐づけ
 // （sourceId＝原本の文献行のブロックID）が決まり、その行の文言が title の初期値に入る。
 // 一次資料へのリンクも、文献が減っていないかの関門も、この紐づけだけを見る。
-// items は原本の文献行、texts は同じ並びで誌面に出る文言（「引用：」で切ったもの）。
+// items は原本の文献行、texts は同じ並びでスプレッドに出る文言（「引用：」で切ったもの）。
 function RefsEditor({
   overlay,
   onChange,
@@ -585,7 +585,7 @@ function RefsEditor({
   // （SpreadEditClient の保存ボタンが同じ判定を見ている）。
   //
   // 関門に渡すのは編集中の生の refs ではなく sanitizeRefs を通した値。外側（SpreadEditClient）は
-  // sanitizeOverlay 後の誌面から関門を組むので、生のまま組むと入力が中と外で割れる。
+  // sanitizeOverlay 後のスプレッドから関門を組むので、生のまま組むと入力が中と外で割れる。
   // 実際、圧縮行のタイトルを空にすると sanitize がその行を落とすため、外側は
   // 「漏れた原本の文献行が1件」で保存を止めるのに、この中には何の印も出なかった。
   const linkage = refLinkage(items, sanitizeRefs(refs))
@@ -643,10 +643,10 @@ function RefsEditor({
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-bold text-gray-400">{i + 1}</span>
               {/* どの原本の行を指しているか。ここが決まっているから一次資料へ飛べる。
-                  タイトルが空の行は誌面から落ちる（sanitizeRefs）ので、指す先が決まっていても
+                  タイトルが空の行はスプレッドから落ちる（sanitizeRefs）ので、指す先が決まっていても
                   原本の文献行が1件消える。落ちることをこの行の場で分かるようにする。 */}
               {!r.title?.trim() ? (
-                <span className="text-[11px] text-red-600 dark:text-red-400">タイトルが空です（この行は誌面に出ません）</span>
+                <span className="text-[11px] text-red-600 dark:text-red-400">タイトルが空です（この行はスプレッドに出ません）</span>
               ) : at === undefined ? (
                 <span className="text-[11px] text-red-600 dark:text-red-400">指す先が原本にありません</span>
               ) : (
@@ -738,10 +738,10 @@ function QuizEditor({ overlay, onChange, sections, checker, notes }: { overlay: 
                   className="w-full bg-transparent text-xs px-1 py-0.5 outline-none"
                 />
                 <CandidatePicker own={own} notes={[]} onPick={(s) => set(quizzes.map((x, j) => (j === i ? { ...x, evidence: s } : x)))} />
-                {!evidenceOk && <span className="text-[11px] text-red-600 dark:text-red-400 ml-2">この節の本文に無い文です（誌面ノートは根拠に使えません）</span>}
+                {!evidenceOk && <span className="text-[11px] text-red-600 dark:text-red-400 ml-2">この節の本文に無い文です（スプレッドノートは根拠に使えません）</span>}
               </div>
             </Field>
-            {/* 解説は書き下ろしなので原本には無く、誌面ノートに置く。根拠（evidence）と違って
+            {/* 解説は書き下ろしなので原本には無く、スプレッドノートに置く。根拠（evidence）と違って
                 照合先はノートまで広がるが、原本にもノートにも無い文言は赤くなって保存が止まる
                 （SpreadEditClient の保存ボタンが verifyVerbatim の結果を見ている）。 */}
             <Field label="正解の言い直し（「正解：」に続けて太字で出る。空なら「正解：」だけになる）">
@@ -801,7 +801,7 @@ export function OverlayBuilder({
   // 参考文献。紐づけと一次資料のリンクが見るのは「引用：」で切る前の行（リンクがそこより
   // 後ろにあるため）なので、行そのものは refItemsOf から取る。
   const refItems = useMemo(() => refItemsOf(draft.tail), [draft])
-  // 画面に見せる文言は、誌面に出るのと同じ「引用：」で切った行に揃える（行の集合は同じで
+  // 画面に見せる文言は、スプレッドに出るのと同じ「引用：」で切った行に揃える（行の集合は同じで
   // 長さだけが違う）。切った結果が消える行だけは、切る前の文言で埋める。
   // tail 全体を拾うと PubMed検索キーワード例・免責・署名まで並ぶので、文献一覧の範囲に絞る。
   const refTexts = useMemo(() => {

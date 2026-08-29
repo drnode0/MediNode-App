@@ -45,7 +45,7 @@ describe('GET /api/admin/spread/draft（編集画面の下書き取得）', () =
     expect(notionRetrieve).not.toHaveBeenCalled()
   })
 
-  it('原本・誌面ノート・保存済みオーバレイを返す（誌面そのものは返さない）', async () => {
+  it('原本・スプレッドノート・保存済みオーバレイを返す（スプレッドそのものは返さない）', async () => {
     const res = await GET(get('?pageId=abcdef0123456789abcdef0123456789'))
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -54,7 +54,7 @@ describe('GET /api/admin/spread/draft（編集画面の下書き取得）', () =
     expect(data.notes).toHaveLength(1)
     expect(data.overlay).toEqual({ shortLabels: { '1': '目標' } })
     expect(data.status).toBe('draft')
-    // 編集の土台は「今の原本＋今のオーバレイ」。保存済みの誌面は返さない
+    // 編集の土台は「今の原本＋今のオーバレイ」。保存済みのスプレッドは返さない
     expect('spread' in data).toBe(false)
     expect('spread_doc' in data).toBe(false)
   })
@@ -70,7 +70,7 @@ describe('GET /api/admin/spread/draft（編集画面の下書き取得）', () =
     expect(notionRetrieve).not.toHaveBeenCalled()
   })
 
-  it('誌面ノートが無いページは notes を空配列で返す（照合先は原本だけになる）', async () => {
+  it('スプレッドノートが無いページは notes を空配列で返す（照合先は原本だけになる）', async () => {
     fetchSpreadNotesBlocks.mockResolvedValue(null)
     const res = await GET(get('?pageId=abc'))
     expect((await res.json()).notes).toEqual([])

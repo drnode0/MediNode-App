@@ -1,6 +1,6 @@
 'use client'
 // 本文のインライン描画（太字・リンク・文字色・検索ハイライト）。
-// ReaderBody から切り出した共有部品。誌面（components/reader/spread）も同じものを使う。
+// ReaderBody から切り出した共有部品。スプレッド（components/reader/spread）も同じものを使う。
 // mark[data-reader-search] の出し方は ReaderOverlay が DOM を数えて現在位置を
 // 付け替える前提なので、属性と構造を変えないこと。
 import { createContext, useContext } from 'react'
@@ -17,7 +17,7 @@ const MARK_OF: Record<string, Confidence> = Object.fromEntries(
 ) as Record<string, Confidence>
 // 🔖 は参考文献の収録レベル印（この出典に文献カードがある目印。medinode-reference-note §5）。
 // 原本の記法は絵文字のまま、表示時に線画へ変換する。✅⚠️❓→ConfidenceMark と同じ流儀で、
-// 誌面の「絵文字はアイコンに使わない」方針（2026-08-27・線画SVG）に本文表示を揃える。
+// スプレッドの「絵文字はアイコンに使わない」方針（2026-08-27・線画SVG）に本文表示を揃える。
 const BOOKMARK = '🔖'
 const MARK_RE = new RegExp(`(${[...Object.values(CONFIDENCE_MARKS), BOOKMARK].join('|')})`)
 

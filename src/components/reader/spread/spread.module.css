@@ -1,11 +1,11 @@
 /*
- * 誌面（TEXTBOOK LITE）の見た目。パイロット誌面（.preview/pilot-original.html）の
- * スタイル定義を1対1で移した実装で、誌面の見た目の正本はこのファイル。
+ * スプレッド（TEXTBOOK LITE）の見た目。パイロット版（.preview/pilot-original.html）の
+ * スタイル定義を1対1で移した実装で、スプレッドの見た目の正本はこのファイル。
  *
  * 経緯: 当初は共通レンダラ（ReaderBody の RenderedBlocks）の既定の見た目に
  * 個別の上書きを重ねる作りにしたため、パイロットが独自に定義している見た目
  * （四角い箇条書きマーカー・枠の形・塗りヘッダー等）が上書きし忘れた箇所で
- * すべてアプリの既定に戻っていた。以後、誌面の部品はここのクラスで組む。
+ * すべてアプリの既定に戻っていた。以後、スプレッドの部品はここのクラスで組む。
  *
  * ダークは .dark 基準（このリポジトリの規約。@media は使わない）。
  *
@@ -37,8 +37,8 @@
   --chip-g1: rgba(255, 255, 255, 0.95);
   --chip-g2: rgba(238, 246, 242, 0.8);
   --hi: rgba(255, 255, 255, 0.7);
-  /* 誌面は自分の紙（--paper）を敷く。アプリの面の色をそのまま使うと、
-     誌面の中の枠なし部品（要点ボックス・目次チップ）だけ地の色が食い違う。 */
+  /* スプレッドは自分の紙（--paper）を敷く。アプリの面の色をそのまま使うと、
+     スプレッドの中の枠なし部品（要点ボックス・目次チップ）だけ地の色が食い違う。 */
   background: var(--paper);
   color: var(--ink);
   letter-spacing: 0.02em;
@@ -296,7 +296,7 @@
   margin-bottom: 1rem;
 }
 /* globals.css の `.reader-prose h2 { letter-spacing: 0 }`（詳細度 0,1,1）を上回らせる。
-   値は inherit にして、誌面の地（.spread の 0.02em＝16px基準の0.32px）をそのまま継ぐ
+   値は inherit にして、スプレッドの地（.spread の 0.02em＝16px基準の0.32px）をそのまま継ぐ
    （見出しで 0.02em を書き直すと見出しの字送りで再計算され、パイロットより広くなる）。 */
 .spread .secHead {
   letter-spacing: inherit;
@@ -781,7 +781,7 @@
   font-weight: 700;
 }
 /* globals.css の `.reader-prose h3 { letter-spacing: 0 }`（詳細度 0,1,1）を上回らせる。
-   値は inherit にして誌面の地の字送りを継ぐ（.secHead と同じ扱い）。 */
+   値は inherit にしてスプレッドの地の字送りを継ぐ（.secHead と同じ扱い）。 */
 .spread .practice h3,
 .spread .refs h3 {
   letter-spacing: inherit;
@@ -818,7 +818,7 @@
   margin-bottom: 0.5em;
 }
 /* パイロットの `.refs b` に当たる指定。原本の箇条書きで出すときの太字は Inlines が
-   .font-bold で描き、圧縮行で出すときは誌面が `<b>` を直に置く（パイロットと同じ組み）。
+   .font-bold で描き、圧縮行で出すときはスプレッドが `<b>` を直に置く（パイロットと同じ組み）。
    パイロットで `<b>` が出るのは一覧の中だけなので、見出し（h3）まで 600 に落とさないよう
    ol の中に限る（.refs h3 の 700 を詳細度で食わせない）。 */
 .refs ol :global(.font-bold),

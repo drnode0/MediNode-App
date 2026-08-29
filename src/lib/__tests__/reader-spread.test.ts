@@ -293,7 +293,7 @@ describe('visibleQuizzes', () => {
 })
 
 describe('理解チェックの解説（answerLead / explanation）', () => {
-  // 書き下ろしの解説は原本に無いので、非公開の誌面ノートに置いてオーバレイから供給する。
+  // 書き下ろしの解説は原本に無いので、非公開のスプレッドノートに置いてオーバレイから供給する。
   // ノート側は1行に「正解の言い直し｜解説の地の文」を並べて書く。
   const notes: ReaderBlock[] = [
     { kind: 'list_item', ordered: false, inlines: t('目標SpO2を先に決める。｜デバイスより先に目標値を決めるのが原則で、値が決まらないと流量も選べない。') },
@@ -306,7 +306,7 @@ describe('理解チェックの解説（answerLead / explanation）', () => {
     ...over,
   })
 
-  it('answerLead / explanation が誌面ノートにあれば検査を通る', () => {
+  it('answerLead / explanation がスプレッドノートにあれば検査を通る', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const good = applyOverlay(draft, { quizzes: [quiz({})] })
     expect(verifyVerbatim(good, doc, notes)).toEqual({ ok: true, missing: [] })
@@ -542,7 +542,7 @@ describe('splitSections: 節より後ろの level 1 見出し（# Evidence 以�
   })
 })
 
-describe('誌面の編集ルール（パイロット準拠の表示整形）', () => {
+describe('スプレッドの編集ルール（パイロット準拠の表示整形）', () => {
   it('displayPreface: 構造見出しとタイトル重複段落を除き、他は残す', () => {
     const preface: ReaderBlock[] = [
       { kind: 'heading', level: 1, inlines: t('Question') },
@@ -596,7 +596,7 @@ describe('誌面の編集ルール（パイロット準拠の表示整形）', (
   })
 })
 
-describe('flow の intro と note（パイロット誌面のフロー部品）', () => {
+describe('flow の intro と note（パイロット版のフロー部品）', () => {
   const flowDoc: ReaderDoc = {
     title: 'x', icon: null, cover: null, lastEdited: null,
     blocks: [
@@ -718,7 +718,7 @@ describe('cards（2枚組の比較カード）と note（表層の補足ノー�
   })
 })
 
-describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要点ボックス）', () => {
+describe('スプレッドの編集ルール（凡例段落・参考文献の圧縮・要点ボックス）', () => {
   it('sectionDisplay: 凡例段落（確信度の見方）と末尾の区切り線は深掘りに出さない', () => {
     const d: ReaderDoc = {
       title: 'x', icon: null, cover: null, lastEdited: null,
@@ -760,7 +760,7 @@ describe('誌面の編集ルール（凡例段落・参考文献の圧縮・要�
       { kind: 'paragraph', inlines: [{ text: '査読済み：2026-08', bold: true }, { text: ' 主要根拠：BTS 2017' }] },
     ] }
     const r = splitDigest(lead)
-    // 見出し帯は誌面の呼び名に置き換わる（パイロット準拠）
+    // 見出し帯はスプレッドの呼び名に置き換わる（パイロット準拠）
     expect(r.heading).toBe('この記事の要点')
     expect(r.body.map((b) => textOf(b.kind === 'list_item' ? b.inlines : []))).toEqual(['要点1。', '要点2。'])
     expect(r.foot.map((b) => b.kind)).toEqual(['paragraph'])
@@ -902,7 +902,7 @@ describe('splitTailBlocks（記事末尾を実践・文献・免責の口に分�
     expect(r.practice).toBe(practice)
     expect(r.refsHead).toBe(refsHead)
     expect(r.refsItems).toEqual([ref1, ref2])
-    // 免責は callout そのものではなく中身（枠は誌面が自前で組む）
+    // 免責は callout そのものではなく中身（枠はスプレッドが自前で組む）
     expect(r.disclaimer).toEqual(disclaimer.kind === 'callout' ? disclaimer.blocks : [])
     expect(r.rest).toEqual([])
   })
@@ -948,7 +948,7 @@ describe('splitTailBlocks（記事末尾を実践・文献・免責の口に分�
 })
 
 describe('refs（参考文献の圧縮行）', () => {
-  // 圧縮行は原本に無く、非公開の誌面ノートにだけ置く（原本は公開リンクで読者に見えるため）。
+  // 圧縮行は原本に無く、非公開のスプレッドノートにだけ置く（原本は公開リンクで読者に見えるため）。
   // ノート側は1行1文献の箇条書きで、その1行の中に title / source / note がそのまま含まれる。
   const notes: ReaderBlock[] = [
     { kind: 'list_item', ordered: false, inlines: t('BTS Guideline for oxygen use in adults｜BMJ Open Respir Res 2017｜成人急性期の目標SpO2とデバイス選択の中核ガイドライン') },
@@ -987,7 +987,7 @@ describe('refs（参考文献の圧縮行）', () => {
   it('sanitizeOverlay は refs を既知のキーだけに絞り、3つの文言を trim する', () => {
     // JSONを直接編集する窓口・APIへの直接PUTからは、型に無いキー（href など）が混ざりうる。
     // 部品側の stripPartHref と同じで、生成側にURLを書かせないことをここでも担保する。
-    // trim しないと、検査（trim して照合）は通るのに末尾に空白を持ったタイトルが誌面に出る。
+    // trim しないと、検査（trim して照合）は通るのに末尾に空白を持ったタイトルがスプレッドに出る。
     const r = sanitizeOverlay({ refs: [
       { title: ' BTS Guideline for oxygen use in adults ', source: ' BMJ Open Respir Res 2017 ', note: ' 中核ガイドライン ', sourceId: 'blk-1', href: 'https://x.test' } as SpreadRef,
     ] })
@@ -1001,7 +1001,7 @@ describe('refs（参考文献の圧縮行）', () => {
     expect(r.refs).toEqual([{ title: '出典の略記が無い文献', source: '', note: '' }])
   })
 
-  it('title / source / note は逐語一致検査の対象で、誌面ノートにあれば通る', () => {
+  it('title / source / note は逐語一致検査の対象で、スプレッドノートにあれば通る', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const good = applyOverlay(draft, { refs: [ref] })
     expect(verifyVerbatim(good, doc, notes).ok).toBe(true)
@@ -1107,7 +1107,7 @@ describe('refLinkage（圧縮行と原本の文献行の明示の紐づけ）', 
 
   it('タイトルを空にした圧縮行は、関門の入力を正規化すると原本の行の取りこぼしになる', () => {
     // ビルダー（RefsEditor）は編集中の生の refs を、外側（SpreadEditClient）は sanitizeOverlay 後の
-    // 誌面を見る。生のまま関門に渡すと、タイトルを空にした行は sanitize で落ちるのに関門では
+    // スプレッドを見る。生のまま関門に渡すと、タイトルを空にした行は sanitize で落ちるのに関門では
     // 指したままになり、外側だけが保存を止めて中には印が出ない。両方が sanitizeRefs を通す。
     const emptied: SpreadRef[] = [...refs.slice(0, 3), { ...refs[3], title: '  ' }]
     expect(refLinkage(items, emptied)).toEqual({ dropped: [], dangling: [] })
@@ -1116,7 +1116,7 @@ describe('refLinkage（圧縮行と原本の文献行の明示の紐づけ）', 
     expect(refLinkage(items, sanitizeOverlay({ refs: emptied }).refs)).toEqual(refLinkage(items, sanitizeRefs(emptied)))
   })
 
-  it('refs が未指定・空のときはどちらも空配列（供給していない誌面は従来どおり）', () => {
+  it('refs が未指定・空のときはどちらも空配列（供給していないスプレッドは従来どおり）', () => {
     expect(refLinkage(items, undefined)).toEqual({ dropped: [], dangling: [] })
     expect(refLinkage(items, [])).toEqual({ dropped: [], dangling: [] })
   })
@@ -1191,13 +1191,13 @@ describe('refHrefs（紐づけ先から一次資料へ）', () => {
     expect(refHrefs([withTwo], [refs[0]])).toEqual(['https://example.org/first'])
   })
 
-  it('refs が未指定・空なら空配列（供給していない誌面はリンクを持たない）', () => {
+  it('refs が未指定・空なら空配列（供給していないスプレッドはリンクを持たない）', () => {
     expect(refHrefs(items, undefined)).toEqual([])
     expect(refHrefs(items, [])).toEqual([])
   })
 })
 
-describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', () => {
+describe('refItemsOf（スプレッドの文献一覧のもとになる原本の行）', () => {
   const tail: ReaderBlock[] = [
     { kind: 'heading', level: 1, inlines: t('Evidence') },
     { kind: 'callout', icon: '📚', color: null, blocks: [{ kind: 'paragraph', inlines: t('まず当たるべき文献') }] },
@@ -1219,7 +1219,7 @@ describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', 
   })
 
   it('「引用：」以降を切らない（一次資料へのリンクはそこより後ろにあるため）', () => {
-    // displayTail は誌面の表示のために「引用：」以降を落とす。同じ範囲をそのまま使うと
+    // displayTail はスプレッドの表示のために「引用：」以降を落とす。同じ範囲をそのまま使うと
     // 文献行からリンクが消え、タイトルからどこにも飛べなくなる。
     const shown = splitTailBlocks(displayTail(tail).rest).refsItems[0]
     expect(shown.kind === 'list_item' && shown.inlines.some((n) => n.href)).toBe(false)
@@ -1233,7 +1233,7 @@ describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', 
 })
 
 // reader_spreads.page_id の正準形。書く側（/admin・投入API）と読む側（配信API）が
-// 同じ形に揃わないと、投入した誌面が読者に出ない（ハイフン有無の食い違いで行が引けない）。
+// 同じ形に揃わないと、投入したスプレッドが読者に出ない（ハイフン有無の食い違いで行が引けない）。
 describe('canonicalPageId', () => {
   // ダミーの32桁。実在の page_id は公開リポに書かない。
   const bare = '0123456789abcdef0123456789abcdef'

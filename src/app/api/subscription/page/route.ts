@@ -26,7 +26,7 @@ const getReaderDocCached = (pageId: string, token: string) =>
     { revalidate: 3600, tags: [SUBSCRIPTION_READER_TAG] },
   )()
 
-// 公開済みの誌面だけを引く。無ければ null（＝従来の ReaderBody 描画になる）。
+// 公開済みのスプレッドだけを引く。無ければ null（＝従来の ReaderBody 描画になる）。
 // Supabase 直読みは Notion API と違って速いので、Data Cache には載せない。
 // 投入時に revalidateSubscriptionReaderDocs() が本文側のタグを失効させる。
 async function getPublishedSpread(pageId: string): Promise<SpreadDoc | null> {
@@ -47,7 +47,7 @@ async function getPublishedSpread(pageId: string): Promise<SpreadDoc | null> {
     // 未目視の設問がJSONとしてブラウザに届くこと自体をここで止める。
     return { ...spread, quizzes: spread.quizzes.filter((q) => q.reviewed) }
   } catch {
-    // 誌面が引けなくても本文は返す。読めなくなることだけは避ける。
+    // スプレッドが引けなくても本文は返す。読めなくなることだけは避ける。
     return null
   }
 }
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   const raw = new URL(req.url).searchParams.get('id')
   // 節レコードのobjectID（subscription_<pageId>#secN）が渡されても親ページとして解決する。
   // さらに reader_spreads.page_id の正準形（ハイフンなし32桁）まで揃える。読者側の記事IDは
-  // ハイフンありのUUIDで来るので、ここを通さないと投入済みの誌面が1件も引けない。
+  // ハイフンありのUUIDで来るので、ここを通さないと投入済みのスプレッドが1件も引けない。
   const pageId = canonicalPageId(raw)
   if (!pageId) return NextResponse.json({ error: 'missing id' }, { status: 400 })
 

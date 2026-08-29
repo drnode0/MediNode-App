@@ -6,12 +6,12 @@ import { quizFeedback, type SpreadQuiz } from '@/lib/reader-spread'
 import s from './spread.module.css'
 
 // 節末の理解チェック。採点は端末の中だけで完結し、サーバーには何も送らない
-// （既存のクイズ・SRSと同じ方針）。見た目はパイロット誌面の .quiz（淡い琥珀の面・
+// （既存のクイズ・SRSと同じ方針）。見た目はパイロット版の .quiz（淡い琥珀の面・
 // 枠線つきの選択肢・正解は緑枠／誤答は赤枠）。
 export function SpreadQuizCard({ quiz }: { quiz: SpreadQuiz }) {
   const [picked, setPicked] = useState<number | null>(null)
   const answered = picked !== null
-  // 書き下ろしの解説が誌面ノートから供給されていれば、それを正解の面に出す。
+  // 書き下ろしの解説がスプレッドノートから供給されていれば、それを正解の面に出す。
   // 供給が無ければ null で、下の分岐が従来どおり根拠の逐語を出す。
   const feedback = quizFeedback(quiz)
   return (
@@ -45,8 +45,8 @@ export function SpreadQuizCard({ quiz }: { quiz: SpreadQuiz }) {
               <Inlines items={[{ text: feedback.body }]} k={`quiz-${quiz.id}-explanation`} />
             </>
           ) : (
-            // 解説が供給されていない誌面では、根拠の逐語をこれまでと1文字も変えずに出す
-            // （供給していない誌面の出力を変えないための fail-safe）。
+            // 解説が供給されていないスプレッドでは、根拠の逐語をこれまでと1文字も変えずに出す
+            // （供給していないスプレッドの出力を変えないための fail-safe）。
             quiz.evidence
           )}
         </p>

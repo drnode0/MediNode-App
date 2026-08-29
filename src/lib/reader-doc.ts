@@ -2,7 +2,7 @@
 // 執筆側が付けた文字色・蛍光マーカーを読者にもそのまま届ける。
 export type ReaderInline = { text: string; bold?: boolean; italic?: boolean; code?: boolean; href?: string; color?: string }
 
-// blockId は Notion のブロックID。編集レイヤー（誌面からの書き戻し）と
+// blockId は Notion のブロックID。編集レイヤー（スプレッドからの書き戻し）と
 // 個人・部署リーダーのプレースホルダが使う。
 // 既存の IndexedDB・Vercel Data Cache に保存された doc には無いキーなので、
 // 常に optional として扱うこと（欠けていても描画は成立する）。
@@ -29,7 +29,7 @@ export type ReaderDoc = {
   // 「Notionで開く」逃げ道・プレースホルダのリンク先（個人・部署リーダーのみ設定）。
   // サブスク配信は本文防衛のため設定しない（undefined のまま）。
   sourceUrl?: string | null
-  // 誌面のバッジ行用（Notionプロパティ「ジャンル」の先頭と「問いの型」）。
+  // スプレッドのバッジ行用（Notionプロパティ「ジャンル」の先頭と「問いの型」）。
   // 既存の IndexedDB・Data Cache に保存された doc には無いキーなので常に optional。
   genre?: string
   questionType?: string
@@ -155,7 +155,7 @@ export const READER_SUPPORTED_BLOCK_TYPES: ReadonlySet<string> = new Set([
   'callout', 'image', 'divider', 'quote', 'table', 'table_row',
 ])
 
-// ページプロパティからタイトル文字列を取り出す（誌面ノートDBの行の特定にも使う）。
+// ページプロパティからタイトル文字列を取り出す（スプレッドノートDBの行の特定にも使う）。
 export function pageTitleOf(props: Record<string, any> | undefined): string {
   if (!props) return ''
   for (const p of Object.values(props)) {
