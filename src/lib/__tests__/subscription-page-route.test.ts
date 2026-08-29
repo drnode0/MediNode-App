@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { retrieveMock, listMock, guardMock, maybeSingleMock } = vi.hoisted(() => ({
-  retrieveMock: vi.fn(), listMock: vi.fn(), guardMock: vi.fn(), maybeSingleMock: vi.fn(),
+const { retrieveMock, listMock, guardMock, maybeSingleMock, eqMock } = vi.hoisted(() => ({
+  retrieveMock: vi.fn(), listMock: vi.fn(), guardMock: vi.fn(), maybeSingleMock: vi.fn(), eqMock: vi.fn(),
 }))
 
 vi.mock('@notionhq/client', () => ({
@@ -10,9 +10,21 @@ vi.mock('@notionhq/client', () => ({
 // spread_doc（誌面の保存データ）は未目視の設問を含んだまま保存される。
 // /admin はそれをそのまま読むが、サブスク公開側のこのルートは reviewed: true だけに絞って
 // 返す必要がある（関門はサーバー側にも要る）。ここではSupabaseをチェーン可能なモックにする。
+// eq の引数（どの page_id で引いたか）を検証したいので、チェーンを自己参照で組む。
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: maybeSingleMock }) }) }) }),
+    from: () => ({
+      select: () => {
+        const chain = {
+          eq: (col: string, val: unknown) => {
+            eqMock(col, val)
+            return chain
+          },
+          maybeSingle: maybeSingleMock,
+        }
+        return chain
+      },
+    }),
   }),
 }))
 // ルートは認証と権限を requirePremiumRequest の1回で判定する（getUser の往復を減らすため）。
@@ -34,7 +46,7 @@ const req = (id?: string) =>
   new NextRequest(`http://localhost/api/subscription/page${id != null ? `?id=${id}` : ''}`)
 
 beforeEach(() => {
-  retrieveMock.mockReset(); listMock.mockReset(); guardMock.mockReset(); maybeSingleMock.mockReset()
+  retrieveMock.mockReset(); listMock.mockReset(); guardMock.mockReset(); maybeSingleMock.mockReset(); eqMock.mockReset()
   allow()
   process.env.SUBSCRIPTION_NOTION_TOKEN = 'ntn_test'
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
@@ -119,5 +131,25 @@ describe('GET /api/subscription/page', () => {
     expect(res.status).toBe(200)
     expect(data.spread.quizzes).toHaveLength(1)
     expect(data.spread.quizzes[0].id).toBe('q1')
+  })
+
+  // 読者側の記事ID（Algoliaの objectID）はハイフンありのUUIDで来る。一方 reader_spreads の
+  // page_id はハイフンなし32桁で保存されている（/admin のブラウザ側がそう送るため）。
+  // 揃えないと投入した誌面が1件も引けず、読者には従来表示のままになる。
+  it('ハイフンありのIDで来ても、誌面はハイフンなし32桁で引く', async () => {
+    allow()
+    retrieveMock.mockResolvedValue({
+      last_edited_time: '2026-07-20T00:00:00.000Z',
+      icon: { type: 'emoji', emoji: '💡' }, cover: null,
+      properties: { 名前: { type: 'title', title: [{ plain_text: 'T', annotations: {} }] } },
+    })
+    listMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null })
+    // ダミーの32桁（実在の page_id は公開リポに書かない）。
+    const bare = '0123456789abcdef0123456789abcdef'
+    const hyphenated = '01234567-89ab-cdef-0123-456789abcdef'
+    const res = await GET(req(`subscription_${hyphenated}`))
+    expect(res.status).toBe(200)
+    expect(eqMock).toHaveBeenCalledWith('page_id', bare)
+    expect(eqMock).not.toHaveBeenCalledWith('page_id', hyphenated)
   })
 })

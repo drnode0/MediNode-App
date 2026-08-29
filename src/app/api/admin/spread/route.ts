@@ -6,14 +6,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
-import { applyOverlay, buildSpreadDraft, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, canonicalPageId, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
-
-// pageId の正規化。PUT と PATCH で normalize の中身が違うと、フロントがURLの断片や
-// `subscription_` 接頭辞つきの値を渡したときに片方だけ一致しない事故になる。1本にまとめる。
-function normalizePageId(raw: string | undefined): string {
-  return (raw || '').replace(/^subscription_/, '').replace(/#.*$/, '').trim()
-}
 
 /**
  * 誌面（SpreadDoc）の投入。オーナー専用。
@@ -34,7 +28,7 @@ export async function PUT(req: Request) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 })
   }
-  const pageId = normalizePageId(body.pageId)
+  const pageId = canonicalPageId(body.pageId)
   if (!pageId) return NextResponse.json({ error: 'missing pageId' }, { status: 400 })
 
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
@@ -153,7 +147,7 @@ export async function PATCH(req: Request) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 })
   }
-  const pageId = normalizePageId(body.pageId)
+  const pageId = canonicalPageId(body.pageId)
   const quizId = (body.quizId || '').trim()
   if (!pageId || !quizId || typeof body.reviewed !== 'boolean') {
     return NextResponse.json({ error: 'missing_params' }, { status: 400 })

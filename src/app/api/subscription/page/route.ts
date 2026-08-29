@@ -6,7 +6,7 @@ import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { SUBSCRIPTION_READER_TAG } from '@/lib/reader-cache'
 import { createAdminClient } from '@/lib/supabase/server'
-import type { SpreadDoc } from '@/lib/reader-spread'
+import { canonicalPageId, type SpreadDoc } from '@/lib/reader-spread'
 
 // 本文はプレミアム全員で同一なので、Notionからの取得結果をサーバー側（Vercel Data Cache）で
 // 共有キャッシュする。誰かが一度読めば、以後1時間は全員 Notion API 往復なしの即応答になる。
@@ -56,7 +56,9 @@ export async function GET(req: NextRequest) {
   // id の検証はセッション解決より先に済ませる（不正な id で認証サーバーへ出ないため）。
   const raw = new URL(req.url).searchParams.get('id')
   // 節レコードのobjectID（subscription_<pageId>#secN）が渡されても親ページとして解決する。
-  const pageId = raw?.replace(/^subscription_/, '').replace(/#.*$/, '').trim()
+  // さらに reader_spreads.page_id の正準形（ハイフンなし32桁）まで揃える。読者側の記事IDは
+  // ハイフンありのUUIDで来るので、ここを通さないと投入済みの誌面が1件も引けない。
+  const pageId = canonicalPageId(raw)
   if (!pageId) return NextResponse.json({ error: 'missing id' }, { status: 400 })
 
   // 認証と権限を1回のセッション解決で判定する（getUser の往復を2回→1回に）。

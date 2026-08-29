@@ -16,17 +16,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
-import { applyOverlay, buildSpreadDraft, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, canonicalPageId, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { candidateLines } from '@/lib/spread-edit'
 import { OverlayBuilder } from './OverlayBuilder'
 import type { ReaderBlock, ReaderDoc } from '@/lib/reader-doc'
 
 type Draft = { doc: ReaderDoc; notes: ReaderBlock[]; overlay: SpreadOverlay; status: string | null }
-
-function extractPageId(raw: string): string {
-  const m = raw.replace(/-/g, '').match(/[0-9a-f]{32}/i)
-  return m ? m[0] : raw.trim()
-}
 
 export function SpreadEditClient() {
   const [pageId, setPageId] = useState('')
@@ -47,7 +42,7 @@ export function SpreadEditClient() {
   }, [])
 
   const load = useCallback(async (raw: string) => {
-    const id = extractPageId(raw)
+    const id = canonicalPageId(raw)
     if (!id) return
     setLoading(true)
     setMsg(null)
@@ -102,7 +97,7 @@ export function SpreadEditClient() {
       const res = await fetch('/api/admin/spread', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pageId: extractPageId(pageId), overlay }),
+        body: JSON.stringify({ pageId: canonicalPageId(pageId), overlay }),
       })
       const data = await res.json()
       if (!res.ok) {

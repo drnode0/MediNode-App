@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
-import type { SpreadOverlay } from '@/lib/reader-spread'
+import { canonicalPageId, type SpreadOverlay } from '@/lib/reader-spread'
 
 /**
  * 誌面の編集画面が使う下書きの取り出し。オーナー専用。
@@ -23,10 +23,8 @@ export async function GET(req: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
 
-  const pageId = (new URL(req.url).searchParams.get('pageId') || '')
-    .replace(/^subscription_/, '')
-    .replace(/#.*$/, '')
-    .trim()
+  // 保存済みオーバレイを reader_spreads から引くので、投入・配信と同じ正準形に揃える。
+  const pageId = canonicalPageId(new URL(req.url).searchParams.get('pageId'))
   if (!pageId) return NextResponse.json({ error: 'missing pageId' }, { status: 400 })
 
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN

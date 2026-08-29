@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { canonicalPageId, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
@@ -1229,5 +1229,50 @@ describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', 
 
   it('原本の行のブロックIDをそのまま持って返す（紐づけの指す先になるため）', () => {
     expect(refItemsOf(tail).map((b) => b.blockId)).toEqual(['blk-bts'])
+  })
+})
+
+// reader_spreads.page_id の正準形。書く側（/admin・投入API）と読む側（配信API）が
+// 同じ形に揃わないと、投入した誌面が読者に出ない（ハイフン有無の食い違いで行が引けない）。
+describe('canonicalPageId', () => {
+  // ダミーの32桁。実在の page_id は公開リポに書かない。
+  const bare = '0123456789abcdef0123456789abcdef'
+  const hyphenated = '01234567-89ab-cdef-0123-456789abcdef'
+
+  it('ハイフンありをハイフンなし32桁にする', () => {
+    expect(canonicalPageId(hyphenated)).toBe(bare)
+  })
+
+  it('ハイフンなしはそのまま', () => {
+    expect(canonicalPageId(bare)).toBe(bare)
+  })
+
+  it('subscription_ 接頭辞を剥がす（ハイフンあり・なしのどちらでも）', () => {
+    expect(canonicalPageId(`subscription_${hyphenated}`)).toBe(bare)
+    expect(canonicalPageId(`subscription_${bare}`)).toBe(bare)
+  })
+
+  it('#secN サフィックスを剥がす（節レコードのobjectIDが渡った場合）', () => {
+    expect(canonicalPageId(`subscription_${hyphenated}#sec3`)).toBe(bare)
+    expect(canonicalPageId(`${bare}#sec12`)).toBe(bare)
+  })
+
+  it('NotionのURLから取り出す（クエリ付きでも）', () => {
+    expect(canonicalPageId(`https://www.notion.so/workspace/Title-${bare}`)).toBe(bare)
+    expect(canonicalPageId(`https://www.notion.so/${hyphenated}?pvs=4`)).toBe(bare)
+  })
+
+  it('大文字は小文字に揃える', () => {
+    expect(canonicalPageId(bare.toUpperCase())).toBe(bare)
+    expect(canonicalPageId(hyphenated.toUpperCase())).toBe(bare)
+  })
+
+  it('32桁が取れない入力は、前後の空白だけ落としてそのまま返す（黙って捨てない）', () => {
+    expect(canonicalPageId('  PAGEID  ')).toBe('PAGEID')
+    // 前後に空白が付いたまま貼られても接頭辞は剥がれる（trim を先にやる）。
+    expect(canonicalPageId('  subscription_PAGEID  ')).toBe('PAGEID')
+    expect(canonicalPageId('subscription_PAGEID#sec1')).toBe('PAGEID')
+    expect(canonicalPageId('')).toBe('')
+    expect(canonicalPageId(undefined)).toBe('')
   })
 })

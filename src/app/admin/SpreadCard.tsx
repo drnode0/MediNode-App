@@ -9,15 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2, Pencil } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
-import { quizFeedback, type SpreadOverlay, type SpreadQuiz } from '@/lib/reader-spread'
-
-// 入力欄に貼られたものから Notion の page_id を取り出す。素のUUID（ハイフン有無どちらも）、
-// `subscription_` 接頭辞つき、NotionのURLを受け付ける。見つからなければ入力をそのまま返し、
-// サーバー側の notion_fetch_failed で気づける（ここで黙って捨てない）。
-function extractPageId(raw: string): string {
-  const m = raw.replace(/-/g, '').match(/[0-9a-f]{32}/i)
-  return m ? m[0] : raw.trim()
-}
+import { canonicalPageId, quizFeedback, type SpreadOverlay, type SpreadQuiz } from '@/lib/reader-spread'
 
 // 投入・再生成が落ちたときの文言。関門が2つ（逐語一致検査と参考文献の紐づけ）あり、
 // どちらも押した人がその場で直せるものなので、素のエラー名ではなく何が食い違ったかを出す。
@@ -109,7 +101,7 @@ export function SpreadCard() {
   // 新規投入。未公開の下書きを作るだけ（読者には届かない）なので、公開ボタンと違い2度押しは要らない。
   // 本文は送らない（サーバーがNotion原本から組む）。送るのは page_id とオーバレイだけ。
   const inject = async () => {
-    const pageId = extractPageId(newPageId)
+    const pageId = canonicalPageId(newPageId)
     if (!pageId) {
       setMsg('page_id を入力してください。')
       return

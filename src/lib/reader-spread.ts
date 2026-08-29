@@ -14,6 +14,31 @@ import {
 } from './reader-doc'
 import { stripLeadingEmoji } from './labels'
 
+/**
+ * reader_spreads.page_id の正準形（ハイフンなし32桁の小文字）。
+ *
+ * 誌面は「/admin から投入して Supabase に保存」「配信APIが page_id で引いて読者に返す」の
+ * 2経路で同じ値を扱う。ここが揃っていないと、投入した誌面が読者に1件も届かない
+ * （読者側の記事IDは Algolia の objectID＝ハイフンありのUUID、保存側はハイフンなし32桁、
+ * という食い違いが実際に起きた）。書く側と読む側の両方で必ずこの関数を通すこと。
+ *
+ * 受け付けるのは素のUUID（ハイフン有無どちらも）、`subscription_` 接頭辞つき、
+ * 節レコードの `#secN` サフィックスつき、NotionのURL。
+ * 32桁が取れないときは入力（前後の空白を落としたもの）をそのまま返す。黙って捨てると
+ * 呼び出し側が誤りに気づけないので、サーバー側のエラーで露見させる。
+ */
+export function canonicalPageId(raw: string | null | undefined): string {
+  // 先に trim する。入力欄に貼られた値は前後に空白が付くことがあり、後から trim すると
+  // 先頭一致の `^subscription_` が空白に阻まれて剥がれない。
+  const trimmed = (raw ?? '').trim().replace(/^subscription_/, '').replace(/#.*$/, '').trim()
+  // 16進が32桁以上続くところを全部拾い、最後のものの末尾32桁を取る。
+  // 先頭から32桁ぶんを取る書き方だと、NotionのURL（.../Title-<id>）でタイトル末尾が
+  // 16進の文字（a〜f）だったときに1桁ずれた別のIDになる。Notionのidはスラッグの末尾にある。
+  const runs = trimmed.replace(/-/g, '').match(/[0-9a-f]{32,}/gi)
+  if (!runs || runs.length === 0) return trimmed
+  return runs[runs.length - 1].slice(-32).toLowerCase()
+}
+
 // 表層に出す部品。'none' は表層なし（深掘りだけ）を意味する。
 export type SpreadPart =
   | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][] }
