@@ -229,6 +229,14 @@
 .toc::-webkit-scrollbar {
   display: none;
 }
+/* 右端フェード。JS（ReaderSpread.tsx）がチップ行のスクロール位置を見て、右にまだ隠れて
+   いるチップがあるときだけこのクラスを足す。常時は掛けない（スクロール不要な記事や
+   右端まで見終えた状態では、チップを薄くするだけになるため）。出入りにアニメーションは
+   付けない（prefers-reduced-motion への配慮に反するため）。 */
+.tocFadeRight {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent 100%);
+}
 /* 読了バー（パイロットの .progress）。追従バーの下端に細く引く。 */
 .progress {
   height: 2px;
@@ -299,7 +307,10 @@
 
 /* ===== 節 ===== */
 .section {
-  margin-bottom: 2.6rem;
+  /* パイロット原本（.preview/pilot-original.html）は 2.6rem。ここは意図的にパイロットから
+     外している。オーナーが節間を「読みにくい」と判断し、2026-08-29に 3.6rem へ広げる指示を
+     出した。見た目を揃えるために 2.6rem へ戻さないこと。 */
+  margin-bottom: 3.6rem;
   scroll-margin-top: 6rem;
 }
 .secHead {

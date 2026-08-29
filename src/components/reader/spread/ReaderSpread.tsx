@@ -1,5 +1,5 @@
 'use client'
-import { useContext, useEffect, useMemo, useState, type RefObject } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
@@ -155,6 +155,30 @@ export function ReaderSpread({
     () => spread.sections.map((s, i) => ({ anchor: s.anchor, n: s.n ?? i + 1, label: s.shortLabel || sectionTitleText(s) })),
     [spread.sections],
   )
+
+  // 目次チップ行の右端フェード。右にまだ隠れているチップがあるときだけ出す（常時は掛けない。
+  // 節が少なくスクロール不要な記事や、右端までスクロール済みの状態では、フェードがチップを
+  // 薄くするだけになるため）。読了バーと同じ流儀（scroll イベント購読・passive）で、
+  // チップ行自身の横スクロール位置（scrollLeft/scrollWidth/clientWidth）を見て判定する。
+  const tocRef = useRef<HTMLElement | null>(null)
+  const [tocOverflowRight, setTocOverflowRight] = useState(false)
+  useEffect(() => {
+    const el = tocRef.current
+    if (!el) return
+    const onTocScroll = () => {
+      // 1px 未満の端数は「スクロール済み」とみなさない（ズームや端数丸めでのちらつき防止）。
+      setTocOverflowRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 1)
+    }
+    onTocScroll()
+    el.addEventListener('scroll', onTocScroll, { passive: true })
+    // 記事切り替え（toc の中身が変わる）はこの effect の再実行で拾うが、画面幅の変更は
+    // 拾えないため resize も見る。
+    window.addEventListener('resize', onTocScroll)
+    return () => {
+      el.removeEventListener('scroll', onTocScroll)
+      window.removeEventListener('resize', onTocScroll)
+    }
+  }, [toc])
 
   // 誌面の編集ルール（パイロット準拠・表示のみ）: 構造見出し（# Question / # Answer / # Evidence）と
   // タイトル重複段落は出さない。🤖査読スタンプは記事末に置かず、対象範囲の但し書きだけ⚡直後に出す。
@@ -342,7 +366,11 @@ export function ReaderSpread({
           // 読了バーもここに引く。既存の ReaderNavBar は誌面では出さない（同じ役割で形が違う）。
           <div className={styles.tocBar}>
             <div className={styles.tocRow}>
-              <nav className={styles.toc} aria-label="目次">
+              <nav
+                ref={tocRef}
+                className={`${styles.toc} ${tocOverflowRight ? styles.tocFadeRight : ''}`}
+                aria-label="目次"
+              >
                 {toc.map((s) => (
                   <a
                     key={s.anchor}
