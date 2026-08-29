@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   Activity,
   BarChart3,
+  BookOpen,
   Check,
   Copy,
   CreditCard,
@@ -300,12 +301,13 @@ function csvCell(v: string | null): string {
 }
 
 // 運用ダッシュボードのタブ。長い1ページをスクロールせず切り替えて見るための分割単位。
-type AdminTab = 'today' | 'accounts' | 'analytics' | 'delivery'
+type AdminTab = 'today' | 'accounts' | 'analytics' | 'delivery' | 'spread'
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'today', label: '今日', icon: LayoutDashboard },
   { key: 'accounts', label: 'アカウント', icon: Users },
   { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
   { key: 'delivery', label: '通知・配信', icon: Megaphone },
+  { key: 'spread', label: '誌面', icon: BookOpen },
 ]
 
 export function AdminLedgerClient() {
@@ -1054,6 +1056,14 @@ ${label}`,
             </section>
           </div>
         )}
+
+        {/* 📖 誌面タブ（台帳データ非依存・自己完結）。投入・再生成・公開という制作/公開の操作なので、
+            数字を読む分析タブとは切り離す。delivery と同じく loading/rows を待たず出す。 */}
+        {!error && tab === 'spread' && (
+          <div className="mt-2 mb-8">
+            <SpreadCard />
+          </div>
+        )}
         {!loading && !error && rows && tab === 'today' && campaignDaysLeft != null && (
           <div className="mb-6 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700">
             <Sparkles className="w-3.5 h-3.5" aria-hidden />
@@ -1061,7 +1071,7 @@ ${label}`,
           </div>
         )}
 
-        {loading && tab !== 'delivery' && (
+        {loading && tab !== 'delivery' && tab !== 'spread' && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-12 justify-center">
             <Spinner className="w-4 h-4" />
             読み込んでいます…
@@ -1157,7 +1167,6 @@ ${label}`,
             {tab === 'analytics' && <EngagementSection />}
             {tab === 'analytics' && <KnowledgeRankingCard />}
             {tab === 'analytics' && <PersonalReaderMetricsCard />}
-            {tab === 'analytics' && <SpreadCard />}
 
             {tab === 'analytics' && (
               <>
