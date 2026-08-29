@@ -19,6 +19,25 @@ function extractPageId(raw: string): string {
   return m ? m[0] : raw.trim()
 }
 
+// 投入・再生成が落ちたときの文言。関門が2つ（逐語一致検査と参考文献の紐づけ）あり、
+// どちらも押した人がその場で直せるものなので、素のエラー名ではなく何が食い違ったかを出す。
+// 文言は誌面の編集画面（spread-edit/SpreadEditClient）と揃える。片方だけに文言があると、
+// この画面から押した人だけが「失敗しました: refs_incomplete」を見ることになる。
+function failureMessage(d: { error?: string; missing?: string[]; dangling?: string[] }, status: number): string {
+  // verbatim_mismatch＝生成側が本文を書き換えた、または原本が変わった。
+  // どちらにせよ投入はさせず、何が食い違ったかを示す。
+  if (d.error === 'verbatim_mismatch') {
+    return `逐語一致で落ちました（原本に無い文）: ${(d.missing ?? []).slice(0, 3).join(' / ')}`
+  }
+  // refs_incomplete＝参考文献の圧縮行と原本の文献行の紐づけが揃っていない。
+  // 紐づけ（sourceId）を持たない古い refs が保存された誌面や、原本に文献が1行増えた誌面で出る。
+  // 直す場所は誌面の編集画面なので、漏れた原本の行と指す先を失った圧縮行を並べて出す。
+  if (d.error === 'refs_incomplete') {
+    return `参考文献の紐づけが揃っていません。漏れた原本の行: ${(d.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(d.dangling ?? []).join(' / ') || 'なし'}`
+  }
+  return `失敗しました: ${d.error ?? status}`
+}
+
 type Row = {
   page_id: string
   status: string
@@ -70,13 +89,7 @@ export function SpreadCard() {
       })
       const d = await res.json()
       if (!res.ok) {
-        // verbatim_mismatch＝生成側が本文を書き換えた、または原本が変わった。
-        // どちらにせよ投入はさせず、何が食い違ったかを示す。
-        setMsg(
-          d.error === 'verbatim_mismatch'
-            ? `逐語一致で落ちました（原本に無い文）: ${(d.missing ?? []).slice(0, 3).join(' / ')}`
-            : `失敗しました: ${d.error ?? res.status}`,
-        )
+        setMsg(failureMessage(d, res.status))
       } else {
         setMsg(publish ? '公開しました。' : '再生成しました（未公開）。')
         load()
@@ -123,11 +136,7 @@ export function SpreadCard() {
       })
       const d = await res.json()
       if (!res.ok) {
-        setMsg(
-          d.error === 'verbatim_mismatch'
-            ? `逐語一致で落ちました（原本に無い文）: ${(d.missing ?? []).slice(0, 3).join(' / ')}`
-            : `失敗しました: ${d.error ?? res.status}`,
-        )
+        setMsg(failureMessage(d, res.status))
       } else {
         setMsg('投入しました（未公開）。理解チェックの目視と公開はこの一覧から。')
         setNewPageId('')

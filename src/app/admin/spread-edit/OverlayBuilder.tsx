@@ -12,7 +12,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
@@ -616,7 +616,12 @@ function RefsEditor({
   const orderById = refItemIndex(items)
   // 紐づけの検査。原本の行の取りこぼしと、指す先を失った圧縮行。1件でもあれば保存は止まる
   // （SpreadEditClient の保存ボタンが同じ判定を見ている）。
-  const linkage = refLinkage(items, refs)
+  //
+  // 関門に渡すのは編集中の生の refs ではなく sanitizeRefs を通した値。外側（SpreadEditClient）は
+  // sanitizeOverlay 後の誌面から関門を組むので、生のまま組むと入力が中と外で割れる。
+  // 実際、圧縮行のタイトルを空にすると sanitize がその行を落とすため、外側は
+  // 「漏れた原本の文献行が1件」で保存を止めるのに、この中には何の印も出なかった。
+  const linkage = refLinkage(items, sanitizeRefs(refs))
   const dropped = candidateLines(linkage.dropped)
   const used = new Set(refs.map(refSourceId))
   const set = (list: SpreadRef[]) => onChange(withRefs(overlay, list))
@@ -670,8 +675,12 @@ function RefsEditor({
           <div key={i} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-bold text-gray-400">{i + 1}</span>
-              {/* どの原本の行を指しているか。ここが決まっているから一次資料へ飛べる。 */}
-              {at === undefined ? (
+              {/* どの原本の行を指しているか。ここが決まっているから一次資料へ飛べる。
+                  タイトルが空の行は誌面から落ちる（sanitizeRefs）ので、指す先が決まっていても
+                  原本の文献行が1件消える。落ちることをこの行の場で分かるようにする。 */}
+              {!r.title?.trim() ? (
+                <span className="text-[11px] text-red-600 dark:text-red-400">タイトルが空です（この行は誌面に出ません）</span>
+              ) : at === undefined ? (
                 <span className="text-[11px] text-red-600 dark:text-red-400">指す先が原本にありません</span>
               ) : (
                 <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">原本の {at + 1} 行目: {texts[at]}</span>

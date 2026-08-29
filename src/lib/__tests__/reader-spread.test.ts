@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
@@ -931,6 +931,23 @@ describe('refs（参考文献の圧縮行）', () => {
     expect(r.refs).toEqual([{ title: '出典の略記が無い文献', source: '', note: '' }])
   })
 
+  it('sanitizeOverlay は refs を既知のキーだけに絞り、3つの文言を trim する', () => {
+    // JSONを直接編集する窓口・APIへの直接PUTからは、型に無いキー（href など）が混ざりうる。
+    // 部品側の stripPartHref と同じで、生成側にURLを書かせないことをここでも担保する。
+    // trim しないと、検査（trim して照合）は通るのに末尾に空白を持ったタイトルが誌面に出る。
+    const r = sanitizeOverlay({ refs: [
+      { title: ' BTS Guideline for oxygen use in adults ', source: ' BMJ Open Respir Res 2017 ', note: ' 中核ガイドライン ', sourceId: 'blk-1', href: 'https://x.test' } as SpreadRef,
+    ] })
+    expect(r.refs).toEqual([
+      { title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン', sourceId: 'blk-1' },
+    ])
+  })
+
+  it('sanitizeOverlay は refs のキーが欠けていても落ちない（空文字で通す）', () => {
+    const r = sanitizeOverlay({ refs: [{ title: '出典の略記が無い文献' } as SpreadRef] })
+    expect(r.refs).toEqual([{ title: '出典の略記が無い文献', source: '', note: '' }])
+  })
+
   it('title / source / note は逐語一致検査の対象で、誌面ノートにあれば通る', () => {
     const draft = buildSpreadDraft(doc, 'page-1')
     const good = applyOverlay(draft, { refs: [ref] })
@@ -945,6 +962,16 @@ describe('refs（参考文献の圧縮行）', () => {
     const r = verifyVerbatim(bad, doc, notes)
     expect(r.ok).toBe(false)
     expect(r.missing).toContain('誰も書いていない一行説明')
+  })
+
+  it('ノートにも原本にも無い source を持つ refs は検査で落ちる', () => {
+    // title と note はノートにある行のまま。source だけが誰も書いていない文言なので、
+    // verbatimTargets が r.source を集めていなければ ok: true になって落ちない。
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, { refs: [{ ...ref, source: '誰も書いていない出典の略記' }] })
+    const r = verifyVerbatim(bad, doc, notes)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toEqual(['誰も書いていない出典の略記'])
   })
 
   it('source / note が空の行は検査に掛からない（既存の trim + filter で落ちる）', () => {
@@ -1023,6 +1050,17 @@ describe('refLinkage（圧縮行と原本の文献行の明示の紐づけ）', 
   it('文言が原本の行の書き出しと一致していても、紐づけが無ければ当たらない（推測をやめた）', () => {
     const guessed = [{ title: 'BTS Guideline for oxygen use in adults in healthcare', source: '', note: '' } as SpreadRef]
     expect(refLinkage([items[0]], guessed).dropped).toEqual([items[0]])
+  })
+
+  it('タイトルを空にした圧縮行は、関門の入力を正規化すると原本の行の取りこぼしになる', () => {
+    // ビルダー（RefsEditor）は編集中の生の refs を、外側（SpreadEditClient）は sanitizeOverlay 後の
+    // 誌面を見る。生のまま関門に渡すと、タイトルを空にした行は sanitize で落ちるのに関門では
+    // 指したままになり、外側だけが保存を止めて中には印が出ない。両方が sanitizeRefs を通す。
+    const emptied: SpreadRef[] = [...refs.slice(0, 3), { ...refs[3], title: '  ' }]
+    expect(refLinkage(items, emptied)).toEqual({ dropped: [], dangling: [] })
+    expect(refLinkage(items, sanitizeRefs(emptied)).dropped).toEqual([items[3]])
+    // 外側が見るもの（sanitizeOverlay 後）と、中が見るもの（sanitizeRefs）は同じ。
+    expect(refLinkage(items, sanitizeOverlay({ refs: emptied }).refs)).toEqual(refLinkage(items, sanitizeRefs(emptied)))
   })
 
   it('refs が未指定・空のときはどちらも空配列（供給していない誌面は従来どおり）', () => {

@@ -284,6 +284,32 @@ function stripPartHref(part: SpreadPart): SpreadPart {
 }
 
 /**
+ * 参考文献の圧縮行を、誌面に載せる前に正規化する。
+ *
+ * 1. title の無い行を捨てる（誌面の一覧に空の項番だけが並ぶのを防ぐ）。
+ *    source（略記の出典）と note（1行説明）は空でも通す。出典の略記が無い文献があるため。
+ * 2. 既知のキー（title / source / note / sourceId）だけを通す。部品側の stripPartHref と
+ *    同じ構えで、「生成側にURLを書かせない」を型と正規化の両方で担保する。
+ *    JSONを直接編集する窓口・APIへの直接PUTからは href などの未知のキーが混ざりうる。
+ * 3. 3つの文言を trim する。逐語一致検査は trim して照合するので、trim せずに通すと
+ *    末尾に空白を持ったタイトルが検査を抜けてそのまま誌面に出る。
+ *
+ * 保存形は JSON なので、キーが欠けていても値が文字列でなくても落ちないようにする。
+ */
+export function sanitizeRefs(refs: SpreadRef[]): SpreadRef[] {
+  const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
+  return refs
+    .filter((r) => text(r?.title))
+    .map((r) => {
+      const out: SpreadRef = { title: text(r.title), source: text(r.source), note: text(r.note) }
+      // sourceId は原本のブロックIDで、文言ではないので trim だけの正規化はしない
+      // （refSourceId が読むときに trim する）。文字列でない値はキーごと落とす。
+      if (typeof r.sourceId === 'string') out.sourceId = r.sourceId
+      return out
+    })
+}
+
+/**
  * 制作スキルから渡されたオーバレイを、SpreadDoc に重ねる前に正規化する。
  *
  * 1. part.kind を許可リストで検査する。未知の kind は SpreadPartView が描画できず
@@ -320,10 +346,10 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
   if (overlay.entries) {
     out.entries = overlay.entries.filter((e) => e.label?.trim() && e.anchor?.trim())
   }
-  // 参考文献の圧縮行は title の無い行を捨てる（誌面の一覧に空の項番だけが並ぶのを防ぐ）。
-  // source（略記の出典）と note（1行説明）は空でも通す。出典の略記が無い文献があるため。
+  // 参考文献の圧縮行は行の取捨とキー・文言の正規化を sanitizeRefs に集める
+  // （編集画面のビルダーも同じ1本を引き、関門の入力が中と外で割れないようにしている）。
   if (overlay.refs) {
-    out.refs = overlay.refs.filter((r) => r.title?.trim())
+    out.refs = sanitizeRefs(overlay.refs)
   }
   return out
 }
