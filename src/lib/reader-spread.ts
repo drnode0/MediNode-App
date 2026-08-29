@@ -884,6 +884,17 @@ export type TailParts = {
   rest: ReaderBlock[]
 }
 
+// リンク（またはURL文字列）だけでできた段落か。畳んでよいのはこれだけで、
+// 説明文が1文字でも混じる段落は本文として扱う。
+function isBareLinkParagraph(b: ReaderBlock): boolean {
+  if (b.kind !== 'paragraph' || b.inlines.length === 0) return false
+  return b.inlines.every((i) => {
+    const text = i.text.trim()
+    if (!text) return true
+    return Boolean(i.href) || /^https?:\/\/\S+$/.test(text)
+  })
+}
+
 export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
   let practice: ReaderBlock | null = null
   let refsHead: ReaderBlock | null = null
@@ -905,6 +916,18 @@ export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
       if (role === 'disclaimer' && !disclaimerTaken) {
         disclaimerTaken = true
         disclaimer.push(...b.blocks)
+        continue
+      }
+    }
+    // 一次資料のURLが文献行の中ではなく、その下の独立した段落に置かれている原本がある
+    // （書き方が記事ごとに違う）。そのままだと文献行として拾えず rest に落ち、記事末に
+    // 素のリンクチップが縦に並ぶうえ、圧縮行のリンク先（refHrefs）も1件も引けなくなる。
+    // URLだけでできた段落は直前の文献行に畳んで、1つの文献行として扱う。
+    // 文が混じる段落は畳まない（本文を文献行に吸い込むと、逐語検査の照合先がずれる）。
+    if (b.kind === 'paragraph' && refsHead && refsItems.length > 0 && isBareLinkParagraph(b)) {
+      const last = refsItems[refsItems.length - 1]
+      if (last.kind === 'list_item') {
+        refsItems[refsItems.length - 1] = { ...last, inlines: [...last.inlines, ...b.inlines] }
         continue
       }
     }

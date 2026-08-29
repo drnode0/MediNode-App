@@ -1377,3 +1377,40 @@ describe('比較表の主役を、表の中身を書き写さずに渡す（tabl
     expect(out.sections[0].part).not.toHaveProperty('focus')
   })
 })
+
+describe('文献行の一次資料URLが別ブロックに置かれている原本', () => {
+  const head: ReaderBlock = { kind: 'callout', icon: '📚', color: null, blocks: [{ kind: 'paragraph', inlines: t('まず当たるべき文献') }] }
+  const item = (title: string): ReaderBlock => ({ kind: 'list_item', ordered: false, inlines: [{ text: title, bold: true }], blockId: `blk-${title}` })
+  const urlPara = (url: string): ReaderBlock => ({ kind: 'paragraph', inlines: [{ text: url, href: url }] })
+
+  it('URLだけの段落は直前の文献行に畳み、素のリンクとして末尾に散らさない', () => {
+    const parts = splitTailBlocks([head, item('A'), urlPara('https://example.org/a'), item('B'), urlPara('https://example.org/b')])
+    expect(parts.refsItems).toHaveLength(2)
+    expect(parts.rest).toHaveLength(0)
+  })
+
+  it('畳んだURLから、圧縮行のリンク先を引ける', () => {
+    const parts = splitTailBlocks([head, item('A'), urlPara('https://example.org/a')])
+    const hrefs = refHrefs(parts.refsItems, [{ title: 'Aの圧縮行', source: '', note: '', sourceId: 'blk-A' }])
+    expect(hrefs).toEqual(['https://example.org/a'])
+  })
+
+  it('URL以外の文が混じる段落は畳まず rest に残す（本文を文献行に吸い込まない）', () => {
+    const prose: ReaderBlock = { kind: 'paragraph', inlines: [{ text: '補足の一文です。' }] }
+    const parts = splitTailBlocks([head, item('A'), prose])
+    expect(parts.rest).toEqual([prose])
+  })
+
+  it('直前に文献行が無いURL段落は畳まない（畳む先が無いので黙って消さない）', () => {
+    const u = urlPara('https://example.org/x')
+    const parts = splitTailBlocks([head, u])
+    expect(parts.rest).toEqual([u])
+  })
+
+  it('URLがもともと文献行のインラインにある原本（酸素療法の書き方）は今までどおり', () => {
+    const inline: ReaderBlock = { kind: 'list_item', ordered: false, inlines: [{ text: 'A' }, { text: 'link', href: 'https://example.org/a' }], blockId: 'blk-A' }
+    const parts = splitTailBlocks([head, inline])
+    expect(parts.refsItems).toEqual([inline])
+    expect(refHrefs(parts.refsItems, [{ title: 'x', source: '', note: '', sourceId: 'blk-A' }])).toEqual(['https://example.org/a'])
+  })
+})
