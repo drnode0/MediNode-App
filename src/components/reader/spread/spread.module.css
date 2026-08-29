@@ -8,6 +8,10 @@
  * すべてアプリの既定に戻っていた。以後、誌面の部品はここのクラスで組む。
  *
  * ダークは .dark 基準（このリポジトリの規約。@media は使わない）。
+ *
+ * 行間: パイロットは body { line-height: 1.9 } を全部品が継いでいる。このアプリの土台は
+ * Tailwind preflight の html { line-height: 1.5 } なので継げない。部品の枠に 1.9 を明示して
+ * 中の要素に継がせる（数値指定なので子はそれぞれの font-size に対して 1.9 で算出される）。
  */
 
 .spread {
@@ -85,6 +89,7 @@
   overflow: hidden;
   margin-bottom: 1rem;
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.05);
+  line-height: 1.9;
 }
 .digestHead {
   background: linear-gradient(180deg, var(--brand-grad), var(--brand));
@@ -144,7 +149,7 @@
   padding-top: 0.5rem;
   font-size: 0.75rem;
   color: var(--muted);
-  line-height: 1.7;
+  line-height: 1.9;
 }
 .digestReview :global(.font-bold) {
   color: var(--muted);
@@ -158,7 +163,7 @@
   border-radius: 0.5rem;
   padding: 0.55rem 0.9rem;
   margin-bottom: 1.2rem;
-  line-height: 1.8;
+  line-height: 1.9;
 }
 
 /* ===== いまの状況から探す ===== */
@@ -265,6 +270,9 @@
   color: var(--ink);
   background: linear-gradient(180deg, var(--chip-g1), var(--chip-g2));
   box-shadow: inset 0 1px 0 var(--hi), 0 1px 2px rgba(20, 60, 45, 0.06);
+  /* 中の .badge にも継がせる（.badge 自身には書かない。書くと節見出しの番号バッジまで
+     1.9 になり、見出しの 1.55 を継ぐパイロットとずれる）。 */
+  line-height: 1.9;
 }
 .tocLink.current {
   background: var(--brand);
@@ -385,6 +393,7 @@
   margin: 0 0 1rem;
   background: var(--card);
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+  line-height: 1.9;
 }
 .statsTitle {
   font-size: 0.8rem;
@@ -451,7 +460,7 @@
   font-weight: 700;
   color: var(--brand-deep);
   font-size: 0.95rem;
-  line-height: 1.7;
+  line-height: 1.9;
 }
 .flowDev {
   border: 1px solid var(--line);
@@ -464,7 +473,7 @@
   gap: 0.7em;
   flex-wrap: wrap;
   color: var(--ink);
-  line-height: 1.7;
+  line-height: 1.9;
 }
 .flowDev .name {
   font-weight: 700;
@@ -522,6 +531,7 @@
   background: var(--brand-tint);
   border-radius: 999px;
   padding: 0.1em 0.8em;
+  line-height: 1.9;
 }
 
 /* ===== 部品: VS比較 ===== */
@@ -537,6 +547,7 @@
   overflow: hidden;
   background: var(--card);
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+  line-height: 1.9;
 }
 .vsCol h3 {
   font-size: 0.85rem;
@@ -577,7 +588,7 @@
   font-size: 0.8rem;
   color: var(--muted);
   margin-bottom: 1rem;
-  line-height: 1.8;
+  line-height: 1.9;
 }
 .vsNote :global(.font-bold) {
   color: var(--ink);
@@ -594,6 +605,7 @@
   overflow: hidden;
   border: 1px solid var(--line);
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+  line-height: 1.9;
 }
 .panel h3 {
   font-size: 0.9rem;
@@ -715,13 +727,14 @@
   border-radius: 12px;
   padding: 0.8rem 0.95rem 0.9rem;
   margin-top: 0.9rem;
+  line-height: 1.9;
 }
 .quizQ {
   font-size: 0.9rem;
   font-weight: 700;
   margin-bottom: 0.55rem;
   color: var(--ink);
-  line-height: 1.7;
+  line-height: 1.9;
 }
 .quizOpts {
   display: flex;
@@ -740,7 +753,7 @@
   padding: 0.45em 0.8em;
   min-height: 44px;
   cursor: pointer;
-  line-height: 1.7;
+  line-height: 1.9;
 }
 .quizOpts button:disabled {
   cursor: default;
