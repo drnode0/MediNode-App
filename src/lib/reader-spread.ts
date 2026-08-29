@@ -72,6 +72,11 @@ export type SpreadQuiz = {
 // 対象外）、anchor は飛び先の節。存在しない節を指す入口は applyOverlay で捨てる。
 export type SpreadEntry = { label: string; anchor: string }
 
+// 参考文献の圧縮行。title は原本の完全タイトルの前方一致になることが多いが、
+// source（略記の出典）と note（1行説明）は原本に無く、非公開の誌面ノート_DB に置く。
+// 3つとも逐語一致検査の対象。
+export type SpreadRef = { title: string; source: string; note: string }
+
 export type SpreadDoc = {
   version: 1
   pageId: string
@@ -82,6 +87,9 @@ export type SpreadDoc = {
   entries?: SpreadEntry[]
   sections: SpreadSection[]
   tail: ReaderBlock[]
+  // 参考文献の圧縮行。無ければ誌面は原本の箇条書きをそのまま出す（旧 SpreadDoc には
+  // 無いキーなので optional。保存済みの誌面が壊れないよう、必ず「無ければ従来どおり」に倒す）。
+  refs?: SpreadRef[]
   quizzes: SpreadQuiz[]
   icons: Record<string, string>
 }
@@ -92,6 +100,7 @@ export type SpreadOverlay = {
   parts?: Record<string, SpreadPart>
   extraParts?: Record<string, SpreadPart[]>
   entries?: SpreadEntry[]
+  refs?: SpreadRef[]
   icons?: Record<string, string>
   quizzes?: SpreadQuiz[]
 }
@@ -306,6 +315,11 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
   if (overlay.entries) {
     out.entries = overlay.entries.filter((e) => e.label?.trim() && e.anchor?.trim())
   }
+  // 参考文献の圧縮行は title の無い行を捨てる（誌面の一覧に空の項番だけが並ぶのを防ぐ）。
+  // source（略記の出典）と note（1行説明）は空でも通す。出典の略記が無い文献があるため。
+  if (overlay.refs) {
+    out.refs = overlay.refs.filter((r) => r.title?.trim())
+  }
   return out
 }
 
@@ -325,6 +339,9 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
     })),
     // 存在しない節を指す入口は黙って捨てる（押しても飛ばないチップを読者に出さない）。
     entries: (overlay.entries ?? draft.entries ?? []).filter((e) => anchors.has(e.anchor)),
+    // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、誌面は原本の
+    // 箇条書きを出す。ここでも本文（tail のブロック）には触れない。
+    refs: overlay.refs ?? draft.refs,
     icons: { ...draft.icons, ...(overlay.icons ?? {}) },
     quizzes: overlay.quizzes ?? draft.quizzes,
   }
@@ -364,6 +381,9 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     for (const p of s.extraParts ?? []) collect(p)
   }
   for (const q of spread.quizzes) out.push(q.evidence)
+  // 参考文献の圧縮行は3つとも対象に入れる。source と note は原本に無く誌面ノートにあるので、
+  // ノートにも原本にも無い文言（生成側が書いた説明）はここで弾かれる。
+  for (const r of spread.refs ?? []) out.push(r.title, r.source, r.note)
   return out.map((s) => s.trim()).filter(Boolean)
 }
 

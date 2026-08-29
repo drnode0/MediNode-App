@@ -12,8 +12,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { sectionTitleText, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz } from '@/lib/reader-spread'
-import { candidateLines, emptyPart, SEGMENT_COLORS } from '@/lib/spread-edit'
+import { sectionTitleText, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { candidateLines, emptyPart, emptyRef, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
 
@@ -35,7 +35,9 @@ function IconButton({ title, onClick, children, disabled }: { title: string; onC
 }
 
 // 候補（原本＋誌面ノート）から1文選ぶドロップダウン。
-function CandidatePicker({ own, notes, onPick }: { own: string[]; notes: string[]; onPick: (s: string) => void }) {
+// ownLabel は原本側の見出し。既定は節の中で使うときの呼び名で、記事末（参考文献）から
+// 使うときだけ差し替える。
+function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }: { own: string[]; notes: string[]; onPick: (s: string) => void; ownLabel?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative inline-block">
@@ -48,7 +50,7 @@ function CandidatePicker({ own, notes, onPick }: { own: string[]; notes: string[
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-[26rem] max-w-[80vw] max-h-64 overflow-y-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg p-1">
-          {([['この節の原本', own], ['誌面ノート', notes]] as const).map(([label, list]) =>
+          {([[ownLabel, own], ['誌面ノート', notes]] as const).map(([label, list]) =>
             list.length === 0 ? null : (
               <div key={label}>
                 <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-bold text-gray-400 dark:text-gray-500">{label}</div>
@@ -216,6 +218,42 @@ function NameInput({ value, onChange, placeholder }: { value: string; onChange: 
       placeholder={placeholder}
       className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1"
     />
+  )
+}
+
+// 逐語照合つきの1行入力。文字列そのものを持つ欄（文節の強調や色を持たない）に使う。
+// 落ちたら赤枠にする。空欄は検査の対象外（保存側の trim + filter と同じ扱い）。
+function VerbatimInput({
+  value,
+  onChange,
+  placeholder,
+  checker,
+  own,
+  notes,
+  ownLabel,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  checker: Checker
+  own: string[]
+  notes: string[]
+  ownLabel?: string
+}) {
+  const bad = value.trim() !== '' && !checker(value)
+  return (
+    <div className={`rounded-lg border px-1.5 py-1 ${bad ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-transparent text-xs px-1 py-0.5 outline-none"
+      />
+      <div className="flex items-center gap-2 pt-0.5">
+        <CandidatePicker own={own} notes={notes} onPick={onChange} ownLabel={ownLabel} />
+        {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にも誌面ノートにも無い文です</span>}
+      </div>
+    </div>
   )
 }
 
@@ -497,7 +535,7 @@ function SectionEditor({
   )
 }
 
-// ---------------------------------------------------------------- 入口・理解チェック
+// ---------------------------------------------------------------- 入口・参考文献・理解チェック
 
 function EntriesEditor({ overlay, onChange, sections }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; sections: SectionInfo[] }) {
   const entries = overlay.entries ?? []
@@ -527,6 +565,56 @@ function EntriesEditor({ overlay, onChange, sections }: { overlay: SpreadOverlay
       ))}
       <button type="button" onClick={() => set([...entries, { label: '', anchor: sections[0]?.anchor ?? '1' }])} className="text-[11px] text-brand-700 dark:text-brand-300 inline-flex items-center gap-1">
         <Plus className="w-3.5 h-3.5" aria-hidden />入口を足す
+      </button>
+    </div>
+  )
+}
+
+// 参考文献の圧縮行。誌面の一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
+// 出典の略記と1行説明は原本に無いので、非公開の誌面ノートに置いた行から選ぶ
+// （3つとも逐語照合つき。原本にもノートにも無い文字列は赤くなり、保存も止まる）。
+function RefsEditor({ overlay, onChange, checker, own, notes }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; checker: Checker; own: string[]; notes: string[] }) {
+  const refs = overlay.refs ?? []
+  const set = (list: SpreadRef[]) => onChange(withRefs(overlay, list))
+  const patch = (i: number, p: Partial<SpreadRef>) => set(refs.map((r, j) => (j === i ? { ...r, ...p } : r)))
+  const move = (i: number, d: number) => {
+    const next = [...refs]
+    const [x] = next.splice(i, 1)
+    next.splice(i + d, 0, x)
+    set(next)
+  }
+  const field = (label: string, value: string, placeholder: string, key: keyof SpreadRef, i: number) => (
+    <Field label={label}>
+      <VerbatimInput
+        value={value}
+        onChange={(v) => patch(i, { [key]: v })}
+        placeholder={placeholder}
+        checker={checker}
+        own={own}
+        notes={notes}
+        ownLabel="記事末の原本"
+      />
+    </Field>
+  )
+  return (
+    <div className="mb-4">
+      <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">参考文献の一覧（空のままなら原本の箇条書きをそのまま出します）</div>
+      {refs.map((r, i) => (
+        <div key={i} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-bold text-gray-400">{i + 1}</span>
+            <span className="flex-1" />
+            <IconButton title="上へ" onClick={() => move(i, -1)} disabled={i === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
+            <IconButton title="下へ" onClick={() => move(i, 1)} disabled={i === refs.length - 1}><ChevronDown className="w-3.5 h-3.5" aria-hidden /></IconButton>
+            <IconButton title="この文献を削除" onClick={() => set(refs.filter((_, j) => j !== i))}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
+          </div>
+          {field('短いタイトル（太字で出る）', r.title, '例: BTS Guideline for oxygen use in adults', 'title', i)}
+          {field('出典の略記（丸括弧で出る。無ければ空でよい）', r.source, '例: BMJ Open Respir Res 2017', 'source', i)}
+          {field('1行説明', r.note, '例: 成人急性期の目標SpO₂とデバイス選択の中核ガイドライン', 'note', i)}
+        </div>
+      ))}
+      <button type="button" onClick={() => set([...refs, emptyRef()])} className="text-[11px] text-brand-700 dark:text-brand-300 inline-flex items-center gap-1">
+        <Plus className="w-3.5 h-3.5" aria-hidden />文献を足す
       </button>
     </div>
   )
@@ -621,12 +709,16 @@ export function OverlayBuilder({
     () => draft.sections.map((s) => ({ anchor: s.anchor, n: s.n, title: s.title, autoKind: s.part.kind, deep: s.deep })),
     [draft],
   )
+  // 参考文献の候補は記事末（原本の文献一覧）から出す。短いタイトルは原本の完全タイトルの
+  // 前方一致になることが多いので、原本の行を入れてから削るのが早い。
+  const tailLines = useMemo(() => candidateLines(draft.tail), [draft])
   return (
     <div>
       <EntriesEditor overlay={overlay} onChange={onChange} sections={sections} />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={tailLines} notes={noteLines} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} />
     </div>
   )

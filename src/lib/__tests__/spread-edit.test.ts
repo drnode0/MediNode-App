@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart } from '../spread-edit'
+import { candidateLines, emptyPart, emptyRef, withRefs } from '../spread-edit'
 import { makeVerbatimChecker } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
@@ -59,5 +59,18 @@ describe('emptyPart（部品の雛形）', () => {
     expect(emptyPart('cards').kind).toBe('cards')
     expect(emptyPart('gonogo')).toMatchObject({ go: [[]], noGo: [[]] })
     expect(emptyPart('none')).toEqual({ kind: 'none' })
+  })
+})
+
+describe('参考文献の圧縮行（編集画面）', () => {
+  it('emptyRef は3つとも空の1行を返す', () => {
+    expect(emptyRef()).toEqual({ title: '', source: '', note: '' })
+  })
+
+  it('withRefs は行があれば refs を立て、空になったらキーごと落とす', () => {
+    const ref = { title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' }
+    expect(withRefs({}, [ref])).toEqual({ refs: [ref] })
+    expect(withRefs({ shortLabels: { '1': '目標SpO2' } }, [ref]).shortLabels).toEqual({ '1': '目標SpO2' })
+    expect(withRefs({ refs: [ref] }, []).refs).toBeUndefined()
   })
 })

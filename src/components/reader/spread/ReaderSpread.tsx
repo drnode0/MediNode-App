@@ -167,6 +167,9 @@ export function ReaderSpread({
   const tail = useMemo(() => splitTailBlocks(tailBlocks), [tailBlocks])
   const practice = useMemo(() => splitCalloutHead(tail.practice), [tail.practice])
   const refs = useMemo(() => splitCalloutHead(tail.refsHead), [tail.refsHead])
+  // 文献一覧の圧縮行（短いタイトル・略記の出典・1行説明）。非公開の誌面ノート由来で、
+  // オーバレイが構造として持つ。無ければ原本の箇条書きをそのまま出す（fail-safe）。
+  const compactRefs = spread.refs ?? []
 
   // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
@@ -470,7 +473,7 @@ export function ReaderSpread({
           )}
 
           {/* 文献（📚）。パイロットは箱をやめ、素の見出し＋番号つきの一覧で出す。 */}
-          {(refs.head || refs.body.length > 0 || tail.refsItems.length > 0) && (
+          {(refs.head || refs.body.length > 0 || compactRefs.length > 0 || tail.refsItems.length > 0) && (
             <div className={styles.refs}>
               {refs.head && (
                 <h3>
@@ -480,14 +483,28 @@ export function ReaderSpread({
               {refs.body.map((b, i) => (
                 <TailBlock key={i} block={b} k={`refs-body-${i}`} onImageClick={onImageClick} />
               ))}
-              {tail.refsItems.length > 0 && (
+              {/* 圧縮行があればそれで組む（パイロットの1行＝太字の短いタイトル・丸括弧の出典・
+                  1行説明）。出典の略記が無い文献では丸括弧ごと出さない。 */}
+              {compactRefs.length > 0 ? (
                 <ol>
-                  {tail.refsItems.map((b, i) => (
+                  {compactRefs.map((r, i) => (
                     <li key={i}>
-                      <Inlines items={inlinesOf(b)} k={`refs-${i}`} />
+                      <b>{r.title}</b>
+                      {r.source ? `（${r.source}）` : ''}
+                      {r.note}
                     </li>
                   ))}
                 </ol>
+              ) : (
+                tail.refsItems.length > 0 && (
+                  <ol>
+                    {tail.refsItems.map((b, i) => (
+                      <li key={i}>
+                        <Inlines items={inlinesOf(b)} k={`refs-${i}`} />
+                      </li>
+                    ))}
+                  </ol>
+                )
               )}
             </div>
           )}

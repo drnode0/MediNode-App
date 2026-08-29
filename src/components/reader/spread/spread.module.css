@@ -838,10 +838,12 @@
 .refs li {
   margin-bottom: 0.5em;
 }
-/* パイロットの `.refs b` に当たる指定。誌面の太字は Inlines が .font-bold で描く。
+/* パイロットの `.refs b` に当たる指定。原本の箇条書きで出すときの太字は Inlines が
+   .font-bold で描き、圧縮行で出すときは誌面が `<b>` を直に置く（パイロットと同じ組み）。
    パイロットで `<b>` が出るのは一覧の中だけなので、見出し（h3）まで 600 に落とさないよう
    ol の中に限る（.refs h3 の 700 を詳細度で食わせない）。 */
-.refs ol :global(.font-bold) {
+.refs ol :global(.font-bold),
+.refs ol b {
   color: var(--ink);
   font-weight: 600;
 }

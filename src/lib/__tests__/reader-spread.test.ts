@@ -884,3 +884,63 @@ describe('splitTailBlocks（記事末尾を実践・文献・免責の口に分�
     expect(r.rest).toEqual([])
   })
 })
+
+describe('refs（参考文献の圧縮行）', () => {
+  // 圧縮行は原本に無く、非公開の誌面ノートにだけ置く（原本は公開リンクで読者に見えるため）。
+  // ノート側は1行1文献の箇条書きで、その1行の中に title / source / note がそのまま含まれる。
+  const notes: ReaderBlock[] = [
+    { kind: 'list_item', ordered: false, inlines: t('BTS Guideline for oxygen use in adults｜BMJ Open Respir Res 2017｜成人急性期の目標SpO2とデバイス選択の中核ガイドライン') },
+    { kind: 'list_item', ordered: false, inlines: t('出典の略記が無い文献') },
+  ]
+  const ref = {
+    title: 'BTS Guideline for oxygen use in adults',
+    source: 'BMJ Open Respir Res 2017',
+    note: '成人急性期の目標SpO2とデバイス選択の中核ガイドライン',
+  }
+
+  it('applyOverlay が refs を載せ、本文（lead / preface / deep / tail）には触れない', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, { refs: [ref] })
+    expect(merged.refs).toEqual([ref])
+    expect(merged.lead).toBe(draft.lead)
+    expect(merged.preface).toBe(draft.preface)
+    expect(merged.tail).toBe(draft.tail)
+    expect(merged.sections[0].deep).toEqual(draft.sections[0].deep)
+  })
+
+  it('refs を渡さなければ refs は立たない（原本の箇条書きで出す fail-safe）', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    expect(draft.refs).toBeUndefined()
+    expect(applyOverlay(draft, {}).refs).toBeUndefined()
+  })
+
+  it('sanitizeOverlay は title が空白だけの行を捨て、source / note の空は通す', () => {
+    const r = sanitizeOverlay({ refs: [
+      { title: '  ', source: 'Thorax 2016', note: 'NIVの適応・禁忌' },
+      { title: '出典の略記が無い文献', source: '', note: '' },
+    ] })
+    expect(r.refs).toEqual([{ title: '出典の略記が無い文献', source: '', note: '' }])
+  })
+
+  it('title / source / note は逐語一致検査の対象で、誌面ノートにあれば通る', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const good = applyOverlay(draft, { refs: [ref] })
+    expect(verifyVerbatim(good, doc, notes).ok).toBe(true)
+    // ノートを渡さなければ原本だけで検査する（従来どおり fail-closed）
+    expect(verifyVerbatim(good, doc).ok).toBe(false)
+  })
+
+  it('ノートにも原本にも無い note を持つ refs は検査で落ちる', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, { refs: [{ ...ref, note: '誰も書いていない一行説明' }] })
+    const r = verifyVerbatim(bad, doc, notes)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('誰も書いていない一行説明')
+  })
+
+  it('source / note が空の行は検査に掛からない（既存の trim + filter で落ちる）', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const merged = applyOverlay(draft, { refs: [{ title: '出典の略記が無い文献', source: '', note: '' }] })
+    expect(verifyVerbatim(merged, doc, notes)).toEqual({ ok: true, missing: [] })
+  })
+})

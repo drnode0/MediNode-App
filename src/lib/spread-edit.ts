@@ -2,7 +2,7 @@
 // 「文はタイプさせず、原本と誌面ノートから選ばせる」ための候補抽出と、
 // 部品の空雛形を持つ。ここは純関数だけ（描画は SpreadEditClient 側）。
 import { calloutRole, type ReaderBlock } from './reader-doc'
-import { textOf, type SpreadPart } from './reader-spread'
+import { textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
 
 /**
  * 節の深掘りから、部品に載せる候補になる文を登場順・重複なしで返す。
@@ -52,6 +52,17 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
     case 'none':
       return { kind: 'none' }
   }
+}
+
+// 参考文献の圧縮行の空雛形。編集画面の「文献を足す」が使う。
+export function emptyRef(): SpreadRef {
+  return { title: '', source: '', note: '' }
+}
+
+// 参考文献の圧縮行をオーバレイに載せる。1行も無くなったらキーごと落とす
+// （入口チップ・理解チェックと同じ流儀。空配列を残してJSONを汚さない）。
+export function withRefs(overlay: SpreadOverlay, refs: SpreadRef[]): SpreadOverlay {
+  return { ...overlay, refs: refs.length > 0 ? refs : undefined }
 }
 
 // 編集画面のセグメント（文節）に許す色。Notionの色名のうち、誌面の面で意味が立つものだけ。
