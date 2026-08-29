@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemsOf, unmatchedRefItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
@@ -968,5 +968,129 @@ describe('refs（参考文献の圧縮行）', () => {
     const r = verifyVerbatim(merged, doc, notes)
     expect(r.ok).toBe(false)
     expect(r.missing).toEqual(['誰も書いていない短いタイトル'])
+  })
+})
+
+describe('unmatchedRefItems（文献の取りこぼしを止める関門）', () => {
+  // 当たり判定は「圧縮行の書き出しが、原本の文献行のどこかに現れるか（最も長く当たる1行）」。
+  // 実データの圧縮行は原本の完全タイトルの前方一致ではなく、途中を略した形（NIV / HFNC /
+  // 括弧つきの略称）だったので、頭からの一致だけを見て「どの行のことか」を決める。
+  const item = (text: string, href?: string): ReaderBlock => ({
+    kind: 'list_item',
+    ordered: false,
+    inlines: href ? [{ text }, { text: '本文', href }] : [{ text }],
+  })
+  // 実データ（酸素の記事）の文献一覧そのままの形。
+  const items: ReaderBlock[] = [
+    item('BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ Open Respiratory Research 2017;4:e000170） — 成人急性期の目標SpO2を示す。', 'https://example.org/bts-2017'),
+    item('BTS/ICS guideline for the ventilatory management of acute hypercapnic respiratory failure in adults（Thorax 2016;71:ii1-ii35） — NIVの適応・禁忌を示す。', 'https://example.org/thorax-2016'),
+    item('Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（European Respiratory Journal 2017;50:1602426） — 二相性NIVを強く推奨。', 'https://example.org/erj-2017'),
+    item('ERS clinical practice guidelines: high-flow nasal cannula in acute respiratory failure（European Respiratory Journal 2022;59:2101574） — HFNCを条件付きで提案。', 'https://example.org/erj-2022'),
+  ]
+  const refs: SpreadRef[] = [
+    { title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' },
+    { title: 'BTS/ICS guideline: acute hypercapnic respiratory failure', source: 'Thorax 2016', note: 'NIVの適応・禁忌' },
+    { title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: 'Eur Respir J 2017', note: '二相性NIVを強く推奨' },
+    { title: 'ERS clinical practice guidelines: HFNC in acute respiratory failure', source: 'Eur Respir J 2022', note: 'HFNCを条件付き提案' },
+  ]
+
+  it('全件当たれば空配列', () => {
+    expect(unmatchedRefItems(items, refs)).toEqual([])
+  })
+
+  it('1件足りなければ、当たらなかった原本の行が返る（黙って減らせない）', () => {
+    const r = unmatchedRefItems(items, refs.filter((_, i) => i !== 2))
+    expect(r).toEqual([items[2]])
+  })
+
+  it('refs が未指定・空のときは空配列（供給していない誌面は従来どおり）', () => {
+    expect(unmatchedRefItems(items, undefined)).toEqual([])
+    expect(unmatchedRefItems(items, [])).toEqual([])
+  })
+
+  it('原本行の途中と一致するだけの title は当たらない（書き出しを見るため）', () => {
+    const middle: SpreadRef[] = [{ title: 'acute hypercapnic respiratory failure in adults', source: '', note: '' }]
+    expect(unmatchedRefItems([items[1]], middle)).toEqual([items[1]])
+  })
+
+  it('2つの圧縮行が同じ1行に当たると、当たらない行が残って関門が効く', () => {
+    const dup = [refs[0], { ...refs[0], source: 'x' }]
+    expect(unmatchedRefItems([items[0], items[1]], dup)).toEqual([items[1]])
+  })
+
+  it('書き出しが同じ原本行が2つあるときは当てない（取り違えより止めるほうを採る）', () => {
+    const twin = [items[3], item('ERS clinical practice guidelines: oxygen in acute care（Eur Respir J 2023） — 別の文献。')]
+    expect(unmatchedRefItems(twin, [refs[3]])).toEqual(twin)
+  })
+
+  it('title が空・キーごと無い行はどの行にも当たらない（fail-closed）', () => {
+    expect(unmatchedRefItems([items[0]], [{ title: '  ', source: '', note: '' }])).toEqual([items[0]])
+    expect(unmatchedRefItems([items[0]], [{ source: '', note: '' } as unknown as SpreadRef])).toEqual([items[0]])
+  })
+
+  it('原本に文献行が無ければ、圧縮行があっても空配列（見出しの無い誌面を壊さない）', () => {
+    expect(unmatchedRefItems([], refs)).toEqual([])
+  })
+})
+
+describe('refHrefs（圧縮行のタイトルから一次資料へ）', () => {
+  const item = (text: string, href?: string): ReaderBlock => ({
+    kind: 'list_item',
+    ordered: false,
+    inlines: href ? [{ text }, { text: '本文', href }] : [{ text }],
+  })
+  const items: ReaderBlock[] = [
+    item('BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ 2017） — 中核。', 'https://example.org/bts-2017'),
+    item('Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（ERJ 2017） — NIV。'),
+  ]
+  const refs: SpreadRef[] = [
+    { title: 'BTS Guideline for oxygen use in adults', source: '', note: '' },
+    { title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: '', note: '' },
+    { title: '原本のどの行にも当たらないタイトル', source: '', note: '' },
+  ]
+
+  it('当たった原本の行の最初のリンクを、圧縮行と同じ並びで返す', () => {
+    expect(refHrefs(items, refs)).toEqual(['https://example.org/bts-2017', null, null])
+  })
+
+  it('原本の行にリンクが複数あるときは最初のものを使う', () => {
+    const two = item('BTS Guideline for oxygen use in adults（BMJ 2017）', 'https://example.org/first')
+    const withTwo: ReaderBlock = { ...two, kind: 'list_item', ordered: false, inlines: [...(two.kind === 'list_item' ? two.inlines : []), { text: 'PubMed', href: 'https://example.org/second' }] }
+    expect(refHrefs([withTwo], [refs[0]])).toEqual(['https://example.org/first'])
+  })
+
+  it('refs が未指定・空なら空配列（供給していない誌面はリンクを持たない）', () => {
+    expect(refHrefs(items, undefined)).toEqual([])
+    expect(refHrefs(items, [])).toEqual([])
+  })
+})
+
+describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', () => {
+  const tail: ReaderBlock[] = [
+    { kind: 'heading', level: 1, inlines: t('Evidence') },
+    { kind: 'callout', icon: '📚', color: null, blocks: [{ kind: 'paragraph', inlines: t('まず当たるべき文献') }] },
+    {
+      kind: 'list_item',
+      ordered: false,
+      inlines: [{ text: 'BTS Guideline for oxygen use in adults（BMJ 2017） — 中核。引用：“x” ' }, { text: '本文', href: 'https://example.org/bts' }],
+    },
+    { kind: 'paragraph', inlines: t('PubMed検索キーワード例') },
+    { kind: 'list_item', ordered: false, inlines: t('oxygen therapy target saturation') },
+  ]
+
+  it('構造見出しとPubMed検索例を除いた、文献の callout より後ろの箇条書きを返す', () => {
+    const r = refItemsOf(tail)
+    expect(r.map((b) => (b.kind === 'list_item' ? textOf(b.inlines).slice(0, 20) : b.kind))).toEqual([
+      'BTS Guideline for ox',
+    ])
+  })
+
+  it('「引用：」以降を切らない（一次資料へのリンクはそこより後ろにあるため）', () => {
+    // displayTail は誌面の表示のために「引用：」以降を落とす。同じ範囲をそのまま使うと
+    // 文献行からリンクが消え、タイトルからどこにも飛べなくなる。
+    const shown = splitTailBlocks(displayTail(tail).rest).refsItems[0]
+    expect(shown.kind === 'list_item' && shown.inlines.some((n) => n.href)).toBe(false)
+    expect(refHrefs(refItemsOf(tail), [{ title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }]))
+      .toEqual(['https://example.org/bts'])
   })
 })

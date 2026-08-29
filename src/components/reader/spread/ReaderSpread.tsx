@@ -4,10 +4,10 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { digestTone, displayPreface, displayTail, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
+import { digestTone, displayPreface, displayTail, refHrefs, refItemsOf, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import { ConfidenceLegend } from '../ConfidenceMark'
-import { Stethoscope } from 'lucide-react'
+import { ExternalLink, Stethoscope } from 'lucide-react'
 import styles from './spread.module.css'
 import { KnowledgeTitle } from '@/lib/title-display'
 import { stripLeadingEmoji } from '@/lib/labels'
@@ -170,6 +170,10 @@ export function ReaderSpread({
   // 文献一覧の圧縮行（短いタイトル・略記の出典・1行説明）。非公開の誌面ノート由来で、
   // オーバレイが構造として持つ。無ければ原本の箇条書きをそのまま出す（fail-safe）。
   const compactRefs = spread.refs ?? []
+  // 圧縮行のタイトルの飛び先。href は原本の文献行から引く（SpreadRef は href を持たない）。
+  // 当たらなければ null＝リンクにしない。投入時の関門で取りこぼしは止まるので、
+  // 読者に届く誌面では当たっている状態になる。
+  const refLinks = useMemo(() => refHrefs(refItemsOf(spread.tail), spread.refs), [spread.tail, spread.refs])
 
   // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。
   // 中身は原本のブロックそのもので、削るのではなく畳むだけ。検索中は全部見せる
@@ -494,19 +498,44 @@ export function ReaderSpread({
                   絵文字のまま出てしまう。 */}
               {compactRefs.length > 0 ? (
                 <ol>
-                  {compactRefs.map((r, i) => (
-                    <li key={i}>
+                  {compactRefs.map((r, i) => {
+                    const title = (
                       <b>
                         <Inlines items={[{ text: r.title ?? '' }]} k={`refs-compact-${i}-title`} />
                       </b>
-                      {r.source ? (
-                        <>
-                          （<Inlines items={[{ text: r.source }]} k={`refs-compact-${i}-source`} />）
-                        </>
-                      ) : null}
-                      <Inlines items={[{ text: r.note ?? '' }]} k={`refs-compact-${i}-note`} />
-                    </li>
-                  ))}
+                    )
+                    const href = refLinks[i]
+                    return (
+                      <li key={i}>
+                        {/* タイトルから一次資料へ飛ばす。見た目はパイロットのまま（太字と文字色は
+                            `.refs ol b` が持ち、リンク側は色も下線も足さない）。外部リンクである
+                            ことは、Inlines の出典リンクと同じ線画アイコンで控えめに示す。 */}
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`一次資料を開く: ${r.title ?? ''}`}
+                            className="no-underline text-inherit"
+                          >
+                            {title}
+                            <ExternalLink
+                              className="inline-block w-[0.8em] h-[0.8em] shrink-0 ml-1 align-[-0.05em] text-gray-400 dark:text-gray-500"
+                              aria-hidden="true"
+                            />
+                          </a>
+                        ) : (
+                          title
+                        )}
+                        {r.source ? (
+                          <>
+                            （<Inlines items={[{ text: r.source }]} k={`refs-compact-${i}-source`} />）
+                          </>
+                        ) : null}
+                        <Inlines items={[{ text: r.note ?? '' }]} k={`refs-compact-${i}-note`} />
+                      </li>
+                    )
+                  })}
                 </ol>
               ) : (
                 tail.refsItems.length > 0 && (

@@ -12,7 +12,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { displayTail, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { displayTail, refItemsOf, sectionTitleText, splitTailBlocks, textOf, unmatchedRefItems, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, emptyRef, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
@@ -573,8 +573,11 @@ function EntriesEditor({ overlay, onChange, sections }: { overlay: SpreadOverlay
 // 参考文献の圧縮行。誌面の一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
 // 出典の略記と1行説明は原本に無いので、非公開の誌面ノートに置いた行から選ぶ
 // （3つとも逐語照合つき。原本にもノートにも無い文字列は赤くなり、保存も止まる）。
-function RefsEditor({ overlay, onChange, checker, own, notes }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; checker: Checker; own: string[]; notes: string[] }) {
+function RefsEditor({ overlay, onChange, checker, own, notes, items }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; checker: Checker; own: string[]; notes: string[]; items: ReaderBlock[] }) {
   const refs = overlay.refs ?? []
+  // 原本の文献行のうち、どの圧縮行にも当たらなかったもの。1件でもあれば保存は止まる
+  // （SpreadEditClient の保存ボタンが同じ判定を見ている）。
+  const unmatched = candidateLines(unmatchedRefItems(items, refs))
   const set = (list: SpreadRef[]) => onChange(withRefs(overlay, list))
   const patch = (i: number, p: Partial<SpreadRef>) => set(refs.map((r, j) => (j === i ? { ...r, ...p } : r)))
   const move = (i: number, d: number) => {
@@ -598,7 +601,18 @@ function RefsEditor({ overlay, onChange, checker, own, notes }: { overlay: Sprea
   )
   return (
     <div className="mb-4">
-      <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">参考文献の一覧（空のままなら原本の箇条書きをそのまま出します）</div>
+      <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-0.5">参考文献の一覧（空のままなら原本の箇条書きをそのまま出します）</div>
+      <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">原本 {items.length} 件／圧縮行 {refs.length} 件</div>
+      {unmatched.length > 0 && (
+        <div className="mb-2 text-xs text-red-600 dark:text-red-400">
+          <p className="font-bold">どの圧縮行にも当たらない原本の文献行（このままでは保存できません）</p>
+          <ul className="list-disc pl-5 mt-1 space-y-0.5">
+            {unmatched.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {refs.map((r, i) => (
         <div key={i} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2">
           <div className="flex items-center gap-2 mb-1">
@@ -714,13 +728,16 @@ export function OverlayBuilder({
   // tail 全体を拾うと、PubMed検索キーワード例・免責・署名まで候補に並んで選びにくくなるので、
   // 誌面が実際に文献一覧として出す範囲（displayTail → splitTailBlocks の refsItems）に揃える。
   const refLines = useMemo(() => candidateLines(splitTailBlocks(displayTail(draft.tail).rest).refsItems), [draft])
+  // 関門が見るのは「引用：」で切る前の行（一次資料へのリンクがそこより後ろにあるため）。
+  // 候補（refLines）は誌面に出るのと同じ切った行のままにする。行の集合は同じで、長さだけが違う。
+  const refItems = useMemo(() => refItemsOf(draft.tail), [draft])
   return (
     <div>
       <EntriesEditor overlay={overlay} onChange={onChange} sections={sections} />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}
-      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={refLines} notes={noteLines} />
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={refLines} notes={noteLines} items={refItems} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} />
     </div>
   )

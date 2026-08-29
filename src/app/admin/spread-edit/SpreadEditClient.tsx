@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
-import { applyOverlay, buildSpreadDraft, makeVerbatimChecker, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, makeVerbatimChecker, refItemsOf, sanitizeOverlay, unmatchedRefItems, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { candidateLines } from '@/lib/spread-edit'
 import { OverlayBuilder } from './OverlayBuilder'
 import type { ReaderBlock, ReaderDoc } from '@/lib/reader-doc'
@@ -83,8 +83,13 @@ export function SpreadEditClient() {
     // 編集中は理解チェックを見えるようにする（保存時は必ず未目視に戻り、/admin の承認でしか読者に出ない）。
     const shown = { ...spread, quizzes: spread.quizzes.map((q) => ({ ...q, reviewed: true })) }
     const check = verifyVerbatim(spread, draft.doc, draft.notes)
-    return { spread: shown, missing: check.missing }
+    // 参考文献の取りこぼし（圧縮行を供給した誌面で、原本の文献行が黙って減っていないか）。
+    // 逐語一致検査とは別の穴なので別に持ち、保存の可否は2つを合わせて決める。
+    const refsMissing = candidateLines(unmatchedRefItems(refItemsOf(spread.tail), spread.refs))
+    return { spread: shown, missing: check.missing, refsMissing }
   }, [draft, base, overlay])
+  // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行）。
+  const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0
 
   const save = async () => {
     if (!draft) return
@@ -101,7 +106,9 @@ export function SpreadEditClient() {
         setMsg(
           data.error === 'verbatim_mismatch'
             ? `逐語一致検査に落ちました: ${(data.missing ?? []).join(' / ')}`
-            : `保存できません（${data.error ?? res.status}）`,
+            : data.error === 'refs_incomplete'
+              ? `原本の文献行が誌面から漏れています: ${(data.missing ?? []).join(' / ')}`
+              : `保存できません（${data.error ?? res.status}）`,
         )
         return
       }
@@ -149,7 +156,7 @@ export function SpreadEditClient() {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={saving || !draft || !built || built.missing.length > 0}
+            disabled={saving || !draft || blocked}
             className="rounded-lg border border-brand-600 text-brand-700 dark:text-brand-300 px-4 py-2 text-sm font-medium disabled:opacity-40 min-h-[44px]"
           >
             {saving ? <Spinner /> : '下書きとして保存'}
@@ -157,7 +164,10 @@ export function SpreadEditClient() {
           {built && built.missing.length > 0 && (
             <span className="text-xs text-red-600 dark:text-red-400">原本・誌面ノートに無い文が {built.missing.length} 件</span>
           )}
-          {built && built.missing.length === 0 && draft && (
+          {built && built.refsMissing.length > 0 && (
+            <span className="text-xs text-red-600 dark:text-red-400">誌面から漏れた原本の文献行が {built.refsMissing.length} 件</span>
+          )}
+          {built && !blocked && draft && (
             <span className="text-xs text-brand-700 dark:text-brand-300">逐語一致検査を通っています</span>
           )}
         </div>
@@ -174,6 +184,19 @@ export function SpreadEditClient() {
                   <p className="font-bold">原本にも誌面ノートにも無い文（このままでは保存できません）</p>
                   <ul className="list-disc pl-5 mt-1 space-y-0.5">
                     {built.missing.map((m) => (
+                      <li key={m}>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* 参考文献の取りこぼし。逐語一致検査は「書いた文言が原本かノートにあるか」しか
+                  見ないので、圧縮行の書き忘れ（＝誌面から文献が1件消える）はここでしか出ない。 */}
+              {built.refsMissing.length > 0 && (
+                <div className="mb-3 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-bold">どの圧縮行にも当たらない原本の文献行（このままでは保存できません）</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                    {built.refsMissing.map((m) => (
                       <li key={m}>{m}</li>
                     ))}
                   </ul>

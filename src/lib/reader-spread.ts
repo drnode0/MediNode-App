@@ -72,9 +72,11 @@ export type SpreadQuiz = {
 // 対象外）、anchor は飛び先の節。存在しない節を指す入口は applyOverlay で捨てる。
 export type SpreadEntry = { label: string; anchor: string }
 
-// 参考文献の圧縮行。title は原本の完全タイトルの前方一致になることが多いが、
-// source（略記の出典）と note（1行説明）は原本に無く、非公開の誌面ノート_DB に置く。
-// 3つとも逐語一致検査の対象。
+// 参考文献の圧縮行。3つとも非公開の誌面ノート_DB に置き、3つとも逐語一致検査の対象。
+// title は原本の完全タイトルを縮めたもので、前方一致とは限らない（頭の語が落ちたり、
+// 途中が略語に置き換わったりする）。原本のどの文献行のことかは matchRefIndex が決め、
+// どの行にも当たらない原本の行は unmatchedRefItems が関門で拾う。
+// href のキーは持たない。飛び先は必ず原本の文献行から引く（refHrefs）。
 export type SpreadRef = { title: string; source: string; note: string }
 
 export type SpreadDoc = {
@@ -672,9 +674,17 @@ export function compressReferenceItems(blocks: ReaderBlock[]): ReaderBlock[] {
  * 凡例段落の除去・参考文献の圧縮）をまとめて行う。
  */
 export function displayTail(tail: ReaderBlock[]): { scope: ReaderBlock[]; rest: ReaderBlock[] } {
-  const { scope, rest } = splitStampScope(tail)
+  const { scope } = splitStampScope(tail)
+  return { scope, rest: compressReferenceItems(tailBeforeRefCompression(tail)) }
+}
+
+// 参考文献の圧縮（compressReferenceItems）だけを掛けていない記事末。
+// 文献行の一次資料リンクは「引用：」より後ろに置かれているので、圧縮した行にはリンクが
+// 残らない。関門とタイトルのリンクは原本の行そのものを見る必要があるため、ここで分ける。
+function tailBeforeRefCompression(tail: ReaderBlock[]): ReaderBlock[] {
+  const { rest } = splitStampScope(tail)
   const cleaned = rest.filter((b) => !isStructuralHeading(b) && !isLegendParagraph(b))
-  return { scope, rest: compressReferenceItems(dropPubmedExamples(cleaned)) }
+  return dropPubmedExamples(cleaned)
 }
 
 /**
@@ -728,6 +738,129 @@ export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
     rest.push(b)
   }
   return { practice, refsHead, refsItems, disclaimer, rest }
+}
+
+/**
+ * 誌面の文献一覧のもとになる、原本の文献行。
+ * 関門（unmatchedRefItems）とタイトルのリンク（refHrefs）が同じ行を見るようにするための1本。
+ * ここが割れると「関門を通ったのにリンクが付かない」といった食い違いが生まれる。
+ *
+ * 範囲の取り方は displayTail と同じ（スタンプ・構造見出し・凡例・PubMed検索例を除く）。
+ * ただし「引用：」以降の圧縮は掛けない。一次資料へのリンクはそこより後ろにあるため。
+ */
+export function refItemsOf(tail: ReaderBlock[]): ReaderBlock[] {
+  return splitTailBlocks(tailBeforeRefCompression(tail)).refsItems
+}
+
+// ---- 参考文献の圧縮行と原本の文献行の対応づけ ----
+//
+// 圧縮行（SpreadRef）は非公開の誌面ノート由来で、原本の完全タイトルを縮めたもの。
+// 実データ（酸素の記事の7行）で確かめると、縮め方は前方一致とは限らなかった。
+// 「Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute
+// respiratory failure」に対する圧縮行が「ERS/ATS clinical practice guidelines: NIV for
+// acute respiratory failure」のように、頭の語が落ち、途中が略語に置き換わる。
+// 7行のうち前方一致が成立したのは3行だけだった。
+//
+// そこで当たり判定は「圧縮行の書き出しが、原本の行の頭のあたりにそのまま現れる長さ」で
+// 決める。原本の行が title で始まる（＝前方一致）ときはその長さが最大になるので、
+// 前方一致はこの判定に含まれる。最も長く当たった1行だけを採り、同点の行があるときは
+// 当てない（どの文献のことか決められないまま、別の文献へのリンクを読者に出さないため）。
+//
+// 「頭のあたり」の幅は 16 文字。行頭に付く印（🔖 など）と、上の「Official」のような
+// 接頭語を跨ぐぶんだけを許す幅で、それより奥での一致は当てない。これが無いと、
+// 説明文の途中の一文を title に置いた行まで当たってしまう（タイトルではないものが
+// 文献の見出しとして誌面に出る）。
+const REF_LEAD_MIN = 8
+const REF_LEAD_SKIP = 16
+
+function normalizeRefText(s: string): string {
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+// 文献行のインライン。文字を持たないブロック（画像など）は空を返す。
+function refItemInlines(b: ReaderBlock): ReaderInline[] {
+  return b.kind === 'list_item' || b.kind === 'paragraph' || b.kind === 'heading' ? b.inlines : []
+}
+
+function refItemText(b: ReaderBlock): string {
+  return normalizeRefText(textOf(refItemInlines(b)))
+}
+
+// title の書き出しのうち、item の頭のあたり（REF_LEAD_SKIP 文字以内）に現れる最長の長さ。
+// 長い書き出しがその位置までに現れるなら短い書き出しも必ず現れるので、二分探索で決められる。
+function leadMatchLength(item: string, title: string): number {
+  const at = (n: number) => {
+    const i = item.indexOf(title.slice(0, n))
+    return i >= 0 && i <= REF_LEAD_SKIP
+  }
+  let lo = 0
+  let hi = title.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (at(mid)) lo = mid
+    else hi = mid - 1
+  }
+  return lo
+}
+
+// title が指す原本の行の番号。決められなければ -1。
+function matchRefIndex(itemTexts: string[], rawTitle: string | undefined): number {
+  const title = normalizeRefText(rawTitle ?? '')
+  if (!title) return -1
+  let best = -1
+  let bestLen = 0
+  let tie = false
+  itemTexts.forEach((text, i) => {
+    const len = leadMatchLength(text, title)
+    if (len > bestLen) {
+      bestLen = len
+      best = i
+      tie = false
+    } else if (len === bestLen && len > 0) {
+      tie = true
+    }
+  })
+  // 短いタイトルは全体が当たることを求める（書き出し数文字だけの一致で決めない）。
+  if (tie || bestLen < Math.min(REF_LEAD_MIN, title.length)) return -1
+  return best
+}
+
+/**
+ * 原本の文献行のうち、どの圧縮行の title にも当たらなかったものを返す。
+ *
+ * 逐語一致検査は「誌面に書いた文言が原本かノートにあるか」しか見ないので、
+ * 圧縮行を1行書き忘れた（＝原本にある文献が誌面から消えた）ことは検出できない。
+ * この関門がその抜けを見つける。返り値が空でなければ、投入も保存も止める。
+ *
+ * refs が未指定・空のときは空配列を返す。圧縮行を供給していない誌面は原本の箇条書きを
+ * そのまま出すので、そもそも減りようがない（既存の誌面の保存を止めない fail-safe）。
+ */
+export function unmatchedRefItems(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): ReaderBlock[] {
+  if (!refs || refs.length === 0) return []
+  const texts = refsItems.map(refItemText)
+  const claimed = new Set<number>()
+  for (const r of refs) {
+    const i = matchRefIndex(texts, r?.title)
+    if (i >= 0) claimed.add(i)
+  }
+  return refsItems.filter((_, i) => !claimed.has(i))
+}
+
+/**
+ * 圧縮行それぞれに対応する、原本の文献行の一次資料リンク。並びは refs と同じ。
+ * 当たらない行・リンクを持たない行は null（リンクにしない）。
+ *
+ * href は必ず原本から引く。SpreadRef に href のキーは足さない（生成側にURLを書かせない
+ * sanitizeOverlay の方針を保つため）。原本の行にリンクが複数あるときは最初のものを使う。
+ */
+export function refHrefs(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): (string | null)[] {
+  if (!refs || refs.length === 0) return []
+  const texts = refsItems.map(refItemText)
+  return refs.map((r) => {
+    const i = matchRefIndex(texts, r?.title)
+    if (i < 0) return null
+    return refItemInlines(refsItems[i]).find((n) => n.href)?.href ?? null
+  })
 }
 
 // ---- 要点ボックス（⚡）の表示用導出 ----

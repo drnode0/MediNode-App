@@ -26,12 +26,13 @@ vi.mock('@/lib/supabase/server', () => ({
     }),
   }),
 }))
-vi.mock('@/lib/notion-page', () => ({
-  fetchPageBlocks: async () => [
-    { id: 'b1', type: 'heading_2', heading_2: { rich_text: [{ plain_text: '1. 見出し' }] } },
-    { id: 'b2', type: 'paragraph', paragraph: { rich_text: [{ plain_text: '本文。' }] } },
-  ],
-}))
+// 原本のブロック。既定は最小構成で、参考文献の関門を見るテストだけが差し替える。
+const BASE_BLOCKS: unknown[] = [
+  { id: 'b1', type: 'heading_2', heading_2: { rich_text: [{ plain_text: '1. 見出し' }] } },
+  { id: 'b2', type: 'paragraph', paragraph: { rich_text: [{ plain_text: '本文。' }] } },
+]
+let notionBlocks: unknown[] = BASE_BLOCKS
+vi.mock('@/lib/notion-page', () => ({ fetchPageBlocks: async () => notionBlocks }))
 vi.mock('@notionhq/client', () => ({
   Client: class { pages = { retrieve: (...a: unknown[]) => notionRetrieve(...a) } },
 }))
@@ -53,6 +54,7 @@ beforeEach(() => {
   selectRows = []
   existingOverlayRow = null
   overlayReadError = null
+  notionBlocks = BASE_BLOCKS
   // 既定は「保存済み行を variable ベースで返す」。PATCH のテストなど、行の中身を
   // 直接指定したいときだけ maybeSingle.mockResolvedValue で個別に上書きする。
   maybeSingle.mockImplementation(async () => ({ data: existingOverlayRow, error: overlayReadError }))
@@ -161,6 +163,50 @@ describe('PUT /api/admin/spread', () => {
     // 拒否されたときは監査ログとキャッシュ失効は呼ばれない
     expect(logAdminAction).not.toHaveBeenCalled()
     expect(revalidateSubscriptionReaderDocs).not.toHaveBeenCalled()
+  })
+})
+
+describe('文献を減らさない関門', () => {
+  // 原本に文献行が2つあり、圧縮行（refs）を供給する誌面。圧縮行が1つだけなら、
+  // 残り1件は誌面から黙って消える。逐語一致検査は「書いた文言が原本かノートにあるか」
+  // しか見ないので、この抜けは検出できない。ビルダーを通らない経路（JSONを直接編集した
+  // 投入・APIへの直接PUT）でも止まるよう、投入APIにも同じ関門を置く。
+  const REF_BLOCKS: unknown[] = [
+    { id: 'b1', type: 'heading_2', heading_2: { rich_text: [{ plain_text: '1. 見出し' }] } },
+    { id: 'b2', type: 'paragraph', paragraph: { rich_text: [{ plain_text: '本文。' }] } },
+    { id: 'b3', type: 'heading_1', heading_1: { rich_text: [{ plain_text: 'Evidence' }] } },
+    { id: 'b4', type: 'callout', callout: { icon: { type: 'emoji', emoji: '📚' }, rich_text: [{ plain_text: 'まず当たるべき文献' }] } },
+    { id: 'b5', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: 'BTS Guideline for oxygen use in adults in healthcare（BMJ 2017）' }] } },
+    { id: 'b6', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation（ERJ 2017）' }] } },
+  ]
+  const ref1 = { title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }
+  const ref2 = { title: 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation', source: '', note: '' }
+
+  beforeEach(() => {
+    notionBlocks = REF_BLOCKS
+  })
+
+  it('圧縮行が原本の文献行を取りこぼしていれば400で拒否し、保存もログもキャッシュ失効もしない', async () => {
+    const res = await PUT(req({ pageId: 'p1', overlay: { refs: [ref1] } }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('refs_incomplete')
+    expect(body.missing.join(' ')).toContain('Official ERS/ATS clinical practice guidelines')
+    expect(upsert).not.toHaveBeenCalled()
+    expect(logAdminAction).not.toHaveBeenCalled()
+    expect(revalidateSubscriptionReaderDocs).not.toHaveBeenCalled()
+  })
+
+  it('原本の文献行を全件カバーしていれば通る', async () => {
+    const res = await PUT(req({ pageId: 'p1', overlay: { refs: [ref1, ref2] } }))
+    expect(res.status).toBe(200)
+    expect(upsert.mock.calls[0][0].spread_doc.refs).toHaveLength(2)
+  })
+
+  it('圧縮行を供給しない誌面は従来どおり通る（供給していない誌面の出力を変えない）', async () => {
+    const res = await PUT(req({ pageId: 'p1', overlay: { shortLabels: { '1': 'ラベル' } } }))
+    expect(res.status).toBe(200)
+    expect(upsert).toHaveBeenCalled()
   })
 })
 
