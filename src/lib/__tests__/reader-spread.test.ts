@@ -874,4 +874,13 @@ describe('splitTailBlocks（記事末尾を実践・文献・免責の口に分�
     expect(r.disclaimer).toEqual(disclaimer.kind === 'callout' ? disclaimer.blocks : [])
     expect(r.rest).toEqual([practice2, refsHead2, disclaimer2])
   })
+
+  it('免責の callout をまたいだ後ろの箇条書きも refsItems に入る', () => {
+    // 範囲の取り方は compressReferenceItems と同じで、文献の callout より後ろの箇条書きは
+    // 間に別の callout が挟まっても文献の一覧として扱う。いまの挙動を固定する。
+    const ref3: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('BTS/ICS guideline（2016）') }
+    const r = splitTailBlocks([refsHead, ref1, disclaimer, ref3])
+    expect(r.refsItems).toEqual([ref1, ref3])
+    expect(r.rest).toEqual([])
+  })
 })

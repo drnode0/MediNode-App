@@ -773,6 +773,11 @@
   overflow: hidden;
   margin: 2.4rem 0 1.6rem;
   box-shadow: 0 1px 2px rgba(20, 60, 45, 0.05);
+  /* パイロットは body の line-height: 1.9 を枠まで継ぐ（測定値: .practice 30.4px/16px、
+     h3 27.36px/14.4px、.body と p 28.88px/15.2px、.note 22.8px/12px＝いずれも比 1.9）。
+     この土台は Tailwind preflight の html { line-height: 1.5 } に落ちるので、枠に明示して
+     中の要素に継がせる（.digestBody・.scope と同じ扱い）。 */
+  line-height: 1.9;
 }
 .practice h3 {
   background: var(--brand-tint);
@@ -799,6 +804,11 @@
   border-top: 1px solid var(--line);
   margin-top: 0.6rem;
   padding-top: 0.5rem;
+}
+/* 枠に line-height を持たせて h3・ol・li に継がせる（測定値: h3 28.88px/15.2px、
+   ol と li 25.84px/13.6px＝いずれも比 1.9）。 */
+.refs {
+  line-height: 1.9;
 }
 .refs h3 {
   font-size: 0.95rem;
@@ -828,4 +838,6 @@
   border-top: 1px solid var(--line);
   margin-top: 1.6rem;
   padding-top: 0.9rem;
+  /* 測定値: 23.712px/12.48px＝比 1.9 */
+  line-height: 1.9;
 }

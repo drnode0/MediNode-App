@@ -26,12 +26,16 @@ const inlinesOf = (b: ReaderBlock): ReaderInline[] =>
 
 /**
  * callout の中身を「見出し行（1行目）／その後ろ」に分ける。区切り線は枠の余白が担うので
- * 出さない（⚡ボックスの splitDigest と同じ流儀）。文字を持たない先頭ブロックは見出し帯に
- * 上げず、本文側に残す（見出しが空の帯にならないように）。
+ * 出さない（⚡ボックスの splitDigest と同じ流儀）。
+ *
+ * 見出し帯に昇格するのは「1行目が太字を含む段落」のときだけ。判定は ReaderBody の署名
+ * callout（hasHeadingText）と同じ条件に揃えてある。太字でない1行目は本文の1文なので、
+ * 帯に上げず本文フローに残す（原本に忠実に描く）。
  */
 function splitCalloutHead(block: ReaderBlock | null): { head: ReaderBlock | null; body: ReaderBlock[] } {
   const blocks = block?.kind === 'callout' ? block.blocks.filter((b) => b.kind !== 'divider') : []
-  const head = blocks[0] && inlinesOf(blocks[0]).length > 0 ? blocks[0] : null
+  const first = blocks[0]
+  const head = first && first.kind === 'paragraph' && first.inlines.some((n) => n.bold) ? first : null
   return { head, body: head ? blocks.slice(1) : blocks }
 }
 
