@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
-import { applyOverlay, buildSpreadDraft, makeVerbatimChecker, refItemsOf, sanitizeOverlay, unmatchedRefItems, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { candidateLines } from '@/lib/spread-edit'
 import { OverlayBuilder } from './OverlayBuilder'
 import type { ReaderBlock, ReaderDoc } from '@/lib/reader-doc'
@@ -83,13 +83,16 @@ export function SpreadEditClient() {
     // 編集中は理解チェックを見えるようにする（保存時は必ず未目視に戻り、/admin の承認でしか読者に出ない）。
     const shown = { ...spread, quizzes: spread.quizzes.map((q) => ({ ...q, reviewed: true })) }
     const check = verifyVerbatim(spread, draft.doc, draft.notes)
-    // 参考文献の取りこぼし（圧縮行を供給した誌面で、原本の文献行が黙って減っていないか）。
-    // 逐語一致検査とは別の穴なので別に持ち、保存の可否は2つを合わせて決める。
-    const refsMissing = candidateLines(unmatchedRefItems(refItemsOf(spread.tail), spread.refs))
-    return { spread: shown, missing: check.missing, refsMissing }
+    // 参考文献の紐づけ（圧縮行を供給した誌面で、原本の文献行が黙って減っていないか。
+    // 圧縮行が指す先を失っていないか）。逐語一致検査とは別の穴なので別に持ち、
+    // 保存の可否は3つを合わせて決める。
+    const linkage = refLinkage(refItemsOf(spread.tail), spread.refs)
+    const refsMissing = candidateLines(linkage.dropped)
+    const refsDangling = linkage.dangling.map((r) => r?.title || '（タイトルなし）')
+    return { spread: shown, missing: check.missing, refsMissing, refsDangling }
   }, [draft, base, overlay])
-  // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行）。
-  const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0
+  // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行＋指す先を失った圧縮行）。
+  const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0 || built.refsDangling.length > 0
 
   const save = async () => {
     if (!draft) return
@@ -107,7 +110,7 @@ export function SpreadEditClient() {
           data.error === 'verbatim_mismatch'
             ? `逐語一致検査に落ちました: ${(data.missing ?? []).join(' / ')}`
             : data.error === 'refs_incomplete'
-              ? `原本の文献行が誌面から漏れています: ${(data.missing ?? []).join(' / ')}`
+              ? `参考文献の紐づけが揃っていません。漏れた原本の行: ${(data.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(data.dangling ?? []).join(' / ') || 'なし'}`
               : `保存できません（${data.error ?? res.status}）`,
         )
         return
@@ -167,6 +170,9 @@ export function SpreadEditClient() {
           {built && built.refsMissing.length > 0 && (
             <span className="text-xs text-red-600 dark:text-red-400">誌面から漏れた原本の文献行が {built.refsMissing.length} 件</span>
           )}
+          {built && built.refsDangling.length > 0 && (
+            <span className="text-xs text-red-600 dark:text-red-400">指す先を失った圧縮行が {built.refsDangling.length} 件</span>
+          )}
           {built && !blocked && draft && (
             <span className="text-xs text-brand-700 dark:text-brand-300">逐語一致検査を通っています</span>
           )}
@@ -194,10 +200,23 @@ export function SpreadEditClient() {
                   見ないので、圧縮行の書き忘れ（＝誌面から文献が1件消える）はここでしか出ない。 */}
               {built.refsMissing.length > 0 && (
                 <div className="mb-3 text-sm text-red-600 dark:text-red-400">
-                  <p className="font-bold">どの圧縮行にも当たらない原本の文献行（このままでは保存できません）</p>
+                  <p className="font-bold">どの圧縮行からも指されていない原本の文献行（このままでは保存できません）</p>
                   <ul className="list-disc pl-5 mt-1 space-y-0.5">
                     {built.refsMissing.map((m) => (
                       <li key={m}>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* 指す先を失った圧縮行。原本が書き換わって行が消えた場合など。別の行に
+                  付け替えると読者に違う文献のリンクを出すので、当てにいかず止める。 */}
+              {built.refsDangling.length > 0 && (
+                <div className="mb-3 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-bold">指す先を失った圧縮行（原本の行が見つかりません。このままでは保存できません）</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                    {built.refsDangling.map((m, i) => (
+                      <li key={`${m}-${i}`}>{m}</li>
                     ))}
                   </ul>
                 </div>

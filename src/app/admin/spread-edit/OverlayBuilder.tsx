@@ -12,8 +12,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import { displayTail, refItemsOf, sectionTitleText, splitTailBlocks, textOf, unmatchedRefItems, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
-import { candidateLines, emptyPart, emptyRef, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
+import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadEntry, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
+import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
 
@@ -34,10 +34,11 @@ function IconButton({ title, onClick, children, disabled }: { title: string; onC
   )
 }
 
-// 候補（原本＋誌面ノート）から1文選ぶドロップダウン。
-// ownLabel は原本側の見出し。既定は節の中で使うときの呼び名で、記事末（参考文献）から
-// 使うときだけ差し替える。
-function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }: { own: string[]; notes: string[]; onPick: (s: string) => void; ownLabel?: string }) {
+// 候補から1つ選ぶドロップダウン。文選び（CandidatePicker）と参考文献の行選びが共有する。
+// 選択肢は group ごとに見出しを付けて並べ、選ばれた項目の key を返す。
+type PickerGroup = { label: string; items: { key: string; text: string; disabled?: boolean }[] }
+
+function PickerMenu({ label, groups, onPick }: { label: string; groups: PickerGroup[]; onPick: (key: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative inline-block">
@@ -46,25 +47,26 @@ function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }
         onClick={() => setOpen((v) => !v)}
         className="text-[11px] px-1.5 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-600 hover:text-brand-700 dark:hover:text-brand-300"
       >
-        候補
+        {label}
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-[26rem] max-w-[80vw] max-h-64 overflow-y-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg p-1">
-          {([[ownLabel, own], ['誌面ノート', notes]] as const).map(([label, list]) =>
-            list.length === 0 ? null : (
-              <div key={label}>
-                <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-bold text-gray-400 dark:text-gray-500">{label}</div>
-                {list.map((s) => (
+          {groups.map((g) =>
+            g.items.length === 0 ? null : (
+              <div key={g.label}>
+                <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-bold text-gray-400 dark:text-gray-500">{g.label}</div>
+                {g.items.map((it, i) => (
                   <button
-                    key={s}
+                    key={`${it.key}-${i}`}
                     type="button"
+                    disabled={it.disabled}
                     onClick={() => {
-                      onPick(s)
+                      onPick(it.key)
                       setOpen(false)
                     }}
-                    className="block w-full text-left text-[11px] leading-relaxed px-2 py-1 rounded hover:bg-brand-50 dark:hover:bg-white/10"
+                    className="block w-full text-left text-[11px] leading-relaxed px-2 py-1 rounded hover:bg-brand-50 dark:hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
                   >
-                    {s}
+                    {it.text}
                   </button>
                 ))}
               </div>
@@ -73,6 +75,22 @@ function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }
         </div>
       )}
     </div>
+  )
+}
+
+// 候補（原本＋誌面ノート）から1文選ぶドロップダウン。
+// ownLabel は原本側の見出し。既定は節の中で使うときの呼び名で、記事末（参考文献）から
+// 使うときだけ差し替える。
+function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }: { own: string[]; notes: string[]; onPick: (s: string) => void; ownLabel?: string }) {
+  return (
+    <PickerMenu
+      label="候補"
+      groups={[
+        { label: ownLabel, items: own.map((s) => ({ key: s, text: s })) },
+        { label: '誌面ノート', items: notes.map((s) => ({ key: s, text: s })) },
+      ]}
+      onPick={onPick}
+    />
   )
 }
 
@@ -573,11 +591,34 @@ function EntriesEditor({ overlay, onChange, sections }: { overlay: SpreadOverlay
 // 参考文献の圧縮行。誌面の一覧は「短いタイトル（略記の出典）1行説明」の1行で出す。
 // 出典の略記と1行説明は原本に無いので、非公開の誌面ノートに置いた行から選ぶ
 // （3つとも逐語照合つき。原本にもノートにも無い文字列は赤くなり、保存も止まる）。
-function RefsEditor({ overlay, onChange, checker, own, notes, items }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; checker: Checker; own: string[]; notes: string[]; items: ReaderBlock[] }) {
+//
+// 行を足すときは、まず「原本のどの文献行か」を候補から選ぶ。選んだ時点で紐づけ
+// （sourceId＝原本の文献行のブロックID）が決まり、その行の文言が title の初期値に入る。
+// 一次資料へのリンクも、文献が減っていないかの関門も、この紐づけだけを見る。
+// items は原本の文献行、texts は同じ並びで誌面に出る文言（「引用：」で切ったもの）。
+function RefsEditor({
+  overlay,
+  onChange,
+  checker,
+  notes,
+  items,
+  texts,
+}: {
+  overlay: SpreadOverlay
+  onChange: (o: SpreadOverlay) => void
+  checker: Checker
+  notes: string[]
+  items: ReaderBlock[]
+  texts: string[]
+}) {
   const refs = overlay.refs ?? []
-  // 原本の文献行のうち、どの圧縮行にも当たらなかったもの。1件でもあれば保存は止まる
+  // 何行目を指しているかの表示は、関門とリンクが引くのと同じ索引から出す。
+  const orderById = refItemIndex(items)
+  // 紐づけの検査。原本の行の取りこぼしと、指す先を失った圧縮行。1件でもあれば保存は止まる
   // （SpreadEditClient の保存ボタンが同じ判定を見ている）。
-  const unmatched = candidateLines(unmatchedRefItems(items, refs))
+  const linkage = refLinkage(items, refs)
+  const dropped = candidateLines(linkage.dropped)
+  const used = new Set(refs.map(refSourceId))
   const set = (list: SpreadRef[]) => onChange(withRefs(overlay, list))
   const patch = (i: number, p: Partial<SpreadRef>) => set(refs.map((r, j) => (j === i ? { ...r, ...p } : r)))
   const move = (i: number, d: number) => {
@@ -586,14 +627,14 @@ function RefsEditor({ overlay, onChange, checker, own, notes, items }: { overlay
     next.splice(i + d, 0, x)
     set(next)
   }
-  const field = (label: string, value: string, placeholder: string, key: keyof SpreadRef, i: number) => (
+  const field = (label: string, value: string, placeholder: string, key: 'title' | 'source' | 'note', i: number) => (
     <Field label={label}>
       <VerbatimInput
         value={value}
         onChange={(v) => patch(i, { [key]: v })}
         placeholder={placeholder}
         checker={checker}
-        own={own}
+        own={texts}
         notes={notes}
         ownLabel="記事末の文献一覧"
       />
@@ -603,33 +644,68 @@ function RefsEditor({ overlay, onChange, checker, own, notes, items }: { overlay
     <div className="mb-4">
       <div className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-0.5">参考文献の一覧（空のままなら原本の箇条書きをそのまま出します）</div>
       <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">原本 {items.length} 件／圧縮行 {refs.length} 件</div>
-      {unmatched.length > 0 && (
+      {dropped.length > 0 && (
         <div className="mb-2 text-xs text-red-600 dark:text-red-400">
-          <p className="font-bold">どの圧縮行にも当たらない原本の文献行（このままでは保存できません）</p>
+          <p className="font-bold">どの圧縮行からも指されていない原本の文献行（このままでは保存できません）</p>
           <ul className="list-disc pl-5 mt-1 space-y-0.5">
-            {unmatched.map((l) => (
+            {dropped.map((l) => (
               <li key={l}>{l}</li>
             ))}
           </ul>
         </div>
       )}
-      {refs.map((r, i) => (
-        <div key={i} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-gray-400">{i + 1}</span>
-            <span className="flex-1" />
-            <IconButton title="上へ" onClick={() => move(i, -1)} disabled={i === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
-            <IconButton title="下へ" onClick={() => move(i, 1)} disabled={i === refs.length - 1}><ChevronDown className="w-3.5 h-3.5" aria-hidden /></IconButton>
-            <IconButton title="この文献を削除" onClick={() => set(refs.filter((_, j) => j !== i))}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
-          </div>
-          {field('短いタイトル（太字で出る）', r.title, '例: BTS Guideline for oxygen use in adults', 'title', i)}
-          {field('出典の略記（丸括弧で出る。無ければ空でよい）', r.source, '例: BMJ Open Respir Res 2017', 'source', i)}
-          {field('1行説明', r.note, '例: 成人急性期の目標SpO₂とデバイス選択の中核ガイドライン', 'note', i)}
+      {linkage.dangling.length > 0 && (
+        <div className="mb-2 text-xs text-red-600 dark:text-red-400">
+          <p className="font-bold">指す先を失った圧縮行（原本の行が見つかりません。このままでは保存できません）</p>
+          <ul className="list-disc pl-5 mt-1 space-y-0.5">
+            {linkage.dangling.map((r, i) => (
+              <li key={`${r?.title ?? ''}-${i}`}>{r?.title || '（タイトルなし）'}</li>
+            ))}
+          </ul>
         </div>
-      ))}
-      <button type="button" onClick={() => set([...refs, emptyRef()])} className="text-[11px] text-brand-700 dark:text-brand-300 inline-flex items-center gap-1">
-        <Plus className="w-3.5 h-3.5" aria-hidden />文献を足す
-      </button>
+      )}
+      {refs.map((r, i) => {
+        const at = orderById.get(refSourceId(r))
+        return (
+          <div key={i} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-bold text-gray-400">{i + 1}</span>
+              {/* どの原本の行を指しているか。ここが決まっているから一次資料へ飛べる。 */}
+              {at === undefined ? (
+                <span className="text-[11px] text-red-600 dark:text-red-400">指す先が原本にありません</span>
+              ) : (
+                <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">原本の {at + 1} 行目: {texts[at]}</span>
+              )}
+              <span className="flex-1" />
+              <IconButton title="上へ" onClick={() => move(i, -1)} disabled={i === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
+              <IconButton title="下へ" onClick={() => move(i, 1)} disabled={i === refs.length - 1}><ChevronDown className="w-3.5 h-3.5" aria-hidden /></IconButton>
+              <IconButton title="この文献を削除" onClick={() => set(refs.filter((_, j) => j !== i))}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
+            </div>
+            {field('短いタイトル（太字で出る）', r.title, '例: BTS Guideline for oxygen use in adults', 'title', i)}
+            {field('出典の略記（丸括弧で出る。無ければ空でよい）', r.source, '例: BMJ Open Respir Res 2017', 'source', i)}
+            {field('1行説明', r.note, '例: 成人急性期の目標SpO₂とデバイス選択の中核ガイドライン', 'note', i)}
+          </div>
+        )
+      })}
+      {/* 足すときは原本の行を選ぶところから。すでに指されている行と、ブロックIDを持たない行
+          （指しようがない）は選べない。 */}
+      <PickerMenu
+        label="＋ 原本の文献行から足す"
+        groups={[
+          {
+            label: '記事末の文献一覧',
+            items: items.map((b, i) => {
+              const id = b.blockId?.trim() ?? ''
+              return { key: id, text: texts[i], disabled: !id || used.has(id) }
+            }),
+          },
+        ]}
+        onPick={(id) => {
+          const at = orderById.get(id)
+          if (at === undefined) return
+          set([...refs, refForItem(id, texts[at])])
+        }}
+      />
     </div>
   )
 }
@@ -723,21 +799,27 @@ export function OverlayBuilder({
     () => draft.sections.map((s) => ({ anchor: s.anchor, n: s.n, title: s.title, autoKind: s.part.kind, deep: s.deep })),
     [draft],
   )
-  // 参考文献の候補は記事末の文献一覧の行だけから出す。短いタイトルは原本の完全タイトルの
-  // 前方一致になることが多いので、原本の行を入れてから削るのが早い。
-  // tail 全体を拾うと、PubMed検索キーワード例・免責・署名まで候補に並んで選びにくくなるので、
-  // 誌面が実際に文献一覧として出す範囲（displayTail → splitTailBlocks の refsItems）に揃える。
-  const refLines = useMemo(() => candidateLines(splitTailBlocks(displayTail(draft.tail).rest).refsItems), [draft])
-  // 関門が見るのは「引用：」で切る前の行（一次資料へのリンクがそこより後ろにあるため）。
-  // 候補（refLines）は誌面に出るのと同じ切った行のままにする。行の集合は同じで、長さだけが違う。
+  // 参考文献。紐づけと一次資料のリンクが見るのは「引用：」で切る前の行（リンクがそこより
+  // 後ろにあるため）なので、行そのものは refItemsOf から取る。
   const refItems = useMemo(() => refItemsOf(draft.tail), [draft])
+  // 画面に見せる文言は、誌面に出るのと同じ「引用：」で切った行に揃える（行の集合は同じで
+  // 長さだけが違う）。切った結果が消える行だけは、切る前の文言で埋める。
+  // tail 全体を拾うと PubMed検索キーワード例・免責・署名まで並ぶので、文献一覧の範囲に絞る。
+  const refTexts = useMemo(() => {
+    const shown = new Map<string, string>()
+    for (const b of splitTailBlocks(displayTail(draft.tail).rest).refsItems) {
+      const line = candidateLines([b])[0]
+      if (b.blockId && line) shown.set(b.blockId, line)
+    }
+    return refItems.map((b) => (b.blockId ? shown.get(b.blockId) : undefined) ?? candidateLines([b])[0] ?? '')
+  }, [draft, refItems])
   return (
     <div>
       <EntriesEditor overlay={overlay} onChange={onChange} sections={sections} />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}
-      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} own={refLines} notes={noteLines} items={refItems} />
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} />
     </div>
   )

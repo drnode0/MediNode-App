@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart, emptyRef, withRefs } from '../spread-edit'
+import { candidateLines, emptyPart, refForItem, withRefs } from '../spread-edit'
 import { makeVerbatimChecker } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
@@ -63,12 +63,18 @@ describe('emptyPart（部品の雛形）', () => {
 })
 
 describe('参考文献の圧縮行（編集画面）', () => {
-  it('emptyRef は3つとも空の1行を返す', () => {
-    expect(emptyRef()).toEqual({ title: '', source: '', note: '' })
+  it('refForItem は選んだ原本の行への紐づけと、その行の文言を初期値に持つ1行を返す', () => {
+    // 圧縮行は「原本のどの文献行か」を選んでから作る。紐づけ（sourceId）はここで必ず決まる。
+    expect(refForItem('blk-1', 'BTS Guideline for oxygen use in adults（BMJ 2017） — 中核。')).toEqual({
+      sourceId: 'blk-1',
+      title: 'BTS Guideline for oxygen use in adults（BMJ 2017） — 中核。',
+      source: '',
+      note: '',
+    })
   })
 
   it('withRefs は行があれば refs を立て、空になったらキーごと落とす', () => {
-    const ref = { title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' }
+    const ref = { sourceId: 'blk-1', title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' }
     expect(withRefs({}, [ref])).toEqual({ refs: [ref] })
     expect(withRefs({ shortLabels: { '1': '目標SpO2' } }, [ref]).shortLabels).toEqual({ '1': '目標SpO2' })
     expect(withRefs({ refs: [ref] }, []).refs).toBeUndefined()

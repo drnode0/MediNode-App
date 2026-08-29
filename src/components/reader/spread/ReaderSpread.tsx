@@ -170,9 +170,9 @@ export function ReaderSpread({
   // 文献一覧の圧縮行（短いタイトル・略記の出典・1行説明）。非公開の誌面ノート由来で、
   // オーバレイが構造として持つ。無ければ原本の箇条書きをそのまま出す（fail-safe）。
   const compactRefs = spread.refs ?? []
-  // 圧縮行のタイトルの飛び先。href は原本の文献行から引く（SpreadRef は href を持たない）。
-  // 当たらなければ null＝リンクにしない。投入時の関門で取りこぼしは止まるので、
-  // 読者に届く誌面では当たっている状態になる。
+  // 圧縮行のタイトルの飛び先。href は圧縮行が指す原本の文献行から引く
+  // （SpreadRef は href を持たない）。指す先が無ければ null＝リンクにしない。
+  // 投入時の関門で取りこぼしと指す先の喪失は止まるので、読者に届く誌面では紐づいている。
   const refLinks = useMemo(() => refHrefs(refItemsOf(spread.tail), spread.refs), [spread.tail, spread.refs])
 
   // ⚡結論の箇条書きを先頭2件で畳む（パイロット誌面の「残りN件の要点を表示」＝未決2の採用形）。

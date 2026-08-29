@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
-import { applyOverlay, buildSpreadDraft, refItemsOf, sanitizeOverlay, textOf, unmatchedRefItems, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
 
 // pageId の正規化。PUT と PATCH で normalize の中身が違うと、フロントがURLの断片や
@@ -83,17 +83,20 @@ export async function PUT(req: Request) {
     // 生成側が本文を書き換えた、または原本が変わった。どちらも投入させない。
     return NextResponse.json({ error: 'verbatim_mismatch', missing: check.missing }, { status: 400 })
   }
-  // 参考文献の取りこぼし。圧縮行（refs）を入れた誌面の文献一覧はその配列だけになるので、
+  // 参考文献の紐づけ。圧縮行（refs）を入れた誌面の文献一覧はその配列だけになるので、
   // 書き忘れた1件は誌面から消える。逐語一致検査は「書いた文言が原本かノートにあるか」しか
-  // 見ないため、この抜けはそこでは見つからない。ビルダーだけでなくここでも止めるのは、
-  // 「JSONを直接編集」の窓口とAPIへの直接PUTがビルダーを通らないため。
-  // 圧縮行を供給していない誌面は unmatchedRefItems が必ず空を返す（従来の投入を止めない）。
-  const droppedRefs = unmatchedRefItems(refItemsOf(spread.tail), spread.refs)
-  if (droppedRefs.length > 0) {
+  // 見ないため、この抜けはそこでは見つからない。指す先を失った圧縮行（原本が書き換わって
+  // 行が消えた・紐づけを持たない）も同じく止める。別の行に付け替えると読者に違う文献の
+  // リンクを出すため。ビルダーだけでなくここでも止めるのは、「JSONを直接編集」の窓口と
+  // APIへの直接PUTがビルダーを通らないため。
+  // 圧縮行を供給していない誌面は refLinkage が必ず両方とも空を返す（従来の投入を止めない）。
+  const linkage = refLinkage(refItemsOf(spread.tail), spread.refs)
+  if (linkage.dropped.length > 0 || linkage.dangling.length > 0) {
     return NextResponse.json(
       {
         error: 'refs_incomplete',
-        missing: droppedRefs.map((b) => (b.kind === 'list_item' ? textOf(b.inlines) : '')).filter(Boolean),
+        missing: linkage.dropped.map((b) => (b.kind === 'list_item' ? textOf(b.inlines) : '')).filter(Boolean),
+        dangling: linkage.dangling.map((r) => r?.title ?? '').filter(Boolean),
       },
       { status: 400 },
     )

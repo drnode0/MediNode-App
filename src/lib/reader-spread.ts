@@ -72,12 +72,15 @@ export type SpreadQuiz = {
 // 対象外）、anchor は飛び先の節。存在しない節を指す入口は applyOverlay で捨てる。
 export type SpreadEntry = { label: string; anchor: string }
 
-// 参考文献の圧縮行。3つとも非公開の誌面ノート_DB に置き、3つとも逐語一致検査の対象。
-// title は原本の完全タイトルを縮めたもので、前方一致とは限らない（頭の語が落ちたり、
-// 途中が略語に置き換わったりする）。原本のどの文献行のことかは matchRefIndex が決め、
-// どの行にも当たらない原本の行は unmatchedRefItems が関門で拾う。
-// href のキーは持たない。飛び先は必ず原本の文献行から引く（refHrefs）。
-export type SpreadRef = { title: string; source: string; note: string }
+// 参考文献の圧縮行。title / source / note は非公開の誌面ノート_DB に置き、3つとも
+// 逐語一致検査の対象。title は原本の完全タイトルを縮めたもので、頭の語が落ちたり途中が
+// 略語に置き換わったりするため、文言から「原本のどの文献行か」を当てにいくと別の文献の
+// リンクを読者に出しうる。そこで指す先は sourceId（原本の文献行のブロックID）で明示する。
+//
+// sourceId は保存済みの旧 SpreadDoc には無いキーなので型の上では optional。ただし
+// 新しく作る圧縮行では必須の扱いで、指していない行は関門（refLinkage）が止める。
+// href のキーは持たない。飛び先は必ず紐づけ先の原本の行から引く（refHrefs）。
+export type SpreadRef = { title: string; source: string; note: string; sourceId?: string }
 
 export type SpreadDoc = {
   version: 1
@@ -742,8 +745,9 @@ export function splitTailBlocks(blocks: ReaderBlock[]): TailParts {
 
 /**
  * 誌面の文献一覧のもとになる、原本の文献行。
- * 関門（unmatchedRefItems）とタイトルのリンク（refHrefs）が同じ行を見るようにするための1本。
+ * 関門（refLinkage）とタイトルのリンク（refHrefs）が同じ行を見るようにするための1本。
  * ここが割れると「関門を通ったのにリンクが付かない」といった食い違いが生まれる。
+ * ブロックIDは落とさずそのまま返す（圧縮行の紐づけが指す先になるため）。
  *
  * 範囲の取り方は displayTail と同じ（スタンプ・構造見出し・凡例・PubMed検索例を除く）。
  * ただし「引用：」以降の圧縮は掛けない。一次資料へのリンクはそこより後ろにあるため。
@@ -752,114 +756,96 @@ export function refItemsOf(tail: ReaderBlock[]): ReaderBlock[] {
   return splitTailBlocks(tailBeforeRefCompression(tail)).refsItems
 }
 
-// ---- 参考文献の圧縮行と原本の文献行の対応づけ ----
+// ---- 参考文献の圧縮行と原本の文献行の紐づけ ----
 //
 // 圧縮行（SpreadRef）は非公開の誌面ノート由来で、原本の完全タイトルを縮めたもの。
-// 実データ（酸素の記事の7行）で確かめると、縮め方は前方一致とは限らなかった。
-// 「Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute
-// respiratory failure」に対する圧縮行が「ERS/ATS clinical practice guidelines: NIV for
-// acute respiratory failure」のように、頭の語が落ち、途中が略語に置き換わる。
-// 7行のうち前方一致が成立したのは3行だけだった。
+// 実データ（酸素の記事の7行）では「Official ERS/ATS clinical practice guidelines:
+// noninvasive ventilation for acute respiratory failure」に対する圧縮行が
+// 「ERS/ATS clinical practice guidelines: NIV for acute respiratory failure」のように、
+// 頭の語が落ちて途中が略語に置き換わる。文言から対応づけを推測すると、読者に別の文献の
+// リンクを出しうる。そこで圧縮行は sourceId（原本の文献行のブロックID）で指す先を明示する。
 //
-// そこで当たり判定は「圧縮行の書き出しが、原本の行の頭のあたりにそのまま現れる長さ」で
-// 決める。原本の行が title で始まる（＝前方一致）ときはその長さが最大になるので、
-// 前方一致はこの判定に含まれる。最も長く当たった1行だけを採り、同点の行があるときは
-// 当てない（どの文献のことか決められないまま、別の文献へのリンクを読者に出さないため）。
-//
-// 「頭のあたり」の幅は 16 文字。行頭に付く印（🔖 など）と、上の「Official」のような
-// 接頭語を跨ぐぶんだけを許す幅で、それより奥での一致は当てない。これが無いと、
-// 説明文の途中の一文を title に置いた行まで当たってしまう（タイトルではないものが
-// 文献の見出しとして誌面に出る）。
-const REF_LEAD_MIN = 8
-const REF_LEAD_SKIP = 16
-
-function normalizeRefText(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
-}
+// この紐づけには2つのものが乗っている。一次資料へのリンク先（refHrefs）と、
+// 文献が減っていないかの関門（refLinkage）。どちらも同じ索引から引く。
 
 // 文献行のインライン。文字を持たないブロック（画像など）は空を返す。
 function refItemInlines(b: ReaderBlock): ReaderInline[] {
   return b.kind === 'list_item' || b.kind === 'paragraph' || b.kind === 'heading' ? b.inlines : []
 }
 
-function refItemText(b: ReaderBlock): string {
-  return normalizeRefText(textOf(refItemInlines(b)))
-}
-
-// title の書き出しのうち、item の頭のあたり（REF_LEAD_SKIP 文字以内）に現れる最長の長さ。
-// 長い書き出しがその位置までに現れるなら短い書き出しも必ず現れるので、二分探索で決められる。
-function leadMatchLength(item: string, title: string): number {
-  const at = (n: number) => {
-    const i = item.indexOf(title.slice(0, n))
-    return i >= 0 && i <= REF_LEAD_SKIP
-  }
-  let lo = 0
-  let hi = title.length
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2)
-    if (at(mid)) lo = mid
-    else hi = mid - 1
-  }
-  return lo
-}
-
-// title が指す原本の行の番号。決められなければ -1。
-function matchRefIndex(itemTexts: string[], rawTitle: string | undefined): number {
-  const title = normalizeRefText(rawTitle ?? '')
-  if (!title) return -1
-  let best = -1
-  let bestLen = 0
-  let tie = false
-  itemTexts.forEach((text, i) => {
-    const len = leadMatchLength(text, title)
-    if (len > bestLen) {
-      bestLen = len
-      best = i
-      tie = false
-    } else if (len === bestLen && len > 0) {
-      tie = true
-    }
-  })
-  // 短いタイトルは全体が当たることを求める（書き出し数文字だけの一致で決めない）。
-  if (tie || bestLen < Math.min(REF_LEAD_MIN, title.length)) return -1
-  return best
+/**
+ * 圧縮行が指す原本の行のブロックID。保存形は JSON なので、キーが欠けていても
+ * 文字列でなくても落ちないようにする（「JSONを直接編集」の窓口・APIへの直接PUT）。
+ * 空文字はどの行にも当たらないので、そのまま fail-closed に落ちる。
+ */
+export function refSourceId(ref: SpreadRef | undefined): string {
+  const id = ref?.sourceId
+  return typeof id === 'string' ? id.trim() : ''
 }
 
 /**
- * 原本の文献行のうち、どの圧縮行の title にも当たらなかったものを返す。
+ * 原本の文献行を、ブロックIDから引ける索引にする。
+ * ブロックIDを持たない行（古い保存 doc 由来）は索引に載らない＝どの圧縮行も指せないので、
+ * 関門が鳴って保存が止まる（推測で当てにいくより止めるほうを採る）。
  *
- * 逐語一致検査は「誌面に書いた文言が原本かノートにあるか」しか見ないので、
- * 圧縮行を1行書き忘れた（＝原本にある文献が誌面から消えた）ことは検出できない。
- * この関門がその抜けを見つける。返り値が空でなければ、投入も保存も止める。
- *
- * refs が未指定・空のときは空配列を返す。圧縮行を供給していない誌面は原本の箇条書きを
- * そのまま出すので、そもそも減りようがない（既存の誌面の保存を止めない fail-safe）。
+ * 関門（refLinkage）・リンク（refHrefs）・編集画面の「原本の N 行目」表示が、
+ * 同じ索引を引くために公開している。画面側で組み直すと、関門は通るのに表示だけがずれる。
  */
-export function unmatchedRefItems(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): ReaderBlock[] {
-  if (!refs || refs.length === 0) return []
-  const texts = refsItems.map(refItemText)
+export function refItemIndex(refsItems: ReaderBlock[]): Map<string, number> {
+  const index = new Map<string, number>()
+  refsItems.forEach((b, i) => {
+    const id = b.blockId?.trim()
+    if (id && !index.has(id)) index.set(id, i)
+  })
+  return index
+}
+
+/**
+ * 圧縮行と原本の文献行の紐づけの検査結果。
+ *
+ * dropped … 原本の文献行のうち、どの圧縮行からも指されていないもの。
+ *   逐語一致検査は「誌面に書いた文言が原本かノートにあるか」しか見ないので、
+ *   圧縮行を1行書き忘れた（＝原本にある文献が誌面から消えた）ことは検出できない。
+ * dangling … 指す先が原本に無い圧縮行（原本が書き換わって行が消えた・紐づけを持たない）。
+ *   別の行に付け替えると読者に違う文献のリンクを出すので、当てにいかず止める。
+ *
+ * どちらかが空でなければ、投入も保存も止める。
+ */
+export type RefLinkage = { dropped: ReaderBlock[]; dangling: SpreadRef[] }
+
+/**
+ * 原本の文献行と圧縮行の紐づけを突き合わせる。
+ *
+ * refs が未指定・空のときは両方とも空配列を返す。圧縮行を供給していない誌面は原本の
+ * 箇条書きをそのまま出すので、そもそも減りようがない（既存の誌面の保存を止めない fail-safe）。
+ */
+export function refLinkage(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): RefLinkage {
+  if (!refs || refs.length === 0) return { dropped: [], dangling: [] }
+  const index = refItemIndex(refsItems)
   const claimed = new Set<number>()
+  const dangling: SpreadRef[] = []
   for (const r of refs) {
-    const i = matchRefIndex(texts, r?.title)
-    if (i >= 0) claimed.add(i)
+    const at = index.get(refSourceId(r))
+    if (at === undefined) dangling.push(r)
+    else claimed.add(at)
   }
-  return refsItems.filter((_, i) => !claimed.has(i))
+  return { dropped: refsItems.filter((_, i) => !claimed.has(i)), dangling }
 }
 
 /**
  * 圧縮行それぞれに対応する、原本の文献行の一次資料リンク。並びは refs と同じ。
- * 当たらない行・リンクを持たない行は null（リンクにしない）。
+ * 指す先が原本に無い行・リンクを持たない行は null（リンクにしない）。
  *
  * href は必ず原本から引く。SpreadRef に href のキーは足さない（生成側にURLを書かせない
  * sanitizeOverlay の方針を保つため）。原本の行にリンクが複数あるときは最初のものを使う。
  */
 export function refHrefs(refsItems: ReaderBlock[], refs: SpreadRef[] | undefined): (string | null)[] {
   if (!refs || refs.length === 0) return []
-  const texts = refsItems.map(refItemText)
+  const index = refItemIndex(refsItems)
   return refs.map((r) => {
-    const i = matchRefIndex(texts, r?.title)
-    if (i < 0) return null
-    return refItemInlines(refsItems[i]).find((n) => n.href)?.href ?? null
+    const at = index.get(refSourceId(r))
+    if (at === undefined) return null
+    return refItemInlines(refsItems[at]).find((n) => n.href)?.href ?? null
   })
 }
 

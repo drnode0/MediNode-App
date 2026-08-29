@@ -54,9 +54,12 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
   }
 }
 
-// 参考文献の圧縮行の空雛形。編集画面の「文献を足す」が使う。
-export function emptyRef(): SpreadRef {
-  return { title: '', source: '', note: '' }
+// 参考文献の圧縮行の雛形。編集画面は「原本のどの文献行か」を先に選ばせるので、
+// 紐づけ（sourceId＝原本の文献行のブロックID）はここで必ず決まる。
+// title には選んだ行の文言をそのまま初期値に入れる（人がここから削って1行に縮める）。
+// source（略記の出典）と note（1行説明）は誌面ノートの行から選んで埋める。
+export function refForItem(sourceId: string, title: string): SpreadRef {
+  return { sourceId, title, source: '', note: '' }
 }
 
 // 参考文献の圧縮行をオーバレイに載せる。1行も無くなったらキーごと落とす

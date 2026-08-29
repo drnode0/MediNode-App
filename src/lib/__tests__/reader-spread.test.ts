@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemsOf, unmatchedRefItems, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
@@ -971,91 +971,132 @@ describe('refs（参考文献の圧縮行）', () => {
   })
 })
 
-describe('unmatchedRefItems（文献の取りこぼしを止める関門）', () => {
-  // 当たり判定は「圧縮行の書き出しが、原本の文献行のどこかに現れるか（最も長く当たる1行）」。
-  // 実データの圧縮行は原本の完全タイトルの前方一致ではなく、途中を略した形（NIV / HFNC /
-  // 括弧つきの略称）だったので、頭からの一致だけを見て「どの行のことか」を決める。
-  const item = (text: string, href?: string): ReaderBlock => ({
+describe('refLinkage（圧縮行と原本の文献行の明示の紐づけ）', () => {
+  // 対応づけは文字列の推測ではなく、圧縮行が持つ sourceId（原本の文献行のブロックID）で決める。
+  // 圧縮行の title は原本の完全タイトルを縮めたもので、略記に置き換わることもあるため、
+  // 文言から「どの文献のことか」を当てにいくと別の文献のリンクを読者に出しうる。
+  const item = (blockId: string, text: string, href?: string): ReaderBlock => ({
     kind: 'list_item',
     ordered: false,
+    blockId,
     inlines: href ? [{ text }, { text: '本文', href }] : [{ text }],
   })
   // 実データ（酸素の記事）の文献一覧そのままの形。
   const items: ReaderBlock[] = [
-    item('BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ Open Respiratory Research 2017;4:e000170） — 成人急性期の目標SpO2を示す。', 'https://example.org/bts-2017'),
-    item('BTS/ICS guideline for the ventilatory management of acute hypercapnic respiratory failure in adults（Thorax 2016;71:ii1-ii35） — NIVの適応・禁忌を示す。', 'https://example.org/thorax-2016'),
-    item('Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（European Respiratory Journal 2017;50:1602426） — 二相性NIVを強く推奨。', 'https://example.org/erj-2017'),
-    item('ERS clinical practice guidelines: high-flow nasal cannula in acute respiratory failure（European Respiratory Journal 2022;59:2101574） — HFNCを条件付きで提案。', 'https://example.org/erj-2022'),
+    item('blk-1', 'BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ Open Respiratory Research 2017;4:e000170） — 成人急性期の目標SpO2を示す。', 'https://example.org/bts-2017'),
+    item('blk-2', 'BTS/ICS guideline for the ventilatory management of acute hypercapnic respiratory failure in adults（Thorax 2016;71:ii1-ii35） — NIVの適応・禁忌を示す。', 'https://example.org/thorax-2016'),
+    item('blk-3', 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（European Respiratory Journal 2017;50:1602426） — 二相性NIVを強く推奨。', 'https://example.org/erj-2017'),
+    item('blk-4', 'ERS clinical practice guidelines: high-flow nasal cannula in acute respiratory failure（European Respiratory Journal 2022;59:2101574） — HFNCを条件付きで提案。', 'https://example.org/erj-2022'),
   ]
   const refs: SpreadRef[] = [
-    { title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' },
-    { title: 'BTS/ICS guideline: acute hypercapnic respiratory failure', source: 'Thorax 2016', note: 'NIVの適応・禁忌' },
-    { title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: 'Eur Respir J 2017', note: '二相性NIVを強く推奨' },
-    { title: 'ERS clinical practice guidelines: HFNC in acute respiratory failure', source: 'Eur Respir J 2022', note: 'HFNCを条件付き提案' },
+    { sourceId: 'blk-1', title: 'BTS Guideline for oxygen use in adults', source: 'BMJ Open Respir Res 2017', note: '中核ガイドライン' },
+    { sourceId: 'blk-2', title: 'BTS/ICS guideline: acute hypercapnic respiratory failure', source: 'Thorax 2016', note: 'NIVの適応・禁忌' },
+    { sourceId: 'blk-3', title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: 'Eur Respir J 2017', note: '二相性NIVを強く推奨' },
+    { sourceId: 'blk-4', title: 'ERS clinical practice guidelines: HFNC in acute respiratory failure', source: 'Eur Respir J 2022', note: 'HFNCを条件付き提案' },
   ]
 
-  it('全件当たれば空配列', () => {
-    expect(unmatchedRefItems(items, refs)).toEqual([])
+  it('全件が紐づいていれば、どちらの関門も空', () => {
+    expect(refLinkage(items, refs)).toEqual({ dropped: [], dangling: [] })
   })
 
-  it('1件足りなければ、当たらなかった原本の行が返る（黙って減らせない）', () => {
-    const r = unmatchedRefItems(items, refs.filter((_, i) => i !== 2))
-    expect(r).toEqual([items[2]])
+  it('1件が紐づいていなければ、その原本の行が返る（黙って減らせない）', () => {
+    const r = refLinkage(items, refs.filter((_, i) => i !== 2))
+    expect(r.dropped).toEqual([items[2]])
+    expect(r.dangling).toEqual([])
   })
 
-  it('refs が未指定・空のときは空配列（供給していない誌面は従来どおり）', () => {
-    expect(unmatchedRefItems(items, undefined)).toEqual([])
-    expect(unmatchedRefItems(items, [])).toEqual([])
+  it('圧縮行が指す先が原本に無ければ、指す先を失った圧縮行として返り、その原本の行も残る', () => {
+    // 原本が書き換わって行が消えた場合。当てずっぽうで別の行に付け替えず、止める。
+    const moved: SpreadRef[] = [...refs.slice(0, 3), { ...refs[3], sourceId: 'blk-消えた' }]
+    const r = refLinkage(items, moved)
+    expect(r.dangling).toEqual([moved[3]])
+    expect(r.dropped).toEqual([items[3]])
   })
 
-  it('原本行の途中と一致するだけの title は当たらない（書き出しを見るため）', () => {
-    const middle: SpreadRef[] = [{ title: 'acute hypercapnic respiratory failure in adults', source: '', note: '' }]
-    expect(unmatchedRefItems([items[1]], middle)).toEqual([items[1]])
+  it('sourceId を持たない圧縮行も指す先を失った扱い（新しく作る行では紐づけが必須）', () => {
+    const legacy = [{ title: refs[0].title, source: '', note: '' }]
+    const r = refLinkage([items[0]], legacy)
+    expect(r.dangling).toEqual(legacy)
+    expect(r.dropped).toEqual([items[0]])
   })
 
-  it('2つの圧縮行が同じ1行に当たると、当たらない行が残って関門が効く', () => {
+  it('文言が原本の行の書き出しと一致していても、紐づけが無ければ当たらない（推測をやめた）', () => {
+    const guessed = [{ title: 'BTS Guideline for oxygen use in adults in healthcare', source: '', note: '' } as SpreadRef]
+    expect(refLinkage([items[0]], guessed).dropped).toEqual([items[0]])
+  })
+
+  it('refs が未指定・空のときはどちらも空配列（供給していない誌面は従来どおり）', () => {
+    expect(refLinkage(items, undefined)).toEqual({ dropped: [], dangling: [] })
+    expect(refLinkage(items, [])).toEqual({ dropped: [], dangling: [] })
+  })
+
+  it('2つの圧縮行が同じ原本の行を指すと、指されない行が残って関門が効く', () => {
     const dup = [refs[0], { ...refs[0], source: 'x' }]
-    expect(unmatchedRefItems([items[0], items[1]], dup)).toEqual([items[1]])
+    expect(refLinkage([items[0], items[1]], dup).dropped).toEqual([items[1]])
   })
 
-  it('書き出しが同じ原本行が2つあるときは当てない（取り違えより止めるほうを採る）', () => {
-    const twin = [items[3], item('ERS clinical practice guidelines: oxygen in acute care（Eur Respir J 2023） — 別の文献。')]
-    expect(unmatchedRefItems(twin, [refs[3]])).toEqual(twin)
+  it('原本に文献行が無ければ、圧縮行はすべて指す先を失う', () => {
+    expect(refLinkage([], refs)).toEqual({ dropped: [], dangling: refs })
   })
 
-  it('title が空・キーごと無い行はどの行にも当たらない（fail-closed）', () => {
-    expect(unmatchedRefItems([items[0]], [{ title: '  ', source: '', note: '' }])).toEqual([items[0]])
-    expect(unmatchedRefItems([items[0]], [{ source: '', note: '' } as unknown as SpreadRef])).toEqual([items[0]])
+  it('原本の行がブロックIDを持たなければ指せない（fail-closed）', () => {
+    const noId: ReaderBlock = { kind: 'list_item', ordered: false, inlines: [{ text: 'ブロックIDの無い行' }] }
+    const r = refLinkage([noId], [{ sourceId: '', title: 'ブロックIDの無い行', source: '', note: '' }])
+    expect(r.dropped).toEqual([noId])
+    expect(r.dangling).toHaveLength(1)
   })
 
-  it('原本に文献行が無ければ、圧縮行があっても空配列（見出しの無い誌面を壊さない）', () => {
-    expect(unmatchedRefItems([], refs)).toEqual([])
+  it('関門・リンク・編集画面が同じ索引を引く（refItemIndex / refSourceId）', () => {
+    // 編集画面は「この圧縮行は原本の何行目を指しているか」を出すために同じ索引を使う。
+    // ここを画面側で組み直すと、関門は通ったのに画面の表示だけがずれる、という食い違いが生まれる。
+    const index = refItemIndex(items)
+    expect(index.get(refSourceId(refs[2]))).toBe(2)
+    expect(index.get(refSourceId({ title: '', source: '', note: '' }))).toBeUndefined()
+    expect(refSourceId({ sourceId: ' blk-1 ', title: '', source: '', note: '' })).toBe('blk-1')
+    expect(refSourceId(undefined)).toBe('')
+  })
+
+  it('sourceId が文字列でない行でも落ちない（JSONを直接編集した投入・APIへの直接PUT）', () => {
+    const broken = [{ sourceId: 3 as unknown as string, title: 'x', source: '', note: '' }]
+    expect(() => refLinkage([items[0]], broken)).not.toThrow()
+    expect(refLinkage([items[0]], broken).dangling).toEqual(broken)
   })
 })
 
-describe('refHrefs（圧縮行のタイトルから一次資料へ）', () => {
-  const item = (text: string, href?: string): ReaderBlock => ({
+describe('refHrefs（紐づけ先から一次資料へ）', () => {
+  const item = (blockId: string, text: string, href?: string): ReaderBlock => ({
     kind: 'list_item',
     ordered: false,
+    blockId,
     inlines: href ? [{ text }, { text: '本文', href }] : [{ text }],
   })
   const items: ReaderBlock[] = [
-    item('BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ 2017） — 中核。', 'https://example.org/bts-2017'),
-    item('Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（ERJ 2017） — NIV。'),
+    item('blk-1', 'BTS Guideline for oxygen use in adults in healthcare and emergency settings（BMJ 2017） — 中核。', 'https://example.org/bts-2017'),
+    item('blk-2', 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation for acute respiratory failure（ERJ 2017） — NIV。'),
   ]
   const refs: SpreadRef[] = [
-    { title: 'BTS Guideline for oxygen use in adults', source: '', note: '' },
-    { title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: '', note: '' },
-    { title: '原本のどの行にも当たらないタイトル', source: '', note: '' },
+    { sourceId: 'blk-1', title: 'BTS Guideline for oxygen use in adults', source: '', note: '' },
+    { sourceId: 'blk-2', title: 'ERS/ATS clinical practice guidelines: NIV for acute respiratory failure', source: '', note: '' },
+    { sourceId: 'blk-無い', title: '原本のどの行も指していないタイトル', source: '', note: '' },
   ]
 
-  it('当たった原本の行の最初のリンクを、圧縮行と同じ並びで返す', () => {
+  it('紐づいた原本の行の最初のリンクを、圧縮行と同じ並びで返す', () => {
     expect(refHrefs(items, refs)).toEqual(['https://example.org/bts-2017', null, null])
   })
 
+  it('文言が似ていても、紐づけ先が違えばそちらのリンクを返す（取り違えない）', () => {
+    // title は1行目の文献のものだが、指しているのは2行目。リンクは紐づけ先から引く。
+    const crossed: SpreadRef[] = [{ sourceId: 'blk-2', title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }]
+    expect(refHrefs(items, crossed)).toEqual([null])
+  })
+
   it('原本の行にリンクが複数あるときは最初のものを使う', () => {
-    const two = item('BTS Guideline for oxygen use in adults（BMJ 2017）', 'https://example.org/first')
-    const withTwo: ReaderBlock = { ...two, kind: 'list_item', ordered: false, inlines: [...(two.kind === 'list_item' ? two.inlines : []), { text: 'PubMed', href: 'https://example.org/second' }] }
+    const withTwo: ReaderBlock = {
+      kind: 'list_item',
+      ordered: false,
+      blockId: 'blk-1',
+      inlines: [{ text: 'BTS Guideline for oxygen use in adults（BMJ 2017）' }, { text: '本文', href: 'https://example.org/first' }, { text: 'PubMed', href: 'https://example.org/second' }],
+    }
     expect(refHrefs([withTwo], [refs[0]])).toEqual(['https://example.org/first'])
   })
 
@@ -1072,6 +1113,7 @@ describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', 
     {
       kind: 'list_item',
       ordered: false,
+      blockId: 'blk-bts',
       inlines: [{ text: 'BTS Guideline for oxygen use in adults（BMJ 2017） — 中核。引用：“x” ' }, { text: '本文', href: 'https://example.org/bts' }],
     },
     { kind: 'paragraph', inlines: t('PubMed検索キーワード例') },
@@ -1090,7 +1132,11 @@ describe('refItemsOf（誌面の文献一覧のもとになる原本の行）', 
     // 文献行からリンクが消え、タイトルからどこにも飛べなくなる。
     const shown = splitTailBlocks(displayTail(tail).rest).refsItems[0]
     expect(shown.kind === 'list_item' && shown.inlines.some((n) => n.href)).toBe(false)
-    expect(refHrefs(refItemsOf(tail), [{ title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }]))
+    expect(refHrefs(refItemsOf(tail), [{ sourceId: 'blk-bts', title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }]))
       .toEqual(['https://example.org/bts'])
+  })
+
+  it('原本の行のブロックIDをそのまま持って返す（紐づけの指す先になるため）', () => {
+    expect(refItemsOf(tail).map((b) => b.blockId)).toEqual(['blk-bts'])
   })
 })

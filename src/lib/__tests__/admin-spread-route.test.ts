@@ -179,8 +179,9 @@ describe('文献を減らさない関門', () => {
     { id: 'b5', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: 'BTS Guideline for oxygen use in adults in healthcare（BMJ 2017）' }] } },
     { id: 'b6', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation（ERJ 2017）' }] } },
   ]
-  const ref1 = { title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }
-  const ref2 = { title: 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation', source: '', note: '' }
+  // 圧縮行は原本の文献行のブロックID（sourceId）で「どの文献のことか」を明示する。
+  const ref1 = { sourceId: 'b5', title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }
+  const ref2 = { sourceId: 'b6', title: 'Official ERS/ATS clinical practice guidelines: noninvasive ventilation', source: '', note: '' }
 
   beforeEach(() => {
     notionBlocks = REF_BLOCKS
@@ -201,6 +202,26 @@ describe('文献を減らさない関門', () => {
     const res = await PUT(req({ pageId: 'p1', overlay: { refs: [ref1, ref2] } }))
     expect(res.status).toBe(200)
     expect(upsert.mock.calls[0][0].spread_doc.refs).toHaveLength(2)
+  })
+
+  it('指す先を失った圧縮行があれば400で拒否する（原本が書き換わって行が消えた場合）', async () => {
+    const lost = { sourceId: 'b-消えた', title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }
+    const res = await PUT(req({ pageId: 'p1', overlay: { refs: [lost, ref2] } }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('refs_incomplete')
+    expect(body.dangling.join(' ')).toContain('BTS Guideline for oxygen use in adults')
+    expect(upsert).not.toHaveBeenCalled()
+    expect(logAdminAction).not.toHaveBeenCalled()
+    expect(revalidateSubscriptionReaderDocs).not.toHaveBeenCalled()
+  })
+
+  it('紐づけを持たない圧縮行も400で拒否する（文字列が原本と一致していても当てにいかない）', async () => {
+    const guessed = { title: 'BTS Guideline for oxygen use in adults', source: '', note: '' }
+    const res = await PUT(req({ pageId: 'p1', overlay: { refs: [guessed, ref2] } }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('refs_incomplete')
+    expect(upsert).not.toHaveBeenCalled()
   })
 
   it('圧縮行を供給しない誌面は従来どおり通る（供給していない誌面の出力を変えない）', async () => {
