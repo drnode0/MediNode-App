@@ -835,3 +835,79 @@
   /* 測定値: 23.712px/12.48px＝比 1.9 */
   line-height: 1.9;
 }
+
+/* 主役でない数値セル。パイロットには無い（パイロットの表は2列比較で、全数値を強調しても
+   強弱が立った）。数値が6行×3列のように多い表では、td.num の一律強調で全部が同じ声量に
+   なり、どこを見ればよいかが消える。オーバレイで focus を指定した表でだけ掛かる。
+   2026-08-29 オーナー判断。再検討ライン: パイロットが多列表を持つ版に更新されたとき。 */
+.spec td.num.numMuted {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 現場から届いた問い。パイロットには無い枠（パイロットの記事は前置きを持たない）。
+   由来が「現場の疑問」の記事でだけ出す。プレミアムの売りは「現場の疑問に答える」ことなので、
+   問いそのものを引用として立て、出所を1行に、残りの背景を畳む。
+   2026-08-29 オーナー判断。再検討ライン: 由来が「現場の疑問」でない記事にも前置きの枠が要ると決めたとき。 */
+.fieldQ {
+  border: 1px solid var(--brand-line);
+  border-left: 4px solid var(--brand);
+  border-radius: 12px;
+  background: var(--brand-tint-2);
+  padding: 1rem 1.1rem 0.9rem;
+  margin: 1.2rem 0 1.6rem;
+}
+.fieldQLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  color: var(--brand-deep);
+  margin-bottom: 0.5rem;
+}
+.fieldQBody {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1.06rem;
+  font-weight: 600;
+  line-height: 1.9;
+  color: var(--ink);
+}
+.fieldQBody p {
+  margin: 0 0 0.4rem;
+}
+.fieldQSource {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.fieldQMore {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--brand-line);
+  padding-top: 0.6rem;
+}
+.fieldQMore > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  list-style: none;
+}
+.fieldQMore > summary::-webkit-details-marker {
+  display: none;
+}
+.fieldQMore > summary::before {
+  content: "▸";
+  margin-right: 0.4em;
+}
+.fieldQMore[open] > summary::before {
+  content: "▾";
+}
+.fieldQMore p {
+  font-size: 0.88rem;
+  line-height: 1.9;
+  color: var(--muted);
+  margin: 0.5rem 0 0;
+}

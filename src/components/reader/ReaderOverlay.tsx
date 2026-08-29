@@ -488,6 +488,7 @@ export default function ReaderOverlay({
                     icon={doc.icon}
                     genre={doc.genre}
                     questionType={doc.questionType}
+                    origin={doc.origin}
                     scrollRef={scrollRef}
                   />
                 ) : (

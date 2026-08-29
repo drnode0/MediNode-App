@@ -4,14 +4,32 @@
     {
       "name": "medical-search-public",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "medical-search-public-3210",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "-p", "3210"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3210"
+      ],
       "port": 3210
+    },
+    {
+      "name": "spread-pct-3211",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "SPREAD_JSON=.preview/pct-spread.json npm run dev -- -p 3211"
+      ],
+      "port": 3211
     }
   ]
 }

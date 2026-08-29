@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { canonicalPageId, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
-import type { ReaderBlock, ReaderDoc } from '../reader-doc'
+import { canonicalPageId, isFocusCell, splitPrefaceBlocks, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import type { ReaderBlock, ReaderDoc, ReaderInline } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
@@ -1274,5 +1274,106 @@ describe('canonicalPageId', () => {
     expect(canonicalPageId('subscription_PAGEID#sec1')).toBe('PAGEID')
     expect(canonicalPageId('')).toBe('')
     expect(canonicalPageId(undefined)).toBe('')
+  })
+})
+
+describe('現場から届いた問い（前置きの切り分け）', () => {
+  const para = (text: string, bold = false): ReaderBlock => ({ kind: 'paragraph', inlines: [{ text, ...(bold ? { bold: true } : {}) }] })
+  const note = (...blocks: ReaderBlock[]): ReaderBlock => ({ kind: 'callout', icon: '📝', color: 'gray_background', blocks })
+
+  it('📝の前の段落を問い、📝の先頭の太字だけの段落を捨て、次の段落を出所にする', () => {
+    const parts = splitPrefaceBlocks([
+      para('PCTを測定する意義はあるのか？'),
+      note(para('このページの背景', true), para('現場から寄せられた疑問です。'), para('背景のくわしい説明。')),
+    ])
+    expect(parts.question.map((b) => textOf((b as { inlines: ReaderInline[] }).inlines))).toEqual(['PCTを測定する意義はあるのか？'])
+    expect(textOf((parts.sourceLine as { inlines: ReaderInline[] }).inlines)).toBe('現場から寄せられた疑問です。')
+    expect(parts.background).toHaveLength(1)
+    expect(parts.rest).toHaveLength(0)
+  })
+
+  it('📝が無い記事は何も取り出さず、全部を rest に残す（従来どおり描かせる）', () => {
+    const preface = [para('本文の段落')]
+    const parts = splitPrefaceBlocks(preface)
+    expect(parts.question).toHaveLength(0)
+    expect(parts.sourceLine).toBeNull()
+    expect(parts.rest).toEqual(preface)
+  })
+
+  it('画像は問いに混ぜず rest に残す（カバー以外の挿絵が引用枠に入らないように）', () => {
+    const img: ReaderBlock = { kind: 'image', url: 'u', caption: null }
+    const parts = splitPrefaceBlocks([img, para('問い'), note(para('背景', true), para('出所'))])
+    expect(parts.rest).toEqual([img])
+    expect(parts.question).toHaveLength(1)
+  })
+
+  it('📝の中身が出所の1段落だけなら、畳む背景は空になる', () => {
+    const parts = splitPrefaceBlocks([para('問い'), note(para('このページの背景', true), para('出所だけ'))])
+    expect(parts.background).toEqual([])
+  })
+
+  it('🎨制作メモのcalloutは📝として扱わない（読者に出さない枠なので）', () => {
+    const draft: ReaderBlock = { kind: 'callout', icon: '🎨', color: null, blocks: [para('制作メモ')] }
+    const parts = splitPrefaceBlocks([para('問い'), draft])
+    expect(parts.sourceLine).toBeNull()
+    expect(parts.rest).toEqual([para('問い'), draft])
+  })
+})
+
+describe('比較表の主役指定（focus）', () => {
+  it('focus が無ければ数値セルは全部が主役（既存のスプレッドの見た目を変えない）', () => {
+    expect(isFocusCell(undefined, 3, 4)).toBe(true)
+  })
+
+  it('列だけ指定したときは、その列の数値セルだけが主役になる', () => {
+    expect(isFocusCell({ cols: [4] }, 0, 4)).toBe(true)
+    expect(isFocusCell({ cols: [4] }, 0, 2)).toBe(false)
+  })
+
+  it('行と列の両方を指定したときは、その交点だけが主役になる', () => {
+    expect(isFocusCell({ rows: [2], cols: [4] }, 2, 4)).toBe(true)
+    expect(isFocusCell({ rows: [2], cols: [4] }, 3, 4)).toBe(false)
+    expect(isFocusCell({ rows: [2], cols: [4] }, 2, 3)).toBe(false)
+  })
+
+  it('空配列の指定は「1つも主役にしない」ではなく指定なしと同じに倒す（表が全部沈むのを防ぐ）', () => {
+    expect(isFocusCell({ rows: [], cols: [] }, 1, 1)).toBe(true)
+  })
+})
+
+describe('比較表の主役を、表の中身を書き写さずに渡す（tableFocus）', () => {
+  const table: ReaderBlock = {
+    kind: 'table',
+    rows: [
+      [t('項目'), t('AUC')],
+      [t('CRP'), t('0.73')],
+      [t('PCT'), t('0.85')],
+    ],
+  }
+  const draft = buildSpreadDraft(
+    { ...doc, blocks: [{ kind: 'heading', level: 2, inlines: t('1. 診断') }, table] },
+    'p1',
+  )
+
+  it('自動判定でついた表に、行を書き写さずに主役を足せる', () => {
+    const out = applyOverlay(draft, { tableFocus: { '1': { cols: [1] } } })
+    const part = out.sections[0].part
+    expect(part.kind).toBe('comparison')
+    expect((part as Extract<SpreadPart, { kind: 'comparison' | 'matrix' }>).focus).toEqual({ cols: [1] })
+    // 行は原本のまま（オーバレイに書き写していないので、原本を直せば自動で追随する）
+    expect((part as Extract<SpreadPart, { kind: 'comparison' | 'matrix' }>).rows).toHaveLength(3)
+  })
+
+  it('表でない部品の節に指定しても何も起きない（フローに focus は生えない）', () => {
+    const withFlow = applyOverlay(draft, {
+      parts: { '1': { kind: 'flow', steps: [{ label: '開始', inlines: t('やる') }] } },
+      tableFocus: { '1': { cols: [1] } },
+    })
+    expect(withFlow.sections[0].part).not.toHaveProperty('focus')
+  })
+
+  it('tableFocus を渡さない記事の部品はそのまま（既存スプレッドの見た目を変えない）', () => {
+    const out = applyOverlay(draft, {})
+    expect(out.sections[0].part).not.toHaveProperty('focus')
   })
 })

@@ -33,6 +33,10 @@ export type ReaderDoc = {
   // 既存の IndexedDB・Data Cache に保存された doc には無いキーなので常に optional。
   genre?: string
   questionType?: string
+  // Notionプロパティ「由来」。スプレッドが前置きを「現場から届いた問い」として
+  // 立てるかどうかの判定に使う。文字列を本文から探すのではなく構造化データで見る
+  // （📝の中身は記事ごとに違い、文言の一致では他の記事へ誤爆する）。
+  origin?: string
 }
 
 // mapBlocks / mapBlocksToReaderDoc の挙動オプション。
@@ -175,6 +179,7 @@ function selectNameOf(props: Record<string, any> | undefined, key: string): stri
 export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?: string, opts?: MapBlocksOptions): ReaderDoc {
   const genre = selectNameOf(page.properties, 'ジャンル')
   const questionType = selectNameOf(page.properties, '問いの型')
+  const origin = selectNameOf(page.properties, '由来')
   return {
     title: pageTitleOf(page.properties),
     icon: iconOf(page.icon),
@@ -184,6 +189,7 @@ export function mapBlocksToReaderDoc(page: RawPage, blocks: RawBlock[], pageId?:
     // 無いときはキー自体を生やさない（既存キャッシュ・スナップショットとの一致を保つ）
     ...(genre ? { genre } : {}),
     ...(questionType ? { questionType } : {}),
+    ...(origin ? { origin } : {}),
   }
 }
 

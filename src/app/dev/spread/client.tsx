@@ -59,6 +59,7 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
               icon={payload.icon}
               genre={payload.doc.genre}
               questionType={payload.doc.questionType}
+              origin={payload.doc.origin}
               scrollRef={scrollRef}
             />
           </ReaderSearchCtx.Provider>

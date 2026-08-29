@@ -2,7 +2,7 @@
 import { memo } from 'react'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import type { ReaderInline } from '@/lib/reader-doc'
-import { textOf, type SpreadPart } from '@/lib/reader-spread'
+import { isFocusCell, textOf, type CellFocus, type SpreadPart } from '@/lib/reader-spread'
 import s from './spread.module.css'
 
 // 表層の部品。見た目の正本は spread.module.css（パイロット版からの1対1移植）。
@@ -59,7 +59,7 @@ function FirstCell({ cell, k }: { cell: ReaderInline[]; k: string }) {
   )
 }
 
-function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
+function ComparisonTable({ rows, focus }: { rows: ReaderInline[][][]; focus?: CellFocus }) {
   const [head, ...body] = rows
   return (
     <div className={s.tableWrap}>
@@ -79,8 +79,11 @@ function ComparisonTable({ rows }: { rows: ReaderInline[][][] }) {
               {row.map((cell, c) => {
                 const text = textOf(cell).trim()
                 const isNum = c > 0 && NUM_CELL.test(text)
+                // 主役でない数値セルは落ち着かせる。focus を渡さない表では全セルが主役に
+                // なるので、公開済みのスプレッドの見た目は変わらない。
+                const numClass = isNum ? (isFocusCell(focus, r, c) ? s.num : `${s.num} ${s.numMuted}`) : undefined
                 return (
-                  <td key={c} className={isNum ? s.num : undefined}>
+                  <td key={c} className={numClass}>
                     {isNum ? <NumCell text={text} /> : c === 0 ? <FirstCell cell={cell} k={`td-${r}-${c}`} /> : <Inlines items={cell} k={`td-${r}-${c}`} />}
                   </td>
                 )
@@ -201,7 +204,7 @@ export const SpreadPartView = memo(function SpreadPartView({ part }: { part: Spr
 
 function SpreadPartBody({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
-  if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} />
+  if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} focus={part.focus} />
   if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} intro={part.intro} />
   if (part.kind === 'cards') return <Cards cards={part.cards} />
   if (part.kind === 'note') {

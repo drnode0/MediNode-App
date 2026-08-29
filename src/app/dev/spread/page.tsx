@@ -14,7 +14,10 @@ import { DevSpreadClient, type DevSpreadPayload } from './client'
 // devでは毎リクエスト読み直す（JSONを再生成したらリロードだけで反映される）
 export const dynamic = 'force-dynamic'
 
-const JSON_PATH = '.preview/oxygen-spread.json'
+// 記事ごとに書き出し先を替えられるようにする（2枚目以降を見るたびに1枚目のJSONを
+// 潰してしまうため）。既定は酸素療法＝パイロット版の照合に使い続けるファイル。
+//   SPREAD_JSON=.preview/pct-spread.json npm run dev
+const JSON_PATH = process.env.SPREAD_JSON ?? '.preview/oxygen-spread.json'
 
 export default function DevSpreadPage() {
   if (process.env.NODE_ENV !== 'development') notFound()

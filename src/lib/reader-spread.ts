@@ -40,8 +40,32 @@ export function canonicalPageId(raw: string | null | undefined): string {
 }
 
 // 表層に出す部品。'none' は表層なし（深掘りだけ）を意味する。
+// 比較表の主役セルの指定。行・列のどちらか片方だけでも渡せる。
+// 両方渡したときは「その行の、その列」＝交点だけが主役になる（和ではない）。
+export type CellFocus = { rows?: number[]; cols?: number[] }
+
+/**
+ * そのセルが主役か。focus を渡さない表は全セルが主役（＝今までの見た目）。
+ *
+ * 空配列は「指定なし」に倒す。JSON を手で書く経路と編集画面の両方があり、
+ * 空配列を「1つも主役にしない」と解釈すると、表がまるごと沈んで数値が読めなくなる。
+ * 落とすなら fail-safe は「元の見た目」の側に倒す。
+ */
+export function isFocusCell(focus: CellFocus | undefined, row: number, col: number): boolean {
+  const rows = focus?.rows?.length ? focus.rows : null
+  const cols = focus?.cols?.length ? focus.cols : null
+  if (!rows && !cols) return true
+  if (rows && !rows.includes(row)) return false
+  if (cols && !cols.includes(col)) return false
+  return true
+}
+
 export type SpreadPart =
-  | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][] }
+  // focus は「この表で見るべきセル」の指定。数値セルは既定で全部が強調されるので、
+  // 数値の多い表（6行×3列など）だと全部が同じ声量で叫んで強弱が消える。focus を渡した
+  // ときだけ、主役でない数値セルを落ち着かせる。渡さなければ従来どおり全部が主役なので、
+  // 公開済みのスプレッドの見た目は変わらない。行・列とも本文行（見出し行を除く）の0起点。
+  | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][]; focus?: CellFocus }
   // intro はフロー全体の前提条件（「高CO₂血症リスクなしで SpO₂ 85%以上」等）、
   // note は各ステップに添える小さな補足行。どちらも医学的内容なので逐語一致検査の対象
   // （label だけが表示上の命名＝対象外）。旧 SpreadDoc には無いキーなので optional。
@@ -134,6 +158,11 @@ export type SpreadOverlay = {
   refs?: SpreadRef[]
   icons?: Record<string, string>
   quizzes?: SpreadQuiz[]
+  // 比較表の主役セル。part を丸ごと差し替えずに主役だけを渡すための別口。
+  // parts で comparison を渡すと表の中身をオーバレイに書き写すことになり、原本の表を
+  // 直したときに黙って古くなる（本文はオーバレイに持たせない、という全体の方針にも反する）。
+  // 表でない部品の節に指定しても無視される。
+  tableFocus?: Record<string, CellFocus>
 }
 
 export type SplitSection = { n: number | null; anchor: string; title: string; blocks: ReaderBlock[] }
@@ -276,12 +305,29 @@ function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
   })
 }
 
+/**
+ * 主役セルの指定を正規化する。表示だけの値なので逐語検査には掛からず、代わりにここで
+ * 数として成立する添字だけを残す。壊れた値をそのまま通すと、どのセルにも当たらずに
+ * 表がまるごと沈む（数値が全部灰色になる）。
+ */
+function sanitizeFocus(focus: CellFocus | undefined): CellFocus | undefined {
+  if (!focus) return undefined
+  const ints = (xs: number[] | undefined) =>
+    Array.isArray(xs) ? xs.filter((n) => Number.isInteger(n) && n >= 0) : undefined
+  const rows = ints(focus.rows)
+  const cols = ints(focus.cols)
+  if (!rows?.length && !cols?.length) return undefined
+  return { ...(rows?.length ? { rows } : {}), ...(cols?.length ? { cols } : {}) }
+}
+
 // オーバレイ由来の part から出典リンクを落とす。part.kind ごとに ReaderInline の在り処が違うので分岐する。
 function stripPartHref(part: SpreadPart): SpreadPart {
   switch (part.kind) {
     case 'comparison':
-    case 'matrix':
-      return { ...part, rows: part.rows.map((row) => row.map(stripInlineHref)) }
+    case 'matrix': {
+      const focus = sanitizeFocus(part.focus)
+      return { ...part, rows: part.rows.map((row) => row.map(stripInlineHref)), ...(focus ? { focus } : {}) }
+    }
     case 'flow':
     case 'timeline':
       return {
@@ -372,6 +418,15 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
   if (overlay.refs) {
     out.refs = sanitizeRefs(overlay.refs)
   }
+  // 比較表の主役セルも同じ正規化を通す（part.focus と tableFocus で扱いが割れないように）。
+  if (overlay.tableFocus) {
+    const focus: Record<string, CellFocus> = {}
+    for (const [anchor, f] of Object.entries(overlay.tableFocus)) {
+      const ok = sanitizeFocus(f)
+      if (ok) focus[anchor] = ok
+    }
+    out.tableFocus = focus
+  }
   return out
 }
 
@@ -379,13 +434,20 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
  * 制作スキルからのオーバレイを下書きに重ねる。
  * 本文（deep / lead / preface / tail）には一切触れない。触れさせないことが安全装置になる。
  */
+// 主役の指定は比較表にだけ効かせる。表でない部品に focus を生やしても描画側が見ないので、
+// 保存形に意味のないキーが残るだけになる。
+function withTableFocus(part: SpreadPart, focus: CellFocus | undefined): SpreadPart {
+  if (!focus || (part.kind !== 'comparison' && part.kind !== 'matrix')) return part
+  return { ...part, focus }
+}
+
 export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDoc {
   return {
     ...draft,
     sections: draft.sections.map((s) => ({
       ...s,
       shortLabel: overlay.shortLabels?.[s.anchor] ?? s.shortLabel,
-      part: overlay.parts?.[s.anchor] ?? s.part,
+      part: withTableFocus(overlay.parts?.[s.anchor] ?? s.part, overlay.tableFocus?.[s.anchor]),
       extraParts: overlay.extraParts?.[s.anchor] ?? s.extraParts,
     })),
     // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、スプレッドは原本の
@@ -663,6 +725,55 @@ export function displayPreface(preface: ReaderBlock[], title: string): ReaderBlo
     if (b.kind === 'paragraph' && textOf(b.inlines).trim() === bare) return false
     return true
   })
+}
+
+/**
+ * 前置きを「現場から届いた問い」として組み直すための切り分け。本文は書き換えない。
+ * 並べ替えと装飾の掛け先を決めるだけで、文言はすべて原本のブロックのまま渡す。
+ *
+ * 既定の描画では、📝「このページの背景」がアプリ既定のcallout（左の灰色バー）で出る。
+ * 記事の中でここだけ意匠が揃わないうえ、プレミアムの売りである「現場の疑問に答える」
+ * という出自が、3段落の説明文の2行目に埋もれる。そこで問いを引用として立て、
+ * 出所を1行に、残りの背景を畳めるようにする。
+ *
+ * question    … 📝より前の段落（＝# Question の本文）。引用として大きく出す
+ * sourceLine  … 📝の中の最初の本文段落（「〜に寄せられた、現場からの疑問です」）
+ * background  … 📝の残り。既定は畳んでおく
+ * rest        … 画像・📝より後ろのブロック。従来どおり共通レンダラに描かせる
+ *
+ * 📝が無い記事では question / sourceLine / background が空になり、rest に全部が残る。
+ * 呼び出し側はそのとき従来の描画へ落ちればよい（fail-safe は「元のまま」の側）。
+ */
+export type PrefaceParts = {
+  question: ReaderBlock[]
+  sourceLine: ReaderBlock | null
+  background: ReaderBlock[]
+  rest: ReaderBlock[]
+}
+
+// callout の1行目に置かれる見出し段落（「このページの背景」等）。Notionでは太字だけの
+// 段落として書かれるので、全インラインが太字の段落を見出しとみなす。ReaderBody が
+// 表層への昇格を判定するのと同じ流儀で、ここでも文字列の一致では見ない。
+function isCalloutHeadingParagraph(b: ReaderBlock): boolean {
+  return b.kind === 'paragraph' && b.inlines.length > 0 && b.inlines.every((i) => i.bold)
+}
+
+export function splitPrefaceBlocks(preface: ReaderBlock[]): PrefaceParts {
+  const at = preface.findIndex((b) => b.kind === 'callout' && calloutRole(b.icon) === 'note')
+  if (at < 0) return { question: [], sourceLine: null, background: [], rest: preface }
+
+  const note = preface[at] as ReaderBlock & { kind: 'callout' }
+  const question: ReaderBlock[] = []
+  const rest: ReaderBlock[] = []
+  preface.forEach((b, i) => {
+    if (i === at) return
+    // 画像は問いの引用に混ぜない（挿絵が引用枠の中に落ちると意味が変わる）
+    if (i < at && b.kind === 'paragraph') question.push(b)
+    else rest.push(b)
+  })
+
+  const body = note.blocks.filter((b, i) => !(i === 0 && isCalloutHeadingParagraph(b)))
+  return { question, sourceLine: body[0] ?? null, background: body.slice(1), rest }
 }
 
 // ⚡ボックスの見出しとして扱う既知のラベル行。原本の書式は「この問いへの答え」で、

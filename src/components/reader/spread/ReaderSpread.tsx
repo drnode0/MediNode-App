@@ -4,7 +4,7 @@ import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks } from '../ReaderBody'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
-import { digestTone, displayPreface, displayTail, refHrefs, refItemsOf, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
+import { digestTone, displayPreface, displayTail, splitPrefaceBlocks, refHrefs, refItemsOf, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
 import { Inlines, NoAutoMarkerCtx } from '../Inlines'
 import { ConfidenceLegend } from '../ConfidenceMark'
 import { ExternalLink, Stethoscope } from 'lucide-react'
@@ -100,6 +100,7 @@ export function ReaderSpread({
   icon,
   genre,
   questionType,
+  origin,
   scrollRef,
 }: {
   spread: SpreadDoc
@@ -120,6 +121,9 @@ export function ReaderSpread({
   // 更新日と同じ「今の原本」の流儀で渡してもらう。古いキャッシュには無いので optional。
   genre?: string | null
   questionType?: string | null
+  // Notionプロパティ「由来」。「現場の疑問」のときだけ前置きを問いの引用として立てる。
+  // 本文の文言を探して判定すると他の記事へ誤爆するので、構造化データだけで見る。
+  origin?: string | null
   // 追従目次の現在地と読了バーの計算に使うスクロール容器（ReaderOverlay と同じもの）。
   scrollRef?: RefObject<HTMLDivElement | null>
 }) {
@@ -184,6 +188,13 @@ export function ReaderSpread({
   // タイトル重複段落は出さない。🤖査読スタンプは記事末に置かず、対象範囲の但し書きだけ⚡直後に出す。
   // PubMed検索キーワード例（制作用）は出さない。
   const preface = useMemo(() => displayPreface(spread.preface, title), [spread.preface, title])
+  // 「現場の疑問」由来の記事だけ、問い・出所・背景に切り分ける。📝が無い記事では
+  // sourceLine が null になるので、そのときも従来の描画に落とす（fail-safe は元のまま）。
+  const fieldQuestion = useMemo(() => {
+    if (origin !== '現場の疑問') return null
+    const parts = splitPrefaceBlocks(preface)
+    return parts.sourceLine && parts.question.length > 0 ? parts : null
+  }, [origin, preface])
   const { scope: stampScope, rest: tailBlocks } = useMemo(() => displayTail(spread.tail), [spread.tail])
   // 記事末尾は「実践（署名）／文献／免責」の3つをスプレッドが自前の枠で組む（パイロット準拠）。
   // アプリ既定の callout の見た目（薄い面と丸い絵文字アイコン）ではスプレッドにならないため。
@@ -343,8 +354,37 @@ export function ReaderSpread({
           </div>
         )}
 
-        {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落がスプレッドから黙って消える。 */}
-        <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
+        {/* 最初のH2より前の本文（構造見出しを除いた残り）。ここを描かないと導入の段落がスプレッドから黙って消える。
+            由来が「現場の疑問」の記事だけは、問いを引用として立て、背景を畳む（下の fieldQuestion）。
+            それ以外の記事は従来どおり、前置きをまるごと共通レンダラに描かせる。 */}
+        {fieldQuestion ? (
+          <>
+            <section className={styles.fieldQ}>
+              <div className={styles.fieldQLabel}>現場から届いた問い</div>
+              <blockquote className={styles.fieldQBody}>
+                <RenderedBlocks blocks={fieldQuestion.question} onImageClick={onImageClick} active={NO_FILTER} />
+              </blockquote>
+              {fieldQuestion.sourceLine && (
+                <p className={styles.fieldQSource}>
+                  <NoAutoMarkerCtx.Provider value={true}>
+                    <Inlines items={(fieldQuestion.sourceLine as { inlines: ReaderInline[] }).inlines} k="fieldq-source" />
+                  </NoAutoMarkerCtx.Provider>
+                </p>
+              )}
+              {fieldQuestion.background.length > 0 && (
+                // 背景は畳んでおく。検索中は開く（記事内検索の件数と一致させるため。
+                // 節の深掘りと同じ流儀）。
+                <details className={styles.fieldQMore} open={searching}>
+                  <summary>なぜこの記事があるか</summary>
+                  <RenderedBlocks blocks={fieldQuestion.background} onImageClick={onImageClick} active={NO_FILTER} />
+                </details>
+              )}
+            </section>
+            <RenderedBlocks blocks={fieldQuestion.rest} onImageClick={onImageClick} active={NO_FILTER} />
+          </>
+        ) : (
+          <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
+        )}
 
         {toc.length > 0 && (
           // 追従目次（パイロットの nav.toc）。読み進めると上端に貼り付き、現在地が反転する。
