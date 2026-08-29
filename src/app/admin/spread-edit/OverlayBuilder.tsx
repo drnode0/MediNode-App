@@ -774,6 +774,29 @@ function QuizEditor({ overlay, onChange, sections, checker, notes }: { overlay: 
                 {!evidenceOk && <span className="text-[11px] text-red-600 dark:text-red-400 ml-2">この節の本文に無い文です（誌面ノートは根拠に使えません）</span>}
               </div>
             </Field>
+            {/* 解説は書き下ろしなので原本には無く、誌面ノートに置く。根拠（evidence）と違って
+                照合先はノートまで広がるが、原本にもノートにも無い文言は赤くなって保存が止まる
+                （SpreadEditClient の保存ボタンが verifyVerbatim の結果を見ている）。 */}
+            <Field label="正解の言い直し（「正解：」に続けて太字で出る。空なら「正解：」だけになる）">
+              <VerbatimInput
+                value={q.answerLead ?? ''}
+                onChange={(v) => set(quizzes.map((x, j) => (j === i ? { ...x, answerLead: v } : x)))}
+                placeholder="例: 挿管移行の判断へ。"
+                checker={checker}
+                own={own}
+                notes={notes}
+              />
+            </Field>
+            <Field label="解説（言い直しに続く地の文。空なら従来どおり根拠の逐語を出す）">
+              <VerbatimInput
+                value={q.explanation ?? ''}
+                onChange={(v) => set(quizzes.map((x, j) => (j === i ? { ...x, explanation: v } : x)))}
+                placeholder="候補から選ぶのが早い"
+                checker={checker}
+                own={own}
+                notes={notes}
+              />
+            </Field>
           </div>
         )
       })}

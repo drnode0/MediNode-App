@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2, Pencil } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
-import type { SpreadOverlay, SpreadQuiz } from '@/lib/reader-spread'
+import { quizFeedback, type SpreadOverlay, type SpreadQuiz } from '@/lib/reader-spread'
 
 // 入力欄に貼られたものから Notion の page_id を取り出す。素のUUID（ハイフン有無どちらも）、
 // `subscription_` 接頭辞つき、NotionのURLを受け付ける。見つからなければ入力をそのまま返し、
@@ -334,6 +334,10 @@ export function SpreadCard() {
                     {r.quizzes.map((q) => {
                       const key = `${r.page_id}:${q.id}`
                       const isBusy = quizBusy.has(key)
+                      // 解説が供給されていれば、承認する前にその文も見せる。読者に出るのは
+                      // 根拠の逐語ではなくこちらなので、出さないままだと目視が実物を通らない。
+                      // 供給されていなければ null で、従来どおり根拠の逐語だけを出す。
+                      const fb = quizFeedback(q)
                       return (
                         <div key={q.id} className="rounded-lg bg-card-light dark:bg-card-dark p-3">
                           <div className="flex items-center justify-between gap-2 mb-2">
@@ -377,6 +381,12 @@ export function SpreadCard() {
                             ))}
                           </ul>
                           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{q.evidence}</p>
+                          {fb && (
+                            <p className="text-xs text-gray-700 dark:text-gray-200 leading-relaxed mt-2">
+                              <b>正解：{fb.lead}</b>
+                              {fb.body}
+                            </p>
+                          )}
                         </div>
                       )
                     })}

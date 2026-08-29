@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
 
@@ -289,6 +289,79 @@ describe('visibleQuizzes', () => {
     const s = { ...base, quizzes: [broken] }
     expect(() => visibleQuizzes(s, '1')).not.toThrow()
     expect(visibleQuizzes(s, '1')).toHaveLength(0)
+  })
+})
+
+describe('理解チェックの解説（answerLead / explanation）', () => {
+  // 書き下ろしの解説は原本に無いので、非公開の誌面ノートに置いてオーバレイから供給する。
+  // ノート側は1行に「正解の言い直し｜解説の地の文」を並べて書く。
+  const notes: ReaderBlock[] = [
+    { kind: 'list_item', ordered: false, inlines: t('目標SpO2を先に決める。｜デバイスより先に目標値を決めるのが原則で、値が決まらないと流量も選べない。') },
+  ]
+  const quiz = (over: Partial<SpreadQuiz>): SpreadQuiz => ({
+    id: 'q1', sectionAnchor: '1', question: '先に決めるのは？', choices: ['目標SpO2', 'デバイス'], answerIndex: 0,
+    evidence: 'デバイスより先に目標値を決める。', reviewed: true,
+    answerLead: '目標SpO2を先に決める。',
+    explanation: 'デバイスより先に目標値を決めるのが原則で、値が決まらないと流量も選べない。',
+    ...over,
+  })
+
+  it('answerLead / explanation が誌面ノートにあれば検査を通る', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const good = applyOverlay(draft, { quizzes: [quiz({})] })
+    expect(verifyVerbatim(good, doc, notes)).toEqual({ ok: true, missing: [] })
+    // ノートを渡さなければ原本だけで検査する（従来どおり fail-closed）
+    expect(verifyVerbatim(good, doc).ok).toBe(false)
+  })
+
+  it('ノートにも原本にも無い answerLead を持つ設問は検査で落ちる', () => {
+    // explanation はノートのままにして、answerLead だけを誰も書いていない文言にする。
+    // verbatimTargets から q.answerLead を外すとこのテストが落ちる。
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, { quizzes: [quiz({ answerLead: '誰も書いていない正解の言い直し。' })] })
+    const r = verifyVerbatim(bad, doc, notes)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('誰も書いていない正解の言い直し。')
+  })
+
+  it('ノートにも原本にも無い explanation を持つ設問は検査で落ちる', () => {
+    // answerLead はノートのままにして、explanation だけを誰も書いていない文言にする。
+    // verbatimTargets から q.explanation を外すとこのテストが落ちる。
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const bad = applyOverlay(draft, { quizzes: [quiz({ explanation: '誰も書いていない解説の地の文。' })] })
+    const r = verifyVerbatim(bad, doc, notes)
+    expect(r.ok).toBe(false)
+    expect(r.missing).toContain('誰も書いていない解説の地の文。')
+  })
+
+  it('answerLead / explanation を持たない設問は検査の対象が従来と変わらない', () => {
+    const draft = buildSpreadDraft(doc, 'page-1')
+    const plain = applyOverlay(draft, { quizzes: [quiz({ answerLead: undefined, explanation: undefined })] })
+    expect(verifyVerbatim(plain, doc)).toEqual({ ok: true, missing: [] })
+  })
+
+  it('quizFeedback: explanation があれば「正解：＋言い直し」と解説に差し替える', () => {
+    expect(quizFeedback(quiz({}))).toEqual({
+      lead: '目標SpO2を先に決める。',
+      body: 'デバイスより先に目標値を決めるのが原則で、値が決まらないと流量も選べない。',
+    })
+  })
+
+  it('quizFeedback: answerLead が空なら lead は空文字（「正解：」だけを太字にする）', () => {
+    expect(quizFeedback(quiz({ answerLead: '  ' }))).toEqual({
+      lead: '',
+      body: 'デバイスより先に目標値を決めるのが原則で、値が決まらないと流量も選べない。',
+    })
+    expect(quizFeedback(quiz({ answerLead: undefined }))?.lead).toBe('')
+  })
+
+  it('quizFeedback: explanation が無ければ null を返す（描画は従来どおり根拠の逐語。fail-safe）', () => {
+    expect(quizFeedback(quiz({ explanation: undefined }))).toBeNull()
+    expect(quizFeedback(quiz({ explanation: '   ' }))).toBeNull()
+    // explanation のキーごと無い保存済みの設問（JSONを直接編集した投入・APIへの直接PUT）でも落ちない
+    const saved = { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: 'デバイスより先に目標値を決める。', reviewed: true } as SpreadQuiz
+    expect(() => quizFeedback(saved)).not.toThrow()
+    expect(quizFeedback(saved)).toBeNull()
   })
 })
 

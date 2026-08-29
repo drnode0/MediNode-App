@@ -66,6 +66,14 @@ export type SpreadQuiz = {
   evidence: string
   // オーナーの目視フラグ。false の間は読者に出さない。
   reviewed: boolean
+  // 正解の言い直し（パイロットの「正解：」に続く太字の部分）。書き下ろしなので
+  // 非公開の誌面ノート_DBに置く。逐語一致検査の対象。
+  // 保存済みの SpreadDoc には無いキーなので optional。
+  answerLead?: string
+  // 言い直しに続く解説の地の文。同じく誌面ノートに置き、逐語一致検査の対象。
+  // これが無ければ正解の面は従来どおり根拠の逐語を出す（供給していない誌面の
+  // 出力を1文字も変えない fail-safe）。
+  explanation?: string
 }
 
 // 「いまの状況から探す」の入口チップ。label は状況の呼び名（表示上の命名＝逐語検査の
@@ -417,7 +425,9 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     collect(s.part)
     for (const p of s.extraParts ?? []) collect(p)
   }
-  for (const q of spread.quizzes) out.push(q.evidence)
+  // 理解チェックは根拠の逐語に加えて、書き下ろしの解説（正解の言い直しと地の文）も対象に入れる。
+  // どちらも原本には無く誌面ノートにあるので、ノートにも原本にも無い文言はここで弾かれる。
+  for (const q of spread.quizzes) out.push(q.evidence, q.answerLead, q.explanation)
   // 参考文献の圧縮行は3つとも対象に入れる。source と note は原本に無く誌面ノートにあるので、
   // ノートにも原本にも無い文言（生成側が書いた説明）はここで弾かれる。
   for (const r of spread.refs ?? []) out.push(r.title, r.source, r.note)
@@ -490,6 +500,23 @@ export function visibleQuizzes(spread: SpreadDoc, anchor: string): SpreadQuiz[] 
     if (!evidence) return false
     return corpus.includes(evidence.replace(/[ \t]+/g, ' '))
   })
+}
+
+/**
+ * 理解チェックに答えたあと、正解の面に出す文を決める。
+ *
+ * 解説（explanation）が供給されているときだけ「正解：＋言い直し」＋解説に差し替え、
+ * 無ければ null を返す。null は「従来どおり根拠の逐語（evidence）を出す」の意味で、
+ * 供給していない誌面の出力を1文字も変えないための fail-safe。
+ *
+ * lead は「正解：」に続く太字の部分。空文字なら「正解：」だけを太字にする。
+ * キーが欠けた設問（JSONを直接編集した投入・APIへの直接PUT）でも落ちないよう、
+ * 値の取り出しは verbatimTargets と同じく「無ければ空文字」で扱う。
+ */
+export function quizFeedback(quiz: SpreadQuiz): { lead: string; body: string } | null {
+  const explanation = (quiz.explanation ?? '').trim()
+  if (!explanation) return null
+  return { lead: (quiz.answerLead ?? '').trim(), body: explanation }
 }
 
 // ---- 表示専用のビュー導出 ----

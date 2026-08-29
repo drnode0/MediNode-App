@@ -771,7 +771,8 @@
   font-size: 0.85rem;
   margin-top: 0.55rem;
   color: var(--ink);
-  line-height: 1.8;
+  /* パイロットは body の line-height: 1.9 を .quiz-fb まで継ぐ（.preview/style-diff.mjs で照合）。 */
+  line-height: 1.9;
 }
 .quizFb b {
   color: var(--brand-deep);
