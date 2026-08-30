@@ -59,10 +59,11 @@ function FirstCell({ cell, k }: { cell: ReaderInline[]; k: string }) {
   )
 }
 
-function ComparisonTable({ rows, focus }: { rows: ReaderInline[][][]; focus?: CellFocus }) {
+function ComparisonTable({ rows, focus, title }: { rows: ReaderInline[][][]; focus?: CellFocus; title?: string }) {
   const [head, ...body] = rows
   return (
     <div className={s.tableWrap}>
+      {title && <div className={s.tableTitle}>{title}</div>}
       <table className={s.spec}>
         <thead>
           <tr>
@@ -173,6 +174,31 @@ function Stats({ part }: { part: Extract<SpreadPart, { kind: 'gauge' }> }) {
   )
 }
 
+// 条件で枝分かれする判断図。問いかけ → 枝（条件チップ＋答え）の順に積む。
+// 枝は広い画面では横に並べ、狭い画面では縦に積む（CSSのgridに任せる）。
+function Decision({ part }: { part: Extract<SpreadPart, { kind: 'decision' }> }) {
+  return (
+    <div className={s.decision}>
+      {part.question && <div className={s.decisionQ}>{part.question}</div>}
+      <div className={s.decisionRow}>
+        {part.branches.map((b, i) => (
+          <div key={i} className={s.branch}>
+            <span className={s.branchWhen}>{b.when}</span>
+            <div className={s.branchThen}>
+              <CardLine line={b.then} k={`dec-${i}`} />
+            </div>
+            {b.note && (
+              <div className={s.branchNote}>
+                <Inlines items={b.note} k={`dec-n-${i}`} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // 2枚組の比較カード（パイロットの .vs）。主役側（primary）はヘッダーを塗る。
 function Cards({ cards }: { cards: { title: string; lines: ReaderInline[][]; primary?: boolean }[] }) {
   return (
@@ -204,9 +230,10 @@ export const SpreadPartView = memo(function SpreadPartView({ part }: { part: Spr
 
 function SpreadPartBody({ part }: { part: SpreadPart }) {
   if (part.kind === 'none') return null
-  if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} focus={part.focus} />
+  if (part.kind === 'comparison' || part.kind === 'matrix') return <ComparisonTable rows={part.rows} focus={part.focus} title={part.title} />
   if (part.kind === 'flow' || part.kind === 'timeline') return <FlowSteps steps={part.steps} intro={part.intro} />
   if (part.kind === 'cards') return <Cards cards={part.cards} />
+  if (part.kind === 'decision') return <Decision part={part} />
   if (part.kind === 'note') {
     // 表層の補足（パイロットの .vs-note / .contra）。枠の無い小さな本文で置く。
     return (

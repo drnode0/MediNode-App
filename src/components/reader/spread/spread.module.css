@@ -313,6 +313,15 @@
   overflow-x: auto;
   margin: 0.6rem 0 1rem;
 }
+/* 表の呼び名（.statsTitle と同じ声量）。表層へ昇格した表は本文の小見出しから
+   切り離されて現れるので、「何の表か」をここで補う。 */
+.tableTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+  line-height: 1.6;
+}
 .spec {
   border-collapse: collapse;
   width: 100%;
@@ -336,6 +345,36 @@
   /* 「24%ベンチュリーマス／ク」のような語中での折り返しを避ける（禁則を厳しく取る）。 */
   line-break: strict;
   word-break: keep-all;
+}
+/* 狭い画面だけ、語中での折り返しを許す。
+   keep-all は「読点も空白も無い長い記述」を1行に固定するため、列の最小幅が画面幅を超えて
+   表が横スクロールになる。実測（2026-08-30・幅430px）: 📚急性呼吸不全は3表が +207/+410/+185px、
+   公開中の💡酸素療法も2表が +180/+254px はみ出していた。
+   overflow-wrap: anywhere を足すとどちらも0になる。
+   ⚠️ この指定は「溢れたときだけ効く」ものではなく、min-content の計算そのものを変えるので、
+   溢れていない表でも列幅が再配分される。幅900pxの酸素療法では「考え方」列が 337→287px に縮み、
+   「変更する」の「る」が1文字だけ最終行に落ちた。だから広い画面には掛けない。 */
+@media (max-width: 900px) {
+  .spec td {
+    overflow-wrap: anywhere;
+  }
+}
+/* 狭い画面では字と余白を詰め、先頭列の下限も緩める。7.5em は広い画面で項目名が縦積みに
+   なるのを防ぐための値で、390px の本文幅では他の列を飢えさせる。
+   実測（2026-08-30・幅430px・📚急性呼吸不全の表5つの高さ）:
+   614/300/250/918/291px → 386/218/213/703/221px。 */
+@media (max-width: 640px) {
+  .spec {
+    font-size: 0.82rem;
+  }
+  .spec td,
+  .spec th {
+    padding: 0.6em 0.5em;
+  }
+  .spec td:first-child,
+  .spec th:first-child {
+    min-width: 6em;
+  }
 }
 /* 先頭列（項目名）が細く潰れて縦積みになるのを防ぐ。 */
 .spec td:first-child,
@@ -361,6 +400,180 @@
   font-size: 0.55em;
   font-weight: 700;
   color: var(--muted);
+}
+
+/* 一括開閉と、節に属さない先頭の部品。 */
+.allToggleRow {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.6rem;
+}
+.allToggle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  background: var(--brand-tint);
+  border: 1px solid var(--brand-line);
+  border-radius: 999px;
+  padding: 0.45em 1em;
+  min-height: 44px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.allToggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.topParts {
+  margin: 0 0 1.2rem;
+}
+
+/* ===== 節末: この節から生まれた問い（気になる投票つき） ===== */
+.qBox {
+  border: 1px dashed var(--brand-line);
+  border-radius: 10px;
+  padding: 0.7rem 0.95rem 0.6rem;
+  margin: 0.9rem 0 0.4rem;
+  line-height: 1.9;
+}
+.qList {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+}
+.qItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.qItem:last-child {
+  border-bottom: none;
+}
+.qText {
+  flex: 1;
+  min-width: 0;
+}
+/* リンク済みの問いは Inlines がリンクチップ（max-w-[13em]・切り詰め）で描くが、
+   ここでは問いの全文が読めないと投票できない。チップの幅制限と1行固定を解いて
+   全文を折り返して見せる（チップの枠と色はそのまま使う）。 */
+.qText a {
+  max-width: none !important;
+  white-space: normal !important;
+}
+.qBtn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  background: var(--card);
+  border: 1px solid var(--brand-line);
+  border-radius: 999px;
+  padding: 0.3em 0.9em;
+  min-height: 40px;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qBtn.qOn {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+}
+.qCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--brand);
+}
+
+/* ===== 部品: 判断図（条件で枝分かれ） ===== */
+/* flow は縦一列で「順に進む」を表す。decision は同時に並ぶ選択肢を表すので、枝を横に置く。
+   問いかけから枝へ縦線を1本落とし、どこから分かれたかを見せる。 */
+.decision {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem;
+  margin: 0 0 1rem;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(20, 60, 45, 0.04);
+  line-height: 1.9;
+}
+.decisionQ {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--brand-deep);
+  background: var(--brand-tint);
+  border-radius: 8px;
+  padding: 0.5em 0.8em;
+  text-align: center;
+  line-height: 1.6;
+}
+/* 問いかけから枝へ落ちる縦線。
+   ⚠️ grid コンテナ（.decisionRow）の ::before はグリッドの1マス目を占めてしまい、
+   枝が1つずれて並ぶ。線は問いかけ側の ::after で描く。 */
+.decisionQ {
+  position: relative;
+  margin-bottom: 0.9rem;
+}
+.decisionQ::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 0.9rem;
+  background: var(--brand-line);
+}
+.decisionRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.6rem;
+}
+.branch {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem;
+  background: var(--brand-tint-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.9;
+}
+.branchWhen {
+  align-self: flex-start;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--brand-deep);
+  background: var(--card);
+  border: 1px solid var(--brand-line);
+  border-radius: 999px;
+  padding: 0.2em 0.7em;
+  line-height: 1.6;
+}
+.branchThen {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.branchNote {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+/* 枝の中も、大きく出すのは数値（dose）だけ。flow・cards と同じ流儀に揃える。 */
+.branch .dose {
+  font-size: 1.35em;
+  font-weight: 800;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.branch :global(.font-bold) {
+  color: var(--brand-deep);
 }
 
 /* ===== 部品: 大きい数値（用量反応） ===== */
@@ -659,6 +872,12 @@
   line-height: 1.9;
   color: var(--ink);
   margin: 1rem 0 0.7rem;
+}
+/* recap の1文目（原本で太字にした「ここだけ読めば間違いない」の断定）を立たせる。
+   原本が太字を使っていない記事では何も起きない＝公開中のCQ・ナレッジは不変。 */
+.recap :global(.font-bold) {
+  color: var(--brand-deep);
+  font-size: 1.04em;
 }
 .eyebrow {
   display: block;

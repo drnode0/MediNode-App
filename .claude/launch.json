@@ -30,6 +30,24 @@
         "SPREAD_JSON=.preview/pct-spread.json npm run dev -- -p 3211"
       ],
       "port": 3211
+    },
+    {
+      "name": "spread-arf-3212",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "SPREAD_JSON=.preview/arf-spread.json npm run dev -- -p 3212"
+      ],
+      "port": 3212
+    },
+    {
+      "name": "spread-oxygen-3213",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "SPREAD_JSON=.preview/oxygen-spread.json npm run dev -- -p 3213"
+      ],
+      "port": 3213
     }
   ]
 }

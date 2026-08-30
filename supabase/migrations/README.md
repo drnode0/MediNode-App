@@ -44,6 +44,8 @@
 | 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ❓ 未確認 ※3 |
 | 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps`, `increment_notion_escape()` | ✅ ※2 |
 | 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
+| 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
+| 0028 | question_interest | `question_interest` | ❌ ※4 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -75,3 +77,7 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
 ※2 2026-08-27 に本番DBで実測。`select table_name from information_schema.tables where table_schema='public' and table_name in ('block_type_stats','notion_escape_taps','reader_spreads')` が3件とも返った。
 ※3 0024 は列の追加なので上のクエリでは判定できない。確かめるなら
 `select column_name from information_schema.columns where table_schema='public' and table_name='user_settings' and column_name='occupation'`。
+
+※4 2026-08-30 に本番DBで実測（`/rest/v1/<table>?select=*&limit=1` が 404）。
+0027 は別ブランチにあり、このブランチには入っていない。0028 は 0027 を飛ばして採番したが、
+番号の重複は無いので順序は保たれる（ルール1の趣旨は重複回避）。

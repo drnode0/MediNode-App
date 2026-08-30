@@ -40,3 +40,6 @@ STRIPE_GOLIVE.md
 NOTE_HANDOFF.md
 .env*
 .preview/
+
+# supabase CLI の作業ファイル（バージョン確認だけでも作られる）
+supabase/.temp/

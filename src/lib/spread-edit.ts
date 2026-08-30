@@ -49,6 +49,8 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
       return { kind, cards: [{ title: '', lines: [[]] }, { title: '', lines: [[]] }] }
     case 'note':
       return { kind, inlines: [] }
+    case 'decision':
+      return { kind, question: '', branches: [{ when: '', then: [] }, { when: '', then: [] }] }
     case 'none':
       return { kind: 'none' }
   }

@@ -129,7 +129,14 @@ export function ReaderSpread({
 }) {
   const query = useContext(ReaderSearchCtx)
   const searching = query.trim().length > 0
-  const [open, setOpen] = useState<Set<string>>(new Set())
+  // 深掘りの開閉。spread.deepOpen が真の記事（📚Essentials）は全節を開いた状態から始める。
+  // 未指定なら従来どおり空集合＝全部畳む（公開中のCQ・ナレッジの出方を変えないため）。
+  const allAnchors = useMemo(() => spread.sections.map((x) => x.anchor), [spread.sections])
+  const [open, setOpen] = useState<Set<string>>(() => new Set(spread.deepOpen ? allAnchors : []))
+  // 記事を切り替えたときに前の記事の開閉が残らないようにする（useState の初期化は初回だけ走る）。
+  useEffect(() => {
+    setOpen(new Set(spread.deepOpen ? spread.sections.map((x) => x.anchor) : []))
+  }, [spread.pageId, spread.deepOpen, spread.sections])
   const [leadOpen, setLeadOpen] = useState(false)
   // 追従目次の現在地と読了バー。スクロール容器を持つ側（ReaderOverlay・devハーネス）から
   // 渡してもらう。渡されないとき（静的描画）は現在地を出さず、バーは0%のままにする。
@@ -244,9 +251,77 @@ export function ReaderSpread({
   // 節ごとの表示導出（表層への昇格・出典サマリ・見せてよい理解チェック）。spread は
   // 不変スナップショットなので1回で全節分を導出し、検索の1文字ごとに再計算しない。
   const sectionViews = useMemo(
-    () => new Map(spread.sections.map((s) => [s.anchor, { ...sectionDisplay(s), sources: sectionSources(s.deep), quizzes: visibleQuizzes(spread, s.anchor) }])),
+    () =>
+      new Map(
+        spread.sections.map((s) => {
+          const view = sectionDisplay(s)
+          // 出典サマリは取り分け後の深掘りから導出する。保存形（s.deep）から取ると、
+          // 節末の問いのリンク名（「〜はどう行うか？」）が出典名に混ざって並ぶ。
+          return [s.anchor, { ...view, sources: sectionSources(view.deep), quizzes: visibleQuizzes(spread, s.anchor) }]
+        }),
+      ),
     [spread],
   )
+
+  // 「気になる」投票。記事内の全問いの票数と自分の分を1回のGETでまとめて引く
+  // （節ごとに引くと1記事で節数ぶんのリクエストが飛ぶ）。失敗は握りつぶして
+  // ボタンだけの表示にする（票が見えなくても問いは読める fail-safe）。
+  const questionIds = useMemo(
+    () =>
+      spread.sections
+        .flatMap((s) => sectionDisplay(s).questions)
+        .map((q) => (q.blockId ?? '').replace(/-/g, '').toLowerCase())
+        .filter((id) => /^[0-9a-f]{32}$/.test(id)),
+    [spread],
+  )
+  const [interest, setInterest] = useState<{ counts: Record<string, number>; mine: Set<string> }>({
+    counts: {},
+    mine: new Set(),
+  })
+  useEffect(() => {
+    if (questionIds.length === 0) return
+    let alive = true
+    fetch(`/api/subscription/question-interest?ids=${questionIds.join(',')}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d) setInterest({ counts: d.counts ?? {}, mine: new Set(d.mine ?? []) })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [questionIds])
+  const toggleInterest = (blockId: string) => {
+    const voted = !interest.mine.has(blockId)
+    // 先に画面へ反映し、失敗したら戻す（押した手応えを遅延させない）。
+    setInterest((prev) => {
+      const mine = new Set(prev.mine)
+      const counts = { ...prev.counts, [blockId]: Math.max(0, (prev.counts[blockId] ?? 0) + (voted ? 1 : -1)) }
+      if (voted) mine.add(blockId)
+      else mine.delete(blockId)
+      return { counts, mine }
+    })
+    fetch('/api/subscription/question-interest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blockId, pageId: spread.pageId, voted }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status))
+        const d = await r.json()
+        setInterest((prev) => ({ ...prev, counts: { ...prev.counts, [blockId]: d.count ?? prev.counts[blockId] } }))
+      })
+      .catch(() => {
+        // 失敗（未ログイン・通信断）は票を戻す。
+        setInterest((prev) => {
+          const mine = new Set(prev.mine)
+          const counts = { ...prev.counts, [blockId]: Math.max(0, (prev.counts[blockId] ?? 0) + (voted ? -1 : 1)) }
+          if (voted) mine.delete(blockId)
+          else mine.add(blockId)
+          return { counts, mine }
+        })
+      })
+  }
 
   return (
     // reader-prose の直下に倍率ラッパーを1枚だけ挟む（ReaderBody.tsx と同じ入れ子）。
@@ -386,6 +461,16 @@ export function ReaderSpread({
           <RenderedBlocks blocks={preface} onImageClick={onImageClick} active={NO_FILTER} />
         )}
 
+        {/* 「現場で先に見る数値」。節に属さず、⚡要点と目次の間に置く。
+            記事の中で最も使われる数値が後ろの節にある、という並びを表示側だけで救う枠。 */}
+        {(spread.topParts ?? []).length > 0 && (
+          <div className={styles.topParts}>
+            {(spread.topParts ?? []).map((p, pi) => (
+              <SpreadPartView key={pi} part={p} />
+            ))}
+          </div>
+        )}
+
         {toc.length > 0 && (
           // 追従目次（パイロットの nav.toc）。読み進めると上端に貼り付き、現在地が反転する。
           // 読了バーもここに引く。既存の ReaderNavBar はスプレッドでは出さない（同じ役割で形が違う）。
@@ -416,11 +501,26 @@ export function ReaderSpread({
           </div>
         )}
 
+        {/* 一括開閉。他社（StatPearls・MSDは全展開、AMBOSSは「Expand all sections」を常設）に
+            合わせて、読者が1クリックで全文に行ける状態を必ず残す。検索中は個別開閉と同じ理由で塞ぐ。 */}
+        {spread.sections.length > 0 && (
+          <div className={styles.allToggleRow}>
+            <button
+              type="button"
+              disabled={searching}
+              className={styles.allToggle}
+              onClick={() => setOpen((prev) => (prev.size >= allAnchors.length ? new Set() : new Set(allAnchors)))}
+            >
+              {open.size >= allAnchors.length ? '▾ すべて畳む' : '▸ すべて開く'}
+            </button>
+          </div>
+        )}
+
         {spread.sections.map((s, i) => {
           const isOpen = searching || open.has(s.anchor)
           // 表層へ昇格させるブロック（節末の→段落・比較表の元テーブル）を深掘りから取り分けた
           // 導出（sectionViews）。表示専用で、保存された SpreadDoc には触れない。
-          const { recap, deep, sources, quizzes } = sectionViews.get(s.anchor)!
+          const { recap, deep, sources, quizzes, questions } = sectionViews.get(s.anchor)!
           return (
             <section key={s.anchor} className={styles.section}>
               {/* data-section は横断検索の節ジャンプと ReaderNavBar が使う。値を変えないこと。 */}
@@ -479,6 +579,40 @@ export function ReaderSpread({
                     active={NO_FILTER}
                     offset={(i + 1) * SECTION_INDEX_STRIDE}
                   />
+                </div>
+              )}
+
+              {/* 節末の「この節から生まれた問い」。深掘りから取り分けて常設し、
+                  「気になる」投票を付ける（票の多い準備中の問いから次のCQを作るため）。 */}
+              {questions.length > 0 && (
+                <div className={styles.qBox}>
+                  <span className={styles.eyebrow}>この節から生まれた問い</span>
+                  <ul className={styles.qList}>
+                    {questions.map((q, qi) => {
+                      const id = (q.blockId ?? '').replace(/-/g, '').toLowerCase()
+                      const votable = /^[0-9a-f]{32}$/.test(id)
+                      const voted = interest.mine.has(id)
+                      const count = interest.counts[id] ?? 0
+                      return (
+                        <li key={q.blockId ?? qi} className={styles.qItem}>
+                          <span className={styles.qText}>
+                            <Inlines items={inlinesOf(q)} k={`q-${s.anchor}-${qi}`} />
+                          </span>
+                          {votable && (
+                            <button
+                              type="button"
+                              className={`${styles.qBtn} ${voted ? styles.qOn : ''}`}
+                              aria-pressed={voted}
+                              onClick={() => toggleInterest(id)}
+                            >
+                              {voted ? '★ 気になる' : '☆ 気になる'}
+                              {count > 0 && <span className={styles.qCount}>{count}</span>}
+                            </button>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
               )}
 

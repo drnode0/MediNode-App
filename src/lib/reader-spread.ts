@@ -65,7 +65,11 @@ export type SpreadPart =
   // 数値の多い表（6行×3列など）だと全部が同じ声量で叫んで強弱が消える。focus を渡した
   // ときだけ、主役でない数値セルを落ち着かせる。渡さなければ従来どおり全部が主役なので、
   // 公開済みのスプレッドの見た目は変わらない。行・列とも本文行（見出し行を除く）の0起点。
-  | { kind: 'comparison' | 'matrix'; rows: ReaderInline[][][]; focus?: CellFocus }
+  // title は表の呼び名。原本の表は本文の小見出し（太字段落）の下にあるが、表層へ昇格すると
+  // 小見出しは深掘りに残るため、表だけが文脈なしで現れる。それを補う「何の表か」の1行。
+  // gauge.title・flow の step.label と同じ表示上の命名＝逐語一致検査の対象にしない。
+  // 主張や数値は title に書かないこと（書くなら本文の逐語で rows に置く）。
+  | { kind: 'comparison' | 'matrix'; title?: string; rows: ReaderInline[][][]; focus?: CellFocus }
   // intro はフロー全体の前提条件（「高CO₂血症リスクなしで SpO₂ 85%以上」等）、
   // note は各ステップに添える小さな補足行。どちらも医学的内容なので逐語一致検査の対象
   // （label だけが表示上の命名＝対象外）。旧 SpreadDoc には無いキーなので optional。
@@ -90,6 +94,12 @@ export type SpreadPart =
   // 命名＝検査の対象外。主張や数値は title に書かず、value / label に逐語で置くこと）。
   // warn は「悪い側の値」を琥珀で示す表示フラグ。
   | { kind: 'gauge'; title?: string; items: { value: string; label: ReaderInline[]; warn?: boolean }[] }
+  // 条件で枝分かれする判断図。flow は縦一列で「順番に進む」しか表せず、
+  // 「Ⅱ型呼吸不全のリスクがあるか？ → ある／ない」のような同時に並ぶ選択肢を書けない。
+  // question は図の問いかけ、when は枝の条件チップで、どちらも表示上の命名なので
+  // 逐語一致検査の対象にしない（gauge.title・flow の step.label と同じ扱い）。
+  // then（その枝の答え）と note（但し書き）は医学的内容なので逐語検査の対象。
+  | { kind: 'decision'; question?: string; branches: { when: string; then: ReaderInline[]; note?: ReaderInline[] }[] }
   | { kind: 'none' }
 
 export type SpreadSection = {
@@ -148,6 +158,13 @@ export type SpreadDoc = {
   refs?: SpreadRef[]
   quizzes: SpreadQuiz[]
   icons: Record<string, string>
+  // 節の深掘りを既定で開いた状態で出すか。📚Essentials は通読させる層なので開く。
+  // 既定（未指定）は従来どおり閉じるので、公開中のCQ・ナレッジの出方は変わらない。
+  deepOpen?: boolean
+  // 節に属さず、⚡要点と目次の間に置く部品（「現場で先に見る数値」）。
+  // 記事の中で最も使われる数値が最後の節にある、という並びを表示側だけで救うための枠。
+  // 中身は節の部品と同じ逐語一致検査を通る。
+  topParts?: SpreadPart[]
 }
 
 // 制作スキルが渡すのはこれだけ。本文は渡さない（サーバーが原本から組む）。
@@ -163,6 +180,12 @@ export type SpreadOverlay = {
   // 直したときに黙って古くなる（本文はオーバレイに持たせない、という全体の方針にも反する）。
   // 表でない部品の節に指定しても無視される。
   tableFocus?: Record<string, CellFocus>
+  // 自動昇格した表（節の主役部品）の呼び名。part を丸ごと差し替えずに表題だけを渡すための
+  // 別口（tableFocus と同じ理由。parts で comparison を渡すと表の中身をオーバレイに書き写す
+  // ことになり、原本の表を直したときに黙って古くなる）。表でない部品の節では無視される。
+  partTitles?: Record<string, string>
+  deepOpen?: boolean
+  topParts?: SpreadPart[]
 }
 
 export type SplitSection = { n: number | null; anchor: string; title: string; blocks: ReaderBlock[] }
@@ -294,7 +317,7 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
 }
 
 // SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
-const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'none'])
+const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'decision', 'none'])
 
 // part の中の ReaderInline から href だけを落とす（text/bold/italic/code/color は残す）。
 function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
@@ -350,6 +373,15 @@ function stripPartHref(part: SpreadPart): SpreadPart {
       return { ...part, cards: part.cards.map((c) => ({ ...c, lines: c.lines.map(stripInlineHref) })) }
     case 'note':
       return { ...part, inlines: stripInlineHref(part.inlines) }
+    case 'decision':
+      return {
+        ...part,
+        branches: part.branches.map((br) => ({
+          ...br,
+          then: stripInlineHref(br.then),
+          ...(br.note ? { note: stripInlineHref(br.note) } : {}),
+        })),
+      }
     case 'none':
       return part
   }
@@ -413,6 +445,20 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
     }
     out.extraParts = extra
   }
+  // 表の呼び名は trim して空を落とす（title は命名なので逐語検査に掛からない。
+  // 空文字を通すと「無題の表題行」が描画されるだけになる）。
+  if (overlay.partTitles) {
+    const titles: Record<string, string> = {}
+    for (const [anchor, t] of Object.entries(overlay.partTitles)) {
+      const v = typeof t === 'string' ? t.trim() : ''
+      if (v) titles[anchor] = v
+    }
+    out.partTitles = titles
+  }
+  // 先頭に置く部品も主役部品と同じ関門を通す。
+  if (overlay.topParts) {
+    out.topParts = overlay.topParts.filter((p) => KNOWN_PART_KINDS.has(p.kind)).map(stripPartHref)
+  }
   // 参考文献の圧縮行は行の取捨とキー・文言の正規化を sanitizeRefs に集める
   // （編集画面のビルダーも同じ1本を引き、関門の入力が中と外で割れないようにしている）。
   if (overlay.refs) {
@@ -441,13 +487,22 @@ function withTableFocus(part: SpreadPart, focus: CellFocus | undefined): SpreadP
   return { ...part, focus }
 }
 
+// 表の呼び名も tableFocus と同じ別口で当てる。表でない部品には効かせない。
+function withPartTitle(part: SpreadPart, title: string | undefined): SpreadPart {
+  if (!title || (part.kind !== 'comparison' && part.kind !== 'matrix')) return part
+  return { ...part, title }
+}
+
 export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDoc {
   return {
     ...draft,
     sections: draft.sections.map((s) => ({
       ...s,
       shortLabel: overlay.shortLabels?.[s.anchor] ?? s.shortLabel,
-      part: withTableFocus(overlay.parts?.[s.anchor] ?? s.part, overlay.tableFocus?.[s.anchor]),
+      part: withPartTitle(
+        withTableFocus(overlay.parts?.[s.anchor] ?? s.part, overlay.tableFocus?.[s.anchor]),
+        overlay.partTitles?.[s.anchor],
+      ),
       extraParts: overlay.extraParts?.[s.anchor] ?? s.extraParts,
     })),
     // 参考文献の圧縮行。渡されなければ下書きのまま（＝無いまま）にして、スプレッドは原本の
@@ -455,6 +510,8 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
     refs: overlay.refs ?? draft.refs,
     icons: { ...draft.icons, ...(overlay.icons ?? {}) },
     quizzes: overlay.quizzes ?? draft.quizzes,
+    deepOpen: overlay.deepOpen ?? draft.deepOpen,
+    topParts: overlay.topParts ?? draft.topParts,
   }
 }
 
@@ -491,8 +548,15 @@ function verbatimTargets(spread: SpreadDoc): string[] {
     } else if (p.kind === 'gauge') {
       // title は図の呼び名（命名）なので対象に入れない。数値と条件は逐語で検査する。
       for (const it of p.items) out.push(it.value, textOf(it.label))
+    } else if (p.kind === 'decision') {
+      // question / when は表示上の命名なので対象に入れない。答えと但し書きは逐語で検査する。
+      for (const br of p.branches) {
+        out.push(textOf(br.then))
+        if (br.note) out.push(textOf(br.note))
+      }
     }
   }
+  for (const p of spread.topParts ?? []) collect(p)
   for (const s of spread.sections) {
     collect(s.part)
     for (const p of s.extraParts ?? []) collect(p)
@@ -603,9 +667,15 @@ function rowsText(rows: ReaderInline[][][]): string {
 export type SectionDisplay = {
   // 節末の「→」段落。表層の「この節の答え」ボックスへ昇格する（パイロット版の recap）。
   recap: ReaderBlock | null
-  // 表層へ昇格したブロック（recap・比較表の元テーブル）を除いた深掘り本文。
+  // 節末の「この節から生まれた問い」（見出し段落に続く箇条書き）。深掘りから取り分けて
+  // 節末に常設し、「気になる」投票を付ける。見出しが無い記事（CQ・ナレッジ）では空。
+  questions: ReaderBlock[]
+  // 表層へ昇格したブロック（recap・比較表の元テーブル・問いリスト）を除いた深掘り本文。
   deep: ReaderBlock[]
 }
+
+// 「この節から生まれた問い」の見出し文言。Essentials の書式（medinode-essentials §4）。
+const QUESTIONS_HEADING = 'この節から生まれた問い'
 
 /**
  * 節の深掘りから、表層へ昇格させるブロックを取り分ける。
@@ -663,7 +733,19 @@ export function sectionDisplay(section: SpreadSection): SectionDisplay {
   let end = deep.length
   while (end > 0 && deep[end - 1].kind === 'divider') end--
   if (end < deep.length) deep = deep.slice(0, end)
-  return { recap, deep }
+  // 節末の問いリストを取り分ける。見出し段落＋後続の箇条書きが深掘りの末尾まで続く
+  // ときだけ抜く（後ろにまだ本文が残る構造では抜かない＝本文を欠落させない fail-safe）。
+  let questions: ReaderBlock[] = []
+  const qi = deep.findIndex((b) => b.kind === 'paragraph' && textOf(b.inlines).trim() === QUESTIONS_HEADING)
+  if (qi >= 0) {
+    let qEnd = qi + 1
+    while (qEnd < deep.length && deep[qEnd].kind === 'list_item') qEnd++
+    if (qEnd > qi + 1 && qEnd === deep.length) {
+      questions = deep.slice(qi + 1, qEnd)
+      deep = deep.slice(0, qi)
+    }
+  }
+  return { recap, questions, deep }
 }
 
 // 本文フォーマットの凡例段落（「確信度の見方：」で始まる）。スプレッドでは上部の凡例が担う。

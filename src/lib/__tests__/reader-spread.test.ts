@@ -398,6 +398,31 @@ describe('sectionDisplay', () => {
     expect(r.deep).toEqual([first, bullet])
   })
 
+  it('節末の「この節から生まれた問い」を深掘りから取り分ける', () => {
+    const head: ReaderBlock = { kind: 'paragraph', inlines: t('この節から生まれた問い') }
+    const q1: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('問いA（準備中）'), blockId: 'b1' }
+    const q2: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('問いB？'), blockId: 'b2' }
+    const r = sectionDisplay(section([bullet, recap, head, q1, q2], { kind: 'none' }))
+    expect(r.recap).toBe(recap)
+    expect(r.questions).toEqual([q1, q2])
+    expect(r.deep).toEqual([bullet])
+  })
+
+  it('問いの見出しの後ろに本文が続く構造では取り分けない（本文を欠落させない）', () => {
+    const head: ReaderBlock = { kind: 'paragraph', inlines: t('この節から生まれた問い') }
+    const q1: ReaderBlock = { kind: 'list_item', ordered: false, inlines: t('問いA') }
+    const after: ReaderBlock = { kind: 'paragraph', inlines: t('あとに残る本文。') }
+    const r = sectionDisplay(section([bullet, head, q1, after], { kind: 'none' }))
+    expect(r.questions).toEqual([])
+    expect(r.deep).toEqual([bullet, head, q1, after])
+  })
+
+  it('見出しが無い記事（CQ・ナレッジ）では questions が空で深掘りは無傷', () => {
+    const r = sectionDisplay(section([bullet, recap], { kind: 'none' }))
+    expect(r.questions).toEqual([])
+    expect(r.deep).toEqual([bullet])
+  })
+
   it('保存形（section.deep）には触れない', () => {
     const deep = [table, bullet, recap]
     const s = section(deep, { kind: 'comparison', rows })
