@@ -254,7 +254,10 @@ export async function GET(req: Request) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('reader_spreads')
-    .select('page_id, status, source_last_edited, verified_at, updated_at, overlay')
+    // title は spread_doc.title を列指定だけで取り出す（記事1件の spread_doc は180KB級になるので、
+    // 一覧で本文まるごとを引かない）。記事名が無いと一覧は page_id の先頭8桁だけになり、
+    // どの記事を操作しているのか読めない。
+    .select('page_id, status, source_last_edited, verified_at, updated_at, overlay, title:spread_doc->>title')
     .order('updated_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'load_failed' }, { status: 500 })
 
@@ -267,6 +270,7 @@ export async function GET(req: Request) {
       source_last_edited: string | null
       verified_at: string | null
       updated_at: string
+      title: string | null
       overlay?: SpreadOverlay | null
     }
     const { overlay, ...rest } = row

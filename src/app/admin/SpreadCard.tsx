@@ -5,7 +5,7 @@
 // あと再生成を忘れると、検索結果には新しい文が出るのにスプレッドだけ古いままというズレが起きる。
 // このカードがその気づきの場所になる。データは /api/admin/spread（管理者専用）。
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RefreshCw, UploadCloud, AlertTriangle, CheckCircle2, HelpCircle, FilePlus2, Pencil } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { SectionHeading } from './SectionHeading'
@@ -36,6 +36,8 @@ type Row = {
   source_last_edited: string | null
   verified_at: string | null
   updated_at: string
+  // 保存済みスプレッドの記事名（spread_doc.title）。行を人が見分ける唯一の手がかり。
+  title: string | null
   stale?: boolean
   quizzes: SpreadQuiz[]
 }
@@ -56,6 +58,14 @@ export function SpreadCard() {
   const [newPageId, setNewPageId] = useState('')
   const [newOverlay, setNewOverlay] = useState('')
   const [injecting, setInjecting] = useState(false)
+
+  // 投入窓に入れた page_id が既にある行かどうか。投入は overlay を丸ごと差し替えるので、
+  // 既存の記事に対して押すと編集画面での手直しが消える。押す前に気づける場所をここに置く。
+  const existingRow = useMemo(() => {
+    const id = canonicalPageId(newPageId)
+    if (!id || !rows) return null
+    return rows.find((r) => r.page_id === id) ?? null
+  }, [newPageId, rows])
 
   const load = useCallback(() => {
     // 原本の最終更新との突合（stale判定）はNotionへ問い合わせる分、重い。
@@ -104,6 +114,12 @@ export function SpreadCard() {
     const pageId = canonicalPageId(newPageId)
     if (!pageId) {
       setMsg('page_id を入力してください。')
+      return
+    }
+    // 既にある記事の投入は止める。投入は overlay を丸ごと差し替えるので、編集画面で
+    // 手直しした短ラベル・命名・設問がまとめて消える（実際に消した）。整えるのは編集画面の役目。
+    if (existingRow) {
+      setMsg(`この記事のスプレッドはもうあります（${existingRow.title ?? existingRow.page_id.slice(0, 8)}）。投入し直すと編集画面での手直しが消えるので、「スプレッドを整える」から直してください。`)
       return
     }
     let overlay: SpreadOverlay | undefined
@@ -228,9 +244,21 @@ export function SpreadCard() {
           rows={3}
           className="w-full text-xs font-mono rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 px-2.5 py-2 mb-2 text-gray-800 dark:text-gray-100"
         />
+        {/* 既存の記事を投入しようとしている状態。押す前に、行き先（編集画面）ごと出す。 */}
+        {existingRow && (
+          <p className="text-xs mb-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 px-2.5 py-2">
+            <AlertTriangle className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" aria-hidden />
+            この記事のスプレッドはもうあります（{existingRow.title ?? existingRow.page_id.slice(0, 8)}）。
+            投入し直すと編集画面での手直しが消えます。直すなら{' '}
+            <a href={`/admin/spread-edit?pageId=${encodeURIComponent(existingRow.page_id)}`} className="underline font-semibold">
+              スプレッドを整える
+            </a>
+            {' '}へ。
+          </p>
+        )}
         <button
           type="button"
-          disabled={injecting || !newPageId.trim()}
+          disabled={injecting || !newPageId.trim() || !!existingRow}
           onClick={inject}
           className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 text-xs"
         >
@@ -251,9 +279,16 @@ export function SpreadCard() {
                 key={r.page_id}
                 className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-0"
               >
-                <code className="text-[11px] text-gray-400 dark:text-gray-500" title={r.page_id}>
-                  {r.page_id.slice(0, 8)}
-                </code>
+                {/* 記事名を行の1段目に単独で置く。page_idの先頭8桁だけの一覧では、どの記事を
+                    再生成・公開しているのかが読めない（既存の記事を新規投入して手直しを消す事故が起きた）。 */}
+                <span className="basis-full flex items-baseline gap-2 min-w-0">
+                  <span className="font-semibold text-[13px] text-gray-800 dark:text-gray-100 truncate">
+                    {r.title ?? '（記事名なし）'}
+                  </span>
+                  <code className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0" title={r.page_id}>
+                    {r.page_id.slice(0, 8)}
+                  </code>
+                </span>
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                     published
@@ -294,14 +329,18 @@ export function SpreadCard() {
                   type="button"
                   disabled={busy.has(r.page_id)}
                   onClick={() => (armed === r.page_id ? run(r.page_id, true) : setArmed(r.page_id))}
+                  // 公開中の行では控えめな見た目にする。同じ緑の大ボタンが全行に並んでいると、
+                  // まだ押す必要があるのかどうかが読めない（押しても再公開されるだけ）。
                   className={`inline-flex items-center gap-1.5 min-h-[44px] px-2.5 rounded-lg disabled:opacity-50 ${
                     armed === r.page_id
                       ? 'bg-amber-100 text-amber-900 border border-amber-400 dark:bg-amber-900/50 dark:text-amber-200 dark:border-amber-600'
-                      : 'bg-brand-600 text-white hover:bg-brand-700'
+                      : published
+                        ? 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'bg-brand-600 text-white hover:bg-brand-700'
                   }`}
                 >
                   <UploadCloud className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                  {armed === r.page_id ? 'もう一度押すと公開' : '公開'}
+                  {armed === r.page_id ? 'もう一度押すと公開' : published ? '公開し直す' : '公開'}
                 </button>
 
                 {r.quizzes.length > 0 && (
