@@ -5,6 +5,7 @@ import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
 import { extractCloze } from '@/lib/cloze'
 import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
+import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -172,6 +173,9 @@ async function syncMedicalDb(
         props['名前'] || props['title'] || props['タイトル'] || props['Name'] || {},
       )
       if (!title) continue
+      // 制作途中（0️⃣〜3️⃣）はサブスクDBに置いてあっても読者に出さない。移すことと出すことを
+      // 分けるための門（スプレッドを用意する時間を取るため）。本文の取得より前で落とす。
+      if (isWithheldFromReaders(extractText(props['制作ステータス'] || {}))) continue
       const blocks = await fetchPageBlocks(notion, page.id)
       const stats = blocks ? computeContentStats(blocks) : null
       // ⚡結論ボックス（callout）内の赤マーカーも拾えるよう、クイズ候補（ナレッジ）だけ
