@@ -18,6 +18,7 @@ export type AdminAction =
   | 'put_spread'
   | 'publish_spread'
   | 'review_quiz'
+  | 'spread_note_append'
 
 // 監査ログを1件記録。テーブル未適用・失敗でも主アクションは止めない（握りつぶす）。
 export async function logAdminAction(

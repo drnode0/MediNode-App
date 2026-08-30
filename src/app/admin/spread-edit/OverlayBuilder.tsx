@@ -249,6 +249,7 @@ function VerbatimInput({
   own,
   notes,
   ownLabel,
+  onAddToNotes,
 }: {
   value: string
   onChange: (v: string) => void
@@ -257,7 +258,11 @@ function VerbatimInput({
   own: string[]
   notes: string[]
   ownLabel?: string
+  // 書き下ろしの文をスプレッドノートへ足す口。渡されたときだけ赤枠の横にボタンを出す。
+  // 逐語検査そのものは緩めない（文言がレビューできる場所に残る、という性質を保つ）。
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
+  const [adding, setAdding] = useState(false)
   const bad = value.trim() !== '' && !checker(value)
   return (
     <div className={`rounded-lg border px-1.5 py-1 ${bad ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
@@ -267,9 +272,26 @@ function VerbatimInput({
         placeholder={placeholder}
         className="w-full bg-transparent text-xs px-1 py-0.5 outline-none"
       />
-      <div className="flex items-center gap-2 pt-0.5">
+      <div className="flex items-center gap-2 pt-0.5 flex-wrap">
         <CandidatePicker own={own} notes={notes} onPick={onChange} ownLabel={ownLabel} />
         {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
+        {bad && onAddToNotes && (
+          <button
+            type="button"
+            disabled={adding}
+            onClick={async () => {
+              setAdding(true)
+              try {
+                await onAddToNotes(value.trim())
+              } finally {
+                setAdding(false)
+              }
+            }}
+            className="text-[11px] rounded-full border border-brand-600 text-brand-700 dark:text-brand-300 px-2 py-0.5 disabled:opacity-40"
+          >
+            {adding ? '追加中…' : 'この文をスプレッドノートに追加'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -686,7 +708,7 @@ function RefsEditor({
   )
 }
 
-function QuizEditor({ overlay, onChange, sections, checker, notes }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; sections: SectionInfo[]; checker: Checker; notes: string[] }) {
+function QuizEditor({ overlay, onChange, sections, checker, notes, onAddToNotes }: { overlay: SpreadOverlay; onChange: (o: SpreadOverlay) => void; sections: SectionInfo[]; checker: Checker; notes: string[]; onAddToNotes?: (text: string) => Promise<void> }) {
   const quizzes = overlay.quizzes ?? []
   const set = (list: SpreadQuiz[]) => onChange({ ...overlay, quizzes: list.length ? list : undefined })
   return (
@@ -752,6 +774,7 @@ function QuizEditor({ overlay, onChange, sections, checker, notes }: { overlay: 
                 checker={checker}
                 own={own}
                 notes={notes}
+                onAddToNotes={onAddToNotes}
               />
             </Field>
             <Field label="解説（言い直しに続く地の文。空なら従来どおり根拠の逐語を出す）">
@@ -762,6 +785,7 @@ function QuizEditor({ overlay, onChange, sections, checker, notes }: { overlay: 
                 checker={checker}
                 own={own}
                 notes={notes}
+                onAddToNotes={onAddToNotes}
               />
             </Field>
           </div>
@@ -787,12 +811,15 @@ export function OverlayBuilder({
   draft,
   checker,
   noteLines,
+  onAddToNotes,
 }: {
   overlay: SpreadOverlay
   onChange: (o: SpreadOverlay) => void
   draft: SpreadDoc
   checker: Checker
   noteLines: string[]
+  // 書き下ろしの文をスプレッドノートへ足して、照合先を広げ直す。
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const sections: SectionInfo[] = useMemo(
     () => draft.sections.map((s) => ({ anchor: s.anchor, n: s.n, title: s.title, autoKind: s.part.kind, deep: s.deep })),
@@ -818,7 +845,7 @@ export function OverlayBuilder({
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
       ))}
       <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} />
-      <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} />
+      <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
     </div>
   )
 }

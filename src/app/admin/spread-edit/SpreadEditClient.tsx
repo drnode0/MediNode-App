@@ -13,6 +13,7 @@
 // もう一度通す。ここでの検査は速く気づくためのもので、関門の代わりではない。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
@@ -40,6 +41,34 @@ export function SpreadEditClient() {
     setJsonText(JSON.stringify(o, null, 1))
     setJsonError(null)
   }, [])
+
+  // 書き下ろしの文をスプレッドノートへ足す。逐語検査の照合先は「原本＋ノート」なので、
+  // 足しただけでは画面の赤枠は消えない（checker が古い noteLines を握っている）。
+  // 追加が通ったら読み込み直して照合先を更新するところまでを1手にする。
+  const addToNotes = useCallback(async (text: string) => {
+    const id = canonicalPageId(pageId)
+    if (!id || !text.trim()) return
+    setMsg(null)
+    try {
+      const res = await fetch('/api/admin/spread/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: id, text, title: draft?.doc.title ?? 'スプレッドノート' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMsg(`ノートに書けません（${data.error ?? res.status}）`)
+        return
+      }
+      // 編集中のオーバレイは保つ。取り直すのは原本とノート（照合先）だけ。
+      const r2 = await fetch(`/api/admin/spread/draft?pageId=${encodeURIComponent(id)}`)
+      const d2 = await r2.json()
+      if (r2.ok) setDraft((prev) => (prev ? { ...prev, doc: d2.doc, notes: d2.notes ?? [] } : (d2 as Draft)))
+      setMsg(data.created ? 'スプレッドノートを作成して1行追加しました。' : 'スプレッドノートに1行追加しました。')
+    } catch {
+      setMsg('ノートに書けませんでした。')
+    }
+  }, [pageId, draft])
 
   const load = useCallback(async (raw: string) => {
     const id = canonicalPageId(raw)
@@ -130,6 +159,13 @@ export function SpreadEditClient() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <div className="max-w-[1500px] mx-auto p-5">
+        <a
+          href="/admin"
+          className="inline-flex items-center gap-1 text-sm text-brand-700 dark:text-brand-300 mb-2 min-h-[44px]"
+        >
+          <ChevronLeft className="w-4 h-4" aria-hidden />
+          管理画面に戻る
+        </a>
         <h1 className="text-lg font-bold mb-1">スプレッドの編集</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
           部品の追加・並び替え・文選び・強調はここでできます。本文そのものは原本の逐語なので、
@@ -178,7 +214,7 @@ export function SpreadEditClient() {
         {draft && built && (
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
-              <OverlayBuilder overlay={overlay} onChange={setOverlayBoth} draft={base!} checker={checker} noteLines={noteLines} />
+              <OverlayBuilder overlay={overlay} onChange={setOverlayBoth} draft={base!} checker={checker} noteLines={noteLines} onAddToNotes={addToNotes} />
 
               {built.missing.length > 0 && (
                 <div className="mb-3 text-sm text-red-600 dark:text-red-400">

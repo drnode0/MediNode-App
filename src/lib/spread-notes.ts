@@ -24,6 +24,25 @@ export type NotesClient = BlockLister & {
 
 const MAX_NOTES_PAGES = 5 // 100件×5ページ。ノートDBがこれを超える運用は想定しない
 
+// ノートページを探して id を返す（本文は読まない）。追記の宛先を決めるために使う。
+export async function findSpreadNotesPageId(notion: NotesClient, pageId: string): Promise<string | null> {
+  const dbId = process.env.SUBSCRIPTION_SPREAD_NOTES_DB
+  if (!dbId) return null
+  const bare = pageId.replace(/-/g, '')
+  let cursor: string | undefined
+  let page = 0
+  do {
+    const res = await notion.databases.query({ database_id: dbId, start_cursor: cursor, page_size: 100 })
+    for (const row of res.results as unknown as { id: string; properties?: Record<string, unknown> }[]) {
+      const title = pageTitleOf(row.properties as Parameters<typeof pageTitleOf>[0]).replace(/-/g, '')
+      if (title.includes(bare)) return row.id
+    }
+    page++
+    cursor = res.has_more && page < MAX_NOTES_PAGES ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+  return null
+}
+
 export async function fetchSpreadNotesBlocks(notion: NotesClient, pageId: string): Promise<ReaderBlock[] | null> {
   const dbId = process.env.SUBSCRIPTION_SPREAD_NOTES_DB
   if (!dbId) return null
