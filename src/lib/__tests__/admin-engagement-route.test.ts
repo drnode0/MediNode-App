@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextResponse } from 'next/server'
+import { jstDateKey } from '../admin-daily'
 
 const { requireAdminMock, adminClientMock } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
@@ -18,6 +19,17 @@ import { GET } from '../../app/api/admin/engagement/route'
 beforeEach(() => {
   requireAdminMock.mockReset()
   adminClientMock.mockReset()
+  // 時刻を固定する（Dateのみ。setTimeout等は実物のままでasyncを止めない）。
+  // ルートは jstDateKey で「今日」を出すため、実時刻のままだとJST 00:00〜09:00
+  // （=UTCの前日）にフィクスチャの used_on と食い違って落ちる。
+  // 固定値はJST 00:30（=UTCでは前日15:30）。UTC日付で書き直すと必ず落ちる時刻を
+  // あえて選んでいる（同じ取り違えが戻ったらその場で分かる）。
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-08-31T00:30:00+09:00'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('GET /api/admin/engagement', () => {
@@ -34,7 +46,8 @@ describe('GET /api/admin/engagement', () => {
   it('一部テーブルが失敗しても他ブロックは返す（best-effort）', async () => {
     requireAdminMock.mockResolvedValue({ ok: true, email: 'owner@example.com' })
 
-    const todayIso = new Date().toISOString().slice(0, 10)
+    // アプリ側と同じJST基準の日付キーで作る（UTC日付だとJST午前中にずれる）。
+    const todayIso = jstDateKey(Date.now())
     // from(table) ごとに挙動を出し分ける薄いスタブ。
     adminClientMock.mockReturnValue({
       auth: {
