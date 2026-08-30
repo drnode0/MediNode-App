@@ -26,21 +26,47 @@ function fromPart(part: SpreadPart, at: string): Naming[] {
   const push = (key: string, text: string | undefined) => {
     if (text && text.trim()) out.push({ where: `${at} ${part.kind}.${key}`, text: text.trim(), net: 'none' })
   }
-  if (part.kind === 'comparison' || part.kind === 'matrix') {
-    push('title', part.title)
-  } else if (part.kind === 'cards') {
-    part.cards.forEach((c, i) => push(`cards[${i}].title`, c.title))
-  } else if (part.kind === 'gauge') {
-    push('title', part.title)
-  } else if (part.kind === 'gonogo') {
-    push('goLabel', part.goLabel)
-    push('noGoLabel', part.noGoLabel)
-  } else if (part.kind === 'flow' || part.kind === 'timeline') {
-    part.steps.forEach((s, i) => push(`steps[${i}].label`, s.label))
-  } else if (part.kind === 'decision') {
-    push('question', part.question)
-    part.branches.forEach((b, i) => push(`branches[${i}].when`, b.when))
+
+  switch (part.kind) {
+    case 'comparison':
+    case 'matrix':
+      push('title', part.title)
+      break
+    case 'cards':
+      part.cards.forEach((c, i) => push(`cards[${i}].title`, c.title))
+      break
+    case 'gauge':
+      push('title', part.title)
+      break
+    case 'gonogo':
+      push('goLabel', part.goLabel)
+      push('noGoLabel', part.noGoLabel)
+      break
+    case 'flow':
+    case 'timeline':
+      part.steps.forEach((s, i) => push(`steps[${i}].label`, s.label))
+      break
+    case 'decision':
+      push('question', part.question)
+      part.branches.forEach((b, i) => push(`branches[${i}].when`, b.when))
+      break
+    case 'note':
+      // ノート部品に命名はない
+      break
+    case 'bignumber':
+      // 数値部品に命名はない
+      break
+    case 'none':
+      // 表層なし
+      break
+    default: {
+      // 部品を足したらここが型エラーになる。命名フィールドを持つ部品を
+      // 取りこぼすと、そのまま読者に出てしまうため、コメントではなく型で止める。
+      const _exhaustive: never = part
+      return _exhaustive
+    }
   }
+
   return out
 }
 
