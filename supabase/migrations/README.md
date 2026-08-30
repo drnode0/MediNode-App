@@ -45,7 +45,7 @@
 | 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps`, `increment_notion_escape()` | ✅ ※2 |
 | 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
 | 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
-| 0028 | question_interest | `question_interest` | ❌ ※4 |
+| 0028 | question_interest | `question_interest` | ✅ ※5 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -81,3 +81,6 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
 ※4 2026-08-30 に本番DBで実測（`/rest/v1/<table>?select=*&limit=1` が 404）。
 0027 は別ブランチにあり、このブランチには入っていない。0028 は 0027 を飛ばして採番したが、
 番号の重複は無いので順序は保たれる（ルール1の趣旨は重複回避）。
+
+※5 2026-08-30 に本番DBで実測。`/rest/v1/question_interest?select=*&limit=1` が 200 を返し、
+OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_at` の4列がそろっている。
