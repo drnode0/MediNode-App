@@ -107,9 +107,10 @@ Notion ページの運用ルール3「医学的な意味が変わる修正と、
 - 出力は行番号つきの候補。カテゴリ名は Notion ページの8カテゴリの名前をそのまま使う
 - 📝背景callout と 🧑‍⚕️署名callout は既定で対象外（`lexicon-lint.py` と同じ）
 
-### 2. `spread-namings.mts`
+### 2. `spread-namings.ts`
 
-置き場所はアプリリポの `.preview/`。オーバレイJSON（または `--json` で書き出したスプレッド）から
+置き場所はアプリリポの `src/lib/spread-namings.ts`（本体）＋ `scripts/spread-namings.ts`（CLI）。
+`.preview/` は gitignore 対象のため、追随が要る運用コードはそこに置かない。オーバレイJSON（または `--json` で書き出したスプレッド）から
 命名を全部抜いて、種類つきの一覧にする。
 
 - `verbatimTargets` の裏返しなので、**部品を足したらここにも足す**運用にする
@@ -156,7 +157,7 @@ Notion ページの運用ルール1・2を Claude が実行する。
 | `style-lint.py` | `~/.claude/skills/medinode-factcheck/scripts/` |
 | 文章ゲートの手順（語彙＋文体） | `medinode-factcheck` §6 |
 | 命名ゲートの手順 | `medinode-essentials` のスプレッド節、および `medinode-knowledge-promote` |
-| `spread-namings.mts` | アプリリポ `.preview/` |
+| `spread-namings.ts` | アプリリポ `src/lib/spread-namings.ts` ＋ `scripts/spread-namings.ts` |
 | ログの追記・昇格提案 | Notion「✍️ 医療記事 文体の癖・校正パターン」 |
 
 ## 再検討ライン

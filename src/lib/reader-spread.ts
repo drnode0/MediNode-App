@@ -525,34 +525,59 @@ export function applyOverlay(draft: SpreadDoc, overlay: SpreadOverlay): SpreadDo
 // filter(Boolean) で対象から外す（sanitizeOverlay が `r.title?.trim()` で守っているのと同じ流儀）。
 function verbatimTargets(spread: SpreadDoc): string[] {
   const out: (string | undefined)[] = []
+  // switch + never で網羅を型で強制する。collectNamings（spread-namings.ts）と対になる
+  // 関数で、こちらは「原本に由来するはずの文」を集める側＝逐語検査そのものを担う。
+  // if/else チェーンのままだと、新しい SpreadPart の kind を足しても黙ってコンパイルが通り、
+  // その部品の文字列は逐語検査を一切通らないまま公開されてしまう（取りこぼしが検出不能）。
+  // 表示上の命名（title・label・question 等）を対象外にする部品は、意図的に何もしない
+  // case として明示し、default（＝ never 分岐）には絶対に落ちないようにする。
   const collect = (p: SpreadPart) => {
-    if (p.kind === 'comparison' || p.kind === 'matrix') {
-      for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
-    } else if (p.kind === 'flow' || p.kind === 'timeline') {
-      if (p.intro) out.push(textOf(p.intro))
-      for (const step of p.steps) {
-        out.push(textOf(step.inlines))
-        if (step.dose) out.push(textOf(step.dose))
-        if (step.note) out.push(textOf(step.note))
-      }
-    } else if (p.kind === 'cards') {
-      // title はカードの呼び名（命名）なので対象に入れない。
-      for (const c of p.cards) for (const line of c.lines) out.push(textOf(line))
-    } else if (p.kind === 'note') {
-      out.push(textOf(p.inlines))
-    } else if (p.kind === 'bignumber') {
-      out.push(p.value, textOf(p.caption))
-    } else if (p.kind === 'gonogo') {
-      // goLabel / noGoLabel は枠の見出し（表示上の命名）なので対象に入れない。
-      for (const line of [...p.go, ...p.noGo]) out.push(textOf(line))
-    } else if (p.kind === 'gauge') {
-      // title は図の呼び名（命名）なので対象に入れない。数値と条件は逐語で検査する。
-      for (const it of p.items) out.push(it.value, textOf(it.label))
-    } else if (p.kind === 'decision') {
-      // question / when は表示上の命名なので対象に入れない。答えと但し書きは逐語で検査する。
-      for (const br of p.branches) {
-        out.push(textOf(br.then))
-        if (br.note) out.push(textOf(br.note))
+    switch (p.kind) {
+      case 'comparison':
+      case 'matrix':
+        for (const row of p.rows) for (const cell of row) out.push(textOf(cell))
+        break
+      case 'flow':
+      case 'timeline':
+        if (p.intro) out.push(textOf(p.intro))
+        for (const step of p.steps) {
+          out.push(textOf(step.inlines))
+          if (step.dose) out.push(textOf(step.dose))
+          if (step.note) out.push(textOf(step.note))
+        }
+        break
+      case 'cards':
+        // title はカードの呼び名（命名）なので対象に入れない。
+        for (const c of p.cards) for (const line of c.lines) out.push(textOf(line))
+        break
+      case 'note':
+        out.push(textOf(p.inlines))
+        break
+      case 'bignumber':
+        out.push(p.value, textOf(p.caption))
+        break
+      case 'gonogo':
+        // goLabel / noGoLabel は枠の見出し（表示上の命名）なので対象に入れない。
+        for (const line of [...p.go, ...p.noGo]) out.push(textOf(line))
+        break
+      case 'gauge':
+        // title は図の呼び名（命名）なので対象に入れない。数値と条件は逐語で検査する。
+        for (const it of p.items) out.push(it.value, textOf(it.label))
+        break
+      case 'decision':
+        // question / when は表示上の命名なので対象に入れない。答えと但し書きは逐語で検査する。
+        for (const br of p.branches) {
+          out.push(textOf(br.then))
+          if (br.note) out.push(textOf(br.note))
+        }
+        break
+      case 'none':
+        // 表層なし。対象に入れる文字列がない。
+        break
+      default: {
+        // 部品を足したらここが型エラーになる。逐語検査から漏れたまま公開されるのを防ぐ。
+        const _exhaustive: never = p
+        void _exhaustive
       }
     }
   }

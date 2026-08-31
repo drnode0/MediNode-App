@@ -545,7 +545,7 @@ npx tsx scripts/spread-namings.ts .preview/arf-spread.json
 Expected: 命名が40件前後（記憶の実測は42件）。**出た件数を記録する**（Task 3 に書く）。
 `.preview/arf-spread.json` が無ければ先に作る：
 ```bash
-npx tsx scripts/preview-spread.tsx 3cbfd7567370814185e3da90f1864550 /dev/null --overlay .preview/arf-overlay.json --json .preview/arf-spread.json
+npx tsx scripts/preview-spread.tsx <急性呼吸不全 Essentials の pageId> /dev/null --overlay .preview/arf-overlay.json --json .preview/arf-spread.json
 ```
 
 - [ ] **Step 7: 型チェックと全テスト**

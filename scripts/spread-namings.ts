@@ -18,8 +18,11 @@ if (!path) {
 // 読む形（{ spread, doc, lastEdited, cover, title, icon }）で包んで書き出す。
 // 生の SpreadDoc を渡された場合（他の作り方をしたファイル）にも対応できるよう、
 // spread キーがあればそちらを、無ければトップレベルをそのまま SpreadDoc として扱う。
-const raw = JSON.parse(fs.readFileSync(path, 'utf8')) as SpreadDoc | { spread: SpreadDoc }
-const spread: SpreadDoc = 'spread' in raw ? raw.spread : raw
+const raw = JSON.parse(fs.readFileSync(path, 'utf8')) as SpreadDoc | { spread: SpreadDoc } | null
+// raw が null や配列（不正なJSON本体）だと `in` 演算子がそのまま投げて分かりにくい落ち方をするので、
+// object であることを先に見てから調べる。
+const spread: SpreadDoc =
+  raw !== null && typeof raw === 'object' && !Array.isArray(raw) && 'spread' in raw ? raw.spread : (raw as SpreadDoc)
 const namings = collectNamings(spread)
 
 const none = namings.filter((n) => n.net === 'none')

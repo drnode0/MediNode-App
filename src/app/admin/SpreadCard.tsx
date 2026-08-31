@@ -44,6 +44,10 @@ type Row = {
 
 export function SpreadCard() {
   const [rows, setRows] = useState<Row[] | null>(null)
+  // 一覧の取得が失敗したときの目印。通信失敗や異常なレスポンスは rows=[] に落として
+  // 扱うと「本当に0件」と見分けが付かず、投入ボタンが再び押せる状態に戻ってしまう
+  // （原本にすでにある記事の投入を許してしまう事故の再発経路）。
+  const [loadFailed, setLoadFailed] = useState(false)
   // 複数行を同時に処理できるよう、処理中のpage_idはSetで持つ。1つのstateに1件しか
   // 持てない形だと、別行の処理を始めた瞬間に前の行が「処理中」から外れて再操作できてしまう。
   const [busy, setBusy] = useState<Set<string>>(new Set())
@@ -70,10 +74,22 @@ export function SpreadCard() {
   const load = useCallback(() => {
     // 原本の最終更新との突合（stale判定）はNotionへ問い合わせる分、重い。
     // 一覧を開くたびに毎回叩くと件数が増えたとき遅くなるので、このカードを開いたときだけ ?check=1 で叩く。
+    setLoadFailed(false)
     fetch('/api/admin/spread?check=1')
       .then((r) => r.json())
-      .then((d) => setRows(d.spreads ?? []))
-      .catch(() => setRows([]))
+      .then((d) => {
+        if (!d.spreads) {
+          // spreads が無いレスポンス（500のエラーJSON等）は「0件」ではなく読み込み失敗。
+          setLoadFailed(true)
+          setRows([])
+          return
+        }
+        setRows(d.spreads)
+      })
+      .catch(() => {
+        setLoadFailed(true)
+        setRows([])
+      })
   }, [])
   useEffect(load, [load])
 
@@ -220,7 +236,14 @@ export function SpreadCard() {
         </div>
       )}
 
-      {rows !== null && rows.length === 0 && (
+      {rows !== null && rows.length === 0 && loadFailed && (
+        <p className="text-xs text-red-600 dark:text-red-400 py-4">
+          <AlertTriangle className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" aria-hidden />
+          一覧を読めませんでした。再読み込みしてください。
+        </p>
+      )}
+
+      {rows !== null && rows.length === 0 && !loadFailed && (
         <p className="text-xs text-gray-400 dark:text-gray-500 py-4">まだスプレッドはありません。下の入力から1枚目を投入できます。</p>
       )}
 
@@ -258,7 +281,7 @@ export function SpreadCard() {
         )}
         <button
           type="button"
-          disabled={injecting || !newPageId.trim() || !!existingRow}
+          disabled={injecting || !newPageId.trim() || !!existingRow || loadFailed}
           onClick={inject}
           className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 text-xs"
         >

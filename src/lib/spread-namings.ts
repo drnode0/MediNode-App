@@ -7,6 +7,13 @@
 //
 // ここは verbatimTargets の裏返しとして書く。**部品を足したら、こちらにも足すこと。**
 // （.preview/style-diff.mjs の PAIRS と同じ性質の、追随が要る対応表）
+//
+// SpreadPart は fromPart の switch + never で網羅を型が止める。だが SpreadQuiz と
+// SpreadRef は逆に「対象フィールドを手で書き出す」形なので、型システムの網の外にいた。
+// どちらも最近フィールドが増えており（answerLead・explanation・sourceId）、次にプロパティを
+// 足したときも同じことが起きる。そこで各ループの末尾で「拾ったキー以外が残っていないか」を
+// 分割代入の rest で確認し、Record<string, never> への代入で型エラーにする
+// （新フィールドを足すとここが壊れる＝気づける）。
 
 import type { SpreadDoc, SpreadPart } from './reader-spread'
 
@@ -62,8 +69,12 @@ function fromPart(part: SpreadPart, at: string): Naming[] {
     default: {
       // 部品を足したらここが型エラーになる。命名フィールドを持つ部品を
       // 取りこぼすと、そのまま読者に出てしまうため、コメントではなく型で止める。
+      // ここに実際に来ることはない（コンパイルが通っている限り）。万一実行時に来ても
+      // part（オブジェクト）を返すと呼び出し側の `out.push(...fromPart(...))` が
+      // スプレッド構文エラーで落ちるので、never を確認したうえで out（空配列）を返す。
       const _exhaustive: never = part
-      return _exhaustive
+      void _exhaustive
+      return out
     }
   }
 
@@ -93,6 +104,23 @@ export function collectNamings(spread: SpreadDoc): Naming[] {
     // 解説は逐語検査を通るが、照合先のスプレッドノートも Claude が書いている。
     if (q.answerLead?.trim()) out.push({ where: `${at} answerLead`, text: q.answerLead.trim(), net: 'circular' })
     if (q.explanation?.trim()) out.push({ where: `${at} explanation`, text: q.explanation.trim(), net: 'circular' })
+    // 拾った（または意図的に拾わない）キー以外が残っていたら型エラーにする。
+    // id・sectionAnchor・answerIndex・evidence・reviewed は命名ではないので拾わないが、
+    // ここで明示的に名指ししておかないと、新しい prose フィールドが黙って rest に紛れ込む。
+    const {
+      question: _question,
+      choices: _choices,
+      answerLead: _answerLead,
+      explanation: _explanation,
+      id: _id,
+      sectionAnchor: _sectionAnchor,
+      answerIndex: _answerIndex,
+      evidence: _evidence,
+      reviewed: _reviewed,
+      ...restQuiz
+    } = q
+    const _exhaustiveQuiz: Record<string, never> = restQuiz
+    void _exhaustiveQuiz
   }
 
   for (const [i, r] of (spread.refs ?? []).entries()) {
@@ -100,6 +128,9 @@ export function collectNamings(spread: SpreadDoc): Naming[] {
     for (const key of ['title', 'source', 'note'] as const) {
       if (r[key]?.trim()) out.push({ where: `${at} ${key}`, text: r[key].trim(), net: 'circular' })
     }
+    const { title: _title, source: _source, note: _note, sourceId: _sourceId, ...restRef } = r
+    const _exhaustiveRef: Record<string, never> = restRef
+    void _exhaustiveRef
   }
 
   return out
