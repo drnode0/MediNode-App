@@ -9,7 +9,7 @@
 // 既存行を書き換えず読み取り時にだけ解釈するので、移行のためのバックフィルは不要。
 
 // 開閉できる機能の一覧。UI のラベルもこの順に並べる。
-export const EARLY_ACCESS_FEATURES = ['easy_connect', 'multi_department', 'tower', 'personal_reader'] as const
+export const EARLY_ACCESS_FEATURES = ['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall'] as const
 export type EarlyAccessFeature = (typeof EARLY_ACCESS_FEATURES)[number]
 
 // レガシー early_access(boolean) が意味していた機能。かんたん接続は含めない
@@ -31,6 +31,10 @@ const FEATURE_ENV: Record<EarlyAccessFeature, { ga: string; emails: string; emai
   // 個人・部署ページのアプリ内リーダー（降格式）。専用リストのみ・フォールバックなし
   // （EARLY_ACCESS_EMAILS に落とすと、他機能のモニターに未磨きのリーダーまで開いてしまう）。
   personal_reader: { ga: 'PERSONAL_READER_GA', emails: 'PERSONAL_READER_EMAILS' },
+  // Recall（知の球）。drnode.com 版の大型アップデートまでオーナー専用。専用リストのみ・
+  // フォールバック無し（EARLY_ACCESS_EMAILS に落とすと他機能のモニターに開いてしまう）。
+  // 全員開放の RECALL_GA は公開判断が下りるまで置かない。
+  recall: { ga: 'RECALL_GA', emails: 'RECALL_EMAILS' },
 }
 
 function envListNames(name: string): string[] {
