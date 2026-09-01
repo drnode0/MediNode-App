@@ -8,6 +8,8 @@ const revalidateSubscriptionReaderDocs = vi.fn()
 // PUT が overlay 省略時に読みに行く既存行、PATCH が読みに行く既存行、どちらも
 // 同じ select().eq().maybeSingle() 経路を通るので1本の vi.fn で共有する。
 const maybeSingle = vi.fn()
+// GET が投げた select の列指定。記事名を spread_doc 全体を引かずに取れているかを見る。
+let lastSelectArg: string | undefined
 let selectRows: unknown[] = []
 let existingOverlayRow: { overlay: unknown; status?: string; source_last_edited?: string | null } | null = null
 let overlayReadError: unknown = null
@@ -19,10 +21,13 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
     from: () => ({
       upsert,
-      select: () => ({
-        order: () => ({ data: selectRows, error: null }),
-        eq: () => ({ maybeSingle }),
-      }),
+      select: (cols?: string) => {
+        lastSelectArg = cols
+        return {
+          order: () => ({ data: selectRows, error: null }),
+          eq: () => ({ maybeSingle }),
+        }
+      },
     }),
   }),
 }))
@@ -52,6 +57,7 @@ beforeEach(() => {
   notionRetrieve.mockResolvedValue({ last_edited_time: '2026-08-20T00:00:00.000Z', properties: {} })
   upsert.mockResolvedValue({ error: null })
   selectRows = []
+  lastSelectArg = undefined
   existingOverlayRow = null
   overlayReadError = null
   notionBlocks = BASE_BLOCKS
@@ -421,17 +427,42 @@ describe('GET /api/admin/spread', () => {
       { id: 'q1', sectionAnchor: '1', question: '？', choices: ['a', 'b'], answerIndex: 0, evidence: '本文。', reviewed: false },
     ]
     selectRows = [
-      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', overlay: { quizzes } },
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: '📚 急性呼吸不全 Essentials', overlay: { quizzes } },
     ]
     const res = await GET(getReq())
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.spreads).toEqual([
-      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', quizzes },
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: '📚 急性呼吸不全 Essentials', quizzes },
     ])
     // overlay 列そのものは応答に残らないこと（spread_doc 同様に重いものは返さない）
     expect(body.spreads[0].overlay).toBeUndefined()
     expect(notionRetrieve).not.toHaveBeenCalled()
+  })
+
+  // 一覧の行は page_id の先頭8桁でしか区別できず、どの記事を操作しているかが読めなかった
+  // （実害：既存の記事を「新規投入」してオーナーの手直しごと上書きした）。記事名は
+  // spread_doc.title にあるので、spread_doc 全体を引かずに列指定だけで取り出す。
+  it('記事名を返す（spread_doc 全体は引かない）', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'draft', source_last_edited: null, verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: '📚 急性呼吸不全 Essentials' },
+    ]
+    const res = await GET(getReq())
+    const body = await res.json()
+    expect(body.spreads[0].title).toBe('📚 急性呼吸不全 Essentials')
+    expect(lastSelectArg).toContain('spread_doc->>title')
+    // 本文まるごと（spread_doc そのもの）を列に並べていないこと。一覧は1件180KB級になる。
+    expect(lastSelectArg).not.toMatch(/(^|,)\s*spread_doc\s*(,|$)/)
+  })
+
+  it('spread_doc に title が無い行は title: null を返す（行は出す）', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'draft', source_last_edited: null, verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: null },
+    ]
+    const res = await GET(getReq())
+    const body = await res.json()
+    expect(body.spreads[0].title).toBeNull()
+    expect(body.spreads[0].page_id).toBe('p1')
   })
 
   it('overlay に quizzes が無い行は quizzes: [] を返す', async () => {
