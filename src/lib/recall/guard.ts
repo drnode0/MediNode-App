@@ -81,6 +81,8 @@ export function claimFromRow(r: Row): RecallClaim {
     genreSlot: Number(r.genre_slot ?? 63), holes: (r.holes as [number, number][]) ?? [], clozeStatus: (r.cloze_status as RecallClaim['clozeStatus']) ?? 'pending',
     // 取り下げた主張を隠すためのフラグなので、null・欠落・boolean 以外は「出さない」側に倒す。
     active: r.active === true,
+    // 無い場合（列を選んでいない呼び出し）は undefined のまま。配置側が主張IDで並べる。
+    createdAt: typeof r.created_at === 'string' ? r.created_at : undefined,
   }
 }
 export function progressFromRow(r: Row): RecallProgress {

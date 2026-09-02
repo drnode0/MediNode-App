@@ -16,7 +16,7 @@ export async function GET() {
   // active の絞り込みはポリシーが無い今、このコード1行だけが担っている（消すと取り下げた主張まで出る）。
   const { data, error } = await g.admin()
     .from('recall_claims')
-    .select('claim_id, page_id, page_title, page_kind, section_key, section_heading, body, source, confidence, genres, primary_genre, genre_slot, holes, cloze_status, active')
+    .select('claim_id, page_id, page_title, page_kind, section_key, section_heading, body, source, confidence, genres, primary_genre, genre_slot, holes, cloze_status, active, created_at')
     .eq('active', true)
     .order('claim_id')
     // 件数の上限を書かないと max-rows の既定で黙って切られる（理由は guard.ts の CLAIMS_LIMIT）。

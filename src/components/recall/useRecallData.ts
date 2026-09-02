@@ -87,16 +87,26 @@ export function useRecallData() {
   const progressById = useMemo(() => new Map(progress.map((p) => [p.claimId, p])), [progress])
   const readSet = useMemo(() => new Set(reads.map((r) => `${r.pageId}#${r.sectionKey}`)), [reads])
 
-  const sprites: Sprite[] = useMemo(() => claims.map((c, i) => ({
-    claimId: c.claimId, home: positions.get(c.claimId) as Vec3,
-    state: stateOf(c.claimId, progressById.get(c.claimId), readSet.has(`${c.pageId}#${c.sectionKey}`), now),
-    phase: (i % 628) / 100,
-  })), [claims, positions, progressById, readSet, now])
+  // ゆらぎの位相。並び順ではなく主張IDから決める（同期で並びが変わっても同じ主張は同じ揺れ方）。
+  const phaseById = useMemo(() => new Map(claims.map((c) => {
+    let h = 0
+    for (let i = 0; i < c.claimId.length; i++) h = (Math.imul(h, 31) + c.claimId.charCodeAt(i)) | 0
+    return [c.claimId, ((h >>> 0) % 6283) / 1000]
+  })), [claims])
+
+  const sprites: Sprite[] = useMemo(() => claims.map((c) => {
+    const p = positions.get(c.claimId)!
+    return {
+      claimId: c.claimId, home: p.v, dir: p.dir, scale: p.scale, variant: p.variant,
+      state: stateOf(c.claimId, progressById.get(c.claimId), readSet.has(`${c.pageId}#${c.sectionKey}`), now),
+      phase: phaseById.get(c.claimId) ?? 0,
+    }
+  }), [claims, positions, progressById, readSet, now, phaseById])
 
   const marks: Mark[] = useMemo(() => {
     const byPage = new Map<string, Vec3[]>(), bySlot = new Map<number, Vec3[]>()
     for (const c of claims) {
-      const v = positions.get(c.claimId)!
+      const v = positions.get(c.claimId)!.v
       if (!byPage.has(c.pageId)) byPage.set(c.pageId, []); byPage.get(c.pageId)!.push(v)
       if (!bySlot.has(c.genreSlot)) bySlot.set(c.genreSlot, []); bySlot.get(c.genreSlot)!.push(v)
     }
