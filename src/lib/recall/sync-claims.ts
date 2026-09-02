@@ -17,13 +17,34 @@ export type SaveRecallClaimsOptions = {
   canDeactivate: boolean
 }
 
+export type SaveRecallClaimsCounts = { upserted: number; deactivated: number }
+
+/**
+ * 途中まで書けた件数を持ったまま投げるエラー。
+ *
+ * 例外を投げる前に何行書けたのかを添えないと、呼び出し側（_core.ts）は「0件」としか
+ * ログできない。数百行を upsert した直後に非活性化だけ失敗した場合でも運用者のログには
+ * 0件と出てしまい、実際に起きたことと食い違う。
+ */
+export class RecallClaimsSaveError extends Error {
+  readonly counts: SaveRecallClaimsCounts
+  constructor(message: string, counts: SaveRecallClaimsCounts) {
+    super(message)
+    this.name = 'RecallClaimsSaveError'
+    this.counts = counts
+  }
+}
+
 export async function saveRecallClaims(
   admin: SupabaseClient,
   claims: RecallClaim[],
   options: SaveRecallClaimsOptions,
-): Promise<{ upserted: number; deactivated: number }> {
+): Promise<SaveRecallClaimsCounts> {
   if (!claims.length) return { upserted: 0, deactivated: 0 }
   const now = new Date().toISOString()
+  // 実際に書けた行数を積み上げる。途中で失敗したときに「どこまで書けたか」を
+  // 例外へ載せるため、claims.length を最後にまとめて返す形にはしない。
+  let upserted = 0
   for (let i = 0; i < claims.length; i += CHUNK) {
     const rows = claims.slice(i, i + CHUNK).map((c) => ({
       claim_id: c.claimId, page_id: c.pageId, page_title: c.pageTitle, page_kind: c.pageKind,
@@ -32,13 +53,18 @@ export async function saveRecallClaims(
       holes: c.holes, active: true, updated_at: now,
     }))
     const { error } = await admin.from('recall_claims').upsert(rows, { onConflict: 'claim_id' })
-    if (error) throw new Error(`recall_claims upsert 失敗: ${error.message}`)
+    if (error) {
+      throw new RecallClaimsSaveError(`recall_claims upsert 失敗: ${error.message}`, {
+        upserted, deactivated: 0,
+      })
+    }
+    upserted += rows.length
   }
   if (!options.canDeactivate) {
     console.warn(
       'recall_claims: 本文を取得できなかったページがあったため、非活性化は行いませんでした（保存のみ実施）',
     )
-    return { upserted: claims.length, deactivated: 0 }
+    return { upserted, deactivated: 0 }
   }
   // upsert した行は updated_at === now。それより古い active な行が「今回見つからなかった主張」。
   const { error, count } = await admin
@@ -46,6 +72,10 @@ export async function saveRecallClaims(
     .update({ active: false, updated_at: now }, { count: 'exact' })
     .eq('active', true)
     .lt('updated_at', now)
-  if (error) throw new Error(`recall_claims inactive 化失敗: ${error.message}`)
-  return { upserted: claims.length, deactivated: count ?? 0 }
+  if (error) {
+    throw new RecallClaimsSaveError(`recall_claims inactive 化失敗: ${error.message}`, {
+      upserted, deactivated: 0,
+    })
+  }
+  return { upserted, deactivated: count ?? 0 }
 }

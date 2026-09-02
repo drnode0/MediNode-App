@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { saveRecallClaims } from '@/lib/recall/sync-claims'
+import { RecallClaimsSaveError, saveRecallClaims } from '@/lib/recall/sync-claims'
 import type { RecallClaim } from '@/lib/recall/types'
 
 const claim = (id: string): RecallClaim => ({
@@ -10,6 +10,8 @@ const claim = (id: string): RecallClaim => ({
 
 type FakeOptions = {
   upsertError?: { message: string }
+  // n回目（1始まり）の upsert だけ失敗させる。チャンク途中で落ちた場合の再現用。
+  upsertErrorAtCall?: number
   updateError?: { message: string }
   count?: number
 }
@@ -17,7 +19,12 @@ type FakeOptions = {
 // 非活性化のクエリビルダも観測できるモック。update().eq().lt() の連鎖を記録し、
 // await されたときに { error, count } を返す（thenable）。
 function fakeAdmin(opts: FakeOptions = {}) {
-  const upsert = vi.fn(async () => ({ error: opts.upsertError ?? null }))
+  let upsertCalls = 0
+  const upsert = vi.fn(async () => {
+    upsertCalls++
+    if (opts.upsertErrorAtCall === upsertCalls) return { error: { message: 'timeout' } }
+    return { error: opts.upsertError ?? null }
+  })
   const eq = vi.fn()
   const lt = vi.fn()
   const update = vi.fn(() => {
@@ -101,5 +108,22 @@ describe('saveRecallClaims', () => {
     await expect(saveRecallClaims(admin as never, [claim('a')], CAN)).rejects.toThrow(
       'recall_claims inactive 化失敗: permission denied',
     )
+  })
+
+  it('非活性化で失敗しても、それまでに書けた件数を例外に載せる', async () => {
+    const { admin } = fakeAdmin({ updateError: { message: 'permission denied' } })
+    const claims = Array.from({ length: 201 }, (_, i) => claim(`c${i}`))
+    const err = await saveRecallClaims(admin as never, claims, CAN).catch((e) => e)
+    // upsert は全件済み。ここで 0 と報告すると、運用者はログから「1行も書けなかった」と読む
+    expect(err).toBeInstanceOf(RecallClaimsSaveError)
+    expect((err as RecallClaimsSaveError).counts).toEqual({ upserted: 201, deactivated: 0 })
+  })
+
+  it('upsert が途中で失敗したら、成功したチャンクまでの件数を例外に載せる', async () => {
+    const { admin } = fakeAdmin({ upsertErrorAtCall: 2 })
+    const claims = Array.from({ length: 250 }, (_, i) => claim(`c${i}`))
+    const err = await saveRecallClaims(admin as never, claims, CAN).catch((e) => e)
+    expect(err).toBeInstanceOf(RecallClaimsSaveError)
+    expect((err as RecallClaimsSaveError).counts).toEqual({ upserted: 200, deactivated: 0 })
   })
 })

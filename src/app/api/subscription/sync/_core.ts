@@ -7,7 +7,7 @@ import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 import { extractClaims } from '@/lib/recall/extract-claims'
-import { saveRecallClaims } from '@/lib/recall/sync-claims'
+import { RecallClaimsSaveError, saveRecallClaims } from '@/lib/recall/sync-claims'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { RecallClaim } from '@/lib/recall/types'
 
@@ -170,8 +170,9 @@ async function syncMedicalDb(
   claims: RecallClaim[],
 ): Promise<{ count: number; failedPages: number }> {
   let count = 0
-  // 本文（ブロック）を取れなかった／主張抽出で例外になったページ数。1件でもあれば
-  // 「主張が消えた」のか「取りこぼした」のか区別できないので、非活性化は行わない。
+  // 本文（ブロック）を取れなかった／子ブロックの取得に失敗した／主張抽出で例外になった
+  // ページ数。1件でもあれば「主張が消えた」のか「取りこぼした」のか区別できないので、
+  // 非活性化は行わない。
   let failedPages = 0
   let cursor: string | undefined = undefined
   do {
@@ -198,7 +199,12 @@ async function syncMedicalDb(
       // コンテナの子を展開してから抽出する（1ページ最大8リクエストの上限つき）
       const knowledgeLevel = extractText(props['知識レベル'] || {})
       if (blocks && isClozeCandidate({ knowledgeLevel })) {
-        await expandChildren(notion, blocks)
+        const expanded = await expandChildren(notion, blocks)
+        // 子の取得に失敗した回があると、入れ子の主張だけが本文から落ちる。ページ本体は
+        // 取れているので同期は続けるが、取りこぼしには違いないので失敗として数え、
+        // 非活性化（＝落ちた主張を「消えた」とみなす処理）は行わせない。
+        // 取得上限で打ち切っただけの場合は expanded.failed に入らない（決定的な打ち切り）。
+        if (expanded.failed > 0) failedPages++
       }
       const record: Record<string, unknown> = {
         objectID: `subscription_${page.id}`,
@@ -462,7 +468,16 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       recallClaims = saved.upserted
       recallDeactivated = saved.deactivated
     } catch (err) {
-      console.error('Recall 主張の保存に失敗しました（同期自体は続行します）:', err)
+      // 途中まで書けていたぶんは報告に載せる。まとめて0件と出すと、運用者がログから
+      // 「1行も書けなかった」と読み違える（実際には数百行が入っていることがある）。
+      if (err instanceof RecallClaimsSaveError) {
+        recallClaims = err.counts.upserted
+        recallDeactivated = err.counts.deactivated
+      }
+      console.error(
+        `Recall 主張の保存に失敗しました（同期自体は続行します。保存できた主張=${recallClaims}件）:`,
+        err,
+      )
     }
   }
 
