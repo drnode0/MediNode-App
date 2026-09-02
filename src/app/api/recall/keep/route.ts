@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireRecall, progressFromRow, progressToRow, serverError, notFound } from '@/lib/recall/guard'
+import { requireRecall, progressFromRow, progressToRow, serverError, notFound, validId } from '@/lib/recall/guard'
 import { newProgress } from '@/lib/recall/srs'
 
 export const dynamic = 'force-dynamic'
@@ -22,16 +22,19 @@ export async function POST(req: Request) {
   const g = await requireRecall()
   if (!g.ok) return g.response
   const body = (await req.json().catch(() => null)) as { claimId?: unknown; keep?: unknown } | null
-  if (!body || typeof body.claimId !== 'string' || typeof body.keep !== 'boolean') {
+  const claimId = body ? validId(body.claimId) : null
+  if (!claimId || typeof body?.keep !== 'boolean') {
     return NextResponse.json({ error: 'claimId と keep が必要です' }, { status: 400 })
   }
-  const { data, error } = await g.supabase.from('recall_progress').select(COLS).eq('user_id', g.userId).eq('claim_id', body.claimId).maybeSingle()
+  // 読み取り→JSで計算→書き戻しの間に、別リクエスト（外す／残す）が割り込むと後勝ちで
+  // 上書きされうる（DB側の条件付き更新でないと閉じ切れないため対象外）。
+  const { data, error } = await g.supabase.from('recall_progress').select(COLS).eq('user_id', g.userId).eq('claim_id', claimId).maybeSingle()
   if (error) return serverError('keep: 既存記録の読み取りに失敗', error)
   const now = new Date()
   let next
   if (body.keep) {
     // 既存があれば streak 等を保ったまま removedAt だけ外す。無ければ新規に間隔1日で開始する。
-    next = data ? { ...progressFromRow(data), removedAt: null } : newProgress(body.claimId, now)
+    next = data ? { ...progressFromRow(data), removedAt: null } : newProgress(claimId, now)
   } else {
     // 残していない主張を外すことはできない（そもそも記録が無い）。
     // ここは requireRecall() を通った後のアプリ内部の404なので、guard.notFound() の

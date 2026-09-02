@@ -76,3 +76,16 @@ export function progressToRow(userId: string, p: RecallProgress): Row {
 export function readFromRow(r: Row): RecallSectionRead {
   return { pageId: String(r.page_id), sectionKey: String(r.section_key), readAt: String(r.read_at) }
 }
+
+// claimId・pageId・sectionKey 用の共有バリデータ。テーブルに外部キー制約が無いため、
+// 型チェック（typeof string）だけでは空文字や巨大な文字列がそのまま書き込まれてしまう。
+// 実物の長さ: claimId は claimIdOf()（sha1 先頭24文字）で24文字固定、pageId は Notion の
+// ページID（ダッシュ有り/無しで最長36文字程度）、sectionKey は "secN"（数文字）。
+// いずれも実物の数倍の余裕を持たせつつ、10KB 級の入力は弾く閾値として128文字を上限にする。
+const MAX_ID_LEN = 128
+export function validId(value: unknown, max = MAX_ID_LEN): string | null {
+  if (typeof value !== 'string') return null
+  const s = value.trim()
+  if (!s || s.length > max) return null
+  return s
+}

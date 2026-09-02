@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireRecall, serverError, notFound } from '@/lib/recall/guard'
+import { requireRecall, serverError, notFound, validId } from '@/lib/recall/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +17,13 @@ export async function POST(req: Request) {
   const g = await requireRecall()
   if (!g.ok) return g.response
   const body = (await req.json().catch(() => null)) as { pageId?: unknown; sectionKey?: unknown } | null
-  if (!body || typeof body.pageId !== 'string' || typeof body.sectionKey !== 'string') {
+  const pageId = body ? validId(body.pageId) : null
+  const sectionKey = body ? validId(body.sectionKey) : null
+  if (!pageId || !sectionKey) {
     return NextResponse.json({ error: 'pageId と sectionKey が必要です' }, { status: 400 })
   }
   const { error } = await g.supabase.from('recall_section_reads').upsert(
-    { user_id: g.userId, page_id: body.pageId, section_key: body.sectionKey, read_at: new Date().toISOString() },
+    { user_id: g.userId, page_id: pageId, section_key: sectionKey, read_at: new Date().toISOString() },
     { onConflict: 'user_id,page_id,section_key' },
   )
   if (error) return serverError('read: 読了記録の書き込みに失敗', error)
