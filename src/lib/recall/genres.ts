@@ -16,7 +16,18 @@ export const GENRE_CAPACITY = 64
 export const OTHER_SLOT = 63
 const INBOX = 'INBOX'
 
-const SLOT_BY_KEY = new Map<string, number>(GENRE_SEATS.map((g, i) => [canonicalGenreKey(g), i]))
+// new Map(...) は同じキーの後勝ちで前の席を黙って上書きするため、正規化キーが
+// 衝突した席が将来足されたときに気付けない（例: 「34.呼吸」を追加すると 04.呼吸 の
+// 席番号が静かに入れ替わり、既存の主張が別の席へ動いてしまう）。ここでは衝突を
+// 例外で早期に落として、席の固定という前提を守る。
+const SLOT_BY_KEY = new Map<string, number>()
+for (const [i, g] of GENRE_SEATS.entries()) {
+  const key = canonicalGenreKey(g)
+  if (SLOT_BY_KEY.has(key)) {
+    throw new Error(`GENRE_SEATS の正規化キーが重複している: "${g}"`)
+  }
+  SLOT_BY_KEY.set(key, i)
+}
 
 export function genreSlotOf(genre: string): number {
   const slot = SLOT_BY_KEY.get(canonicalGenreKey(genre))
@@ -26,7 +37,12 @@ export function genreSlotOf(genre: string): number {
 // 主ジャンル＝Notion の並びの1つ目。INBOX は飛ばす。
 export function primaryGenreOf(genres: string[]): { genre: string; slot: number } | null {
   for (const g of genres) {
-    if (canonicalGenreKey(g).toUpperCase() === INBOX) continue
+    const key = canonicalGenreKey(g)
+    if (key.toUpperCase() === INBOX) continue
+    // 計画からの意図的な変更: 正規化して空になる facet（「05.」など。genre.ts の
+    // mergeGenreKeys が同じ理由で捨てている）は主張の主張先にできないので飛ばす。
+    // 飛ばさないと その他 の席に落ち、本来拾うべき次の実ジャンルを取り逃す。
+    if (!key) continue
     return { genre: g, slot: genreSlotOf(g) }
   }
   return null

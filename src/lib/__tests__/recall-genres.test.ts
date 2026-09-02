@@ -23,4 +23,26 @@ describe('ジャンル席', () => {
     expect(primaryGenreOf(['INBOX'])).toBeNull()
     expect(primaryGenreOf([])).toBeNull()
   })
+  it('33席すべてが自分の番号どおりの席に落ちる（往復）', () => {
+    GENRE_SEATS.forEach((seat, i) => {
+      expect(genreSlotOf(seat)).toBe(i)
+    })
+  })
+  it('その他の席は収容数-1に固定され、実席がその他の席を侵食しない', () => {
+    expect(OTHER_SLOT).toBe(GENRE_CAPACITY - 1)
+    expect(GENRE_SEATS.length).toBeLessThanOrEqual(OTHER_SLOT)
+  })
+  it('正規化して空になる facet は主ジャンルから飛ばされ、次の実ジャンルに落ちる', () => {
+    expect(primaryGenreOf(['05.', '04.呼吸'])).toEqual({ genre: '04.呼吸', slot: 3 })
+  })
+  it('空・空白だけの facet しかなければ主ジャンルは null', () => {
+    expect(primaryGenreOf(['05.', '', '   ', '12.'])).toBeNull()
+  })
+  it('空文字はその他の席に落ちる', () => {
+    expect(genreSlotOf('')).toBe(OTHER_SLOT)
+  })
+  it('33席の正規化キーはすべて異なる（席の重複がない）', () => {
+    const keys = GENRE_SEATS.map((g) => g.replace(/^\s*\d+[.．]\s*/, '').trim())
+    expect(new Set(keys).size).toBe(GENRE_SEATS.length)
+  })
 })
