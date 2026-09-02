@@ -28,7 +28,14 @@ import type { RecallClaim } from '@/lib/recall/types'
 
 export type SyncResult = {
   success: true
-  synced: { medical: number; reference: number; total: number; recallClaims: number }
+  synced: {
+    medical: number
+    reference: number
+    total: number
+    recallClaims: number
+    // 今回の同期で active=false にした主張の数。大量に非活性化されたときに気づけるよう表に出す。
+    recallDeactivated: number
+  }
   index: string
 }
 
@@ -161,8 +168,11 @@ async function syncMedicalDb(
   dbId: string,
   records: Record<string, unknown>[],
   claims: RecallClaim[],
-): Promise<number> {
+): Promise<{ count: number; failedPages: number }> {
   let count = 0
+  // 本文（ブロック）を取れなかった／主張抽出で例外になったページ数。1件でもあれば
+  // 「主張が消えた」のか「取りこぼした」のか区別できないので、非活性化は行わない。
+  let failedPages = 0
   let cursor: string | undefined = undefined
   do {
     const res = await notion.databases.query({
@@ -182,6 +192,7 @@ async function syncMedicalDb(
       // 分けるための門（スプレッドを用意する時間を取るため）。本文の取得より前で落とす。
       if (isWithheldFromReaders(extractText(props['制作ステータス'] || {}))) continue
       const blocks = await fetchPageBlocks(notion, page.id)
+      if (!blocks) failedPages++
       const stats = blocks ? computeContentStats(blocks) : null
       // ⚡結論ボックス（callout）内の赤マーカーも拾えるよう、クイズ候補（ナレッジ）だけ
       // コンテナの子を展開してから抽出する（1ページ最大8リクエストの上限つき）
@@ -225,12 +236,22 @@ async function syncMedicalDb(
       }
       records.push(record)
       if (blocks) {
-        claims.push(...extractClaims({
-          pageId: page.id, pageTitle: title, pageKind: title.trim().slice(0, 2).trim(),
-          genres: extractList(props['ジャンル'] || {}), blocks,
-        }))
-      }
-      if (blocks) {
+        try {
+          claims.push(...extractClaims({
+            pageId: page.id,
+            pageTitle: title,
+            // 先頭の絵文字1文字（❓💡📚⚡ など）。コードポイント単位で取る（UTF-16の2単位で
+            // 切ると "❓CQ名" が "❓C" になる）。
+            pageKind: Array.from(title.trim())[0] ?? '',
+            genres: extractList(props['ジャンル'] || {}),
+            blocks,
+          }))
+        } catch (err) {
+          // 1ページの抽出失敗で同期全体を止めない（ページ単位の失敗は他と同じ扱い）。
+          // ただし取りこぼしなので、このページは失敗として数え、非活性化を行わせない。
+          failedPages++
+          console.error('Recall 主張の抽出に失敗しました（同期は継続します）:', page.id, err)
+        }
         // 節レコードにclozeを複製しない（クイズ・今日の1問は親レコードだけを使う。
         // 複製するとAlgoliaの1レコード10KB上限を超える節が出る——2026-08-12に実際に発生）
         const { cloze: _cloze, ...sectionParent } = record
@@ -240,7 +261,7 @@ async function syncMedicalDb(
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
-  return count
+  return { count, failedPages }
 }
 
 async function syncReferenceDb(
@@ -403,7 +424,8 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
   let syncedReference = 0
 
   // Medical DB の同期
-  syncedMedical = await syncMedicalDb(notion, medicalDbId!, records, claims)
+  const medical = await syncMedicalDb(notion, medicalDbId!, records, claims)
+  syncedMedical = medical.count
 
   // Reference DB の同期（任意）
   if (referenceDbId) {
@@ -423,10 +445,25 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
   }
 
   // Recall の主張。Supabase が未設定の環境（ローカルの Algolia だけの検証）では飛ばす。
+  //
+  // ここは同期の本筋（Notion → Algolia）に対する二次的な書き込みなので、失敗しても
+  // 同期そのものは成功として返す。ここで throw すると Algolia は書けているのに
+  // 呼び出し側の revalidateSubscriptionReaderDocs() が走らず、「検索は新しいのに
+  // 本文キャッシュだけ古い」半端な状態が残る（2026-07-29 と同じ形の障害）。
   let recallClaims = 0
+  let recallDeactivated = 0
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const saved = await saveRecallClaims(createAdminClient(), claims)
-    recallClaims = saved.upserted
+    try {
+      // 本文を取れなかったページが1つでもあれば非活性化しない。取りこぼしのぶんを
+      // 「消えた主張」と誤認して大量に active=false にすると、読者の記録が宙に浮く。
+      const saved = await saveRecallClaims(createAdminClient(), claims, {
+        canDeactivate: medical.failedPages === 0,
+      })
+      recallClaims = saved.upserted
+      recallDeactivated = saved.deactivated
+    } catch (err) {
+      console.error('Recall 主張の保存に失敗しました（同期自体は続行します）:', err)
+    }
   }
 
   return {
@@ -436,6 +473,7 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       reference: syncedReference,
       total: records.length,
       recallClaims,
+      recallDeactivated,
     },
     index: algoliaIndex,
   }
