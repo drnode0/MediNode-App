@@ -8,6 +8,15 @@ export type Sprite = { claimId: string; home: Vec3; state: RecallState; phase: n
 export type Mark = { text: string; v: Vec3; level: 'genre' | 'page'; n: number }
 export type LensMode = 'all' | 'kept'
 
+// 球の半径と画面上の中心。描く・当たり判定・いま見ている区画の3か所が同じ値を見るための1か所。
+// 画面側でこの計算をやり直さない（やり直すとタップ位置がずれる）。
+export type View = { R: number; cx: number; cy: number }
+
+export function viewport(W: number, H: number, cam: Camera, flyingCount = 0): View {
+  // 山（離脱中の主張）が出ているあいだは球を上へ寄せる。3か所で同じだけ寄せる。
+  return { R: Math.min(W, H) * 0.34 * cam.zoom, cx: W / 2, cy: H / 2 - 14 - (flyingCount ? 46 : 0) }
+}
+
 export function project(v: Vec3, cam: Camera, R: number, cx: number, cy: number) {
   const x = v[0] * R, y = v[1] * R, z = v[2] * R
   const cyaw = Math.cos(cam.rotY), syaw = Math.sin(cam.rotY), cpit = Math.cos(cam.rotX), spit = Math.sin(cam.rotX)
@@ -19,13 +28,33 @@ export function project(v: Vec3, cam: Camera, R: number, cx: number, cy: number)
   return { X: cx + X * persp, Y: cy + Y * persp, Z, persp }
 }
 
-export function pickAt(sprites: Sprite[], cam: Camera, R: number, cx: number, cy: number, mx: number, my: number, radius: number): Sprite | null {
-  let best: Sprite | null = null, bd = radius
+function noise(v: Vec3, t: number, ph: number) {
+  return Math.sin(v[0] * 2.1 + t * 0.7 + ph) * 0.5 + Math.sin(v[1] * 2.7 + t * 0.9) * 0.3 + Math.sin(v[2] * 3.3 + t * 0.5 + ph) * 0.2
+}
+
+const isFading = (s: RecallState) => (s.kind === 'kept' || s.kind === 'settled') && s.remaining < ESCAPE_THRESHOLD
+
+// 実際に描く位置（定位置からのゆらぎと、薄れかけの明滅を足したもの）。
+// 当たり判定もこの関数を通す。見えている点と選ばれる点を二度と食い違わせないため、
+// ずらし方はここだけに置く。動きを減らす設定のときは、ゆらぎも明滅も止める。
+export function drawnPos(s: Sprite, t: number, reduced: boolean): Vec3 {
+  if (reduced) return s.home
+  const rr = 1 + noise(s.home, t, s.phase) * 0.05 + (isFading(s.state) ? Math.sin(t * 1.6 + s.phase) * 0.012 : 0)
+  return [s.home[0] * rr, s.home[1] * rr, s.home[2] * rr]
+}
+
+// 当たり判定。drawFrame は Z の大きい順に描く＝ Z がいちばん小さい点が最後に描かれて上に乗る。
+// なので半径内に複数あるときは、画面距離ではなく手前（Z が小さい方）を優先する。
+// 山へ飛んでいる最中の主張は drawFrame 側で位置を差し替えるので、ここでは扱わない。
+export function pickAt(sprites: Sprite[], cam: Camera, view: View, t: number, reduced: boolean, mx: number, my: number, radius: number): Sprite | null {
+  const { R, cx, cy } = view
+  let best: Sprite | null = null, bz = Infinity, bd = radius
   for (const s of sprites) {
-    const p = project(s.home, cam, R, cx, cy)
-    if (p.Z > R * 0.6) continue
+    const p = project(drawnPos(s, t, reduced), cam, R, cx, cy)
+    if (p.Z > R * 0.6) continue // 裏側は拾わない
     const d = Math.hypot(p.X - mx, p.Y - my)
-    if (d < bd) { bd = d; best = s }
+    if (d >= radius) continue
+    if (p.Z < bz || (p.Z === bz && d < bd)) { best = s; bz = p.Z; bd = d }
   }
   return best
 }
@@ -38,22 +67,22 @@ const COLORS: Record<RecallState['kind'], { color: string; glow: number; size: n
   cold:    { color: 'rgba(66,80,96,.9)', glow: 0.55, size: 4.8, alpha: 0.55 },
 }
 let spriteCache: Record<string, HTMLCanvasElement> | null = null
-function sprites(): Record<string, HTMLCanvasElement> {
+// 描くときに初めて canvas を触る（読み込むだけならブラウザ以外でも安全）。
+// 2D コンテキストが取れない環境では null を返し、呼び出し側が点を描くのをやめる。
+function sprites(): Record<string, HTMLCanvasElement> | null {
   if (spriteCache) return spriteCache
-  const make = (color: string, glow: number) => {
+  const out: Record<string, HTMLCanvasElement> = {}
+  for (const [k, v] of Object.entries(COLORS)) {
     const c = document.createElement('canvas'); c.width = c.height = 64
-    const g = c.getContext('2d')!
+    const g = c.getContext('2d')
+    if (!g) return null
     const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-    grad.addColorStop(0, color); grad.addColorStop(0.22, color); grad.addColorStop(1, 'rgba(0,0,0,0)')
-    g.fillStyle = grad; g.globalAlpha = glow; g.fillRect(0, 0, 64, 64)
-    return c
+    grad.addColorStop(0, v.color); grad.addColorStop(0.22, v.color); grad.addColorStop(1, 'rgba(0,0,0,0)')
+    g.fillStyle = grad; g.globalAlpha = v.glow; g.fillRect(0, 0, 64, 64)
+    out[k] = c
   }
-  spriteCache = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, make(v.color, v.glow)]))
+  spriteCache = out
   return spriteCache
-}
-
-function noise(v: Vec3, t: number, ph: number) {
-  return Math.sin(v[0] * 2.1 + t * 0.7 + ph) * 0.5 + Math.sin(v[1] * 2.7 + t * 0.9) * 0.3 + Math.sin(v[2] * 3.3 + t * 0.5 + ph) * 0.2
 }
 
 export const MAX_ZOOM = 3.4
@@ -71,8 +100,7 @@ export type FrameArgs = {
 export function drawFrame(ctx: CanvasRenderingContext2D, a: FrameArgs): Map<string, { X: number; Y: number }> {
   const { W, H, cam, t } = a
   ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#05080e'; ctx.fillRect(0, 0, W, H)
-  const R = Math.min(W, H) * 0.34 * cam.zoom
-  const cx = W / 2, cy = H / 2 - 14 - (a.flying.size ? 46 : 0)
+  const { R, cx, cy } = viewport(W, H, cam, a.flying.size)
   const SP = sprites()
   const ds = Math.max(0.4, Math.sqrt(520 / Math.max(a.sprites.length, 520)))
   const flyOrder = [...a.flying.keys()]
@@ -80,11 +108,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, a: FrameArgs): Map<stri
   type Item = { X: number; Y: number; Z: number; persp: number; s: Sprite; depth: number; fly: number }
   const list: Item[] = []
   for (const s of a.sprites) {
-    const wob = a.reduced ? 0 : noise(s.home, t, s.phase) * 0.05
-    const fading = (s.state.kind === 'kept' || s.state.kind === 'settled') && s.state.remaining < ESCAPE_THRESHOLD
-    const rr = 1 + wob + (fading ? Math.sin(t * 1.6 + s.phase) * 0.012 : 0)
-    const v: Vec3 = [s.home[0] * rr, s.home[1] * rr, s.home[2] * rr]
-    const pr = project(v, cam, R, cx, cy)
+    const pr = project(drawnPos(s, t, a.reduced), cam, R, cx, cy)
     let X = pr.X, Y = pr.Y
     const fly = a.flying.get(s.claimId) ?? 0
     if (fly > 0) {
@@ -99,18 +123,24 @@ export function drawFrame(ctx: CanvasRenderingContext2D, a: FrameArgs): Map<stri
     list.push({ X, Y, Z: fly > 0 ? -9999 : pr.Z, persp: pr.persp, s, depth, fly })
   }
   list.sort((p, q) => q.Z - p.Z)
-  for (const d of list) {
+  if (SP) for (const d of list) {
     const k = d.s.state.kind
     const c = COLORS[k]
     let size: number, alpha: number
     if (d.fly > 0) { size = 9.5 * ds * (1 + d.fly * 0.5); alpha = 0.5 + d.fly * 0.5 }
     else {
       size = c.size * ds * d.persp * (0.55 + d.depth * 0.75)
-      alpha = c.alpha * Math.pow(d.depth, cam.zoom > 1.4 ? 3.2 : 1.7)
-      if (k === 'kept' || k === 'settled') alpha *= 0.55 + 0.45 * d.s.state.remaining // 明るさ＝記憶の残り
+      // 奥行きの減衰は先に上限で止める。「記憶の残り」はそのあとに掛ける。
+      // 順番を逆にすると、手前側では上限に張り付いて残りの差が消える（＝いちばん見たい所で見えない）。
+      alpha = Math.min(1, c.alpha * Math.pow(d.depth, cam.zoom > 1.4 ? 3.2 : 1.7) + 0.05)
+      if (k === 'kept' || k === 'settled') {
+        const rem = d.s.state.remaining
+        alpha *= 0.55 + 0.45 * rem   // 明るさ＝記憶の残り
+        size *= 0.8 + 0.2 * rem      // 明るさだけに頼らず、粒の大きさでも残りを見せる
+      }
       if (a.lens === 'kept' && k !== 'kept' && k !== 'settled') alpha *= 0.25
     }
-    ctx.globalAlpha = Math.min(1, alpha + 0.05) * (a.dimmed && d.fly === 0 ? 0.42 : 1)
+    ctx.globalAlpha = alpha * (a.dimmed && d.fly === 0 ? 0.42 : 1)
     ctx.drawImage(SP[k], d.X - size, d.Y - size, size * 2, size * 2)
     if (k === 'settled') { ctx.globalAlpha = 0.12 * d.depth; ctx.drawImage(SP[k], d.X - size * 2.2, d.Y - size * 2.2, size * 4.4, size * 4.4) }
   }
@@ -141,16 +171,17 @@ export function drawFrame(ctx: CanvasRenderingContext2D, a: FrameArgs): Map<stri
   return deckPos
 }
 
-// 「いま見ている区画」: 画面中央に最も近い手前のページ目印
-export function hereMark(marks: Mark[], cam: Camera, W: number, H: number): Mark | null {
+// 「いま見ている区画」: 画面中央に最も近い手前のページ目印。
+// 中心は viewport と同じ（球の中心）。投影と距離の基準を揃える。
+export function hereMark(marks: Mark[], cam: Camera, view: View): Mark | null {
   if (cam.zoom < HERE_ZOOM) return null
-  const R = Math.min(W, H) * 0.34 * cam.zoom
+  const { R, cx, cy } = view
   let best: Mark | null = null, bd = Infinity
   for (const m of marks) {
     if (m.level !== 'page') continue
-    const p = project(m.v, cam, R, W / 2, H / 2 - 14)
+    const p = project(m.v, cam, R, cx, cy)
     if (p.Z > 0) continue
-    const d = Math.hypot(p.X - W / 2, p.Y - H / 2)
+    const d = Math.hypot(p.X - cx, p.Y - cy)
     if (d < bd) { bd = d; best = m }
   }
   return best
