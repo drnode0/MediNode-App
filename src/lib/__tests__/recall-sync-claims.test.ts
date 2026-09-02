@@ -14,10 +14,14 @@ type FakeOptions = {
   upsertErrorAtCall?: number
   updateError?: { message: string }
   count?: number
+  // upsert する前に DB にあった行（claim_id と holes）。承認を差し戻すかの判定に使う。
+  existing?: Array<{ claim_id: string; holes: unknown }>
+  selectError?: { message: string }
 }
 
-// 非活性化のクエリビルダも観測できるモック。update().eq().lt() の連鎖を記録し、
-// await されたときに { error, count } を返す（thenable）。
+// 非活性化のクエリビルダも観測できるモック。update().eq().lt() と
+// update().in().neq()（承認の差し戻し）の連鎖を記録し、await されたときに
+// { error, count } を返す（thenable）。select().in() は既存 holes の読み取り。
 function fakeAdmin(opts: FakeOptions = {}) {
   let upsertCalls = 0
   const upsert = vi.fn(async () => {
@@ -27,17 +31,32 @@ function fakeAdmin(opts: FakeOptions = {}) {
   })
   const eq = vi.fn()
   const lt = vi.fn()
+  const inFilter = vi.fn()
+  const neq = vi.fn()
   const update = vi.fn(() => {
     const builder: Record<string, unknown> = {}
     builder.eq = (...args: unknown[]) => { eq(...args); return builder }
     builder.lt = (...args: unknown[]) => { lt(...args); return builder }
+    builder.in = (...args: unknown[]) => { inFilter(...args); return builder }
+    builder.neq = (...args: unknown[]) => { neq(...args); return builder }
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(resolve({ error: opts.updateError ?? null, count: opts.count ?? 0 }))
     return builder
   })
+  const selectIn = vi.fn()
+  const select = vi.fn(() => {
+    const builder: Record<string, unknown> = {}
+    builder.in = (...args: unknown[]) => {
+      selectIn(...args)
+      const ids = (args[1] as string[]) ?? []
+      const data = (opts.existing ?? []).filter((r) => ids.includes(r.claim_id))
+      return Promise.resolve({ data, error: opts.selectError ?? null })
+    }
+    return builder
+  })
   const tables: string[] = []
-  const admin = { from: vi.fn((table: string) => { tables.push(table); return { upsert, update } }) }
-  return { admin, upsert, update, eq, lt, tables }
+  const admin = { from: vi.fn((table: string) => { tables.push(table); return { upsert, update, select } }) }
+  return { admin, upsert, update, select, selectIn, eq, lt, inFilter, neq, tables }
 }
 
 const CAN = { canDeactivate: true }
@@ -46,7 +65,8 @@ describe('saveRecallClaims', () => {
   it('主張を claim_id で upsert し、cloze_status は上書きしない。見つからなかった主張を inactive にする', async () => {
     const { admin, upsert, update, eq, lt, tables } = fakeAdmin({ count: 2 })
     const res = await saveRecallClaims(admin as never, [claim('a'), claim('b')], CAN)
-    expect(tables).toEqual(['recall_claims', 'recall_claims'])
+    // 既存 holes の読み取り（select）→ upsert →非活性化（update）。すべて recall_claims。
+    expect(tables).toEqual(['recall_claims', 'recall_claims', 'recall_claims'])
     expect(upsert).toHaveBeenCalledTimes(1)
     const [rows, opts] = upsert.mock.calls[0] as unknown as [Array<Record<string, unknown>>, Record<string, unknown>]
     expect(rows).toHaveLength(2)
@@ -65,6 +85,41 @@ describe('saveRecallClaims', () => {
     expect(eq).toHaveBeenCalledWith('active', true)
     expect(lt).toHaveBeenCalledWith('updated_at', now)
     expect(res).toEqual({ upserted: 2, deactivated: 2 })
+  })
+
+  it('穴が入れ替わったら、その主張の cloze_status を pending に戻す', async () => {
+    // 承認は「この穴でよい」という判断であって、別の穴に対する判断ではない。検出規則が
+    // 変わって holes だけが差し替わると、誰も見ていない穴が承認済みとして読者に出る。
+    const { admin, update, inFilter, neq } = fakeAdmin({
+      existing: [{ claim_id: 'a', holes: [[0, 2]] }, { claim_id: 'b', holes: [[3, 5]] }],
+    })
+    await saveRecallClaims(admin as never, [claim('a'), claim('b')], CAN)
+    // claim() の holes は [[3,5]]。a だけが入れ替わった主張。
+    expect(update).toHaveBeenCalledWith({ cloze_status: 'pending' })
+    expect(inFilter).toHaveBeenCalledWith('claim_id', ['a'])
+    // 既に pending の行は書き換えない（無駄な更新を出さない）
+    expect(neq).toHaveBeenCalledWith('cloze_status', 'pending')
+  })
+
+  it('穴が同じなら cloze_status に触らない（オーナーの判断を自動処理で消さない）', async () => {
+    const { admin, update, inFilter } = fakeAdmin({ existing: [{ claim_id: 'a', holes: [[3, 5]] }] })
+    await saveRecallClaims(admin as never, [claim('a')], CAN)
+    expect(update).not.toHaveBeenCalledWith({ cloze_status: 'pending' })
+    expect(inFilter).not.toHaveBeenCalled()
+  })
+
+  it('初めての主張は差し戻しの対象にしない（既定で pending のため）', async () => {
+    const { admin, inFilter } = fakeAdmin({ existing: [] })
+    await saveRecallClaims(admin as never, [claim('new')], CAN)
+    expect(inFilter).not.toHaveBeenCalled()
+  })
+
+  it('既存 holes の読み取りに失敗したら throw する（承認の扱いを決められないまま書かない）', async () => {
+    const { admin, upsert } = fakeAdmin({ selectError: { message: 'permission denied' } })
+    await expect(saveRecallClaims(admin as never, [claim('a')], CAN)).rejects.toThrow(
+      'recall_claims 既存 holes の読み取り失敗: permission denied',
+    )
+    expect(upsert).not.toHaveBeenCalled()
   })
 
   it('主張が0件なら何も書かない（同期失敗で全部 inactive にしない）', async () => {

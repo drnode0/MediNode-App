@@ -19,6 +19,8 @@ export type AdminAction =
   | 'publish_spread'
   | 'review_quiz'
   | 'spread_note_append'
+  // Recall の伏せ字承認（recall_claims.cloze_status / holes）。読者に出る伏せ字を直接決める列。
+  | 'review_recall_cloze'
 
 // 監査ログを1件記録。テーブル未適用・失敗でも主アクションは止めない（握りつぶす）。
 export async function logAdminAction(
