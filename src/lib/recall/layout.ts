@@ -46,6 +46,12 @@ function assign(points: Vec3[], centers: Vec3[], caps: number[]): number[] {
 
 export type LayoutItem = { claimId: string; genreSlot: number; pageId: string }
 
+// 制約: 容量つき最近傍は、席ごとの主張数をそのまま容量に使う。全体に占める割合が大きい席は
+// 球面の同じ割合を要求するが、割り当ては近いペアから順に確定するので、容量の小さい席が先に
+// 自席の周りを埋め、大きい席は残りを反対側まで拾う。結果として、主張数の多い席の区画は
+// ひとかたまりにはなるが席の中心の上には来ない（実コーパス687件・15席では、最大の席の区画の
+// 重心が席の中心から101度、次点が109度。29件以下の席は1〜13度）。
+// 席番号は「その席の主張が集まる場所」を決めるが、「その席の中心に集まる」ことは保証しない。
 export function layoutClaims(items: LayoutItem[]): Map<string, Vec3> {
   const N = items.length
   const result = new Map<string, Vec3>()

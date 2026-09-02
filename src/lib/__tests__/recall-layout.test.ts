@@ -71,15 +71,22 @@ describe('layout', () => {
 })
 
 const CORPUS = '.preview/recall-corpus.json'
+type LItem = { claimId: string; genreSlot: number; pageId: string }
+async function loadCorpusItems(): Promise<LItem[]> {
+  const { extractClaims } = await import('@/lib/recall/extract-claims')
+  const docs = JSON.parse(readFileSync(CORPUS, 'utf-8')) as Array<{ id: string; props: Record<string, string>; blocks: never[] }>
+  return docs.flatMap((d) => extractClaims({
+    pageId: d.id, pageTitle: d.props['名前'] || '', pageKind: '',
+    genres: (d.props['ジャンル'] || '').split(',').map((s) => s.trim()).filter(Boolean), blocks: d.blocks,
+  }))
+}
+const angleDeg = (a: number[], b: number[]) => (Math.acos(Math.min(1, Math.max(-1, dot(a, b)))) * 180) / Math.PI
+const samePoint = (a: number[], b: number[]) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2]
+
 describe.skipIf(!existsSync(CORPUS))('layout 実コーパス', () => {
   // コーパスの件数は中身が増減すれば変わるので、件数そのものではなく「全件が単位球面上に置かれる」ことを見る
   it('実コーパスでも全件が単位球面上に置かれ、席の数が増えても中心が動かない', async () => {
-    const { extractClaims } = await import('@/lib/recall/extract-claims')
-    const docs = JSON.parse(readFileSync(CORPUS, 'utf-8')) as Array<{ id: string; props: Record<string, string>; blocks: never[] }>
-    const all = docs.flatMap((d) => extractClaims({
-      pageId: d.id, pageTitle: d.props['名前'] || '', pageKind: '',
-      genres: (d.props['ジャンル'] || '').split(',').map((s) => s.trim()).filter(Boolean), blocks: d.blocks,
-    }))
+    const all = await loadCorpusItems()
     expect(all.length).toBeGreaterThan(0)
     const t0 = performance.now()
     const pos = layoutClaims(all)
@@ -92,5 +99,90 @@ describe.skipIf(!existsSync(CORPUS))('layout 実コーパス', () => {
     const posB = layoutClaims(shuffled)
     for (const c of all) expect(posB.get(c.claimId)).toEqual(pos.get(c.claimId))
     console.log(`[layout] 実コーパス ${all.length}件 / 席${new Set(all.map((c) => c.genreSlot)).size} を ${ms.toFixed(1)}ms で配置`)
+  })
+
+  // 実データで成り立つのは「席ごとにひとかたまりになる」ことだけで、「その塊が席の中心の上にある」ことではない。
+  // 実測（687件・15席）では、占有率の高い上位4席の区画は自席の中心から大きく離れる:
+  //   席3 174件 中心との内積の平均 -0.107 / 自席が最も近い 23件 / 区画の重心は席の中心から101度
+  //   席4  98件 -0.155 / 21件 / 109度   席12 98件 0.542 / 26件 / 46度   席2 53件 0.700 / 24件 / 30度
+  // 一方で29件以下の11席はすべて内積 0.85〜0.98・自席が最も近い 100%・ずれ1〜13度。
+  // よってここでは「自席の中心が最も近い」を課さない（上位4席で偽になる）。まとまり具合だけを、
+  // 席の大きさで正規化した密度（席内の主張どうしの内積の平均 ÷ 理想値 (1-f)^2）で見る。
+  it('実コーパスの各席はひとかたまりになる（席の中心の上にあるとは限らない）', async () => {
+    const all = await loadCorpusItems()
+    const pos = layoutClaims(all)
+    const meanPairDot = (vs: number[][]) => {
+      let s = 0, n = 0
+      for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) { s += dot(vs[i], vs[j]); n++ }
+      return n ? s / n : 1
+    }
+    const ratios = (place: Map<string, [number, number, number]>) => {
+      const bySlot = new Map<number, LItem[]>()
+      for (const c of all) { if (!bySlot.has(c.genreSlot)) bySlot.set(c.genreSlot, []); bySlot.get(c.genreSlot)!.push(c) }
+      return [...bySlot.entries()].map(([slot, seat]) => {
+        const f = seat.length / all.length
+        return { slot, n: seat.length, ratio: meanPairDot(seat.map((c) => place.get(c.claimId)!)) / (1 - f) ** 2 }
+      })
+    }
+    const got = ratios(pos)
+    const worst = got.reduce((a, b) => (a.ratio < b.ratio ? a : b))
+    // 対照: 位置だけを席と無関係に総入れ替えする（席の情報が消えた配置）
+    let seed = 20260902
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
+    const perm = all.map((c) => ({ id: c.claimId, k: rnd() })).sort((a, b) => a.k - b.k)
+    const scattered = new Map(all.map((c, i) => [c.claimId, pos.get(perm[i].id)!]))
+    const control = ratios(scattered)
+    const controlMax = Math.max(...control.map((r) => r.ratio))
+    // 閾値 0.25 は実測の最小 0.310 の下、対照の最大 0.112（件数の少ない席のばらつき）の上に置く
+    for (const r of got) expect(r.ratio).toBeGreaterThan(0.25)
+    expect(controlMax).toBeLessThan(0.25)
+    console.log(`[layout] 席内の密度比 最小 ${worst.ratio.toFixed(3)}（席${worst.slot}・${worst.n}件） / 対照の最大 ${controlMax.toFixed(3)}`)
+  })
+
+  // 同期のたびに主張がどれだけ動くか。格子は fibPt(i, N) で全件数 N に依存するので、N が1でも変われば
+  // 全主張の座標が計算し直される。実測（687件）:
+  //   総数が変わらない編集（10件を別ページへ移す）… 85.7% が完全に同じ点・区画の重心は最大 5.5度
+  //   1件追加 … 中央値 0.1度・p90 0.4度（区画の重心は最大 0.5度）
+  //   30件追加 / 新しい席が1つ増える / 1割削除 … 主張ごとの移動は中央値 16度・平均 22〜24度・p90 52〜58度。
+  //     ただし席の区画（重心）の移動は平均 2.2〜2.7度・最大 10.7度に収まる
+  // つまり固定されているのは「席の区画がどこにあるか」であって、「個々の主張がどの点に載るか」ではない。
+  // 動かない側だけをテストに固定する。動く側（1割削除で個々の主張が平均23度動く）は
+  // レポートに数値で残し、ここでは成立しない不変条件として課さない。
+  it('総数が変わらない編集では大半の主張が同じ点に残り、席の区画は同期をまたいでほぼ動かない', async () => {
+    const all = await loadCorpusItems()
+    const base = layoutClaims(all)
+    const seatShift = (next: LItem[]) => {
+      const posN = layoutClaims(next)
+      const alive = new Set(next.map((x) => x.claimId))
+      const bySlot = new Map<number, LItem[]>()
+      for (const c of all) { if (alive.has(c.claimId)) { if (!bySlot.has(c.genreSlot)) bySlot.set(c.genreSlot, []); bySlot.get(c.genreSlot)!.push(c) } }
+      const shifts = [...bySlot.values()].map((seat) => angleDeg(
+        centroid(seat.map((c) => base.get(c.claimId)!)), centroid(seat.map((c) => posN.get(c.claimId)!))))
+      return { posN, alive, maxShift: Math.max(...shifts) }
+    }
+    // (c) 総数据え置きの編集: 主張数が最も多いページから10件抜き、次のページへ10件足す
+    const byPage = new Map<string, LItem[]>()
+    for (const c of all) { if (!byPage.has(c.pageId)) byPage.set(c.pageId, []); byPage.get(c.pageId)!.push(c) }
+    const pages = [...byPage.entries()].filter(([, v]) => v.length >= 10)
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    expect(pages.length).toBeGreaterThan(1)
+    const dropped = new Set(pages[0][1].slice(0, 10).map((c) => c.claimId))
+    const edited: LItem[] = [...all.filter((c) => !dropped.has(c.claimId)),
+      ...Array.from({ length: 10 }, (_, i) => ({ claimId: `synthetic-c-${i}`, genreSlot: pages[1][1][0].genreSlot, pageId: pages[1][0] }))]
+    const c = seatShift(edited)
+    const survivors = all.filter((x) => c.alive.has(x.claimId))
+    const frozen = survivors.filter((x) => samePoint(base.get(x.claimId)!, c.posN.get(x.claimId)!)).length
+    expect(frozen / survivors.length).toBeGreaterThan(0.7) // 実測 0.857
+    expect(c.maxShift).toBeLessThan(20) // 実測 5.5度
+
+    // (d) 1割をランダムに削る。個々の主張は動く（平均23度）が、席の区画は動かない
+    let seed = 20260902
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
+    const keep = new Set(all.map((x) => ({ x, k: rnd() })).sort((a, b) => a.k - b.k)
+      .slice(Math.floor(all.length * 0.1)).map((o) => o.x.claimId))
+    const d = seatShift(all.filter((x) => keep.has(x.claimId)))
+    expect(d.maxShift).toBeLessThan(20) // 実測 7.8度
+    const moved = all.filter((x) => d.alive.has(x.claimId)).map((x) => angleDeg(base.get(x.claimId)!, d.posN.get(x.claimId)!))
+    console.log(`[layout] 1割削除: 席の区画の移動 最大 ${d.maxShift.toFixed(1)}度 / 主張ごとの移動 平均 ${(moved.reduce((s, a) => s + a, 0) / moved.length).toFixed(1)}度`)
   })
 })
