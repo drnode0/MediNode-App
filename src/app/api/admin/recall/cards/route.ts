@@ -14,8 +14,7 @@ import { requireAdmin } from '@/lib/admin-guard'
 import { logAdminAction } from '@/lib/admin-audit'
 import { createAdminClient } from '@/lib/supabase/server'
 import { claimFromRow, validId } from '@/lib/recall/guard'
-import { MAX_HOLES } from '@/lib/recall/holes'
-import { normalizeHoles } from '@/lib/recall/segments'
+import { MAX_HOLES, normalizeHoles } from '@/lib/recall/segments'
 
 const STATUSES = ['pending', 'approved', 'rejected'] as const
 const COLS = 'claim_id, page_id, page_title, page_kind, section_key, section_heading, body, source, confidence, genres, primary_genre, genre_slot, holes, cloze_status, active'

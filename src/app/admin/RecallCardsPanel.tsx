@@ -17,8 +17,7 @@
 import { useEffect, useState } from 'react'
 import { SectionHeading } from './SectionHeading'
 import type { RecallClaim } from '@/lib/recall/types'
-import { MAX_HOLES } from '@/lib/recall/holes'
-import { normalizeHoles, segmentBody } from '@/lib/recall/segments'
+import { MAX_HOLES, normalizeHoles, segmentBody } from '@/lib/recall/segments'
 
 type Status = 'pending' | 'approved' | 'rejected'
 type Scope = 'some' | 'none'

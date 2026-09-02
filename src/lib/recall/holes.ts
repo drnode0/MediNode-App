@@ -4,7 +4,12 @@
 //     （同種の数値が同一文に並ぶときだけ複数穴。異種を混ぜると文が読めなくなる）
 // 穴は「読者が思い出すべき臨床の数値（閾値・目標範囲・用量）」に限る。
 // 試験の発生率や信頼区間を伏せると、判断の基準ではなく研究の些末を暗記させることになる。
-export const MAX_HOLES = 3
+//
+// 上限そのものの定義は segments.ts に置く（このファイルは読み込むだけで正規表現を大量に
+// 組み立てるため、数だけが要る管理画面がここを読まなくて済むようにする）。ここからも
+// 再輸出しておき、`import { detectHoles, MAX_HOLES } from './holes'` を壊さない。
+import { MAX_HOLES } from './segments'
+export { MAX_HOLES }
 
 const UNIT = '%|％|mmHg|mmol\\/L|mEq\\/L|mg\\/dL|kPa|mL\\/kg\\/時|mL\\/時|mL\\/kg|mL|L\\/分|L|時間|分|秒|日|点|℃|g\\/dL|mg|kg|IU|回\\/分'
 
