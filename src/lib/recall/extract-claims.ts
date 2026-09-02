@@ -15,21 +15,29 @@ const SRCWORD = /(?:19|20)\d{2}|ガイドライン|合意|提言|指針|学会|G
 const SECTION_HEAD_RE = /^(\d+)\.\s*(.+)$/
 
 export function normalizeBody(s: string): string {
-  return s.normalize('NFC').replace(/️/g, '').replace(/\s+/g, ' ').trim()
+  return s.normalize('NFC').replace(/\uFE0F/g, '').replace(/\s+/g, ' ').trim()
+}
+
+// pageId はダッシュ有り/無しの両方が社内を流通する（settings.ts / spread-notes.ts / vine-open.ts と同じ揺れ）。
+// claimId は読者の学習記録がぶら下がる永続キーなので、揺れを吸収してから使う。
+export function normalizePageId(pageId: string): string {
+  return pageId.trim().toLowerCase().replace(/-/g, '')
 }
 
 export function claimIdOf(pageId: string, body: string): string {
-  return createHash('sha1').update(`${pageId}\n${normalizeBody(body)}`).digest('hex').slice(0, 24)
+  return createHash('sha1').update(`${normalizePageId(pageId)}\n${normalizeBody(body)}`).digest('hex').slice(0, 24)
 }
 
 type Split = { body: string; source: string; confidence: RecallConfidence } | null
 
 function splitClaim(text: string): Split {
   const s = text.trim()
+  // ❓ が行のどこかに1つでもあれば主張化しない。以前は最初のマークだけを見ていたため
+  // 「⚠️❓」のように未確認マークが2番目以降に来る行が ⚠️ 側の判定で通ってしまっていた。
+  if (s.includes('❓')) return null
   const mi = s.search(MARK)
   if (mi >= 0) {
     const mark = s[mi]
-    if (mark === '❓') return null
     return { body: s.slice(0, mi).trim(), source: s.slice(mi).trim(), confidence: mark === '✅' ? 'ok' : 'caut' }
   }
   const m = s.match(TAIL)
