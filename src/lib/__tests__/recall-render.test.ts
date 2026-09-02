@@ -25,6 +25,10 @@ function recorder() {
     fillRect(x: number, y: number, w: number, h: number) { fills.push({ x, y, w, h }); ops.push('fill') },
     createRadialGradient: () => ({ addColorStop() {} }),
     createLinearGradient: () => ({ addColorStop() {} }),
+    strokeStyle: '' as unknown, lineWidth: 1, lineCap: '',
+    beginPath() {}, arc() {}, clip() {},
+    moveTo() {}, quadraticCurveTo() {},
+    stroke() { ops.push('stroke') },
     save() { stack.push({ ...tf }) },
     restore() { tf = stack.pop() ?? { tx: 0, ty: 0, rot: 0 } },
     translate(x: number, y: number) { tf.tx += x; tf.ty += y },
@@ -47,6 +51,7 @@ const offscreen = () => ({
     createRadialGradient: () => ({ addColorStop() {} }),
     createLinearGradient: () => ({ addColorStop() {} }),
     fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, closePath() {}, fill() {},
+    arc() {}, clip() {}, stroke() {}, save() {}, restore() {},
   }),
 })
 const hadDocument = 'document' in globalThis
@@ -119,9 +124,9 @@ describe('render 純関数', () => {
   })
 
   it('viewport は山が出ているあいだ球を上へ寄せる', () => {
-    expect(viewport(800, 600, CAM0, 0)).toEqual({ R: 600 * 0.34, cx: 400, cy: 286 })
+    expect(viewport(800, 600, CAM0, 0)).toEqual({ R: 600 * 0.40, cx: 400, cy: 286 })
     expect(viewport(800, 600, CAM0, 2).cy).toBe(240)
-    expect(viewport(800, 600, { rotY: 0, rotX: 0, zoom: 2 }, 0).R).toBe(600 * 0.34 * 2)
+    expect(viewport(800, 600, { rotY: 0, rotX: 0, zoom: 2 }, 0).R).toBe(600 * 0.40 * 2)
   })
 
   it('hereMark は寄ったときだけ、画面中央に最も近い手前のページ目印を返す', () => {
@@ -214,6 +219,29 @@ describe('drawFrame', () => {
     // 球の実体は半径 R の広さで塗る（背景の全面塗りとは別）
     const R = viewport(800, 800, CAM0, 0).R
     expect(r.fills.some((f) => Math.abs(f.w - R * 2.4) < 1)).toBe(true)
+  })
+
+  // 引きで見たとき「687個の粒」ではなく「ページの数だけの筋」に見せる枝。
+  it('枝は球の実体のあと、かけらより先に引かれる', () => {
+    const r = recorder()
+    drawFrame(r.ctx, frame({
+      reduced: true,
+      sprites: [sp('front', [0, 0, -1])],
+      strands: [[[0.1, 0, -1], [0, 0.1, -1], [-0.1, 0, -1]]],
+    }))
+    const globeFill = r.ops.indexOf('fill', 1)   // 0 は背景の全面塗り
+    const stroke = r.ops.indexOf('stroke')
+    const shard = r.ops.indexOf('draw')
+    expect(globeFill).toBeGreaterThan(-1)
+    expect(stroke).toBeGreaterThan(globeFill)
+    expect(shard).toBeGreaterThan(stroke)
+  })
+
+  it('裏側だけの枝は引かれない', () => {
+    const r = recorder()
+    drawFrame(r.ctx, frame({ reduced: true, sprites: [], strands: [[[0.1, 0, 1], [0, 0.1, 1]]] }))
+    // 球の輪郭の線は引かれるが、枝の線は増えない（stroke は輪郭の1回だけ）
+    expect(r.ops.filter((o) => o === 'stroke').length).toBe(1)
   })
 
   it('主張が1つも無くても球は描かれる', () => {

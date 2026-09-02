@@ -4,9 +4,10 @@
 // 動きを減らす設定のときは、慣性回転（放っておいても回り続ける分）と揺れを止める。
 import { useEffect, useRef } from 'react'
 import { drawFrame, pickAt, hereMark, viewport, MAX_ZOOM, type Camera, type Sprite, type Mark, type LensMode } from '@/lib/recall/render'
+import type { Vec3 } from '@/lib/recall/layout'
 
 type Props = {
-  sprites: Sprite[]; marks: Mark[]; flying: Map<string, number>; dimmed: boolean; lens: LensMode; shakeUntil: number
+  sprites: Sprite[]; marks: Mark[]; strands: Vec3[][]; flying: Map<string, number>; dimmed: boolean; lens: LensMode; shakeUntil: number
   reduced: boolean
   onPick: (claimId: string | null, at: { x: number; y: number }) => void
   onDeckTap: (claimId: string) => void
@@ -16,7 +17,7 @@ type Props = {
 
 const IDLE_SPIN = 0.0013
 
-export function RecallSphere({ sprites, marks, flying, dimmed, lens, shakeUntil, reduced, onPick, onDeckTap, onHere, onZoom }: Props) {
+export function RecallSphere({ sprites, marks, strands, flying, dimmed, lens, shakeUntil, reduced, onPick, onDeckTap, onHere, onZoom }: Props) {
   const ref = useRef<HTMLCanvasElement>(null)
   const cam = useRef<Camera>({ rotY: 0, rotX: -0.12, zoom: 1 })
   const vel = useRef({ vy: 0, vx: 0 })
@@ -24,8 +25,8 @@ export function RecallSphere({ sprites, marks, flying, dimmed, lens, shakeUntil,
   const ptrs = useRef(new Map<number, [number, number]>())
   const pinch = useRef<{ d: number; z: number } | null>(null)
   const deckPos = useRef(new Map<string, { X: number; Y: number }>())
-  const latest = useRef({ sprites, marks, flying, dimmed, lens, shakeUntil, onHere, onZoom })
-  latest.current = { sprites, marks, flying, dimmed, lens, shakeUntil, onHere, onZoom }
+  const latest = useRef({ sprites, marks, strands, flying, dimmed, lens, shakeUntil, onHere, onZoom })
+  latest.current = { sprites, marks, strands, flying, dimmed, lens, shakeUntil, onHere, onZoom }
   // pickAt は「最後に描いたフレーム」と同じ t・reduced を要る（当たり判定はゆらいだ描画位置を見るため）。
   // frame() が毎回書き込み、ポインタハンドラ（effect の外）はここから読む。
   const tRef = useRef(0)
@@ -72,7 +73,7 @@ export function RecallSphere({ sprites, marks, flying, dimmed, lens, shakeUntil,
       tRef.current = t
       const shake = !red && now < L.shakeUntil ? Math.sin(now * 0.05) * ((L.shakeUntil - now) / 420) * 0.28 : 0
       ctx.save(); ctx.translate(shake * 8, 0)
-      deckPos.current = drawFrame(ctx, { W, H, cam: c, sprites: L.sprites, flying: L.flying, marks: L.marks, t, reduced: red, dimmed: L.dimmed, lens: L.lens })
+      deckPos.current = drawFrame(ctx, { W, H, cam: c, sprites: L.sprites, flying: L.flying, marks: L.marks, strands: L.strands, t, reduced: red, dimmed: L.dimmed, lens: L.lens })
       ctx.restore()
       const here = hereMark(L.marks, c, viewport(W, H, c, L.flying.size))
       const hereText = here ? `いま見ている区画　${here.text}　${here.n}主張` : null

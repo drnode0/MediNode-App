@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'fs'
-import { fibPt, seatCenter, seatPlacement, layoutClaims, centroid, PAGE_BLOCK, type Placement, type Vec3 } from '@/lib/recall/layout'
+import { fibPt, seatCenter, seatPlacement, layoutClaims, strandsOf, centroid, SPACING, PAGE_BLOCK, type Placement, type Vec3 } from '@/lib/recall/layout'
 import { GENRE_CAPACITY } from '@/lib/recall/genres'
 
 const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -109,6 +109,34 @@ describe('layout', () => {
       expect(same(over.get(it.claimId)!, before.get(it.claimId)!)).toBe(true)
     }
     expect(base.filter((x) => x.pageId === 'pb').every((x) => !same(over.get(x.claimId)!, before.get(x.claimId)!))).toBe(true)
+  })
+})
+
+describe('枝（同じページを繋ぐ筋）', () => {
+  const items = Array.from({ length: 24 }, (_, i) => ({ claimId: `c${i}`, genreSlot: 3, pageId: `p${Math.floor(i / 8)}` }))
+
+  it('ページごとに1本以上できる。1件だけのページは枝を作らない', () => {
+    const pos = layoutClaims(items)
+    expect(strandsOf(items, pos).length).toBeGreaterThanOrEqual(3)
+    const solo = [{ claimId: 'x', genreSlot: 5, pageId: 'solo' }]
+    expect(strandsOf(solo, layoutClaims(solo))).toEqual([])
+  })
+
+  // らせんは黄金角で回るので、番号順に繋ぐと球を横切る長い線になる。近い順に辿り直している。
+  it('枝のひと続きは近い点どうしだけを結ぶ（球を横切る線を引かない）', () => {
+    const pos = layoutClaims(items)
+    for (const line of strandsOf(items, pos)) {
+      for (let i = 1; i < line.length; i++) {
+        const d = Math.acos(Math.min(1, dot(line[i - 1], line[i])))
+        expect(d).toBeLessThanOrEqual(SPACING * 3.2 + 1e-9)
+      }
+    }
+  })
+
+  it('枝の点はすべて、その配置に実在する点', () => {
+    const pos = layoutClaims(items)
+    const known = new Set([...pos.values()].map((p) => p.v.join(',')))
+    for (const line of strandsOf(items, pos)) for (const v of line) expect(known.has(v.join(','))).toBe(true)
   })
 })
 

@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RecallClaim, RecallProgress, RecallSectionRead } from '@/lib/recall/types'
-import { layoutClaims, centroid, type Vec3 } from '@/lib/recall/layout'
+import { layoutClaims, strandsOf, centroid, type Vec3 } from '@/lib/recall/layout'
 import { stateOf, pickCandidates, nextDue } from '@/lib/recall/srs'
 import type { Sprite, Mark } from '@/lib/recall/render'
 import { genreLabel } from '@/lib/recall/genres'
@@ -84,6 +84,8 @@ export function useRecallData() {
 
   // 配置は主張の並びだけで決まる。now では作り直さない（数百件で数ミリ秒かかる）。
   const positions = useMemo(() => layoutClaims(claims), [claims])
+  // 枝（同じページの主張を繋ぐ筋）。配置と同じで、記憶の状態では変わらない。
+  const strands = useMemo(() => strandsOf(claims, positions), [claims, positions])
   const progressById = useMemo(() => new Map(progress.map((p) => [p.claimId, p])), [progress])
   const readSet = useMemo(() => new Set(reads.map((r) => `${r.pageId}#${r.sectionKey}`)), [reads])
 
@@ -160,5 +162,5 @@ export function useRecallData() {
   const keep = useCallback((claimId: string, keepIt: boolean) => save('/api/recall/keep', claimId, { claimId, keep: keepIt }), [save])
   const review = useCallback((claimId: string, result: 'ok' | 'ng') => save('/api/recall/review', claimId, { claimId, result }), [save])
 
-  return { loading, error, saveError, clearSaveError, claims, sprites, marks, progressById, candidates, nextDue: due, counts, keep, review, refresh }
+  return { loading, error, saveError, clearSaveError, claims, sprites, marks, strands, progressById, candidates, nextDue: due, counts, keep, review, refresh }
 }

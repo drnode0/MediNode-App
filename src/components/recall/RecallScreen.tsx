@@ -169,7 +169,7 @@ export function RecallScreen() {
     // タブバーを覆ってしまうため（このdivが positioned z 明示のときだけ、配下の
     // z-30 はこの中に閉じ込められる）。
     <div className="fixed inset-0 z-0 bg-[#05080e] text-slate-100 overflow-hidden" style={{ fontFamily: '"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif' }}>
-      <RecallSphere sprites={data.sprites} marks={data.marks} flying={flying} dimmed={dimmed} lens={lens} shakeUntil={shakeUntil} reduced={reduced}
+      <RecallSphere sprites={data.sprites} marks={data.marks} strands={data.strands} flying={flying} dimmed={dimmed} lens={lens} shakeUntil={shakeUntil} reduced={reduced}
         onPick={(id, at) => setTip(id ? { claimId: id, ...at } : null)}
         onDeckTap={(id) => { setTip(null); setCard({ claimId: id, mode: 'quiz' }) }}
         onHere={setHere} onZoom={setZoom} />
