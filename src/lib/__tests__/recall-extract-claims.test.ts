@@ -63,6 +63,11 @@ describe('extractClaims', () => {
     expect(claimIdOf(dashed, '同じ主張。')).toBe(claimIdOf(undashed, '同じ主張。'))
     expect(claimIdOf(dashed, '同じ主張。')).toBe(claimIdOf(dashed.toUpperCase(), '同じ主張。'))
   })
+  it('主張の pageId はダッシュ付きでも正規化済みの形で入る（読者の section read との突合キー）', () => {
+    const dashed = 'a1b2c3d4-e5f6-4789-a012-3456789abcde'
+    const out = extractClaims({ ...base, pageId: dashed, blocks: [li('主張。✅ 出典')] })
+    expect(out[0].pageId).toBe(dashed.replace(/-/g, '').toLowerCase())
+  })
   it('callout 除外は孫要素にも継承される。通常の入れ子は2段目でも拾う', () => {
     const out = extractClaims({ ...base, blocks: [
       li('親の主張。✅ 出典A', [

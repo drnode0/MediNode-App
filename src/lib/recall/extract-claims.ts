@@ -5,6 +5,7 @@
 import { createHash } from 'crypto'
 import { blockText, type NotionBlockLite } from '@/lib/content-stats'
 import { primaryGenreOf } from './genres'
+import { detectHoles } from './holes'
 import type { RecallClaim, RecallConfidence } from './types'
 
 export type ClaimSource = { pageId: string; pageTitle: string; pageKind: string; genres: string[]; blocks: NotionBlockLite[] }
@@ -71,11 +72,11 @@ export function extractClaims(src: ClaimSource): RecallClaim[] {
           if (!seen.has(claimId)) {
             seen.add(claimId)
             out.push({
-              claimId, pageId: src.pageId, pageTitle: src.pageTitle, pageKind: src.pageKind,
+              claimId, pageId: normalizePageId(src.pageId), pageTitle: src.pageTitle, pageKind: src.pageKind,
               sectionKey: cur.sectionKey, sectionHeading: cur.sectionHeading,
               body: sp.body, source: sp.source, confidence: sp.confidence,
               genres: src.genres, primaryGenre: primary.genre, genreSlot: primary.slot,
-              holes: [], clozeStatus: 'pending', active: true,
+              holes: detectHoles(sp.body), clozeStatus: 'pending', active: true,
             })
           }
         }
