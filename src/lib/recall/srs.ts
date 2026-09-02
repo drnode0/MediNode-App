@@ -33,6 +33,10 @@ export function applyResult(p: RecallProgress, result: 'ok' | 'ng', now: Date): 
 
 export function remainingOf(p: RecallProgress, now: Date): number {
   const from = new Date(p.lastReviewedAt ?? p.keptAt).getTime()
+  // 日時として読めない記録は「経過しきった」扱いにする(remaining 0)。NaN を返すと
+  // 離脱候補の判定(< ESCAPE_THRESHOLD)が false になって静かに一覧から消えるため、
+  // 逆に確実に一覧へ出す(隠すより、目に触れさせて安全側に倒す)方向へ倒す。
+  if (!Number.isFinite(from)) return 0
   const elapsed = (now.getTime() - from) / DAY
   return Math.max(0, Math.min(1, 1 - elapsed / Math.max(p.intervalDays, 1e-6)))
 }
@@ -66,7 +70,10 @@ export function nextDue(progress: RecallProgress[], now: Date): NextDue | null {
   const kept = progress.filter(isKept)
   if (!kept.length) return null
   const nowMs = now.getTime()
-  const times = kept.map((p) => new Date(p.dueAt).getTime()).sort((a, b) => a - b)
+  // dueAt が日時として読めない記録は数に入れず飛ばす(jstDateKey は NaN で例外を投げるため、
+  // ここで弾かないと1件の壊れた記録で呼び出し全体が落ちる)。
+  const times = kept.map((p) => new Date(p.dueAt).getTime()).filter((t) => Number.isFinite(t)).sort((a, b) => a - b)
+  if (!times.length) return null
   const overdue = times.filter((t) => t <= nowMs)
   if (overdue.length) return { at: new Date(nowMs), count: overdue.length, overdue: true }
   const first = times[0]
