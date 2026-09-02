@@ -690,6 +690,17 @@ export async function PATCH(req: NextRequest) {
       if (!(EARLY_ACCESS_FEATURES as readonly string[]).includes(feature)) {
         return NextResponse.json({ error: '未知の機能名です' }, { status: 400 })
       }
+      // Recall（知の球）の入口は RECALL_EMAILS だけ、と決めてある（fallback も置かない。
+      // src/lib/feature-access.ts の FEATURE_ENV を参照）。台帳から開けてしまうと入口が
+      // 2つになり、「オーナー専用」という前提が env を見るだけでは確認できなくなる。
+      // /admin に Recall のボタンは無い（FEATURE_LABELS に項目が無い）ので、UI からは
+      // 到達しないが、API を直接叩けば通ってしまうためここで塞ぐ。
+      if (feature === 'recall') {
+        return NextResponse.json(
+          { error: 'Recall は台帳から開けません（入口は RECALL_EMAILS のみ）' },
+          { status: 400 },
+        )
+      }
       const key = feature as EarlyAccessFeature
       const admin = createAdminClient()
       const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId)

@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client'
+import * as Sentry from '@sentry/nextjs'
 import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
@@ -6,6 +7,10 @@ import { extractCloze } from '@/lib/cloze'
 import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
+import { extractClaims } from '@/lib/recall/extract-claims'
+import { RecallClaimsSaveError, saveRecallClaims } from '@/lib/recall/sync-claims'
+import { createAdminClient } from '@/lib/supabase/server'
+import type { RecallClaim } from '@/lib/recall/types'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -24,7 +29,14 @@ import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 
 export type SyncResult = {
   success: true
-  synced: { medical: number; reference: number; total: number }
+  synced: {
+    medical: number
+    reference: number
+    total: number
+    recallClaims: number
+    // 今回の同期で active=false にした主張の数。大量に非活性化されたときに気づけるよう表に出す。
+    recallDeactivated: number
+  }
   index: string
 }
 
@@ -156,8 +168,13 @@ async function syncMedicalDb(
   notion: Client,
   dbId: string,
   records: Record<string, unknown>[],
-): Promise<number> {
+  claims: RecallClaim[],
+): Promise<{ count: number; failedPages: number }> {
   let count = 0
+  // 本文（ブロック）を取れなかった／子ブロックの取得に失敗した／主張抽出で例外になった
+  // ページ数。1件でもあれば「主張が消えた」のか「取りこぼした」のか区別できないので、
+  // 非活性化は行わない。
+  let failedPages = 0
   let cursor: string | undefined = undefined
   do {
     const res = await notion.databases.query({
@@ -177,12 +194,18 @@ async function syncMedicalDb(
       // 分けるための門（スプレッドを用意する時間を取るため）。本文の取得より前で落とす。
       if (isWithheldFromReaders(extractText(props['制作ステータス'] || {}))) continue
       const blocks = await fetchPageBlocks(notion, page.id)
+      if (!blocks) failedPages++
       const stats = blocks ? computeContentStats(blocks) : null
       // ⚡結論ボックス（callout）内の赤マーカーも拾えるよう、クイズ候補（ナレッジ）だけ
       // コンテナの子を展開してから抽出する（1ページ最大8リクエストの上限つき）
       const knowledgeLevel = extractText(props['知識レベル'] || {})
       if (blocks && isClozeCandidate({ knowledgeLevel })) {
-        await expandChildren(notion, blocks)
+        const expanded = await expandChildren(notion, blocks)
+        // 子の取得に失敗した回があると、入れ子の主張だけが本文から落ちる。ページ本体は
+        // 取れているので同期は続けるが、取りこぼしには違いないので失敗として数え、
+        // 非活性化（＝落ちた主張を「消えた」とみなす処理）は行わせない。
+        // 取得上限で打ち切っただけの場合は expanded.failed に入らない（決定的な打ち切り）。
+        if (expanded.failed > 0) failedPages++
       }
       const record: Record<string, unknown> = {
         objectID: `subscription_${page.id}`,
@@ -220,6 +243,22 @@ async function syncMedicalDb(
       }
       records.push(record)
       if (blocks) {
+        try {
+          claims.push(...extractClaims({
+            pageId: page.id,
+            pageTitle: title,
+            // 先頭の絵文字1文字（❓💡📚⚡ など）。コードポイント単位で取る（UTF-16の2単位で
+            // 切ると "❓CQ名" が "❓C" になる）。
+            pageKind: Array.from(title.trim())[0] ?? '',
+            genres: extractList(props['ジャンル'] || {}),
+            blocks,
+          }))
+        } catch (err) {
+          // 1ページの抽出失敗で同期全体を止めない（ページ単位の失敗は他と同じ扱い）。
+          // ただし取りこぼしなので、このページは失敗として数え、非活性化を行わせない。
+          failedPages++
+          console.error('Recall 主張の抽出に失敗しました（同期は継続します）:', page.id, err)
+        }
         // 節レコードにclozeを複製しない（クイズ・今日の1問は親レコードだけを使う。
         // 複製するとAlgoliaの1レコード10KB上限を超える節が出る——2026-08-12に実際に発生）
         const { cloze: _cloze, ...sectionParent } = record
@@ -229,7 +268,7 @@ async function syncMedicalDb(
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
   } while (cursor)
-  return count
+  return { count, failedPages }
 }
 
 async function syncReferenceDb(
@@ -387,11 +426,13 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
   const index = algolia.initIndex(algoliaIndex)
 
   const records: Record<string, unknown>[] = []
+  const claims: RecallClaim[] = []
   let syncedMedical = 0
   let syncedReference = 0
 
   // Medical DB の同期
-  syncedMedical = await syncMedicalDb(notion, medicalDbId!, records)
+  const medical = await syncMedicalDb(notion, medicalDbId!, records, claims)
+  syncedMedical = medical.count
 
   // Reference DB の同期（任意）
   if (referenceDbId) {
@@ -410,12 +451,52 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
     await index.saveObjects(records)
   }
 
+  // Recall の主張。Supabase が未設定の環境（ローカルの Algolia だけの検証）では飛ばす。
+  //
+  // ここは同期の本筋（Notion → Algolia）に対する二次的な書き込みなので、失敗しても
+  // 同期そのものは成功として返す。ここで throw すると Algolia は書けているのに
+  // 呼び出し側の revalidateSubscriptionReaderDocs() が走らず、「検索は新しいのに
+  // 本文キャッシュだけ古い」半端な状態が残る（2026-07-29 と同じ形の障害）。
+  let recallClaims = 0
+  let recallDeactivated = 0
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      // 本文を取れなかったページが1つでもあれば非活性化しない。取りこぼしのぶんを
+      // 「消えた主張」と誤認して大量に active=false にすると、読者の記録が宙に浮く。
+      const saved = await saveRecallClaims(createAdminClient(), claims, {
+        canDeactivate: medical.failedPages === 0,
+      })
+      recallClaims = saved.upserted
+      recallDeactivated = saved.deactivated
+    } catch (err) {
+      // 途中まで書けていたぶんは報告に載せる。まとめて0件と出すと、運用者がログから
+      // 「1行も書けなかった」と読み違える（実際には数百行が入っていることがある）。
+      if (err instanceof RecallClaimsSaveError) {
+        recallClaims = err.counts.upserted
+        recallDeactivated = err.counts.deactivated
+      }
+      console.error(
+        `Recall 主張の保存に失敗しました（同期自体は続行します。保存できた主張=${recallClaims}件）:`,
+        err,
+      )
+      // 同期は成功として返るので、console だけだと毎晩 recallClaims=0 のまま誰も気づかない
+      // （テーブルが無い・service_role の権限が落ちた、のどちらも同じ見え方になる）。
+      // early-access.ts の readLedger と同じ形で Sentry にも上げる。
+      Sentry.captureException(
+        err instanceof Error ? err : new Error(`Recall 主張の保存に失敗: ${String(err)}`),
+        { extra: { recallClaims, recallDeactivated } },
+      )
+    }
+  }
+
   return {
     success: true,
     synced: {
       medical: syncedMedical,
       reference: syncedReference,
       total: records.length,
+      recallClaims,
+      recallDeactivated,
     },
     index: algoliaIndex,
   }

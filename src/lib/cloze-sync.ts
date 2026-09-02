@@ -43,27 +43,43 @@ const CONTAINER_TYPES = ['callout', 'toggle', 'bulleted_list_item', 'numbered_li
 // 1ページあたりの子取得リクエスト上限（コンテナだらけのページでも暴走しない）
 export const CHILD_FETCH_MAX_PER_PAGE = 8
 
+export type ExpandChildrenResult = {
+  // 子ブロックの取得に失敗した回数（権限不足・通信エラー等）。呼び出し側が
+  // 「入れ子の中身を取りこぼしたまま完了した」と気づくための唯一の手がかり。
+  //
+  // 1ページあたりの取得上限（CHILD_FETCH_MAX_PER_PAGE）で打ち切った分は数えない。
+  // 上限は決定的な仕様であって取りこぼしの兆候ではなく、これを失敗に数えると
+  // コンテナの多いページでは常に失敗扱いになってしまう。
+  failed: number
+}
+
 // has_childrenのコンテナの子を深さ2まで取得し、ブロックに `children` として添付する。
-// extractClozeはこのキーを再帰的に読む。失敗したコンテナは黙って飛ばす（同期は止めない）。
+// extractClozeはこのキーを再帰的に読む。失敗したコンテナは飛ばす（同期は止めない）が、
+// 黙って飛ばすと呼び出し側が「全部取れた」と誤認するため、失敗の件数だけは返す。
 export async function expandChildren(
   notion: NotionLike,
   blocks: unknown[],
   depth = 0,
   budget = { left: CHILD_FETCH_MAX_PER_PAGE },
-): Promise<void> {
-  if (depth >= 2) return
+): Promise<ExpandChildrenResult> {
+  let failed = 0
+  if (depth >= 2) return { failed }
   for (const block of blocks) {
     if (!block || typeof block !== 'object') continue
     const b = block as Record<string, unknown> & { children?: unknown[] }
     if (!b.has_children) continue
     if (!CONTAINER_TYPES.includes(b.type as (typeof CONTAINER_TYPES)[number])) continue
-    if (budget.left <= 0) return
+    if (budget.left <= 0) return { failed }
     budget.left--
     const children = await fetchAllBlocks(notion, String(b.id))
-    if (!children) continue
+    if (!children) {
+      failed++
+      continue
+    }
     b.children = children
-    await expandChildren(notion, children, depth + 1, budget)
+    failed += (await expandChildren(notion, children, depth + 1, budget)).failed
   }
+  return { failed }
 }
 
 // ブロックタイプ分布の集計（Phase 0計測）。取得済みブロックを再帰的に歩いて

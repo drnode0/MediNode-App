@@ -37,6 +37,14 @@ button:active, a:active, [role='button']:active {
   }
 }
 
+/* Recall（知の球）: カードのせり上がり。上の全体規則（prefers-reduced-motion）が
+   animation-duration を 0.01ms に潰すので、ここに追加の分岐は要らない。
+   RecallCard.tsx がインライン style で animation: recall-card-rise … を指定する。 */
+@keyframes recall-card-rise {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scaleY(.04); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scaleY(1); }
+}
+
 /* 未解決の問いの画面（/cq）で泡が漂う動き。
    泡は left/top の % 指定を translate(-50%,-50%) で中心合わせしているため、
    キーフレーム側にもその -50% を含める（含めないと再生開始で位置が飛ぶ）。

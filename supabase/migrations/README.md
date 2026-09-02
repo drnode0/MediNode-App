@@ -16,6 +16,8 @@
 
 ## 適用状況（0001〜0023 は 2026-08-03 の実測 / 0024〜0026 は 2026-08-27 に確認）
 
+0027 は欠番（採番飛び）。別ブランチ `feat/reader-marks-sync` 上の採番で、このディレクトリにファイルは無い（詳細は表の※4）。
+
 | # | ファイル | 主な作成物 | 本番 |
 |---|---|---|---|
 | 0001 | login_foundation | `profiles` | ✅ |
@@ -46,6 +48,7 @@
 | 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
 | 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
 | 0028 | question_interest | `question_interest` | ✅ ※5 |
+| 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ⬜ 未適用 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。

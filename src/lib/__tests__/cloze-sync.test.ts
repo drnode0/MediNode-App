@@ -177,8 +177,50 @@ describe('expandChildren', () => {
       id: `c${i}`, type: 'callout', has_children: true, callout: { rich_text: [] },
     }))
     const notion = fakeNotionTree({})
-    await expandChildren(notion, blocks)
+    const res = await expandChildren(notion, blocks)
     expect(notion.calls).toHaveLength(CHILD_FETCH_MAX_PER_PAGE)
+    // 上限での打ち切りは決定的な仕様であって取りこぼしの兆候ではない。ここを失敗に
+    // 数えると、コンテナの多いページで非活性化が永久に走らなくなる。
+    expect(res.failed).toBe(0)
+  })
+
+  it('子の取得に失敗したら failed に数える（黙って落とさない）', async () => {
+    const blocks = [
+      { id: 'ng', type: 'callout', has_children: true, callout: { rich_text: [] } },
+      { id: 'ok', type: 'callout', has_children: true, callout: { rich_text: [] } },
+    ]
+    const notion = {
+      blocks: {
+        children: {
+          list: async ({ block_id }: { block_id: string }) => {
+            if (block_id === 'ng') throw new Error('permission denied')
+            return { results: [marked], has_more: false, next_cursor: null }
+          },
+        },
+      },
+    }
+    const res = await expandChildren(notion, blocks)
+    expect(res.failed).toBe(1)
+    // 失敗したコンテナは children 無しのまま。成功したほうは従来どおり添付される。
+    expect((blocks[0] as { children?: unknown[] }).children).toBeUndefined()
+    expect((blocks[1] as { children?: unknown[] }).children).toEqual([marked])
+  })
+
+  it('孫（深さ2）での失敗も合算する', async () => {
+    const blocks = [{ id: 'c1', type: 'callout', has_children: true, callout: { rich_text: [] } }]
+    const child = { id: 'b1', type: 'bulleted_list_item', has_children: true, bulleted_list_item: { rich_text: [] } }
+    const notion = {
+      blocks: {
+        children: {
+          list: async ({ block_id }: { block_id: string }) => {
+            if (block_id === 'b1') throw new Error('boom')
+            return { results: [child], has_more: false, next_cursor: null }
+          },
+        },
+      },
+    }
+    const res = await expandChildren(notion, blocks)
+    expect(res.failed).toBe(1)
   })
 
   it('attachClozeDataはcallout内のマークも拾う（結合確認）', async () => {

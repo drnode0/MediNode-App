@@ -68,8 +68,8 @@ describe('hasFeature', () => {
     delete process.env.EASY_CONNECT_EMAILS
   }
 
-  it('機能キーは4つ', () => {
-    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader'])
+  it('機能キーは5つ', () => {
+    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall'])
   })
 
   it('機能ごとのGA envが立っていればその機能だけ true', () => {

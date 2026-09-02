@@ -99,6 +99,19 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
+  it('recall は台帳から開けない（入口は RECALL_EMAILS だけ）', async () => {
+    // EARLY_ACCESS_FEATURES には recall が入っているので、ここで塞がないと台帳が
+    // 2つ目の入口になる（/admin にボタンは無いが、APIを直接叩けば通ってしまう）。
+    for (const enabled of [true, false]) {
+      upsertMock.mockClear(); logMock.mockClear()
+      const res = await PATCH(makeReq({ userId: 'u1', feature: 'recall', enabled }))
+      expect(res.status, `enabled=${enabled}`).toBe(400)
+      expect((await res.json()).error).toContain('RECALL_EMAILS')
+      expect(upsertMock).not.toHaveBeenCalled()
+      expect(logMock).not.toHaveBeenCalled()
+    }
+  })
+
   it('存在しないユーザーは404', async () => {
     getUserByIdMock.mockResolvedValue({ data: null, error: { message: 'not found' } })
     const res = await PATCH(makeReq({ userId: 'u9', feature: 'tower', enabled: true }))

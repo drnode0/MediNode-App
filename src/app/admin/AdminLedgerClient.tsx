@@ -76,6 +76,7 @@ import { OperatingCostCard } from './OperatingCostCard'
 import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
 import { SpreadCard } from './SpreadCard'
+import { RecallCardsPanel } from './RecallCardsPanel'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -1064,6 +1065,9 @@ ${label}`,
         {tab === 'spread' && (
           <div className="mt-2 mb-8">
             <SpreadCard />
+            {/* Recall（知の球）の伏せ字承認。専用タブはまだ無いので、コンテンツ制作系の操作が
+                並ぶスプレッドタブに間借りする（台帳データに依存しない自己完結パネルという点も揃う）。 */}
+            <RecallCardsPanel />
           </div>
         )}
         {!loading && !error && rows && tab === 'today' && campaignDaysLeft != null && (
