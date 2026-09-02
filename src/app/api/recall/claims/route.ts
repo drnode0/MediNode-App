@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireRecall, claimFromRow, serverError } from '@/lib/recall/guard'
+import { requireRecall, claimFromRow, serverError, CLAIMS_LIMIT, warnIfClaimsTruncated } from '@/lib/recall/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +19,10 @@ export async function GET() {
     .select('claim_id, page_id, page_title, page_kind, section_key, section_heading, body, source, confidence, genres, primary_genre, genre_slot, holes, cloze_status, active')
     .eq('active', true)
     .order('claim_id')
+    // 件数の上限を書かないと max-rows の既定で黙って切られる（理由は guard.ts の CLAIMS_LIMIT）。
+    .limit(CLAIMS_LIMIT)
   if (error) return serverError('claims の読み取りに失敗', error)
-  return NextResponse.json({ claims: (data ?? []).map(claimFromRow) })
+  const rows = data ?? []
+  warnIfClaimsTruncated(rows.length)
+  return NextResponse.json({ claims: rows.map(claimFromRow) })
 }

@@ -223,7 +223,7 @@ MediNode の検証済みコーパスは、読んだあとに手元に残る仕�
 | confidence | text | ok／caut／essentials |
 | genres | text[] | Notion 上の並び順のまま |
 | primary_genre | text | genres[0] |
-| genre_slot | int | 席番号（1〜、INBOX は同期時に除外） |
+| genre_slot | int | 席番号（0始まり。63 は「その他」。INBOX は同期時に除外） |
 | holes | jsonb | `[[start,end],...]` 上限3 |
 | cloze_status | text | pending／approved／rejected |
 | active | bool | 最新の同期で見つかったか |

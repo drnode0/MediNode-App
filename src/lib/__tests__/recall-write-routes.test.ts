@@ -95,6 +95,18 @@ describe('Recall 書き込みルート', () => {
     expect(writesOn('recall_progress')).toHaveLength(0)
   })
 
+  it('読了: pageId は主張側と同じ正規化（小文字・ダッシュ無し）で書く', async () => {
+    // 主張の page_id は extract-claims の normalizePageId を通って入る。読了記録は
+    // `pageId#sectionKey` で主張と突き合わせるので、ここを正規化しないと、呼び出し側が
+    // ダッシュ付きのIDを送った日から突き合わせが静かに外れる（「読んだ」が0のまま）。
+    const dashed = '1A2B3C4D-5E6F-7081-9203-A4B5C6D7E8F9'
+    expect((await readPOST(req({ pageId: dashed, sectionKey: 'sec1' }))).status).toBe(200)
+    expect(writesOn('recall_section_reads')[0].row).toMatchObject({
+      page_id: '1a2b3c4d5e6f70819203a4b5c6d7e8f9',
+      section_key: 'sec1',
+    })
+  })
+
   it('覚えた: recall_progress へ upsert（本人のIDで）・recall_review_log へ insert（本人のIDで）。残していなければ 404。result が不正なら 400', async () => {
     expect((await reviewPOST(req({ claimId: 'a', result: 'ok' }))).status).toBe(404)
     // streak:2・interval_days:3 は SRS_INTERVAL_DAYS の実際の対応（streak2→3日）に合わせた値。

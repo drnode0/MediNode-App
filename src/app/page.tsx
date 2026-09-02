@@ -3044,7 +3044,10 @@ export default function Home() {
   const activeTab: Tab = tabs.some((t) => t.id === tab) ? tab : 'search'
 
   const header = (
-    <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm [padding-top:env(safe-area-inset-top)]">
+    // data-app-header: 画面いっぱいに描くタブ（Recall）が、この不透明なヘッダーの高さを
+    // 実測して自分の上部要素をその下へ逃がすための目印。高さはタブの行数・セーフエリアで
+    // 変わるので、数値を写し取らずここを測る。
+    <div data-app-header className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm [padding-top:env(safe-area-inset-top)]">
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
         <div className="flex items-center justify-between mb-3">
           <div className="w-16 flex items-center">

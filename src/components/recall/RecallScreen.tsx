@@ -15,6 +15,15 @@ const FLY_MS = 900
 const NOTICE_MS = 4000
 const TIP_W = 290
 
+// この画面は fixed inset-0 z-0 で、アプリのヘッダー（sticky top-0 z-10・不透明・タブの行を含む）
+// の下に潜る。z-0 は動かせない（上げるとタブの並びごと覆って他のタブへ戻れなくなる）ので、
+// 重なりは上部要素の余白で避ける。高さはタブの行・セーフエリア・文字サイズで変わるため
+// 数値を写し取らず、ヘッダーの実物（data-app-header）を測る。
+// 測れない場合（ヘッダーの無い画面に置かれた等）の控えは 132px。実測の内訳
+// 12(pt-3) + 32(操作の行) + 12(mb-3) + 約55(タブの行) + 8(pb-2) ≒ 119px に、
+// セーフエリアと文字サイズの振れぶんの余裕を足した値。
+const HEADER_FALLBACK = 132
+
 export function RecallScreen() {
   const data = useRecallData()
   const reduced = useReducedMotion()
@@ -29,6 +38,7 @@ export function RecallScreen() {
   const [lens, setLens] = useState<LensMode>('all')
   const [notice, setNotice] = useState<string | null>(null)
   const [vw, setVw] = useState(0)
+  const [headerH, setHeaderH] = useState(HEADER_FALLBACK)
   const raf = useRef(0)
 
   // 走らせた setTimeout は全部ここに控える。控えないと「確かめる」直後に「戻す」を押したとき、
@@ -65,6 +75,19 @@ export function RecallScreen() {
     window.addEventListener('resize', sync)
     window.addEventListener('orientationchange', sync)
     return () => { window.removeEventListener('resize', sync); window.removeEventListener('orientationchange', sync) }
+  }, [])
+
+  // ヘッダーの高さを実測して、上部の見出し・内訳をその下へ逃がす。タブの行が折り返す・
+  // 端末の向きが変わるとヘッダーの高さも変わるので、1回測って終わりにはしない。
+  useEffect(() => {
+    const el = document.querySelector('[data-app-header]')
+    if (!el) return
+    const sync = () => setHeaderH(el.getBoundingClientRect().height || HEADER_FALLBACK)
+    sync()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   const claimById = useMemo(() => new Map(data.claims.map((c) => [c.claimId, c])), [data.claims])
@@ -151,15 +174,17 @@ export function RecallScreen() {
         onDeckTap={(id) => { setTip(null); setCard({ claimId: id, mode: 'quiz' }) }}
         onHere={setHere} onZoom={setZoom} />
 
-      <div className="absolute top-6 left-7 pointer-events-none">
+      {/* 上部の3つ（見出し・内訳・いま見ている区画）は、ヘッダーの実測高さの下から始める。
+          もとの top-6 / top-7 / top-[22px] の差はそのまま残す。 */}
+      <div className="absolute left-7 pointer-events-none" style={{ top: headerH + 24 }}>
         <h1 className="text-[21px] tracking-[.14em] font-semibold" style={{ fontFamily: '"Shippori Mincho",serif' }}>Recall</h1>
         <p className="mt-1.5 text-[11px] font-light tracking-[.08em] text-slate-400">検証済みの主張 {data.claims.length}　明るさは、思い出せる度合い</p>
       </div>
-      <div className="absolute top-7 right-7 text-right pointer-events-none">
+      <div className="absolute right-7 text-right pointer-events-none" style={{ top: headerH + 28 }}>
         <div className="text-[28px] font-light tabular-nums">{data.claims.length}<small className="text-[11px] text-slate-400 tracking-widest ml-1.5">主張</small></div>
         <p className="text-[10.5px] text-slate-400 tracking-[.1em] mt-1">残した {data.counts.kept + data.counts.settled} ／ 読んだ {data.counts.touched} ／ 未着手 {data.counts.cold}</p>
       </div>
-      {here && <div className="absolute top-[22px] left-1/2 -translate-x-1/2 text-[12.5px] tracking-[.06em] text-cyan-200 pointer-events-none">{here}</div>}
+      {here && <div className="absolute left-1/2 -translate-x-1/2 text-[12.5px] tracking-[.06em] text-cyan-200 pointer-events-none" style={{ top: headerH + 22 }}>{here}</div>}
 
       <div className="absolute left-7 bottom-7 text-[10.5px] text-slate-400 leading-8 tracking-[.06em] pointer-events-none max-[680px]:hidden">
         <div><i className="inline-block w-2 h-2 rounded-full mr-2 align-[1px]" style={{ background: '#eaf7fd', boxShadow: '0 0 8px #bfe9f5' }} />定着した</div>

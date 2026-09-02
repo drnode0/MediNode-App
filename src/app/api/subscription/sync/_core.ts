@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client'
+import * as Sentry from '@sentry/nextjs'
 import algoliasearch from 'algoliasearch'
 import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
@@ -477,6 +478,13 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
       console.error(
         `Recall 主張の保存に失敗しました（同期自体は続行します。保存できた主張=${recallClaims}件）:`,
         err,
+      )
+      // 同期は成功として返るので、console だけだと毎晩 recallClaims=0 のまま誰も気づかない
+      // （テーブルが無い・service_role の権限が落ちた、のどちらも同じ見え方になる）。
+      // early-access.ts の readLedger と同じ形で Sentry にも上げる。
+      Sentry.captureException(
+        err instanceof Error ? err : new Error(`Recall 主張の保存に失敗: ${String(err)}`),
+        { extra: { recallClaims, recallDeactivated } },
       )
     }
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRecall, serverError, notFound, validId } from '@/lib/recall/guard'
+import { normalizePageId } from '@/lib/recall/extract-claims'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +18,16 @@ export async function POST(req: Request) {
   const g = await requireRecall()
   if (!g.ok) return g.response
   const body = (await req.json().catch(() => null)) as { pageId?: unknown; sectionKey?: unknown } | null
-  const pageId = body ? validId(body.pageId) : null
+  const raw = body ? validId(body.pageId) : null
   const sectionKey = body ? validId(body.sectionKey) : null
-  if (!pageId || !sectionKey) {
+  if (!raw || !sectionKey) {
     return NextResponse.json({ error: 'pageId と sectionKey が必要です' }, { status: 400 })
   }
+  // 主張側の page_id は extract-claims の normalizePageId を通して保存されている
+  // （ダッシュ無し・小文字）。読了記録は `pageId#sectionKey` で主張と突き合わせるので、
+  // ここで同じ正規化を通さないと、呼び出し側がダッシュ付きのIDを送った日から
+  // 突き合わせが静かに外れる（エラーは出ず「読んだ」が0のまま）。
+  const pageId = normalizePageId(raw)
   const { error } = await g.supabase.from('recall_section_reads').upsert(
     { user_id: g.userId, page_id: pageId, section_key: sectionKey, read_at: new Date().toISOString() },
     { onConflict: 'user_id,page_id,section_key' },

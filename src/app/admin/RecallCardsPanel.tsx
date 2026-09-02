@@ -123,7 +123,7 @@ export function RecallCardsPanel() {
       <SectionHeading
         title="Recall のカード（伏せ字にするかを決める）"
         caption="数値の穴が作れた主張の一覧。伏せ字カードにするかを決め、穴が変なら直す。どちらに決めても主張は Recall に出る（伏せ字にしない主張は、全文を思い出す想起カードになる）。"
-        help={`recall_claims.cloze_status。伏せ字にすると Recall の確かめるで穴あきカードになり、しなければ全文を思い出す想起カードのまま出ます。この画面で主張そのものを引っ込めることはできません。穴はタップで外し、裏の本文を範囲選択すると足せます（最大${MAX_HOLES}）。`}
+        help={`recall_claims.cloze_status。伏せ字にすると Recall の確かめるで穴あきカードになり、しなければ全文を思い出す想起カードのまま出ます。この画面で主張そのものを引っ込めることはできません。穴はタップで外し、裏の本文を範囲選択すると足せます（最大${MAX_HOLES}）。一度どちらかに決めた主張は、毎晩の同期が穴を更新しなくなります（オーナーが直した穴を検出結果で上書きしないため）。検出の改善を後から届けたいときは「未判断に戻す」を押してください。`}
       />
       {msg && <p className="text-xs mb-2 text-gray-600 dark:text-gray-300">{msg}</p>}
       <div className="flex flex-wrap gap-2 mb-3 text-xs">

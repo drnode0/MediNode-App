@@ -227,7 +227,13 @@ type BroadcastHistoryItem = {
 // 1回目の「送信」クリックでは即送信せず、内容確認ビューを経由してから送る。
 function SubscriptionSyncButton() {
   const [syncing, setSyncing] = useState(false)
-  const [result, setResult] = useState<{ medical: number; reference: number; total: number; at: string } | null>(null)
+  // recallClaims / recallDeactivated も控える。同期の受け入れ確認は「押して主張の件数を見る」
+  // ことで行うが、この画面はスマホから押される（devtools でレスポンスを覗けない）。
+  // recallDeactivated は大量の非活性化に気づくための警報なので、0でない限り必ず出す。
+  const [result, setResult] = useState<{
+    medical: number; reference: number; total: number
+    recallClaims: number; recallDeactivated: number; at: string
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const run = useCallback(async () => {
@@ -243,6 +249,8 @@ function SubscriptionSyncButton() {
         medical: synced.medical ?? 0,
         reference: synced.reference ?? 0,
         total: synced.total ?? 0,
+        recallClaims: synced.recallClaims ?? 0,
+        recallDeactivated: synced.recallDeactivated ?? 0,
         at: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
       })
     } catch (e) {
@@ -270,7 +278,10 @@ function SubscriptionSyncButton() {
       {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
       {result && (
         <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
-          同期しました（医療{result.medical}件・文献{result.reference}件／{result.at}）
+          同期しました（医療{result.medical}件・文献{result.reference}件・Recall の主張{result.recallClaims}件／{result.at}）
+          {result.recallDeactivated > 0 && (
+            <span className="text-amber-600 dark:text-amber-400">　取り下げた主張 {result.recallDeactivated}件</span>
+          )}
         </p>
       )}
       <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { CLAIMS_LIMIT, SUPABASE_DEFAULT_MAX_ROWS } from '@/lib/recall/guard'
 
 const sessionHasFeature = vi.fn()
 const getUser = vi.fn()
@@ -8,17 +9,19 @@ let tableErrors: Record<string, { message: string }> = {}
 // どのクライアントが・どのテーブルを・どの条件で引いたかを記録する。
 // 引数を捨てるモックだと `.eq('active', true)` や `.eq('user_id', ...)` を消しても緑のままになり、
 // ポリシーの代わりにコードが担っている絞り込みの消失を検知できない。
-type Query = { client: 'admin' | 'user'; table: string; eq: [string, unknown][] }
+type Query = { client: 'admin' | 'user'; table: string; eq: [string, unknown][]; limit: number | null }
 let queries: Query[] = []
 
 function makeFrom(client: 'admin' | 'user') {
   return (table: string) => {
-    const call: Query = { client, table, eq: [] }
+    const call: Query = { client, table, eq: [], limit: null }
     queries.push(call)
     const q = {
       eq: (column: string, value: unknown) => { call.eq.push([column, value]); return q },
       is: () => q,
       order: () => q,
+      // 件数の上限は「付け忘れると黙って切られる」ものなので、引数まで記録する。
+      limit: (n: number) => { call.limit = n; return q },
       then: (res: (v: unknown) => void) => {
         const error = tableErrors[table]
         res(error ? { data: null, error } : { data: rows[table] ?? [], error: null })
@@ -46,6 +49,8 @@ const claimsGET = claimsRoute.GET
 const progressGET = progressRoute.GET
 
 const queriesOn = (table: string) => queries.filter((q) => q.table === table)
+// 切り詰めの検知だけを見るので、行は最小限（claimFromRow が読む列）で作る。
+const row = (n: number) => Array.from({ length: n }, (_, i) => ({ claim_id: `c${i}`, page_id: 'p', body: 'b', active: true }))
 
 beforeEach(() => {
   sessionHasFeature.mockReset()
@@ -125,6 +130,34 @@ describe('Recall 読み取りルート', () => {
     rows.recall_claims = [{ ...base, active: null }, { ...base, claim_id: 'b' }, { ...base, claim_id: 'c', active: 'true' }]
     const json = await (await claimsGET()).json()
     expect(json.claims.map((c: { active: boolean }) => c.active)).toEqual([false, false, false])
+  })
+
+  it('主張は明示した上限つきで読む（上限に達しなければ警告は出さない）', async () => {
+    sessionHasFeature.mockResolvedValue(true)
+    getUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    rows.recall_claims = row(700)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const json = await (await claimsGET()).json()
+    expect(json.claims).toHaveLength(700)
+    expect(queriesOn('recall_claims')[0].limit).toBe(CLAIMS_LIMIT)
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('上限（または max-rows の既定）で頭打ちになったら、切り詰めを名指しで警告する', async () => {
+    // PostgREST は max-rows で切っても error を返さない。切られたぶんは読者側のフックが
+    // 記録を突き合わせる対象から外れ、「確かめる」と内訳から静かに消える。
+    // 黙って消えるのではなく、サーバーのログに残ることを見る。
+    sessionHasFeature.mockResolvedValue(true)
+    getUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    for (const n of [SUPABASE_DEFAULT_MAX_ROWS, CLAIMS_LIMIT]) {
+      rows.recall_claims = row(n)
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      expect((await claimsGET()).status).toBe(200)
+      expect(warn, `${n}件`).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0][0])).toContain('切られている')
+      warn.mockRestore()
+    }
   })
 
   it('主張の読み取りが失敗したら 500（生のDBメッセージは返さない）', async () => {

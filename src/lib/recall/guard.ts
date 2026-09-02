@@ -48,6 +48,30 @@ export function serverError(where: string, error: { message: string }): NextResp
   return NextResponse.json({ error: 'server_error' }, { status: 500 })
 }
 
+// 主張コーパスを1回で読むときの明示的な上限。
+// 上限を書かないと、Supabase のプロジェクト設定 max-rows（既定 1000）に当たったとき
+// PostgREST は先頭 max-rows 件だけを返す。エラーにもならず、レスポンスからは
+// 「全件だった」と見分けが付かない。読者側のフックは返ってきた主張に対して記録を
+// 突き合わせるので、窓から外れた主張は「残した」も「確かめる」も内訳の数からも
+// 静かに消える。上限を明示したうえで、上限に達した回をログに残す。
+export const CLAIMS_LIMIT = 5000
+// Supabase ホスト環境の max-rows の既定値。CLAIMS_LIMIT に達する前にこちらで
+// 切られる可能性があるので、ちょうどこの件数だったときも切り詰めを疑って警告する
+// （実際に丁度この件数だった場合の空振りは、黙って切られるより害が小さい）。
+export const SUPABASE_DEFAULT_MAX_ROWS = 1000
+
+// 切り詰めが起きた可能性があれば警告を出し、出したかどうかを返す。
+export function warnIfClaimsTruncated(count: number): boolean {
+  if (count < SUPABASE_DEFAULT_MAX_ROWS) return false
+  if (count < CLAIMS_LIMIT && count !== SUPABASE_DEFAULT_MAX_ROWS) return false
+  console.warn(
+    `[recall] claims: ${count}件で頭打ちになりました（上限 ${CLAIMS_LIMIT} / Supabase の max-rows 既定 ${SUPABASE_DEFAULT_MAX_ROWS}）。` +
+      '主張が途中で切られている可能性があります。切られたぶんは Recall の「確かめる」と内訳から静かに消えるため、' +
+      '上限と max-rows を引き上げるか、分割して読む実装へ変えてください。',
+  )
+  return true
+}
+
 type Row = Record<string, unknown>
 export function claimFromRow(r: Row): RecallClaim {
   return {
