@@ -23,6 +23,10 @@ describe('normalizeHoles', () => {
     expect(normalizeHoles(50, [[2, 5], [5, 9]])).toEqual([[2, 9]]) // 接しているだけの範囲も畳む
   })
 
+  it('完全に内側に収まる範囲は、外側1つに吸収され別々には出ない', () => {
+    expect(normalizeHoles(50, [[2, 12], [5, 8]])).toEqual([[2, 12]])
+  })
+
   it('本文の外は本文の長さに丸め、丸めて幅が無くなったものは捨てる', () => {
     expect(normalizeHoles(10, [[8, 99]])).toEqual([[8, 10]])
     expect(normalizeHoles(10, [[20, 30]])).toEqual([])
@@ -66,6 +70,28 @@ describe('segmentBody', () => {
       [[1, 2, 3]],
     ]
     for (const holes of cases) expect(join(BODY, holes), `holes=${JSON.stringify(holes)}`).toBe(BODY)
+  })
+
+  it('伏せ字の段は、どんな範囲が来ても空文字にならない（答えの無い穴を作らない）', () => {
+    const cases: unknown[] = [
+      [[3, 6]],
+      [[10, 12], [2, 4]],
+      [[2, 8], [5, 12]],
+      [[2, 12], [5, 8]],       // 内側に完全に収まる範囲
+      [[12, 10]],
+      [[-4, 6]],
+      [[100, 200]],
+      [[0, BODY.length]],
+      [],
+      null,
+      'こわれた値',
+      [[1, 2, 3]],
+    ]
+    for (const holes of cases) {
+      for (const s of segmentBody(BODY, holes)) {
+        if (s.blank) expect(s.text.length, `holes=${JSON.stringify(holes)}`).toBeGreaterThan(0)
+      }
+    }
   })
 
   it('伏せ字は本文のその位置の文字そのもの', () => {

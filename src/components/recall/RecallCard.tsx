@@ -71,6 +71,13 @@ export function RecallCard({ claim, mode, kept, pending = false, onAnswer, onKee
         {mode === 'quiz' && revealed && pending && (
           <div className="flex-1 py-3 text-[12px] text-center text-slate-400" role="status" aria-live="polite">記録しています</div>
         )}
+        {/* カードは下の操作列を覆う。答える前でも、答えを見ている間でも、保存が詰まっている間でも、
+            答えずに抜けられる閉じるを必ず置く。閉じるは覚えた／まだを押さない限り記録を書かない
+            （答え後に閉じても、下で走っている保存はそのまま続く。誤タップ対策と、意図した保存の
+            取り消しは別）。 */}
+        {mode === 'quiz' && (
+          <button type="button" className="rounded-full border border-slate-600/40 px-5 py-3 text-[12.5px]" onClick={onClose}>閉じる</button>
+        )}
         {mode === 'view' && (
           <>
             <button type="button" disabled={pending} className="flex-1 rounded-full border border-cyan-400/60 text-cyan-300 py-3 text-[12.5px] disabled:opacity-50" onClick={() => onKeep?.(!kept)}>{pending ? '記録しています' : kept ? '残すのをやめる' : '残す'}</button>

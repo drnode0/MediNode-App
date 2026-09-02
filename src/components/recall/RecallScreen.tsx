@@ -45,6 +45,16 @@ export function RecallScreen() {
   }, [])
   useEffect(() => () => clearTimers(), [clearTimers])
 
+  // カードは下の操作列（確かめる／レンズ／戻す）を覆うので、答えずに抜ける手段をもう1つ
+  // 用意する。Esc は開いているカードのモード・状態を問わず閉じる（記録は書かない。
+  // カード側の閉じるボタンと同じく setCard(null) を呼ぶだけ）。
+  useEffect(() => {
+    if (!card) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCard(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [card])
+
   const say = useCallback((msg: string) => { setNotice(msg); later(() => setNotice(null), NOTICE_MS) }, [later])
 
   // 吹き出しの左右の収まりに画面幅を使う。描画のたびに window を読むと SSR で落ちるうえ、
@@ -153,8 +163,11 @@ export function RecallScreen() {
       </div>
       <div className="absolute right-7 bottom-7 text-[10.5px] text-slate-400 tracking-[.08em] pointer-events-none">ホイール／ピンチで寄る　<b className="text-cyan-300 font-medium">{zoom.toFixed(1)}x</b></div>
 
-      {deck.length > 0 && !card && !pill && (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-[148px] text-[11px] tracking-[.1em] text-slate-400 pointer-events-none">薄れている主張が <b className="text-cyan-300 font-medium tabular-nums">{deck.length}</b>　山をタップで開く</div>
+      {/* 保存の失敗ピルが出ている間も、山の使い方（タップで開く）は消さない。消えると、
+          失敗を伝えたその文言だけが残り、やり直し方を教えないまま画面に居座る。
+          ピルと同時に出すときは1段上へ積んで重ならないようにする。 */}
+      {deck.length > 0 && !card && (
+        <div className={`absolute left-1/2 -translate-x-1/2 ${pill ? 'bottom-[184px]' : 'bottom-[148px]'} text-[11px] tracking-[.1em] text-slate-400 pointer-events-none`}>薄れている主張が <b className="text-cyan-300 font-medium tabular-nums">{deck.length}</b>　山をタップで開く</div>
       )}
       {pill && <div className="absolute left-1/2 -translate-x-1/2 bottom-[148px] text-[12px] tracking-[.06em] text-cyan-200 bg-[rgba(12,20,30,.9)] border border-slate-600/40 rounded-full px-4 py-2 pointer-events-none">{pill}</div>}
 
