@@ -1,5 +1,8 @@
 // 間隔反復と状態(純関数)。描画を知らない。時刻は引数で受ける(テストで日付を進めるため)。
 import type { RecallProgress, RecallState } from './types'
+// 「同じ日」は日本の暦日で数える。UTC の 0 時区切りだと JST の 0〜9 時がずれるため、
+// 既存の JST 日付キー（依存を持たない純関数）をそのまま使う。
+import { jstDateKey } from '@/lib/admin-daily'
 
 export const SRS_INTERVAL_DAYS = [1, 3, 7, 14, 30, 60, 120, 240, 365] as const
 export const SETTLED_MIN_DAYS = 90
@@ -53,13 +56,20 @@ export function pickCandidates(progress: RecallProgress[], now: Date, max = MAX_
     .map((x) => x.p)
 }
 
-export function nextDue(progress: RecallProgress[], now: Date): { at: Date; count: number } | null {
+// 次の期限の答え。overdue=true は「もう期限が来ている」＝ at は now そのもので、
+// count は期限切れ全件（最も古い日の分だけではない）。
+// overdue=false は未来の最も早い期限で、count はその日（日本の暦日）に並ぶ件数。
+// 呼び出し側は overdue を見るだけで「今すぐ」と「◯日後」を出し分けられる。
+export type NextDue = { at: Date; count: number; overdue: boolean }
+
+export function nextDue(progress: RecallProgress[], now: Date): NextDue | null {
   const kept = progress.filter(isKept)
   if (!kept.length) return null
+  const nowMs = now.getTime()
   const times = kept.map((p) => new Date(p.dueAt).getTime()).sort((a, b) => a - b)
+  const overdue = times.filter((t) => t <= nowMs)
+  if (overdue.length) return { at: new Date(nowMs), count: overdue.length, overdue: true }
   const first = times[0]
-  const dayStart = Math.floor(first / DAY) * DAY
-  const count = times.filter((t) => t >= dayStart && t < dayStart + DAY).length
-  void now
-  return { at: new Date(first), count }
+  const key = jstDateKey(first)
+  return { at: new Date(first), count: times.filter((t) => jstDateKey(t) === key).length, overdue: false }
 }

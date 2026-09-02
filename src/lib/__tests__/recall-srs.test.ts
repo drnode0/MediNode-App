@@ -54,12 +54,56 @@ describe('SRS', () => {
     expect(got).not.toContain('fresh')
     expect(got).not.toContain('removed')
   })
-  it('次の期限は最も早い due_at とその日の件数', () => {
+  it('次の期限は最も早い due_at とその日の件数（すべて未来のとき）', () => {
     const now = d('2026-09-02T00:00:00Z')
     const a = { ...newProgress('a', now), dueAt: '2026-09-05T00:00:00.000Z' }
     const b = { ...newProgress('b', now), dueAt: '2026-09-05T09:00:00.000Z' }
     const c = { ...newProgress('c', now), dueAt: '2026-09-09T00:00:00.000Z' }
-    expect(nextDue([a, b, c], now)).toEqual({ at: d('2026-09-05T00:00:00Z'), count: 2 })
+    expect(nextDue([a, b, c], now)).toEqual({ at: d('2026-09-05T00:00:00Z'), count: 2, overdue: false })
     expect(nextDue([], now)).toBeNull()
+  })
+  it('すべて期限切れなら「今」が答えで、最も古い日だけでなく全件を数える', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const a = { ...newProgress('a', now), dueAt: '2026-09-05T00:00:00.000Z' }
+    const b = { ...newProgress('b', now), dueAt: '2026-09-11T00:00:00.000Z' }
+    const c = { ...newProgress('c', now), dueAt: '2026-09-18T00:00:00.000Z' }
+    expect(nextDue([a, b, c], now)).toEqual({ at: now, count: 3, overdue: true })
+  })
+  it('期限切れと未来が混ざれば期限切れが勝ち、期限切れ全件を数える', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const a = { ...newProgress('a', now), dueAt: '2026-09-05T00:00:00.000Z' }
+    const b = { ...newProgress('b', now), dueAt: '2026-09-11T00:00:00.000Z' }
+    const c = { ...newProgress('c', now), dueAt: '2026-09-25T00:00:00.000Z' }
+    const e = { ...newProgress('e', now), dueAt: '2026-10-01T00:00:00.000Z' }
+    expect(nextDue([a, b, c, e], now)).toEqual({ at: now, count: 2, overdue: true })
+  })
+  it('ちょうど now の期限は「期限切れ（今が答え）」に数える', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const a = { ...newProgress('a', now), dueAt: '2026-09-20T00:00:00.000Z' }
+    const b = { ...newProgress('b', now), dueAt: '2026-09-25T00:00:00.000Z' }
+    expect(nextDue([a, b], now)).toEqual({ at: now, count: 1, overdue: true })
+  })
+  it('同じ日かどうかは日本の暦日で数える（JST 8:00 と 10:30 は同じ日で2件）', () => {
+    const now = d('2026-09-01T00:00:00Z')
+    // JST 2026-09-05 08:00 / 10:30。UTC では 09-04 と 09-05 に割れる
+    const a = { ...newProgress('a', now), dueAt: '2026-09-04T23:00:00.000Z' }
+    const b = { ...newProgress('b', now), dueAt: '2026-09-05T01:30:00.000Z' }
+    expect(nextDue([a, b], now)).toEqual({ at: d('2026-09-04T23:00:00Z'), count: 2, overdue: false })
+  })
+  it('日本時間で日をまたげば別の日（JST 23:00 と翌 01:00 は早い方の1件）', () => {
+    const now = d('2026-09-01T00:00:00Z')
+    // JST 2026-09-05 23:00 / 2026-09-06 01:00。UTC ではどちらも 09-05
+    const a = { ...newProgress('a', now), dueAt: '2026-09-05T14:00:00.000Z' }
+    const b = { ...newProgress('b', now), dueAt: '2026-09-05T16:00:00.000Z' }
+    expect(nextDue([a, b], now)).toEqual({ at: d('2026-09-05T14:00:00Z'), count: 1, overdue: false })
+  })
+  it('外した主張は期限切れでも未来でも数えない', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const rmPast = { ...newProgress('rm-past', now), dueAt: '2026-09-05T00:00:00.000Z', removedAt: now.toISOString() }
+    const rmFuture = { ...newProgress('rm-future', now), dueAt: '2026-09-25T00:00:00.000Z', removedAt: now.toISOString() }
+    const live = { ...newProgress('live', now), dueAt: '2026-09-25T09:00:00.000Z' }
+    // 期限切れは外したものだけ→未来の live が答え。件数にも入らない
+    expect(nextDue([rmPast, rmFuture, live], now)).toEqual({ at: d('2026-09-25T09:00:00Z'), count: 1, overdue: false })
+    expect(nextDue([rmPast, rmFuture], now)).toBeNull()
   })
 })
