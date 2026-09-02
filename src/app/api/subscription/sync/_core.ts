@@ -6,6 +6,10 @@ import { extractCloze } from '@/lib/cloze'
 import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
 import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
 import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
+import { extractClaims } from '@/lib/recall/extract-claims'
+import { saveRecallClaims } from '@/lib/recall/sync-claims'
+import { createAdminClient } from '@/lib/supabase/server'
+import type { RecallClaim } from '@/lib/recall/types'
 
 /**
  * サブスクリプション同期の共通ロジック。
@@ -24,7 +28,7 @@ import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 
 export type SyncResult = {
   success: true
-  synced: { medical: number; reference: number; total: number }
+  synced: { medical: number; reference: number; total: number; recallClaims: number }
   index: string
 }
 
@@ -156,6 +160,7 @@ async function syncMedicalDb(
   notion: Client,
   dbId: string,
   records: Record<string, unknown>[],
+  claims: RecallClaim[],
 ): Promise<number> {
   let count = 0
   let cursor: string | undefined = undefined
@@ -219,6 +224,12 @@ async function syncMedicalDb(
         cloze: blocks ? extractCloze(blocks) : null,
       }
       records.push(record)
+      if (blocks) {
+        claims.push(...extractClaims({
+          pageId: page.id, pageTitle: title, pageKind: title.trim().slice(0, 2).trim(),
+          genres: extractList(props['ジャンル'] || {}), blocks,
+        }))
+      }
       if (blocks) {
         // 節レコードにclozeを複製しない（クイズ・今日の1問は親レコードだけを使う。
         // 複製するとAlgoliaの1レコード10KB上限を超える節が出る——2026-08-12に実際に発生）
@@ -387,11 +398,12 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
   const index = algolia.initIndex(algoliaIndex)
 
   const records: Record<string, unknown>[] = []
+  const claims: RecallClaim[] = []
   let syncedMedical = 0
   let syncedReference = 0
 
   // Medical DB の同期
-  syncedMedical = await syncMedicalDb(notion, medicalDbId!, records)
+  syncedMedical = await syncMedicalDb(notion, medicalDbId!, records, claims)
 
   // Reference DB の同期（任意）
   if (referenceDbId) {
@@ -410,12 +422,20 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
     await index.saveObjects(records)
   }
 
+  // Recall の主張。Supabase が未設定の環境（ローカルの Algolia だけの検証）では飛ばす。
+  let recallClaims = 0
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const saved = await saveRecallClaims(createAdminClient(), claims)
+    recallClaims = saved.upserted
+  }
+
   return {
     success: true,
     synced: {
       medical: syncedMedical,
       reference: syncedReference,
       total: records.length,
+      recallClaims,
     },
     index: algoliaIndex,
   }
