@@ -139,7 +139,13 @@ export function RecallScreen() {
   const tipLeft = vw ? Math.max(12, Math.min(vw - TIP_W - 12, tip ? tip.x - TIP_W / 2 : 12)) : Math.max(12, (tip?.x ?? 12) - TIP_W / 2)
 
   return (
-    <div className="fixed inset-0 z-20 bg-[#05080e] text-slate-100 overflow-hidden" style={{ fontFamily: '"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif' }}>
+    // z-0（0未満にしない）: ホームのタブ切り替えの1つとしてここへ来る。タブバーは
+    // sticky top-0 z-10 なので、ここを z-10 以上にするとタブの並びごと覆って
+    // 他のタブへ戻る手段が無くなる。0を明示するのは、auto のままだと下のカード・
+    // 吹き出し（各 z-30）がスタッキングコンテキストを作らず外へ抜けて、同じ理由で
+    // タブバーを覆ってしまうため（このdivが positioned z 明示のときだけ、配下の
+    // z-30 はこの中に閉じ込められる）。
+    <div className="fixed inset-0 z-0 bg-[#05080e] text-slate-100 overflow-hidden" style={{ fontFamily: '"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif' }}>
       <RecallSphere sprites={data.sprites} marks={data.marks} flying={flying} dimmed={dimmed} lens={lens} shakeUntil={shakeUntil} reduced={reduced}
         onPick={(id, at) => setTip(id ? { claimId: id, ...at } : null)}
         onDeckTap={(id) => { setTip(null); setCard({ claimId: id, mode: 'quiz' }) }}
