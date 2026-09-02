@@ -11,6 +11,7 @@ import {
   Inbox, Brain, X, Zap, CreditCard, RefreshCw, AlertTriangle, Book, Check,
   KeyRound, XCircle, Microscope, BarChart3, Smartphone, FileText, Ambulance, Lock,
   ExternalLink, ChevronRight, ChevronUp, ChevronDown, Globe, NotebookPen, CircleUserRound,
+  Orbit,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -43,6 +44,8 @@ import { ingestRecords, loadTowerState, saveTowerState } from '@/lib/tower-steps
 import { isTowerEnabled } from '@/lib/tower-flags'
 import { TowerCard } from '@/components/tower/TowerCard'
 import { VineScreen } from '@/components/vine/VineScreen'
+import { isRecallEnabled } from '@/lib/recall-flag'
+import { RecallScreen } from '@/components/recall/RecallScreen'
 import { GenreBrowse, genreChipTone, GenreHitsList, GenreOwnerFilterTabs, orderedTeams, genreAccentTone, DEPT_DOT_BG, type TeamMeta } from '@/components/GenreBrowse'
 import {
   mergeGenreKeys,
@@ -114,7 +117,7 @@ import { CurrentQueryCtx } from '@/components/CurrentQueryContext'
 
 const ONBOARDING_DONE_KEY = 'medical_search_onboarding_done_v4'
 
-type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference' | 'manual'
+type Tab = 'search' | 'recent' | 'browse' | 'quiz' | 'reference' | 'manual' | 'recall'
 
 // ============================================================
 // サブスクHits中継機構（Step 2: multi-index検索）
@@ -3023,6 +3026,7 @@ export default function Home() {
     reference: 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300',
     quiz: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300',
     manual: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+    recall: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300',
   }
   const tabs: { id: Tab; label: string; Icon: LucideIcon }[] = [
     { id: 'search', label: '検索', Icon: Search },
@@ -3033,6 +3037,8 @@ export default function Home() {
     ...(settings?.hideQuizTab ? [] : [{ id: 'quiz' as Tab, label: 'クイズ', Icon: Lightbulb }]),
     // マニュアルDBが設定されている時のみタブを表示（オプトイン）。
     ...(hasManual ? [{ id: 'manual' as Tab, label: 'マニュアル', Icon: ClipboardList }] : []),
+    // Recall（知の球）。機能フラグが開いている人にだけタブを出す（判定の正はサーバー。ここは表示制御のみ）。
+    ...(isRecallEnabled() ? [{ id: 'recall' as Tab, label: 'Recall', Icon: Orbit }] : []),
   ]
   // 選択中のタブが非表示化された場合（クイズをオフ・マニュアルDB解除）は検索へ退避する。
   const activeTab: Tab = tabs.some((t) => t.id === tab) ? tab : 'search'
@@ -3164,6 +3170,7 @@ export default function Home() {
           {activeTab === 'reference' && <NotionReferenceTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'quiz' && <NotionQuizTab hasTeam={hasTeam} hasSubscription={hasSubscription} />}
           {activeTab === 'manual' && <NotionManualTab />}
+          {activeTab === 'recall' && <RecallScreen />}
         </div>
         {towerOpen && isTowerEnabled() && (
           <VineScreen
@@ -3277,6 +3284,7 @@ export default function Home() {
           )}
           {/* マニュアルはMVPではNotion直読みで動かす（Algoliaモードでも同じコンポーネント） */}
           {activeTab === 'manual' && <NotionManualTab />}
+          {activeTab === 'recall' && <RecallScreen />}
         </div>
         {towerOpen && isTowerEnabled() && (
           <VineScreen
