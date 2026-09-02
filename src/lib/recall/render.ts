@@ -116,7 +116,9 @@ export function drawFrame(ctx: CanvasRenderingContext2D, a: FrameArgs): Map<stri
       const k = flyOrder.indexOf(s.claimId), span = Math.min(W * 0.3, 150)
       const mid = (flyOrder.length - 1) / 2, u = (k - mid) / Math.max(mid, 1)
       const tx = W / 2 + u * span, ty = H - 104 + u * u * 14
-      X = pr.X + (tx - pr.X) * e; Y = pr.Y + (ty - pr.Y) * e - Math.sin(fly * Math.PI) * 90
+      // 弧を描いて飛ぶ動きは、動きを減らす設定のときは付けない（山へ真っ直ぐ移す）。
+      const arc = a.reduced ? 0 : Math.sin(fly * Math.PI) * 90
+      X = pr.X + (tx - pr.X) * e; Y = pr.Y + (ty - pr.Y) * e - arc
       if (fly >= 1) deckPos.set(s.claimId, { X, Y })
     }
     const depth = (1 - pr.Z / (R * 1.4)) * 0.5 + 0.5

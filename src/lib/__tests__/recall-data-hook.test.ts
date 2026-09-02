@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import type { RecallProgress } from '@/lib/recall/types'
+import type { RecallClaim, RecallProgress } from '@/lib/recall/types'
 
 // React の最小版（このファイル専用）。useState / useRef / useMemo / useCallback / useEffect を
 // 1コンポーネント分だけ持つ。DOM を持ち込まずに、実物の hook をそのまま動かして
@@ -86,6 +86,12 @@ const prog = (claimId: string, streak: number): RecallProgress => ({
   dueAt: '2026-09-04T00:00:00.000Z', lastReviewedAt: '2026-09-01T00:00:00.000Z',
   lastResult: 'ok', okCount: streak, ngCount: 0, removedAt: null,
 })
+const claim = (claimId: string): RecallClaim => ({
+  claimId, pageId: 'p1', pageTitle: '💡 テスト', pageKind: 'knowledge',
+  sectionKey: 's1', sectionHeading: 'まとめ', body: '目標は 65 mmHg 以上', source: '出典',
+  confidence: 'ok', genres: ['05.循環'], primaryGenre: '05.循環', genreSlot: 4,
+  holes: [[4, 11]], clozeStatus: 'approved', active: true,
+})
 const res = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body })
 function deferred<T>() {
   let resolve!: (v: T) => void
@@ -139,7 +145,9 @@ describe('useRecallData の反映順', () => {
     await settle(2)
   })
 
-  it('保存に失敗したら error にも出したうえで投げ返す', async () => {
+  // 保存の失敗は「一度の通信の途切れ」。読み込みの失敗（出すものが無い）と同じ入れ物に入れると、
+  // 画面が全面の知らせで覆われ、以後どこも押せなくなる。分けて持つことをここで固定する。
+  it('保存に失敗したら saveError に出したうえで投げ返す（読み込みの error は汚さない）', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/recall/claims') return res({ claims: [] })
       if (url === '/api/recall/progress') return res({ progress: [], reads: [] })
@@ -148,7 +156,24 @@ describe('useRecallData の反映順', () => {
     const get = R.mount(() => useRecallData())
     await settle()
     await expect(get().review('c1', 'ok')).rejects.toThrow('保存に失敗しました')
-    expect(get().error).toBe('保存に失敗しました')
+    expect(get().saveError).toBe('保存に失敗しました')
+    expect(get().error).toBeNull()
+  })
+
+  it('次に成功した保存で、前の失敗の知らせが消える', async () => {
+    let fail = true
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/recall/claims') return res({ claims: [] })
+      if (url === '/api/recall/progress') return res({ progress: [], reads: [] })
+      return fail ? res({}, 500) : res({ progress: prog('c1', 1) })
+    }))
+    const get = R.mount(() => useRecallData())
+    await settle()
+    await expect(get().review('c1', 'ok')).rejects.toThrow()
+    expect(get().saveError).toBe('保存に失敗しました')
+    fail = false
+    await get().review('c1', 'ok')
+    expect(get().saveError).toBeNull()
   })
 
   it('保存は JSON として送る', async () => {
@@ -174,7 +199,7 @@ describe('useRecallData の反映順', () => {
       vi.setSystemTime(new Date('2026-09-02T00:00:00.000Z'))
       const p = { ...prog('c1', 1), dueAt: new Date(Date.now() + 30_000).toISOString() }
       vi.stubGlobal('fetch', vi.fn(async (url: string) => (
-        url === '/api/recall/claims' ? res({ claims: [] }) : res({ progress: [p], reads: [] })
+        url === '/api/recall/claims' ? res({ claims: [claim('c1')] }) : res({ progress: [p], reads: [] })
       )))
       const get = R.mount(() => useRecallData())
       await vi.advanceTimersByTimeAsync(1)
@@ -182,6 +207,19 @@ describe('useRecallData の反映順', () => {
       await vi.advanceTimersByTimeAsync(61_000)
       expect(get().nextDue?.overdue).toBe(true)
     } finally { vi.useRealTimers() }
+  })
+
+  // 同期でページが外れると、記録だけが残って主張が無い状態になる。数に入れると
+  // 「いま確かめる主張はありません」と「期限が来ている主張が N 件」が同時に出る。
+  it('画面で開けない主張の記録は、期限にも候補にも数えない', async () => {
+    const overdue = { ...prog('gone', 1), dueAt: '2000-01-01T00:00:00.000Z' }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (
+      url === '/api/recall/claims' ? res({ claims: [claim('c1')] }) : res({ progress: [overdue], reads: [] })
+    )))
+    const get = R.mount(() => useRecallData())
+    await settle()
+    expect(get().nextDue).toBeNull()
+    expect(get().candidates).toEqual([])
   })
 
   it('機能が閉じている（404）ときは静かに空で終える', async () => {

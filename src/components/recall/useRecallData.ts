@@ -4,7 +4,7 @@ import type { RecallClaim, RecallProgress, RecallSectionRead } from '@/lib/recal
 import { layoutClaims, centroid, type Vec3 } from '@/lib/recall/layout'
 import { stateOf, pickCandidates, nextDue } from '@/lib/recall/srs'
 import type { Sprite, Mark } from '@/lib/recall/render'
-import { GENRE_SEATS, OTHER_SLOT } from '@/lib/recall/genres'
+import { genreLabel } from '@/lib/recall/genres'
 
 // 反映の順番を守る門。読み込みは始めるときに番号を取り、応答が届いたときに自分が
 // 最新でなければ捨てる。残す・確かめるの保存も番号を進めるので、保存より前に始まった
@@ -23,7 +23,11 @@ export function useRecallData() {
   const [progress, setProgress] = useState<RecallProgress[]>([])
   const [reads, setReads] = useState<RecallSectionRead[]>([])
   const [loading, setLoading] = useState(true)
+  // error は「読み込みに失敗した＝出すものが無い」ときだけ。保存の失敗（一度の通信の途切れ）は
+  // saveError に分ける。同じ入れ物にすると、一度の保存失敗で画面全体を覆う知らせが出続け、
+  // そのあとの操作がすべて効かなくなる。
   const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
 
   const gateRef = useRef<Gate | null>(null)
@@ -98,7 +102,7 @@ export function useRecallData() {
     }
     const titleOf = new Map(claims.map((c) => [c.pageId, c.pageTitle]))
     const pages: Mark[] = [...byPage].map(([id, vs]) => ({ text: (titleOf.get(id) ?? '').replace(/^[^\s]*\s/, '').slice(0, 22), v: centroid(vs), level: 'page', n: vs.length }))
-    const genres: Mark[] = [...bySlot].map(([slot, vs]) => ({ text: slot === OTHER_SLOT ? 'その他' : GENRE_SEATS[slot].replace(/^\d+\./, ''), v: centroid(vs), level: 'genre', n: vs.length }))
+    const genres: Mark[] = [...bySlot].map(([slot, vs]) => ({ text: genreLabel(slot), v: centroid(vs), level: 'genre', n: vs.length }))
     return [...pages, ...genres]
   }, [claims, positions])
 
@@ -108,12 +112,18 @@ export function useRecallData() {
     return c
   }, [sprites])
 
-  const candidates = useMemo(() => pickCandidates(progress, now), [progress, now])
+  // 数えるのは「いま画面で開ける主張」だけ。同期でページが外れると、記録だけが残って
+  // 主張が無い状態になる。素の progress を数えると「いま確かめる主張はありません」と
+  // 「期限が来ている主張が N 件」が同時に出て、画面が自分と食い違う。
+  const claimIdSet = useMemo(() => new Set(claims.map((c) => c.claimId)), [claims])
+  const openable = useMemo(() => progress.filter((p) => claimIdSet.has(p.claimId)), [progress, claimIdSet])
+
+  const candidates = useMemo(() => pickCandidates(openable, now), [openable, now])
   // nextDue は { at, count, overdue } を返す（Task 8 以降の現行シグネチャ）。overdue=true は
   // 「すでに期限切れが count 件ある＝今すぐ」、false は「次の期限は at で、その日に count 件」。
   // ここでは加工せずそのまま通す。呼び出し側（画面）が overdue を見て「いま◯件」と
   // 「◯日後に◯件」を出し分ける。
-  const due = useMemo(() => nextDue(progress, now), [progress, now])
+  const due = useMemo(() => nextDue(openable, now), [openable, now])
 
   // 残す・確かめるの保存。失敗は error にも出す（呼び出し側が投げっぱなしでも黙って消えない）。
   const save = useCallback(async (path: string, claimId: string, body: unknown) => {
@@ -128,14 +138,17 @@ export function useRecallData() {
       if (!aliveRef.current) return
       gateRef.current!.issue() // これより前に始まった読み込みの応答は、この1件を巻き戻さない
       setProgress((prev) => [...prev.filter((x) => x.claimId !== claimId), p]); setNow(new Date())
+      setSaveError(null) // 次に成功した操作で、前の失敗の知らせを消す
     } catch (e) {
-      if (aliveRef.current) setError(e instanceof Error ? e.message : '保存に失敗しました')
+      if (aliveRef.current) setSaveError(e instanceof Error ? e.message : '保存に失敗しました')
       throw e
     }
   }, [])
 
+  const clearSaveError = useCallback(() => setSaveError(null), [])
+
   const keep = useCallback((claimId: string, keepIt: boolean) => save('/api/recall/keep', claimId, { claimId, keep: keepIt }), [save])
   const review = useCallback((claimId: string, result: 'ok' | 'ng') => save('/api/recall/review', claimId, { claimId, result }), [save])
 
-  return { loading, error, claims, sprites, marks, progressById, candidates, nextDue: due, counts, keep, review, refresh }
+  return { loading, error, saveError, clearSaveError, claims, sprites, marks, progressById, candidates, nextDue: due, counts, keep, review, refresh }
 }

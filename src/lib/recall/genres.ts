@@ -47,3 +47,13 @@ export function primaryGenreOf(genres: string[]): { genre: string; slot: number 
   }
   return null
 }
+
+// 画面に出す席の名前。番号の接頭辞（「05.」）は落とす。
+// GENRE_SEATS は 33 席しか無いのに席番号は GENRE_CAPACITY-1（63）まで取りうるので、
+// 席の外は undefined になる。生の値を出す場所と落とす場所が分かれていると表記がぶれ、
+// 席の外では空文字になるため、名前の作り方はここ1本に寄せる。
+export function genreLabel(slot: number): string {
+  if (slot === OTHER_SLOT) return 'その他'
+  const seat = GENRE_SEATS[slot] as string | undefined
+  return seat ? seat.replace(/^\d+\./, '') : 'その他'
+}
