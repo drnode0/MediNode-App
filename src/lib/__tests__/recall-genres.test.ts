@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { GENRE_SEATS, GENRE_CAPACITY, OTHER_SLOT, genreSlotOf, primaryGenreOf } from '@/lib/recall/genres'
 
 describe('ジャンル席', () => {
-  it('37席が番号順に並び、収容数は64、その他は63', () => {
-    expect(GENRE_SEATS).toHaveLength(37)
+  it('38席が番号順に並び、収容数は64、その他は63', () => {
+    expect(GENRE_SEATS).toHaveLength(38)
     expect(GENRE_SEATS[0]).toBe('01.総論')
     expect(GENRE_SEATS[32]).toBe('33.精神科')
     expect(GENRE_SEATS[36]).toBe('37.腫瘍・血液救急')
+    expect(GENRE_SEATS[37]).toBe('38.症候')
     expect(GENRE_CAPACITY).toBe(64)
     expect(OTHER_SLOT).toBe(63)
   })
@@ -27,10 +28,17 @@ describe('ジャンル席', () => {
     expect(genreSlotOf('18.体温異常')).toBe(OTHER_SLOT)
     expect(genreSlotOf('32.リハビリ')).toBe(OTHER_SLOT)
   })
-  it('末尾に足した4席は 34〜37 の順で並ぶ', () => {
+  it('末尾に足した5席は 34〜38 の順で並ぶ', () => {
     expect(GENRE_SEATS.slice(33)).toEqual([
-      '34.アレルギー・免疫', '35.周術期・麻酔', '36.病院前・搬送', '37.腫瘍・血液救急',
+      '34.アレルギー・免疫', '35.周術期・麻酔', '36.病院前・搬送', '37.腫瘍・血液救急', '38.症候',
     ])
+  })
+  // 31 は廃止でなく改名（マイナー→他科救急）。席番号を変えていないので 32・33 は動かない。
+  it('31席は他科救急で引け、旧名の マイナー は その他 に落ちる', () => {
+    expect(genreSlotOf('31.他科救急')).toBe(30)
+    expect(genreSlotOf('31.マイナー')).toBe(OTHER_SLOT)
+    expect(genreSlotOf('32.リハビリ・PICS')).toBe(31)
+    expect(genreSlotOf('33.精神科')).toBe(32)
   })
   it('主ジャンルは並びの1つ目。INBOX は飛ばす。INBOX だけなら null', () => {
     expect(primaryGenreOf(['13.感染症', '04.呼吸'])).toEqual({ genre: '13.感染症', slot: 12 })
@@ -38,7 +46,7 @@ describe('ジャンル席', () => {
     expect(primaryGenreOf(['INBOX'])).toBeNull()
     expect(primaryGenreOf([])).toBeNull()
   })
-  it('37席すべてが自分の番号どおりの席に落ちる（往復）', () => {
+  it('38席すべてが自分の番号どおりの席に落ちる（往復）', () => {
     GENRE_SEATS.forEach((seat, i) => {
       expect(genreSlotOf(seat)).toBe(i)
     })
@@ -56,7 +64,7 @@ describe('ジャンル席', () => {
   it('空文字はその他の席に落ちる', () => {
     expect(genreSlotOf('')).toBe(OTHER_SLOT)
   })
-  it('37席の正規化キーはすべて異なる（席の重複がない）', () => {
+  it('38席の正規化キーはすべて異なる（席の重複がない）', () => {
     const keys = GENRE_SEATS.map((g) => g.replace(/^\s*\d+[.．]\s*/, '').trim())
     expect(new Set(keys).size).toBe(GENRE_SEATS.length)
   })
