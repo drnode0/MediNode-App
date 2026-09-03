@@ -1,5 +1,5 @@
 'use client'
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
 import { digestSections, type DigestSection, type ReaderViewMode } from '@/lib/reader-digest'
 import {
@@ -17,6 +17,14 @@ import { KnowledgeTitle, sectionHeadingParts } from '@/lib/title-display'
 import { ReaderSourceCtx } from './reader-source-context'
 import { recordNotionEscape } from '@/lib/notion-escape'
 import { Inlines, NoAutoMarkerCtx } from './Inlines'
+import { useRecallStore } from '@/components/recall/RecallProvider'
+import { buildClaimIndex, claimForRowText, sectionEnds } from '@/lib/recall/reader-claims'
+import { RecallNode } from './RecallNode'
+import { SectionReadButton } from './SectionReadButton'
+
+// 本文の描画に「いまどのページ・どの節か」を伝える。Node と節末ボタンだけが使う。
+// pageId が空文字のときは Recall の部品を一切描かない（個人・部署リーダー・dev ハーネス）。
+export const ReaderRecallCtx = createContext<{ pageId: string; sectionKey: string }>({ pageId: '', sectionKey: 'sec0' })
 
 // 色つきボックスの枠。左の太い柱で種別を示し、上下右の細い線で箱の端を定義する。
 // 塗り（*-50 系）は白背景の上ではほとんど沈むので、柱だけだと右端・下端が消えて
@@ -311,7 +319,9 @@ function Block({
   }
 }
 
-type ListGroup = { kind: 'list'; ordered: boolean; items: ReaderInline[][]; index: number }
+// indices: グループに属した各項目の元配列上の位置（節末ボタンの位置決めに使う。
+// 節末は「最後の list_item の直後」に来ることがあるため、先頭だけでなく全項目の位置が要る）。
+type ListGroup = { kind: 'list'; ordered: boolean; items: ReaderInline[][]; index: number; indices: number[] }
 type ItemGroup = { kind: 'item'; block: ReaderBlock; index: number }
 type Grouped = ItemGroup | ListGroup
 
@@ -322,9 +332,9 @@ function groupBlocks(blocks: ReaderBlock[]): Grouped[] {
     if (b.kind === 'list_item') {
       const last = out[out.length - 1]
       if (last && last.kind === 'list' && last.ordered === b.ordered) {
-        last.items.push(b.inlines)
+        last.items.push(b.inlines); last.indices.push(idx)
       } else {
-        out.push({ kind: 'list', ordered: b.ordered, items: [b.inlines], index: idx })
+        out.push({ kind: 'list', ordered: b.ordered, items: [b.inlines], index: idx, indices: [idx] })
       }
     } else {
       out.push({ kind: 'item', block: b, index: idx })
@@ -348,32 +358,60 @@ export function RenderedBlocks({
   offset?: number
 }) {
   const grouped = groupBlocks(blocks)
+  const { pageId, sectionKey: ctxSection } = useContext(ReaderRecallCtx)
+  const { enabled, claims } = useRecallStore()
+  const on = enabled && !!pageId
+  // 索引はページが変わるまで作り直さない（数百件の走査を毎描画で回さない）。
+  const index = useMemo(() => (on ? buildClaimIndex(claims, pageId) : null), [on, claims, pageId])
+  // 節末ボタンを自分で置くのは1本描き（Ctx が既定の sec0＝呼び出し側が節を指定していない側）
+  // のときだけ。スプレッドは節ごとに Ctx を上書きして自分でボタンを置くので、ここでは置かない
+  // （二重に出さない）。要点(digest)モードで開いた1節の RenderedBlocks 呼び出しは、渡される
+  // blocks の先頭にその節の見出し自体を含むため、この局所計算だけで正しい節キーが求まる。
+  const ends = useMemo(() => (on && ctxSection === 'sec0' ? sectionEnds(blocks) : []), [on, ctxSection, blocks])
+  const endAt = (i: number) => ends.find((e) => e.afterIndex === i) ?? null
+
   return (
     <>
       {grouped.map((g, i) => {
         if (g.kind === 'list') {
           const Tag = g.ordered ? 'ol' : 'ul'
+          const lastIndex = g.indices[g.indices.length - 1]
+          const end = endAt(lastIndex)
           return (
-            <Tag
-              key={i}
-              className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-4 space-y-2.5`}
-            >
-              {g.items.map((it, j) => {
-                const pseudo: ReaderBlock = { kind: 'list_item', ordered: g.ordered, inlines: it }
-                const color = textColorClass(pseudo, active)
-                return (
-                  <li
-                    key={j}
-                    className={`leading-[1.9] whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
-                  >
-                    <Inlines items={it} k={`li-${i}-${j}`} />
-                  </li>
-                )
-              })}
-            </Tag>
+            // Fragment のまま（余分な div で挟まない）。節末ボタンは兄弟として続けて置くだけで、
+            // 出ない（end が null の）ときは元の DOM 構造と1ノードも変わらない。
+            <Fragment key={i}>
+              <Tag
+                className={`${g.ordered ? 'list-decimal' : 'list-disc'} pl-5 my-4 space-y-2.5`}
+              >
+                {g.items.map((it, j) => {
+                  const pseudo: ReaderBlock = { kind: 'list_item', ordered: g.ordered, inlines: it }
+                  const color = textColorClass(pseudo, active)
+                  // 行の生テキスト（絵文字のマークのまま）。extract-claims と同じ判定に通すため、
+                  // Inlines が線画へ置き換える前の姿を使う。
+                  const claim = index ? claimForRowText(index, it.map((x) => x.text).join('')) : null
+                  return (
+                    <li
+                      key={j}
+                      className={`leading-[1.9] whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+                    >
+                      <Inlines items={it} k={`li-${i}-${j}`} />
+                      {claim && <RecallNode claim={claim} />}
+                    </li>
+                  )
+                })}
+              </Tag>
+              {end && <SectionReadButton pageId={pageId} sectionKey={end.sectionKey} />}
+            </Fragment>
           )
         }
-        return <Block key={i} block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
+        const end = endAt(g.index)
+        return (
+          <Fragment key={i}>
+            <Block block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
+            {end && <SectionReadButton pageId={pageId} sectionKey={end.sectionKey} />}
+          </Fragment>
+        )
       })}
     </>
   )
@@ -484,6 +522,7 @@ export function ReaderBody({
   scaleEm,
   mode = 'full',
   owner,
+  pageId = '',
 }: {
   doc: ReaderDoc
   onImageClick: (url: string) => void
@@ -494,6 +533,9 @@ export function ReaderBody({
   mode?: ReaderViewMode
   // 開いているアイテムのowner（個人・部署リーダーの離脱計測用。サブスクは未指定でよい）。
   owner?: string
+  // サブスクの正準ページID（canonicalPageId 済み）。Recall の Node・節末ボタンの接点。
+  // 個人・部署リーダー・dev ハーネスは渡さない（未指定＝Recall の部品を一切描かない）。
+  pageId?: string
 }) {
   // doc.sourceUrl は個人・部署リーダーのみ（サブスク配信は本文防衛のため常に無し）。
   const source = useMemo(() => (doc.sourceUrl ? { url: doc.sourceUrl, owner } : null), [doc.sourceUrl, owner])
@@ -506,6 +548,7 @@ export function ReaderBody({
     //
     // サイズの流れ: .reader-prose（基準サイズ・iOSはDynamic Type）→ 内側ラッパー（Aa倍率）
     // → 本文/見出し/表は em 系サイズで連動拡大。更新日はメタ情報なので固定のまま。
+    <ReaderRecallCtx.Provider value={{ pageId, sectionKey: 'sec0' }}>
     <ReaderSourceCtx.Provider value={source}>
     <div className="reader-prose">
       <div style={scaleEm && scaleEm !== '1em' ? { fontSize: scaleEm } : undefined}>
@@ -534,5 +577,6 @@ export function ReaderBody({
       </div>
     </div>
     </ReaderSourceCtx.Provider>
+    </ReaderRecallCtx.Provider>
   )
 }

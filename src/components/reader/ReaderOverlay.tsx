@@ -30,7 +30,7 @@ import {
 } from '@/lib/reader-font-scale'
 import { getReaderViewMode, setReaderViewMode, type ReaderViewMode } from '@/lib/reader-digest'
 import type { ReaderDoc } from '@/lib/reader-doc'
-import type { SpreadDoc } from '@/lib/reader-spread'
+import { canonicalPageId, type SpreadDoc } from '@/lib/reader-spread'
 import type { ReaderHit, ReaderOpenOptions } from './SubscriptionReader'
 
 // hit がある間だけ mount されるコンポーネント。その中で useBodyScrollLock() を呼ぶ
@@ -499,6 +499,9 @@ export default function ReaderOverlay({
                     scaleEm={SCALE_EM[fontScale]}
                     mode={effectiveViewMode}
                     owner={hit.owner}
+                    // Recall の対象はサブスク配信のみ（v1）。個人・部署ページには渡さない
+                    // （未指定＝ReaderBody 側が Node・節末ボタンを一切描かない）。
+                    pageId={isPersonalDoc ? undefined : canonicalPageId(hit.objectID)}
                   />
                 )}
               </ReaderSearchCtx.Provider>
