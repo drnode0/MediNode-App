@@ -1,7 +1,8 @@
 'use client'
 import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
-import { RenderedBlocks } from '../ReaderBody'
+import { RenderedBlocks, ReaderRecallCtx } from '../ReaderBody'
+import { SectionReadButton } from '../SectionReadButton'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
 import { digestTone, displayPreface, displayTail, splitPrefaceBlocks, refHrefs, refItemsOf, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
@@ -521,8 +522,12 @@ export function ReaderSpread({
           // 表層へ昇格させるブロック（節末の→段落・比較表の元テーブル）を深掘りから取り分けた
           // 導出（sectionViews）。表示専用で、保存された SpreadDoc には触れない。
           const { recap, deep, sources, quizzes, questions } = sectionViews.get(s.anchor)!
+          // Recall の節キーは s.n（番号付きH2の番号）から作る。s.anchor とは別物
+          // （anchor は無番号見出しで `i{index}` になりうる。Recall は無番号節を扱わない）。
+          const recallSectionKey = s.n != null ? `sec${s.n}` : 'sec0'
           return (
             <section key={s.anchor} className={styles.section}>
+            <ReaderRecallCtx.Provider value={{ pageId: spread.pageId, sectionKey: recallSectionKey }}>
               {/* data-section は横断検索の節ジャンプと ReaderNavBar が使う。値を変えないこと。 */}
               <h2 id={s.anchor} data-section={s.anchor} className={styles.secHead}>
                 <span className={styles.badge}>{s.n ?? i + 1}</span>
@@ -620,6 +625,10 @@ export function ReaderSpread({
               {quizzes.map((q) => (
                 <SpreadQuizCard key={q.id} quiz={q} />
               ))}
+
+              {/* Recall の節末ボタン。番号なし節（recallSectionKey === 'sec0'）には置かない。 */}
+              {s.n != null && <SectionReadButton pageId={spread.pageId} sectionKey={recallSectionKey} />}
+            </ReaderRecallCtx.Provider>
             </section>
           )
         })}

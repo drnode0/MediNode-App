@@ -5,7 +5,10 @@ import { useRecallStore } from '@/components/recall/RecallProvider'
 import { normalizePageId } from '@/lib/recall/claim-text'
 
 export function SectionReadButton({ pageId, sectionKey }: { pageId: string; sectionKey: string }) {
-  const { reads, pending, markSectionRead } = useRecallStore()
+  const { enabled, reads, pending, markSectionRead } = useRecallStore()
+  // 呼び出し側の条件に頼らず、自分でも閉じる。機能が閉じている利用者には
+  // ボタンも節末の操作も一切描かない（設計の要件）。
+  if (!enabled || !pageId) return null
   const id = normalizePageId(pageId)
   const done = reads.some((r) => r.pageId === id && r.sectionKey === sectionKey)
   const busy = pending.has(`read:${pageId}#${sectionKey}`)

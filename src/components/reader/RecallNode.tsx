@@ -6,7 +6,11 @@ import { useRecallStore } from '@/components/recall/RecallProvider'
 import type { RecallClaim } from '@/lib/recall/types'
 
 export function RecallNode({ claim }: { claim: RecallClaim }) {
-  const { progress, pending, keep } = useRecallStore()
+  const { enabled, progress, pending, keep } = useRecallStore()
+  // 呼び出し側（RenderedBlocks）は claim が見つかったときだけこの部品を置くが、
+  // その判定は enabled 経由で間接的に効いているだけなので、ここでも自分で閉じる
+  // （機能が閉じている利用者には一切描かない、という要件を部品単体で守る）。
+  if (!enabled) return null
   const row = progress.find((p) => p.claimId === claim.claimId)
   const kept = !!row && !row.removedAt
   const busy = pending.has(claim.claimId)
