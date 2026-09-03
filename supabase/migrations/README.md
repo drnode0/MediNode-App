@@ -48,7 +48,7 @@
 | 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
 | 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
 | 0028 | question_interest | `question_interest` | ✅ ※5 |
-| 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ⬜ 未適用 |
+| 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ✅ ※6 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -87,3 +87,7 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
 
 ※5 2026-08-30 に本番DBで実測。`/rest/v1/question_interest?select=*&limit=1` が 200 を返し、
 OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_at` の4列がそろっている。
+
+※6 2026-09-03 に本番DBへ読み取り専用で実測。4表とも存在し、`recall_claims` は687行
+（active 687・cloze_status 承認0）。`recall_section_reads`・`recall_progress`・`recall_review_log`
+はいずれも0行。以前の「未適用」は記録漏れ（実際には適用済みだった）。
