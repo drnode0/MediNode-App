@@ -4,48 +4,20 @@
 // callout の中（⚡結論・署名）は拾わない。入れ子の箇条書きは拾う。
 import { createHash } from 'crypto'
 import { blockText, type NotionBlockLite } from '@/lib/content-stats'
+import { normalizeBody, normalizePageId, splitClaim, SECTION_HEAD_RE } from './claim-text'
 import { primaryGenreOf } from './genres'
 import { detectHoles } from './holes'
-import type { RecallClaim, RecallConfidence } from './types'
+import type { RecallClaim } from './types'
+
+// 既存の呼び出し元（sync-claims.ts・API・テスト）が import 先を変えずに済むよう再輸出する。
+// テキストだけを見る判定・正規化の実装は claim-text.ts に集約した（読む画面のクライアント側
+// からも読めるようにするため。このファイルは crypto に依存するのでクライアントでは読めない）。
+export { normalizeBody, normalizePageId, splitClaim } from './claim-text'
 
 export type ClaimSource = { pageId: string; pageTitle: string; pageKind: string; genres: string[]; blocks: NotionBlockLite[] }
 
-const MARK = /[✅⚠❓]/u
-const TAIL = /[。）)]\s*([^。]{2,40})$/u
-const SRCWORD = /(?:19|20)\d{2}|ガイドライン|合意|提言|指針|学会|Guideline|BTS|ERS|ATS|ESICM|JAMA|NEJM|Lancet|Chest|ICM/u
-const SECTION_HEAD_RE = /^(\d+)\.\s*(.+)$/
-
-export function normalizeBody(s: string): string {
-  return s.normalize('NFC').replace(/\uFE0F/g, '').replace(/\s+/g, ' ').trim()
-}
-
-// pageId はダッシュ有り/無しの両方が社内を流通する（settings.ts / spread-notes.ts / vine-open.ts と同じ揺れ）。
-// claimId は読者の学習記録がぶら下がる永続キーなので、揺れを吸収してから使う。
-export function normalizePageId(pageId: string): string {
-  return pageId.trim().toLowerCase().replace(/-/g, '')
-}
-
 export function claimIdOf(pageId: string, body: string): string {
   return createHash('sha1').update(`${normalizePageId(pageId)}\n${normalizeBody(body)}`).digest('hex').slice(0, 24)
-}
-
-type Split = { body: string; source: string; confidence: RecallConfidence } | null
-
-function splitClaim(text: string): Split {
-  const s = text.trim()
-  // ❓ が行のどこかに1つでもあれば主張化しない。以前は最初のマークだけを見ていたため
-  // 「⚠️❓」のように未確認マークが2番目以降に来る行が ⚠️ 側の判定で通ってしまっていた。
-  if (s.includes('❓')) return null
-  const mi = s.search(MARK)
-  if (mi >= 0) {
-    const mark = s[mi]
-    return { body: s.slice(0, mi).trim(), source: s.slice(mi).trim(), confidence: mark === '✅' ? 'ok' : 'caut' }
-  }
-  const m = s.match(TAIL)
-  if (m && SRCWORD.test(m[1]) && !/。$/.test(m[1])) {
-    return { body: s.slice(0, s.length - m[1].length).trim(), source: m[1].trim(), confidence: 'essentials' }
-  }
-  return null
 }
 
 type Ctx = { sectionKey: string; sectionHeading: string; inCallout: boolean }
