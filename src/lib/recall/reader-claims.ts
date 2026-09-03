@@ -2,8 +2,9 @@
 // クライアントでハッシュを作らない（サーバーとハッシュの実装がずれる危険を作らない）。
 // 引くのは /api/recall/claims が返した確定済みの claim だけで、
 // 見つからなければ null を返す＝その行に Node を出さない。誤って別の主張に付くことはない。
-import { normalizeBody, normalizePageId, splitClaim } from './claim-text'
+import { normalizeBody, normalizePageId, splitClaim, SECTION_HEAD_RE } from './claim-text'
 import type { RecallClaim } from './types'
+import type { ReaderBlock } from '@/lib/reader-doc'
 
 export type ClaimIndex = Map<string, RecallClaim>
 
@@ -25,4 +26,33 @@ export function claimForRowText(index: ClaimIndex, rowText: string): RecallClaim
   const sp = splitClaim(rowText)
   if (!sp || !sp.body) return null
   return index.get(normalizeBody(sp.body)) ?? null
+}
+
+// ブロックの並びと同じ長さの、各ブロックが属する節キーの配列。
+// 節の切り替えは「番号付きH2」だけ。同期側（extract-claims）と同じ規則にしないと、
+// 「読んだ」の記録と主張の突き合わせが静かに外れる（エラーが出ない種類の壊れ方）。
+export function sectionKeysByBlock(blocks: ReaderBlock[]): string[] {
+  let cur = 'sec0'
+  return blocks.map((b) => {
+    if (b.kind === 'heading' && b.level === 2) {
+      const t = b.inlines.map((i) => i.text).join('').trim()
+      const m = t.match(SECTION_HEAD_RE)
+      if (m) cur = `sec${m[1]}`
+    }
+    return cur
+  })
+}
+
+// 番号付き節ごとの「最後のブロックの位置」。節末ボタンをこの直後に置く。
+// sec0（最初の見出しより前＝⚡結論・署名・大前提）には置かない。
+export function sectionEnds(blocks: ReaderBlock[]): { sectionKey: string; afterIndex: number }[] {
+  const keys = sectionKeysByBlock(blocks)
+  const out: { sectionKey: string; afterIndex: number }[] = []
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] === 'sec0') continue
+    const last = out[out.length - 1]
+    if (last && last.sectionKey === keys[i]) last.afterIndex = i
+    else out.push({ sectionKey: keys[i], afterIndex: i })
+  }
+  return out
 }
