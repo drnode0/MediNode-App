@@ -110,6 +110,7 @@ import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
 import { takePendingQuery } from '@/lib/pending-query'
 import { ReaderProvider } from '@/components/reader/SubscriptionReader'
 import { ReaderMarksProvider } from '@/components/reader/ReaderMarksProvider'
+import { RecallProvider } from '@/components/recall/RecallProvider'
 import { HelpFaq } from '@/components/HelpFaq'
 import { FeatureTour, isFeatureTourDone } from '@/components/FeatureTour'
 import { PREMIUM_VERIFY_FLAG } from '@/components/auth/PremiumSync'
@@ -3146,6 +3147,7 @@ export default function Home() {
       <SubscriptionSearchProvider enableBridge={true}>
       <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
       <CqCaptureProvider>
+      <RecallProvider>
       <ReaderMarksProvider>
       <ReaderProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
@@ -3186,6 +3188,7 @@ export default function Home() {
       </div>
       </ReaderProvider>
       </ReaderMarksProvider>
+      </RecallProvider>
       </CqCaptureProvider>
       </OpenSettingsContext.Provider>
       </SubscriptionSearchProvider>
@@ -3205,6 +3208,7 @@ export default function Home() {
       hasSubscription
     )
     return (
+      <RecallProvider>
       <ReaderMarksProvider>
       <ReaderProvider>
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
@@ -3249,6 +3253,7 @@ export default function Home() {
       </div>
       </ReaderProvider>
       </ReaderMarksProvider>
+      </RecallProvider>
     )
   }
 
@@ -3259,6 +3264,7 @@ export default function Home() {
     <SubscriptionSearchProvider enableBridge={true}>
     <OpenSettingsContext.Provider value={(section) => { setSettingsInitialSection(section ?? null); setShowSettings(true) }}>
     <CqCaptureProvider>
+    <RecallProvider>
     <ReaderMarksProvider>
     <ReaderProvider>
     <InstantSearch searchClient={dynamicSearchClient} indexName={dynamicIndexName} future={{ preserveSharedStateOnUnmount: false }}>
@@ -3301,6 +3307,7 @@ export default function Home() {
     </InstantSearch>
     </ReaderProvider>
     </ReaderMarksProvider>
+    </RecallProvider>
     </CqCaptureProvider>
     </OpenSettingsContext.Provider>
     </SubscriptionSearchProvider>
