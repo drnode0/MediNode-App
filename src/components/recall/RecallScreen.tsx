@@ -68,6 +68,13 @@ export function RecallScreen() {
   // 一覧を離れる直前の window.scrollY。戻ったときに読み戻す（上のコメント参照）。
   const dexScrollY = useRef(0)
 
+  // カードを閉じる（記録は書かない）。Esc・RecallCard の閉じるボタン・隠しコマンドの覆いの中で
+  // カードの外側をタップしたときの3箇所から同じ形で呼ぶので、ここに1つだけ用意する。
+  const closeCard = useCallback(() => { setCard(null); setRun(null) }, [])
+  // 隠しコマンド（D5）の覆いを閉じる。RecallLift の Esc・visibilitychange の
+  // useEffect が依存するので、毎レンダー新しい関数にならないよう安定させる。
+  const closeLift = useCallback(() => setLift(null), [])
+
   // 走らせた setTimeout は全部ここに控える。控えないと画面を離れたあとに
   // まだ走っている知らせのタイマーが、消したはずの一言を出し直す。
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
@@ -98,10 +105,10 @@ export function RecallScreen() {
   // （run を残すと、後で別の行を直に答えたときに古い列が進んでしまう）。
   useEffect(() => {
     if (!card) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setCard(null); setRun(null) } }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCard() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [card])
+  }, [card, closeCard])
 
   const { used: plates, empty } = useMemo(() => platesOf(data.planets), [data.planets])
   const today = useMemo(() => todayOf(plates, data.nextDueOf(null), new Date()), [plates, data.nextDueOf])
@@ -250,8 +257,8 @@ export function RecallScreen() {
 
       {/* 隠しコマンド（D5）。カード（z-30）の下・アプリのヘッダー（z-10）より上に覆う。 */}
       {lift && (
-        <RecallLift slot={lift.slot} planets={data.planets} origin={lift.origin}
-          onClose={() => setLift(null)} onDotTap={onLiftDotTap} />
+        <RecallLift slot={lift.slot} planets={data.planets} origin={lift.origin} cardOpen={card !== null}
+          onClose={closeLift} onCloseCard={closeCard} onDotTap={onLiftDotTap} />
       )}
 
       {runProgress && <QuizProgress current={runProgress.current} total={runProgress.total} />}
@@ -315,7 +322,7 @@ export function RecallScreen() {
             try { await data.keep(cardClaim.claimId, k) } catch { say('保存に失敗しました。通信を確かめてもう一度') }
             setSaving(false)
           }}
-          onClose={() => { setCard(null); setRun(null) }} />
+          onClose={closeCard} />
       )}
     </div>
   )

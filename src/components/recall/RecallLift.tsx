@@ -26,11 +26,13 @@ type Props = {
   slot: number
   planets: Planet[]
   origin: { x: number; y: number }
+  cardOpen: boolean
   onClose: () => void
+  onCloseCard: () => void
   onDotTap: (claimId: string) => void
 }
 
-export function RecallLift({ slot, planets, origin, onClose, onDotTap }: Props) {
+export function RecallLift({ slot, planets, origin, cardOpen, onClose, onCloseCard, onDotTap }: Props) {
   const reduced = useReducedMotion()
   const field = useRef<FieldHandle>(null)
   const [lensPageId, setLensPageId] = useState<string | null>(null)
@@ -91,16 +93,18 @@ export function RecallLift({ slot, planets, origin, onClose, onDotTap }: Props) 
     <div className="fixed inset-0 z-20 bg-[#F5F7FA]/[.92] dark:bg-brand-900/[.92]" style={style}>
       <RecallField ref={field}
         planets={planets} center="outside" reduced={reduced} initialNear={slot}
-        shelf={NO_SHELF} again={NO_AGAIN} lensPageId={lensPageId} cardOpen={false}
+        shelf={NO_SHELF} again={NO_AGAIN} lensPageId={lensPageId} cardOpen={cardOpen}
         onFront={() => {}}
         // 近景の背景タップ・ホイール下・ピンチインは既存の RecallField が内部で backToMid を呼び、
         // その結果として onStage('mid', …) が届く。ここでは「閉じる」に読み替える
         // （覆いの中で中景を見せることはしない。設計 §2.6）。
+        // ただしカードが開いているあいだは RecallField 内部で cardOpen を見て
+        // onCloseCard に回すので、ここに onStage('mid', …) は届かない。
         onStage={(stage) => { if (stage !== 'near') close() }}
         onDotTap={onDotTap}
         onShelfTap={() => {}}
         onLens={setLensPageId}
-        onCloseCard={() => {}}
+        onCloseCard={onCloseCard}
       />
 
       {/* 上に小さく和名・英名だけ（件数の内訳は出さない。球体を眺める画面なので）。 */}
