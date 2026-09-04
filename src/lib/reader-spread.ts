@@ -332,8 +332,12 @@ const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'f
  *
  * kind の許可リストに加えて、source は blockId が無いと何も描けない
  * （指す先を持たない部品が黙って空の表層になる）ので、ここで落とす。
+ *
+ * sanitizeOverlay の外（編集画面の「決定ずみ」判定）からも同じ関門を引けるように export する。
+ * ここが2箇所に別々の条件で書かれると、一覧は「決定ずみ」と言うのに保存後は自動判定のまま、
+ * という食い違いが起きる。
  */
-function isUsablePart(p: SpreadPart): boolean {
+export function isUsablePart(p: SpreadPart): boolean {
   if (!KNOWN_PART_KINDS.has(p.kind)) return false
   if (p.kind === 'source') return typeof p.blockId === 'string' && p.blockId.trim() !== ''
   return true

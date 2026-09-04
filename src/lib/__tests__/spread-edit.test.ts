@@ -148,4 +148,21 @@ describe('undecidedAnchors（主役をまだ決めていない節）', () => {
   it('オーバレイが空なら全部が未決', () => {
     expect(undecidedAnchors(['sec-1', 'sec-2'], {})).toEqual(['sec-1', 'sec-2'])
   })
+
+  // 「原本の表・図」を選んだ直後は emptyPart('source') が blockId: '' を入れる。
+  // sanitizeOverlay（isUsablePart）はこの形を落とすので、一覧が「決定ずみ」を名乗っても
+  // 保存後の実体は自動判定のままになる。ここが空文字の間は未決のまま数える。
+  it('source を選んだ直後（blockId が空文字）はまだ未決のまま', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'source', blockId: '' } },
+    }
+    expect(undecidedAnchors(['sec-1'], overlay)).toEqual(['sec-1'])
+  })
+
+  it('source の指す先を選べば決定ずみになる', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'source', blockId: 'blk-1' } },
+    }
+    expect(undecidedAnchors(['sec-1'], overlay)).toEqual([])
+  })
 })

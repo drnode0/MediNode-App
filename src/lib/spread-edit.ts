@@ -2,7 +2,7 @@
 // 「文はタイプさせず、原本とスプレッドノートから選ばせる」ための候補抽出と、
 // 部品の空雛形を持つ。ここは純関数だけ（描画は SpreadEditClient 側）。
 import { calloutRole, type ReaderBlock } from './reader-doc'
-import { textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
+import { isUsablePart, textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
 
 /**
  * 節の深掘りから、部品に載せる候補になる文を登場順・重複なしで返す。
@@ -133,6 +133,21 @@ export function sourceCandidates(deep: ReaderBlock[]): { blockId: string; label:
 }
 
 /**
+ * 主役の部品が「決定ずみ」と数えてよい形かどうか。
+ *
+ * parts[anchor] が存在するだけでは足りない。「原本の表・図」を選んだ直後は
+ * emptyPart('source') が blockId: '' の雛形を入れるが、この形は保存時に sanitizeOverlay
+ * （isUsablePart）が落とすので、一覧が「決定ずみ」と数えても実体は自動判定のままになる。
+ * 一覧の「未決 N節」は取りこぼしを防ぐための数なので、ここで嘘をつくと目的を外す。
+ *
+ * undecidedAnchors と SurfaceChecklist（編集画面の一覧）の両方がこの1本を呼ぶ。
+ * 2か所に別々の条件を書くと、どちらかを直したときにまた食い違いが再発する。
+ */
+export function isDecidedPart(part: SpreadPart | undefined): boolean {
+  return !!part && isUsablePart(part)
+}
+
+/**
  * 主役の部品をまだ決めていない節を返す。
  *
  * 「未決」は間違いではなく手つかず。逐語一致と文献の紐づけは間違いが読者に出るので
@@ -141,5 +156,5 @@ export function sourceCandidates(deep: ReaderBlock[]): { blockId: string; label:
  * 「表層なしにする」を選んだ節（kind: 'none'）は決定ずみとして数えない。
  */
 export function undecidedAnchors(anchors: string[], overlay: SpreadOverlay): string[] {
-  return anchors.filter((a) => !overlay.parts?.[a])
+  return anchors.filter((a) => !isDecidedPart(overlay.parts?.[a]))
 }

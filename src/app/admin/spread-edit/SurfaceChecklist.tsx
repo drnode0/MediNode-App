@@ -4,7 +4,7 @@
 // 節ごとに1回ずつ通すための場所。未決＝主役をまだ決めていない節で、これは間違いでは
 // ないので保存は止めない（数を出すだけ）。
 import type { SpreadOverlay, SpreadPart } from '@/lib/reader-spread'
-import { sourceCandidates } from '@/lib/spread-edit'
+import { isDecidedPart, sourceCandidates } from '@/lib/spread-edit'
 import type { ReaderBlock } from '@/lib/reader-doc'
 
 type Row = { anchor: string; n: number | null; title: string; deep: ReaderBlock[]; autoKind: SpreadPart['kind'] }
@@ -33,8 +33,11 @@ export function SurfaceChecklist({
       {rows.map((r) => {
         const main = overlay.parts?.[r.anchor]
         const extras = overlay.extraParts?.[r.anchor] ?? []
-        const undecided = !main
-        const shown = main
+        // 「決定ずみ」は undecidedAnchors と同じ関門（isDecidedPart）で判定する。
+        // ここだけ「parts[anchor] があるか」で見ると、source を選んだ直後（blockId 空文字）を
+        // 決定ずみと誤って数えてしまう（プレビュー・保存は自動判定のままなのに一覧だけが進む）。
+        const undecided = !(main && isDecidedPart(main))
+        const shown = main && isDecidedPart(main)
           ? [main, ...extras].map((p) => kindLabel[p.kind] ?? p.kind).join(' ＋ ')
           : `自動判定のまま（${kindLabel[r.autoKind] ?? r.autoKind}）`
         return (
