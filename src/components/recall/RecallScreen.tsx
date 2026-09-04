@@ -70,6 +70,14 @@ export function RecallScreen() {
 
   const pagePlate = view.kind === 'page' ? plates.find((p) => p.slot === view.slot) ?? null : null
 
+  // 分野ページで、開いている間に同期で主張が外れたとき（一枚が見つからなくなったら）
+  // view を dex に戻す（設計 §6）。レンダー中に state を書き換えない。
+  useEffect(() => {
+    if (view.kind === 'page' && !pagePlate) {
+      setView({ kind: 'dex' })
+    }
+  }, [view.kind, pagePlate])
+
   const onOpen = useCallback((slot: number) => setView({ kind: 'page', slot }), [])
   const onSweep = useCallback(() => {
     const first = plates.find((p) => p.escaping > 0)
@@ -92,20 +100,21 @@ export function RecallScreen() {
       ) : fatal ? (
         <p className="p-6 text-sm text-rose-600 dark:text-rose-300">{fatal}</p>
       ) : view.kind === 'dex' ? (
-        <RecallDex plates={plates} empty={empty} today={today} counts={data.counts} total={data.claims.length}
-          onOpen={onOpen} onSweep={onSweep} />
+        <>
+          {pill && (
+            <p className="p-4 text-[12px] tracking-[.06em] text-cyan-800 dark:text-cyan-100 bg-white/60 dark:bg-[rgba(12,20,30,.60)]">
+              {pill}
+            </p>
+          )}
+          <RecallDex plates={plates} empty={empty} today={today} counts={data.counts} total={data.claims.length}
+            onOpen={onOpen} onSweep={onSweep} />
+        </>
       ) : pagePlate ? (
         <PageStub plate={pagePlate} onBack={() => setView({ kind: 'dex' })} />
       ) : (
         // 同期でその分野の主張が0になった等、まれに見つからないとき。一覧へ戻す。
         <RecallDex plates={plates} empty={empty} today={today} counts={data.counts} total={data.claims.length}
           onOpen={onOpen} onSweep={onSweep} />
-      )}
-
-      {pill && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-20 max-w-[90%] text-[12px] tracking-[.06em] text-cyan-800 bg-white/90 border border-slate-300/80 dark:text-cyan-100 dark:bg-[rgba(12,20,30,.92)] dark:border-slate-600/40 rounded-full px-4 py-2 pointer-events-none">
-          {pill}
-        </div>
       )}
 
       {card && cardClaim && (
