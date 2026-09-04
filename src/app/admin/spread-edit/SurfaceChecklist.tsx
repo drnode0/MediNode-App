@@ -37,9 +37,11 @@ export function SurfaceChecklist({
         // ここだけ「parts[anchor] があるか」で見ると、source を選んだ直後（blockId 空文字）を
         // 決定ずみと誤って数えてしまう（プレビュー・保存は自動判定のままなのに一覧だけが進む）。
         const undecided = !(main && isDecidedPart(main))
-        const shown = main && isDecidedPart(main)
-          ? [main, ...extras].map((p) => kindLabel[p.kind] ?? p.kind).join(' ＋ ')
-          : `自動判定のまま（${kindLabel[r.autoKind] ?? r.autoKind}）`
+        // 主役の呼び名だけ「決定ずみか自動判定か」で出し分け、追加部品（extras）は
+        // 主役が未決でも常に並べる。主役が未決の節に追加部品だけ置いても、実際には
+        // 表層に出ているのに一覧からは見えない、という取りこぼしを防ぐため。
+        const mainLabel = main && isDecidedPart(main) ? kindLabel[main.kind] ?? main.kind : `自動判定のまま（${kindLabel[r.autoKind] ?? r.autoKind}）`
+        const shown = [mainLabel, ...extras.map((p) => kindLabel[p.kind] ?? p.kind)].join(' ＋ ')
         return (
           <div
             key={r.anchor}
