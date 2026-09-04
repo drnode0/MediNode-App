@@ -19,8 +19,11 @@ type Props = {
   onBack: () => void
   onCheck: () => void
   onRow: (claimId: string, look: DotLook) => void
-  onEmblem: () => void
+  // 隠しコマンド（D5）。紋章の中心（覆いの transform-origin にする）を渡す。
+  onEmblem: (origin: { x: number; y: number }) => void
   onRead: (pageId: string, title: string) => void
+  // 隠しコマンドが浮き出ているあいだ、元の紋章は薄くする（設計 §2.6「紋章そのものは浮き出ている間 opacity-30」）。
+  liftOpen?: boolean
 }
 
 const STATE_LABEL: Record<DotKind, string> = {
@@ -33,7 +36,7 @@ const STATE_LABEL: Record<DotKind, string> = {
 
 const GOLD = 'text-[#A86B0C] dark:text-[#F0D68A]'
 
-export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRead }: Props) {
+export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRead, liftOpen = false }: Props) {
   const { plate, pages } = model
   const kept = plate.kept + plate.settled
 
@@ -41,9 +44,14 @@ export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRea
     <div className="max-w-[760px] mx-auto text-slate-800 dark:text-[#F2F5F1]">
       {/* 見出し（設計 §2.4） */}
       <div className="grid grid-cols-[96px_1fr] gap-4 items-center pb-4 border-b border-slate-300/60 dark:border-white/20">
-        {/* 隠しコマンド（D5）。段5まではハンドラが無くても押せる状態にしておく。 */}
-        <button type="button" onClick={onEmblem} aria-label="球体を浮き出す"
-          className="justify-self-start rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-brand-900">
+        {/* 隠しコマンド（D5）。紋章の中心（getBoundingClientRect）を覆いの出どころとして渡す。 */}
+        <button type="button"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            onEmblem({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+          }}
+          aria-label="球体を浮き出す"
+          className={`justify-self-start rounded-full transition-opacity duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-brand-900 ${liftOpen ? 'opacity-30' : ''}`}>
           <CoreEmblem slot={plate.slot} kind={plate.kind} size={96} />
         </button>
         <div className="min-w-0">

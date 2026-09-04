@@ -20,9 +20,11 @@ import { useReader } from '@/components/reader/SubscriptionReader'
 import { RecallCard } from './RecallCard'
 import { RecallDex } from './RecallDex'
 import { RecallPlatePage } from './RecallPlatePage'
-import { platesOf, todayOf, pageModelOf, type DotLook } from '@/lib/recall/dex'
+import { RecallLift } from './RecallLift'
+import { platesOf, todayOf, pageModelOf, dotLookOf, type DotLook } from '@/lib/recall/dex'
 import { startRun, advance, isRunDone, nextSweepSlot, runSummary, type QuizRun } from '@/lib/recall/dex-quiz'
 import { checkNotice } from '@/lib/recall/notice'
+import type { RecallState } from '@/lib/recall/types'
 
 const NOTICE_MS = 4000
 
@@ -61,6 +63,8 @@ export function RecallScreen() {
   const [run, setRun] = useState<QuizRun | null>(null)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  // 隠しコマンド（D5）。開いている分野の紋章の中心（覆いの transform-origin）を持つ。
+  const [lift, setLift] = useState<{ slot: number; origin: { x: number; y: number } } | null>(null)
   // 一覧を離れる直前の window.scrollY。戻ったときに読み戻す（上のコメント参照）。
   const dexScrollY = useRef(0)
 
@@ -114,6 +118,7 @@ export function RecallScreen() {
   useEffect(() => {
     if (view.kind === 'page' && !pagePlate) {
       setView({ kind: 'dex' })
+      setLift(null)
       setRun(null)
     }
   }, [view.kind, pagePlate])
@@ -144,8 +149,11 @@ export function RecallScreen() {
   const openPage = useCallback((slot: number) => {
     if (view.kind === 'dex') dexScrollY.current = window.scrollY
     setView({ kind: 'page', slot })
+    // 別の分野へ移るとき（「離れかけを順に確かめる」の乗り換え含む）、前の分野の
+    // 隠しコマンドの覆いが開いたままだと席がずれる。念のため閉じておく。
+    setLift(null)
   }, [view.kind])
-  const onBack = useCallback(() => setView({ kind: 'dex' }), [])
+  const onBack = useCallback(() => { setView({ kind: 'dex' }); setLift(null) }, [])
 
   // 「この分野を確かめる」（D7 手順1〜2）。候補が0件なら一言、あれば列を作って先頭のカードを開く。
   // 「離れかけを順に確かめる」から分野をまたぐとき（手順6）もここを呼び直す。
@@ -180,8 +188,25 @@ export function RecallScreen() {
   const onRead = useCallback((pageId: string, title: string) => {
     openReader({ objectID: pageId, title, notionUrl: '', owner: 'subscription' })
   }, [openReader])
-  // 紋章（隠しコマンド D5）は次のタスクで繋ぐ。ここでは押しても何も起きない状態にしておくだけ。
-  const onEmblem = useCallback(() => {}, [])
+  // 紋章（隠しコマンド D5）。押した紋章の中心を覆いの出どころにする。
+  const onEmblem = useCallback((origin: { x: number; y: number }) => {
+    if (view.kind !== 'page') return
+    setLift({ slot: view.slot, origin })
+  }, [view])
+
+  // 主張ID → 記憶の状態。隠しコマンドの点のタップ（claimId だけを受け取る）から、
+  // 行を直にタップしたとき（onRow）と同じ「離れかけなら確かめる、それ以外は閲覧」の
+  // 振り分けをするために引く（dex.ts の dotLookOf と同じ判定）。
+  const claimStateById = useMemo(() => {
+    const m = new Map<string, RecallState>()
+    for (const p of data.planets) for (const d of p.dots) m.set(d.claimId, d.state)
+    return m
+  }, [data.planets])
+  const onLiftDotTap = useCallback((claimId: string) => {
+    const state = claimStateById.get(claimId)
+    const look = state ? dotLookOf(state) : null
+    setCard({ claimId, mode: look?.kind === 'escaping' ? 'quiz' : 'view' })
+  }, [claimStateById])
 
   const kept = (id: string) => { const p = data.progressById.get(id); return !!p && !p.removedAt }
   const cardClaim = card ? data.claimById.get(card.claimId) : undefined
@@ -217,10 +242,16 @@ export function RecallScreen() {
           {view.kind === 'page' && pageModel && (
             <div className="p-4">
               <RecallPlatePage model={pageModel} onBack={onBack} onCheck={onCheck} onRow={onRow}
-                onEmblem={onEmblem} onRead={onRead} />
+                onEmblem={onEmblem} onRead={onRead} liftOpen={lift !== null} />
             </div>
           )}
         </>
+      )}
+
+      {/* 隠しコマンド（D5）。カード（z-30）の下・アプリのヘッダー（z-10）より上に覆う。 */}
+      {lift && (
+        <RecallLift slot={lift.slot} planets={data.planets} origin={lift.origin}
+          onClose={() => setLift(null)} onDotTap={onLiftDotTap} />
       )}
 
       {runProgress && <QuizProgress current={runProgress.current} total={runProgress.total} />}
