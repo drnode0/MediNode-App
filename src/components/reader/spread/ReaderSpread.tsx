@@ -15,7 +15,7 @@ import { KnowledgeTitle } from '@/lib/title-display'
 import { stripLeadingEmoji } from '@/lib/labels'
 import type { Confidence } from '@/lib/reader-confidence'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
-import type { SpreadDoc } from '@/lib/reader-spread'
+import type { SpreadDoc, SpreadPart } from '@/lib/reader-spread'
 
 // スプレッドの第1版は確信度フィルタを持たない。RenderedBlocks は active を必須で取るので、
 // 描画のたびに new Set() を作らないよう定数を1つだけ置く。
@@ -58,6 +58,29 @@ function TailBlock({ block, k, className, onImageClick }: {
     <p className={className}>
       <Inlines items={inlines} k={k} />
     </p>
+  )
+}
+
+/**
+ * 表層の部品を1つ描く。
+ *
+ * source（原本の表・図を指すだけの部品）は本文ブロックそのものなので、表層の見た目を持つ
+ * SpreadPartView ではなく、深掘りと同じ RenderedBlocks に1件渡して描く。見た目を1本に
+ * 保つためで、表層専用の画像・表の見た目は作らない。
+ *
+ * blocks は節の deep（sectionDisplay で取り分ける前の保存形）。取り分けた後を渡すと、
+ * 昇格したブロックが既に除かれていて何も描けない。
+ */
+function SurfacePart({ part, blocks, onImageClick }: { part: SpreadPart; blocks: ReaderBlock[]; onImageClick: (url: string) => void }) {
+  if (part.kind !== 'source') return <SpreadPartView part={part} />
+  const block = blocks.find((b) => b.blockId === part.blockId)
+  // 指す先が無いスプレッドは保存の関門で止まる。ここに来るのは保存より前の
+  // 編集画面のプレビューだけなので、落ちずに何も出さない。
+  if (!block) return null
+  return (
+    <div className={styles.sourcePart}>
+      <RenderedBlocks blocks={[block]} onImageClick={onImageClick} active={NO_FILTER} />
+    </div>
   )
 }
 
@@ -468,7 +491,7 @@ export function ReaderSpread({
         {(spread.topParts ?? []).length > 0 && (
           <div className={styles.topParts}>
             {(spread.topParts ?? []).map((p, pi) => (
-              <SpreadPartView key={pi} part={p} />
+              <SurfacePart key={pi} part={p} blocks={[]} onImageClick={onImageClick} />
             ))}
           </div>
         )}
@@ -539,9 +562,9 @@ export function ReaderSpread({
                 {s.n != null && <SectionReadMark pageId={spread.pageId} sectionKey={recallSectionKey} />}
               </h2>
 
-              <SpreadPartView part={s.part} />
+              <SurfacePart part={s.part} blocks={s.deep} onImageClick={onImageClick} />
               {(s.extraParts ?? []).map((p, pi) => (
-                <SpreadPartView key={pi} part={p} />
+                <SurfacePart key={pi} part={p} blocks={s.deep} onImageClick={onImageClick} />
               ))}
 
               {recap && recap.kind === 'paragraph' && (

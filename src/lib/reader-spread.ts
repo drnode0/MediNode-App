@@ -322,7 +322,9 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
   }
 }
 
-// SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
+// SpreadPart の既知の kind。source を除けば SpreadPartView（描画側）が対応しているのはこれだけ。
+// source だけは中身を持たず原本のブロックIDを指すだけの部品で、描くのは SpreadPartView
+// ではなく ReaderSpread 側の SurfacePart（RenderedBlocks 経由）。判定対象は変わらない。
 const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'decision', 'source', 'none'])
 
 /**
