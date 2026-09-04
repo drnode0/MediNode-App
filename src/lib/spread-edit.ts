@@ -107,3 +107,27 @@ export function swapMainWithFirstExtra(overlay: SpreadOverlay, anchor: string): 
     extraParts: { ...(overlay.extraParts ?? {}), [anchor]: [main, ...extras.slice(1)] },
   }
 }
+
+/**
+ * その節で表層に上げられる原本のブロック（表と画像）を、登場順に返す。
+ *
+ * 名前は見分けが付けばよいので、表は先頭行のセル、画像はキャプションから作る。
+ * キャプションの無い画像は「図: N つ目」で数える（同じ名前が並ぶと選べないため）。
+ * ブロックIDを持たないブロックは、指す先にできないので候補から外す。
+ */
+export function sourceCandidates(deep: ReaderBlock[]): { blockId: string; label: string }[] {
+  const out: { blockId: string; label: string }[] = []
+  let images = 0
+  for (const b of deep) {
+    if (b.kind === 'image') {
+      images += 1
+      if (!b.blockId) continue
+      out.push({ blockId: b.blockId, label: `図: ${b.caption?.trim() || `${images}つ目`}` })
+      continue
+    }
+    if (b.kind !== 'table' || !b.blockId) continue
+    const head = (b.rows[0] ?? []).map((cell) => textOf(cell).trim()).filter(Boolean).join('／')
+    out.push({ blockId: b.blockId, label: `表: ${head || '見出しなし'}` })
+  }
+  return out
+}

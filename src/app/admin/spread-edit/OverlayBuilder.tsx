@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, swapMainWithFirstExtra, withRefs } from '@/lib/spread-edit'
+import { SourcePicker } from './SourcePicker'
 
 type Checker = (s: string) => boolean
 
@@ -324,13 +325,14 @@ const KIND_LABEL: Record<string, string> = {
   gauge: '実測値ゲージ',
   note: '補足ノート',
   bignumber: '大きな数値',
+  source: '原本の表・図',
 }
 
 // 編集ビルダーで新しく作れる部品。comparison/matrix は原本の表から自動で立つので
 // ここからは作らない（表を出したいときは原本に表を書く）。
-const ADDABLE: SpreadPart['kind'][] = ['flow', 'cards', 'gonogo', 'gauge', 'note', 'bignumber']
+const ADDABLE: SpreadPart['kind'][] = ['flow', 'cards', 'gonogo', 'gauge', 'note', 'bignumber', 'source']
 
-function PartForm({ part, onChange, checker, own, notes, onAddToNotes }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[]; onAddToNotes?: (text: string) => Promise<void> }) {
+function PartForm({ part, onChange, checker, own, notes, onAddToNotes, deep }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[]; onAddToNotes?: (text: string) => Promise<void>; deep: ReaderBlock[] }) {
   const common = { checker, own, notes, onAddToNotes }
   if (part.kind === 'flow' || part.kind === 'timeline') {
     const steps = part.steps
@@ -486,6 +488,13 @@ function PartForm({ part, onChange, checker, own, notes, onAddToNotes }: { part:
       </div>
     )
   }
+  if (part.kind === 'source') {
+    return (
+      <Field label="この節の原本から選ぶ（中身は写さず、原本を直せば追いつきます）">
+        <SourcePicker deep={deep} value={part.blockId} onChange={(blockId) => onChange({ ...part, blockId })} />
+      </Field>
+    )
+  }
   // comparison / matrix / none: 中身は原本の表なので、ここで編集するものが無い
   return <p className="text-[11px] text-gray-400 dark:text-gray-500">この部品に編集できる項目はありません（表の中身は原本を直します）。</p>
 }
@@ -583,6 +592,7 @@ function SectionEditor({
         own={own}
         notes={notes}
         onAddToNotes={onAddToNotes}
+        deep={sec.deep}
       />
     </div>
   )

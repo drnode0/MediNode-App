@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart, refForItem, swapMainWithFirstExtra, withRefs } from '../spread-edit'
+import { candidateLines, emptyPart, refForItem, sourceCandidates, swapMainWithFirstExtra, withRefs } from '../spread-edit'
 import { makeVerbatimChecker, type SpreadOverlay, type SpreadPart } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
@@ -111,5 +111,28 @@ describe('swapMainWithFirstExtra（主役と追加の先頭の入れ替え）', 
       'sec-1',
     )
     expect(out.parts?.['sec-2']).toEqual(gauge)
+  })
+})
+
+describe('sourceCandidates（表層に上げられる原本のブロック）', () => {
+  it('表と画像だけを、登場順に、見分けの付く名前で返す', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' },
+      { kind: 'table', rows: [[t('NIV群'), t('酸素マスク群')], [t('9.1%'), t('18.5%')]], blockId: 'blk-t' },
+      { kind: 'image', url: 'https://example.org/a.png', caption: '低酸素血症の発生率', blockId: 'blk-i' },
+      { kind: 'image', url: 'https://example.org/b.png', caption: null, blockId: 'blk-i2' },
+      { kind: 'table', rows: [[t('マスク種類')]], blockId: 'blk-t2' },
+    ]
+    expect(sourceCandidates(blocks)).toEqual([
+      { blockId: 'blk-t', label: '表: NIV群／酸素マスク群' },
+      { blockId: 'blk-i', label: '図: 低酸素血症の発生率' },
+      { blockId: 'blk-i2', label: '図: 2つ目' },
+      { blockId: 'blk-t2', label: '表: マスク種類' },
+    ])
+  })
+
+  it('ブロックIDを持たないブロックは候補にしない（指す先にできないため）', () => {
+    const blocks: ReaderBlock[] = [{ kind: 'table', rows: [[t('A')]] }]
+    expect(sourceCandidates(blocks)).toEqual([])
   })
 })
