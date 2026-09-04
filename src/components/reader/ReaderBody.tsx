@@ -21,6 +21,7 @@ import { useRecallStore } from '@/components/recall/RecallProvider'
 import { buildClaimIndex, claimForRowText, sectionEnds } from '@/lib/recall/reader-claims'
 import { RecallNode } from './RecallNode'
 import { SectionReadButton } from './SectionReadButton'
+import { SectionReadMark } from './SectionReadMark'
 
 // 本文の描画に「いまどのページ・どの節か」を伝える。Node と節末ボタンだけが使う。
 // pageId が空文字のときは Recall の部品を一切描かない（個人・部署リーダー・dev ハーネス）。
@@ -185,6 +186,8 @@ function Block({
 }) {
   // 個人・部署リーダーのみ非null。未対応ブロックをNotionへの正直なリンクにする。
   const source = useContext(ReaderSourceCtx)
+  // Recall の pageId。個人・部署リーダー・dev ハーネスでは空文字（ReaderBody の既定）。
+  const { pageId: recallPageId } = useContext(ReaderRecallCtx)
   switch (block.kind) {
     case 'heading': {
       if (block.level === 2) {
@@ -196,7 +199,12 @@ function Block({
               <span className="text-[0.95em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
-              <h3 className="text-[1.3em] font-bold text-gray-900 dark:text-gray-100 leading-snug">{p.rest}</h3>
+              <h3 className="flex items-center gap-2 text-[1.3em] font-bold text-gray-900 dark:text-gray-100 leading-snug">
+                {p.rest}
+                {/* 見出しに既読の印。節末まで読まなくても、節に入った時点で
+                    前に読んだ節かどうか分かるようにする（2026-09-04 指摘）。 */}
+                <SectionReadMark pageId={recallPageId} sectionKey={`sec${p.n}`} />
+              </h3>
             </div>
           )
         }

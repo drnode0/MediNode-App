@@ -3,6 +3,7 @@ import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from
 import { ReaderSearchCtx } from '../reader-search-context'
 import { RenderedBlocks, ReaderRecallCtx } from '../ReaderBody'
 import { SectionReadButton } from '../SectionReadButton'
+import { SectionReadMark } from '../SectionReadMark'
 import { SpreadPartView } from './SpreadParts'
 import { SpreadQuizCard } from './SpreadQuizCard'
 import { digestTone, displayPreface, displayTail, splitPrefaceBlocks, refHrefs, refItemsOf, reviewedDateOf, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitTailBlocks, textOf, visibleQuizzes } from '@/lib/reader-spread'
@@ -533,6 +534,9 @@ export function ReaderSpread({
                 <span className={styles.badge}>{s.n ?? i + 1}</span>
                 {/* 「1.」の接頭辞は番号バッジと重複するため表示では落とす（パイロット準拠）。 */}
                 <span>{sectionTitleText(s)}</span>
+                {/* 見出しに既読の印。節末まで読まなくても、節に入った時点で
+                    前に読んだ節かどうか分かるようにする（2026-09-04 指摘）。 */}
+                {s.n != null && <SectionReadMark pageId={spread.pageId} sectionKey={recallSectionKey} />}
               </h2>
 
               <SpreadPartView part={s.part} />

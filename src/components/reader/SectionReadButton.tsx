@@ -3,15 +3,14 @@
 // 押した後も押し戻せる操作は置かない（読んだ記録は消す対象ではない）。
 import { CircleCheck } from 'lucide-react'
 import { useRecallStore } from '@/components/recall/RecallProvider'
-import { normalizePageId } from '@/lib/recall/claim-text'
+import { isSectionRead } from '@/lib/recall/reader-claims'
 
 export function SectionReadButton({ pageId, sectionKey }: { pageId: string; sectionKey: string }) {
   const { enabled, reads, pending, markSectionRead } = useRecallStore()
   // 呼び出し側の条件に頼らず、自分でも閉じる。機能が閉じている利用者には
   // ボタンも節末の操作も一切描かない（設計の要件）。
   if (!enabled || !pageId) return null
-  const id = normalizePageId(pageId)
-  const done = reads.some((r) => r.pageId === id && r.sectionKey === sectionKey)
+  const done = isSectionRead(reads, pageId, sectionKey)
   const busy = pending.has(`read:${pageId}#${sectionKey}`)
 
   if (done) {

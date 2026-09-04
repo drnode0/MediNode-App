@@ -3,7 +3,7 @@
 // 引くのは /api/recall/claims が返した確定済みの claim だけで、
 // 見つからなければ null を返す＝その行に Node を出さない。誤って別の主張に付くことはない。
 import { normalizeBody, normalizePageId, splitClaim, SECTION_HEAD_RE } from './claim-text'
-import type { RecallClaim } from './types'
+import type { RecallClaim, RecallSectionRead } from './types'
 import type { ReaderBlock } from '@/lib/reader-doc'
 
 export type ClaimIndex = Map<string, RecallClaim>
@@ -41,6 +41,15 @@ export function sectionKeysByBlock(blocks: ReaderBlock[]): string[] {
     }
     return cur
   })
+}
+
+// 節の読了記録を1か所で判定する。節末ボタン（下）と節見出しの印（上）の両方が
+// この関数を通す。別々に書くと、書き方がずれて「上は済みだが下は未読了」のような
+// 表示の食い違いが起こりうる（2026-09-04 指摘: 節の頭に何も出ないと、2回目以降は
+// 読み終えるまで既読かどうか分からない。この関数は見出し側の印にも使う）。
+export function isSectionRead(reads: RecallSectionRead[], pageId: string, sectionKey: string): boolean {
+  const id = normalizePageId(pageId)
+  return reads.some((r) => r.pageId === id && r.sectionKey === sectionKey)
 }
 
 // 番号付き節ごとの「最後のブロックの位置」。節末ボタンをこの直後に置く。

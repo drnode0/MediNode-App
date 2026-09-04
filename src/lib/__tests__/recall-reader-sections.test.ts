@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { sectionKeysByBlock, sectionEnds } from '@/lib/recall/reader-claims'
+import { sectionKeysByBlock, sectionEnds, isSectionRead } from '@/lib/recall/reader-claims'
 import type { ReaderBlock } from '@/lib/reader-doc'
+import type { RecallSectionRead } from '@/lib/recall/types'
 
 const h2 = (t: string): ReaderBlock => ({ kind: 'heading', level: 2, inlines: [{ text: t }] })
 const li = (t: string): ReaderBlock => ({ kind: 'list_item', ordered: false, inlines: [{ text: t }] })
@@ -34,5 +35,27 @@ describe('節末の位置', () => {
 
   it('sec0（見出しより前）には節末を作らない', () => {
     expect(sectionEnds([p('前置きだけ')])).toEqual([])
+  })
+})
+
+describe('節の読了判定（見出しの印と節末ボタンが同じ規則を見る）', () => {
+  const reads = (over: Partial<RecallSectionRead> = {}): RecallSectionRead => ({
+    pageId: 'abcd1234', sectionKey: 'sec1', readAt: '2026-09-01T00:00:00.000Z', ...over,
+  })
+
+  it('一致する行があれば読了', () => {
+    expect(isSectionRead([reads()], 'abcd1234', 'sec1')).toBe(true)
+  })
+
+  it('節キーが違えば未読了', () => {
+    expect(isSectionRead([reads()], 'abcd1234', 'sec2')).toBe(false)
+  })
+
+  it('pageId はダッシュ有無・大文字小文字の揺れを吸収する', () => {
+    expect(isSectionRead([reads()], 'ABCD-1234', 'sec1')).toBe(true)
+  })
+
+  it('記録が空なら未読了', () => {
+    expect(isSectionRead([], 'abcd1234', 'sec1')).toBe(false)
   })
 })
