@@ -56,6 +56,10 @@ export function CoreEmblem({ slot, kind, size, className }: Props) {
         yaw: t * ind.rate * CORE_SPIN[kind],
         pitch: ind.tilt,
         palette,
+        // ライトの紙の上では奥行きのぼかし（奥ほど薄くする既定 0.1）で奥の線が消える。
+        // 線の本数が少ない signal（枝）の族で特にはっきり出るため、ライトのときだけ底上げする。
+        // ダークはオーナー承認済みの見た目なので既定のまま変えない。
+        minA: isDarkNow() ? undefined : 0.25,
       })
       ctx.globalAlpha = 0.5
       ctx.strokeStyle = palette.outline

@@ -8,7 +8,7 @@ import { isEscaping } from './field-layout'
 import type { RecallState, RecallClaim } from './types'
 import type { Planet, ClaimDot } from './field-render'
 import type { CoreKind } from './cores'
-import type { NextDue } from './srs'
+import { daysUntilDue, type NextDue } from './srs'
 import { genreEnglishOf, coreEnglishOf } from './genre-en'
 import { sectionOrderOf } from './field-angle'
 import { checkNotice } from './notice'
@@ -199,4 +199,13 @@ export function todayOf(plates: PlateModel[], next: NextDue | null, now: Date): 
   // 離れかけが1件でもあれば帯は件数を出すので、一言（checkNotice）は0件のときだけ（分野名なし）。
   const notice = escaping === 0 ? checkNotice(0, next, now) : null
   return { escaping, seats, next, notice }
+}
+
+// 離れかけが1件以上あるときの帯（§2.1）に出す「次の期限」の一言。
+// 日数の出し方（過ぎていたら「日後」を作らない）は checkNotice と同じ daysUntilDue（srs.ts）を使う。
+// checkNotice 自体は「いま確かめる主張はありません」を前提にした文なので、離れかけがある帯の
+// 短い一言（「次の期限 n日後に m件」）にはそのまま使えない。日数の計算だけを共有する。
+export function nextDueText(next: NextDue, now: Date): string {
+  const days = daysUntilDue(next, now)
+  return days === null ? `期限が来ている主張が ${next.count} 件` : `次の期限 ${days}日後に ${next.count}件`
 }

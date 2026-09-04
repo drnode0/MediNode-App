@@ -8,11 +8,8 @@
 // 設計: 2026-09-04「標本帳（図鑑）の設計書」§2.1・§2.2・§2.3・§3・§9（用語）。
 import { useEffect, useRef, useState } from 'react'
 import type { DotKind, PlateModel, TodayModel } from '@/lib/recall/dex'
-import { trayLayout } from '@/lib/recall/dex'
-import type { NextDue } from '@/lib/recall/srs'
+import { nextDueText, trayLayout } from '@/lib/recall/dex'
 import { CoreEmblem } from './CoreEmblem'
-
-const DAY_MS = 86_400_000
 
 // 一覧の記録カウント（useFieldData の counts と同じ形）。
 type DexCounts = { kept: number; touched: number; cold: number; settled: number }
@@ -31,9 +28,11 @@ type Props = {
 // 実際に描いて測ると一枚の内側（emblem 72px・gap・左右の padding を引いた後）は
 // 2列時で約176pxしかなく、固定値のままだと trayLayout が「6行に収まる」と誤判定して
 // 点が枠の下からはみ出た（実測は報告に書く）。ResizeObserver でトレイ自身の実幅を測る。
-function useMeasuredWidth<T extends HTMLElement>(fallback: number): [React.RefObject<T>, number] {
+// 初期値は「まだ測れていない」（null）にする。固定値のままだと ResizeObserver が効くまでの
+// 1コマだけ本当の行数と違う並びが描かれるため、測れるまではトレイ自体を描かない。
+function useMeasuredWidth<T extends HTMLElement>(): [React.RefObject<T>, number | null] {
   const ref = useRef<T>(null)
-  const [width, setWidth] = useState(fallback)
+  const [width, setWidth] = useState<number | null>(null)
   useEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === 'undefined') return
@@ -47,14 +46,6 @@ function useMeasuredWidth<T extends HTMLElement>(fallback: number): [React.RefOb
   return [ref, width]
 }
 
-// 今日の帯の「次の期限」の一言。checkNotice（notice.ts）と同じ日数の出し方
-// （過ぎていたら「日後」を作らない）。表示だけの整形なので判断側には置かない。
-function nextText(next: NextDue, now: Date): string {
-  if (next.overdue || next.at.getTime() <= now.getTime()) return `期限が来ている主張が ${next.count} 件`
-  const days = Math.max(1, Math.ceil((next.at.getTime() - now.getTime()) / DAY_MS))
-  return `次の期限 ${days}日後に ${next.count}件`
-}
-
 const DOT_BASE = 'block shrink-0 rounded-full border border-current box-border'
 const DOT_KIND_CLASS: Record<DotKind, string> = {
   cold: 'bg-transparent',
@@ -65,18 +56,24 @@ const DOT_KIND_CLASS: Record<DotKind, string> = {
 }
 
 function Tray({ tray }: { tray: PlateModel['tray'] }) {
-  const [ref, widthPx] = useMeasuredWidth<HTMLDivElement>(270)
-  const layout = trayLayout(tray.length, widthPx)
-  const shown = tray.slice(0, layout.shown)
+  const [ref, widthPx] = useMeasuredWidth<HTMLDivElement>()
+  // 幅がまだ測れていない間はトレイを描かない（固定値の仮並びを一瞬だけ見せない）。
+  const layout = widthPx == null ? null : trayLayout(tray.length, widthPx)
+  const shown = layout ? tray.slice(0, layout.shown) : []
   return (
-    <div ref={ref} className={`flex flex-wrap content-start items-center ${layout.gap === 3 ? 'gap-[3px]' : 'gap-[2px]'}`}>
-      {shown.map((dot) => (
-        <i key={dot.claimId}
-          className={`${DOT_BASE} ${DOT_KIND_CLASS[dot.look.kind]}`}
-          style={{ width: layout.size, height: layout.size, opacity: dot.look.alpha }} />
-      ))}
-      {layout.rest > 0 && (
-        <span className="ml-1 text-[10px] leading-none text-slate-400 dark:text-slate-500 tabular-nums">ほか {layout.rest}</span>
+    <div>
+      {/* 点の容器には点だけを入れる。「ほか n」を同じ flex-wrap の中に混ぜると、
+          6行が埋まったあとに折り返して7行目に出てしまい、trayLayout の「6行に収める」
+          約束が崩れる（実測で発生。報告に書く）。 */}
+      <div ref={ref} className={`flex flex-wrap content-start items-center ${layout?.gap === 3 ? 'gap-[3px]' : 'gap-[2px]'}`}>
+        {shown.map((dot) => (
+          <i key={dot.claimId}
+            className={`${DOT_BASE} ${DOT_KIND_CLASS[dot.look.kind]}`}
+            style={{ width: layout!.size, height: layout!.size, opacity: dot.look.alpha }} />
+        ))}
+      </div>
+      {layout && layout.rest > 0 && (
+        <p className="mt-0.5 text-right text-[10px] leading-none text-slate-400 dark:text-slate-500 tabular-nums">ほか {layout.rest}</p>
       )}
     </div>
   )
@@ -90,10 +87,12 @@ function Plate({ plate, onOpen }: { plate: PlateModel; onOpen: (slot: number) =>
         before:content-[''] before:absolute before:left-[-1px] before:top-[-1px] before:w-2 before:h-2 before:border before:border-current before:border-r-0 before:border-b-0
         after:content-[''] after:absolute after:right-[-1px] after:bottom-[-1px] after:w-2 after:h-2 after:border after:border-current after:border-l-0 after:border-t-0">
       <CoreEmblem slot={plate.slot} kind={plate.kind} size={72} className="row-span-2" />
-      <div className="flex items-baseline gap-2 flex-wrap min-w-0">
-        <span className="text-[17px] tracking-[.03em] font-medium">{plate.label}</span>
-        <span className="text-[11px] tracking-[.12em] uppercase text-slate-500 dark:text-slate-400">{plate.en}</span>
-        <span className="text-[11px] text-slate-400 dark:text-slate-500">{plate.kindEn}</span>
+      {/* 和名・英名・族は常に3行の縦積み（標本帳は並びが動かないことで場所を覚える。
+          flex-wrap で横に流すと、名前の長さ次第で1〜3行と枚ごとに組み方が変わってしまう）。 */}
+      <div className="min-w-0">
+        <p className="text-[17px] tracking-[.03em] font-medium leading-tight">{plate.label}</p>
+        <p className="mt-0.5 text-[11px] tracking-[.12em] uppercase text-slate-500 dark:text-slate-400 leading-tight">{plate.en}</p>
+        <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500 leading-tight">{plate.kindEn}</p>
       </div>
       <Tray tray={plate.tray} />
       <div className="col-span-2 mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] tracking-[.06em] text-slate-500 dark:text-slate-400 tabular-nums">
@@ -133,7 +132,7 @@ export function RecallDex({ plates, empty, today, counts, total, onOpen, onSweep
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12.5px] tracking-[.06em] text-slate-600 dark:text-slate-300">
               <span className="text-[#A86B0C] dark:text-[#F0D68A]">離れかけ {today.escaping}（{today.seats}分野）</span>
-              {today.next && <span>{nextText(today.next, now)}</span>}
+              {today.next && <span>{nextDueText(today.next, now)}</span>}
             </div>
             <button type="button" onClick={onSweep}
               className="shrink-0 rounded-full border border-[#A86B0C]/60 dark:border-[#F0D68A]/60 px-4 py-2 text-[12px] tracking-[.06em] text-[#A86B0C] dark:text-[#F0D68A] hover:bg-[#A86B0C]/5 dark:hover:bg-[#F0D68A]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
@@ -154,7 +153,11 @@ export function RecallDex({ plates, empty, today, counts, total, onOpen, onSweep
       {empty.length > 0 && (
         <div className="mt-6 pb-2 text-[11.5px] leading-7 tracking-[.05em] text-slate-400 dark:text-slate-500">
           <p className="mb-1">まだ主張のない分野 {empty.length}</p>
-          <p>{empty.map((e) => e.label).join('　')}</p>
+          <p>
+            {empty.map((e) => (
+              <span key={e.slot} className="inline-block whitespace-nowrap">{e.label}　</span>
+            ))}
+          </p>
         </div>
       )}
     </div>

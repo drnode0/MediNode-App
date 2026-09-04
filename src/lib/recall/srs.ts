@@ -95,3 +95,12 @@ export function nextDue(progress: RecallProgress[], now: Date, seat?: SeatFilter
   const key = jstDateKey(first)
   return { at: new Date(first), count: times.filter((t) => jstDateKey(t) === key).length, overdue: false }
 }
+
+// 「次の期限」の日数の出し方（過ぎていたら「日後」を作らない）。checkNotice（notice.ts）と
+// 標本帳の一覧の帯（dex.ts）の両方がこの日数を要るので、NextDue のそばの1か所に置く。
+// overdue の印だけでなく、日時そのものも見る（印の付け忘れ・時計のずれで過ぎた日付から
+// 「◯日後」を作らないための二重の歯止め）。過ぎているときは null。
+export function daysUntilDue(due: NextDue, now: Date): number | null {
+  if (due.overdue || due.at.getTime() <= now.getTime()) return null
+  return Math.max(1, Math.ceil((due.at.getTime() - now.getTime()) / DAY))
+}

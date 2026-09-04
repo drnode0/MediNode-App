@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   dotLookOf, trayLayout, TRAY_MAX_ROWS,
-  plateOf, platesOf, pageModelOf, todayOf, type PlateModel,
+  plateOf, platesOf, pageModelOf, todayOf, nextDueText, type PlateModel,
 } from '@/lib/recall/dex'
 import { checkNotice } from '@/lib/recall/notice'
 import { ESCAPE_THRESHOLD, type NextDue } from '@/lib/recall/srs'
@@ -264,5 +264,29 @@ describe('今日の帯 todayOf', () => {
   it('escaping>0 のときは notice を出さない', () => {
     const t = todayOf([plate(1)], null, new Date('2026-09-04T00:00:00Z'))
     expect(t.notice).toBeNull()
+  })
+})
+
+describe('次の期限の一言 nextDueText（離れかけ>0 の帯用）', () => {
+  const now = new Date('2026-09-04T00:00:00Z')
+
+  it('未来の期限は「次の期限 n日後に m件」', () => {
+    const next: NextDue = { at: new Date('2026-09-06T00:00:00Z'), count: 4, overdue: false }
+    expect(nextDueText(next, now)).toBe('次の期限 2日後に 4件')
+  })
+
+  it('overdue の印がある期限は「期限が来ている主張が m件」（日後にしない）', () => {
+    const next: NextDue = { at: now, count: 3, overdue: true }
+    expect(nextDueText(next, now)).toBe('期限が来ている主張が 3 件')
+  })
+
+  it('印が無くても at が今日時点で過ぎていれば「日後」を作らない（境目＝当日ちょうど）', () => {
+    const next: NextDue = { at: now, count: 5, overdue: false }
+    expect(nextDueText(next, now)).toBe('期限が来ている主張が 5 件')
+  })
+
+  it('checkNotice と同じ日数の出し方（daysUntilDue を共有）：切り上げで最短1日', () => {
+    const next: NextDue = { at: new Date(now.getTime() + 1000), count: 1, overdue: false }
+    expect(nextDueText(next, now)).toBe('次の期限 1日後に 1件')
   })
 })
