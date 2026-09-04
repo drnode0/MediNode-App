@@ -25,6 +25,7 @@ import {
   History,
   Hourglass,
   LayoutDashboard,
+  Library,
   Megaphone,
   RefreshCw,
   Search,
@@ -77,6 +78,7 @@ import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
 import { SpreadCard } from './SpreadCard'
 import { RecallCardsPanel } from './RecallCardsPanel'
+import { EssentialsCard } from './EssentialsCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
 
@@ -302,13 +304,14 @@ function csvCell(v: string | null): string {
 }
 
 // 運用ダッシュボードのタブ。長い1ページをスクロールせず切り替えて見るための分割単位。
-type AdminTab = 'today' | 'accounts' | 'analytics' | 'delivery' | 'spread'
+type AdminTab = 'today' | 'accounts' | 'analytics' | 'delivery' | 'spread' | 'essentials'
 const ADMIN_TABS: { key: AdminTab; label: string; icon: typeof Users }[] = [
   { key: 'today', label: '今日', icon: LayoutDashboard },
   { key: 'accounts', label: 'アカウント', icon: Users },
   { key: 'analytics', label: '分析・マーケ', icon: BarChart3 },
   { key: 'delivery', label: '通知・配信', icon: Megaphone },
   { key: 'spread', label: 'スプレッド', icon: BookOpen },
+  { key: 'essentials', label: 'Essentials', icon: Library },
 ]
 
 export function AdminLedgerClient() {
@@ -1068,6 +1071,13 @@ ${label}`,
             {/* Recall（知の球）の伏せ字承認。専用タブはまだ無いので、コンテンツ制作系の操作が
                 並ぶスプレッドタブに間借りする（台帳データに依存しない自己完結パネルという点も揃う）。 */}
             <RecallCardsPanel />
+          </div>
+        )}
+        {/* Essentials タブ（台帳データ非依存・自己完結）。制作の進捗と出典の取得状況を Notion から読む。
+            読むだけの画面なので、台帳（/api/admin/ledger）の失敗で止めない。 */}
+        {tab === 'essentials' && (
+          <div className="mt-2 mb-8">
+            <EssentialsCard />
           </div>
         )}
         {!loading && !error && rows && tab === 'today' && campaignDaysLeft != null && (
