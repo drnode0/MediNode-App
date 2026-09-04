@@ -1467,3 +1467,28 @@ describe('source 部品（原本の表・図を指すだけの部品）', () => 
     expect(verifyVerbatim(spread, doc, null).ok).toBe(true)
   })
 })
+
+describe('sectionDisplay（source が指すブロックの取り分け）', () => {
+  const table: ReaderBlock = { kind: 'table', rows: [[t('A'), t('B')]], blockId: 'blk-t' }
+  const img: ReaderBlock = { kind: 'image', url: 'https://example.org/a.png', caption: '図1', blockId: 'blk-i' }
+  const para: ReaderBlock = { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' }
+
+  it('主役と追加が指したブロックを深掘りから除く', () => {
+    const view = sectionDisplay({
+      n: 1, anchor: 'sec-1', title: '1. 節', shortLabel: null,
+      part: { kind: 'source', blockId: 'blk-t' },
+      extraParts: [{ kind: 'source', blockId: 'blk-i' }],
+      deep: [table, img, para],
+    })
+    expect(view.deep).toEqual([para])
+  })
+
+  it('指していないブロックは残る', () => {
+    const view = sectionDisplay({
+      n: 1, anchor: 'sec-1', title: '1. 節', shortLabel: null,
+      part: { kind: 'source', blockId: 'blk-i' },
+      deep: [table, img, para],
+    })
+    expect(view.deep).toEqual([table, para])
+  })
+})

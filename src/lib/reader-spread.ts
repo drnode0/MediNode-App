@@ -749,6 +749,13 @@ function tableCoveredByCards(rows: ReaderInline[][][], covered: Set<string>): bo
 export function sectionDisplay(section: SpreadSection): SectionDisplay {
   let deep = section.deep
   const part = section.part
+  // source が指したブロックは表層に出るので、深掘りからは除く（同じものが2回出ないように）。
+  // 主役だけでなく追加の部品も見る。表を主役に上げたときの dropTable と同じ思想だが、
+  // あちらは中身の一致で探すのに対し、こちらはブロックIDで直接引ける。
+  const sourceIds = new Set(
+    [part, ...(section.extraParts ?? [])].flatMap((p) => (p.kind === 'source' ? [p.blockId] : [])),
+  )
+  if (sourceIds.size > 0) deep = deep.filter((b) => !(b.blockId && sourceIds.has(b.blockId)))
   // 表層へ昇格した表を深掘りから除く（中身は表層に必ず表示されることが前提の除去）。
   const dropTable = (matches: (rows: ReaderInline[][][]) => boolean) => {
     const idx = deep.findIndex((b) => b.kind === 'table' && matches(b.rows))
