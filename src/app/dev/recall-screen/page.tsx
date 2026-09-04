@@ -1,8 +1,10 @@
 'use client'
-// 本物の Recall 画面（RecallScreen＝凡例・帯・ボタン・カードまで）を、ログイン無しで見る
+// 本物の Recall 画面（RecallScreen＝標本帳の一覧・帯・カードまで）を、ログイン無しで見る
 // dev ハーネス（development限定）。API への fetch を仮の応答に差し替えて RecallProvider に流す。
 // /dev/recall-field が canvas だけを見るのに対し、こちらはタブから来たときの画面全体を見る
 //（ヘッダーの真似を上に置き、ライト／ダークを切り替える）。
+// RecallScreen は 2026-09-04 に通常のスクロールする画面へ変わったので、ヘッダーの真似も
+// 本物の page.tsx と同じ sticky にし、中身は同じ max-w-2xl mx-auto px-4 py-4 で包む。
 //
 // 仮の応答は /api/recall/claims と /api/recall/progress の2つ。keep / review / read は
 // 成功だけ返す（記録はどこにも残らない）。機能フラグは localStorage の設定に 'recall' を足して開ける
@@ -101,8 +103,8 @@ export default function DevRecallScreenPage() {
 
   return (
     <>
-      {/* アプリのヘッダーの真似（page.tsx の data-app-header と同じ色・高さの目安）。 */}
-      <div data-app-header className="fixed inset-x-0 top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
+      {/* アプリのヘッダーの真似（page.tsx の data-app-header と同じ色・高さ・sticky）。 */}
+      <div data-app-header className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={toggleDark} className="w-16 text-left text-[11px] text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
@@ -120,7 +122,10 @@ export default function DevRecallScreenPage() {
       </div>
       {ready && (
         <RecallProvider>
-          <RecallScreen />
+          {/* 本物の page.tsx と同じ差し込み枠（max-w-2xl mx-auto px-4 py-4）。 */}
+          <div className="max-w-2xl mx-auto px-4 py-4">
+            <RecallScreen />
+          </div>
         </RecallProvider>
       )}
     </>
