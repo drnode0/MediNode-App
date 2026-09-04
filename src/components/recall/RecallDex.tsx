@@ -7,9 +7,10 @@
 // 角の印は左上・右下の疑似要素、点は塗り・輪郭・外輪・滲みの4種で記憶の5段を表す（設計 §3）。
 // 設計: 2026-09-04「標本帳（図鑑）の設計書」§2.1・§2.2・§2.3・§3・§9（用語）。
 import { useEffect, useRef, useState } from 'react'
-import type { DotKind, PlateModel, TodayModel } from '@/lib/recall/dex'
+import type { PlateModel, TodayModel } from '@/lib/recall/dex'
 import { nextDueText, trayLayout } from '@/lib/recall/dex'
 import { CoreEmblem } from './CoreEmblem'
+import { RecallDot } from './RecallDot'
 
 // 一覧の記録カウント（useFieldData の counts と同じ形）。
 type DexCounts = { kept: number; touched: number; cold: number; settled: number }
@@ -46,15 +47,6 @@ function useMeasuredWidth<T extends HTMLElement>(): [React.RefObject<T>, number 
   return [ref, width]
 }
 
-const DOT_BASE = 'block shrink-0 rounded-full border border-current box-border'
-const DOT_KIND_CLASS: Record<DotKind, string> = {
-  cold: 'bg-transparent',
-  touched: 'bg-transparent',
-  kept: 'bg-current',
-  settled: 'bg-current shadow-[0_0_0_1.5px_color-mix(in_srgb,currentColor_45%,transparent)]',
-  escaping: 'bg-current text-[#A86B0C] dark:text-[#F0D68A] shadow-[0_0_6px_currentColor]',
-}
-
 function Tray({ tray }: { tray: PlateModel['tray'] }) {
   const [ref, widthPx] = useMeasuredWidth<HTMLDivElement>()
   // 幅がまだ測れていない間はトレイを描かない（固定値の仮並びを一瞬だけ見せない）。
@@ -67,9 +59,7 @@ function Tray({ tray }: { tray: PlateModel['tray'] }) {
           約束が崩れる（実測で発生。報告に書く）。 */}
       <div ref={ref} className={`flex flex-wrap content-start items-center ${layout?.gap === 3 ? 'gap-[3px]' : 'gap-[2px]'}`}>
         {shown.map((dot) => (
-          <i key={dot.claimId}
-            className={`${DOT_BASE} ${DOT_KIND_CLASS[dot.look.kind]}`}
-            style={{ width: layout!.size, height: layout!.size, opacity: dot.look.alpha }} />
+          <RecallDot key={dot.claimId} look={dot.look} size={layout!.size} />
         ))}
       </div>
       {layout && layout.rest > 0 && (
