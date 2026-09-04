@@ -70,6 +70,13 @@ export const INK_HALO = '#F6E7B8'
 export const INK_TOUCHED = '#8FA3BD'
 export const INK_DIM = '#7C8DA6'
 
+// alpha に palette の alphaGain を掛ける。1 を超えないよう頭打ちにする
+//（掛けた先の値をそのまま globalAlpha に渡すため、1 を超えると Canvas 側で 1 に丸められて
+//  gain の差が消える。ここで先に丸めておけば、頭打ち後の値をテストできる）。
+export function gainAlpha(alpha: number, gain: number): number {
+  return Math.min(1, alpha * gain)
+}
+
 export type Look = { ink: string; alpha: number; size: number; glow: boolean }
 
 // 主張1つの見え方。t は秒（明滅に使う）。動きを減らす設定では明滅を止める。

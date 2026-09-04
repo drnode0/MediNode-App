@@ -11,7 +11,7 @@ import type { RecallState } from './types'
 import { coreLayers, DEPTH_STEPS, MIN_ALPHA, type CoreLayer } from './core-shapes'
 import { CORE_SPIN, CORE_TILT, coreIndividual, type CoreKind } from './cores'
 import {
-  placeOf, lookOf, HAZE_ALPHA, HALO_MAX,
+  placeOf, lookOf, gainAlpha, HAZE_ALPHA, HALO_MAX,
   EDGE_CIRCLES, EDGE_LABELS, INK_HALO, R_COLD,
   type PlanetSummary,
 } from './field-layout'
@@ -210,7 +210,7 @@ const hash = (a: number, b: number) => {
 function drawHaze(ctx: CanvasRenderingContext2D, pal: FieldPalette, slot: number, X: number, Y: number, S: number, depth: number) {
   ctx.strokeStyle = pal.outline
   ctx.lineWidth = 0.6
-  ctx.globalAlpha = HAZE_ALPHA * depth
+  ctx.globalAlpha = gainAlpha(HAZE_ALPHA, pal.alphaGain) * depth
   ctx.beginPath()
   const strokes = Math.max(HAZE_STROKES, Math.min(HAZE_STROKES_MAX, Math.round(S * 1.8)))
   const len = Math.min(S * 0.5, HAZE_LEN_MAX)
@@ -283,7 +283,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       })
     }
     if (sum.outline) {
-      ctx.globalAlpha = sum.outlineAlpha * depth
+      ctx.globalAlpha = gainAlpha(sum.outlineAlpha, pal.alphaGain) * depth
       ctx.strokeStyle = pal.outline
       ctx.lineWidth = 0.8
       ctx.beginPath()
@@ -325,7 +325,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       hits.dotPos.set(dot.claimId, { X: at.X, Y: at.Y })
       if (flyingIds.has(dot.claimId)) continue
       const look = lookOf(dot.state.kind, dot.state.remaining, T, reduced, dot.phase)
-      let alpha = look.alpha * depth
+      let alpha = gainAlpha(look.alpha, pal.alphaGain) * depth
       // レンズ。押した記事だけ明るく、他は沈む。
       if (isNear && a.lensPageId && dot.pageId !== a.lensPageId) alpha *= 0.22
       const size = look.size * dotScale * (inside ? (at.k * seat.r) / S : 1)
