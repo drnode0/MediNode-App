@@ -90,9 +90,11 @@ export function RecallScreen() {
 
   // カードは操作の起点を覆うので、答えずに抜ける手段をもう1つ用意する。
   // Esc は開いているカードのモード・状態を問わず閉じる（記録は書かない）。
+  // 「この分野を確かめる」の列の途中で閉じることもあるので、run も一緒に捨てる
+  // （run を残すと、後で別の行を直に答えたときに古い列が進んでしまう）。
   useEffect(() => {
     if (!card) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCard(null) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setCard(null); setRun(null) } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [card])
@@ -108,16 +110,20 @@ export function RecallScreen() {
 
   // 分野ページで、開いている間に同期で主張が外れたとき（一枚が見つからなくなったら）
   // view を dex に戻す（設計 §6）。レンダー中に state を書き換えない。
+  // その分野の「確かめる」の列（run）はもう意味を持たないので、Esc と同じ理由で捨てる。
   useEffect(() => {
     if (view.kind === 'page' && !pagePlate) {
       setView({ kind: 'dex' })
+      setRun(null)
     }
   }, [view.kind, pagePlate])
 
   // 開いているカードの主張が同期で claimById から消えたら閉じる（設計 §6）。
+  // Esc と同じ理由で run も一緒に捨てる。
   useEffect(() => {
     if (card && !data.claimById.has(card.claimId)) {
       setCard(null)
+      setRun(null)
     }
   }, [card, data.claimById])
 
@@ -233,8 +239,15 @@ export function RecallScreen() {
             }
             setSaving(false)
 
+            // run は残っていても、いま答えた主張が本当にその列の現在地（run.queue[run.index]）
+            // でなければ列を進めない。Esc で列の外に出た後、別の離れかけの行を直に1枚だけ
+            // 答えたときなどに、無関係な run.queue[run.index] を拾って別の主張のカードが
+            // 勝手に開く・関係ない分野へ飛ぶのを防ぐ（設計から外れた経路が増えても効く歯止め）。
             const current = run
-            if (!current) { setCard(null); return } // 行を直にタップした単発の quiz（列を持たない）
+            if (!current || current.queue[current.index] !== cardClaim.claimId) {
+              setCard(null)
+              return // 行を直にタップした単発の quiz（列を持たない・または列の現在地とずれている）
+            }
 
             const advanced = advance(current)
             if (!isRunDone(advanced)) {
