@@ -51,7 +51,7 @@ export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRea
             onEmblem({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
           }}
           aria-label="球体を浮き出す"
-          className={`justify-self-start rounded-full transition-opacity duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-brand-900 ${liftOpen ? 'opacity-30' : ''}`}>
+          className={`justify-self-start rounded-full transition-opacity duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 ${liftOpen ? 'opacity-30' : ''}`}>
           <CoreEmblem slot={plate.slot} kind={plate.kind} size={96} />
         </button>
         <div className="min-w-0">

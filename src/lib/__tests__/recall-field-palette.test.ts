@@ -29,16 +29,16 @@ const contrast = (a: string, b: string) => {
 const ALL_INKS = [INK_WHITE, INK_COOL, INK_WARM, INK_HALO, INK_TOUCHED, INK_DIM]
 
 describe('惑星の色の2組', () => {
-  it('paletteOf は dark で緑の地、light で紙の地', () => {
+  it('paletteOf は dark で紺の地、light で紙の地', () => {
     expect(paletteOf(true)).toBe(DARK_PALETTE)
     expect(paletteOf(false)).toBe(LIGHT_PALETTE)
     expect(lum(DARK_PALETTE.bg)).toBeLessThan(0.05)
     expect(lum(LIGHT_PALETTE.bg)).toBeGreaterThan(0.85)
   })
 
-  // D6: ダークの地はアプリのブランド色（常盤）の brand-900 と同じ緑（tailwind.config.js で確認）。
-  it('ダークの地はアプリの brand-900 と同じ緑', () => {
-    expect(DARK_PALETTE.bg).toBe('#0d3a2b')
+  // D6 は 2026-09-05 に取り下げ。ダークの地は他のタブと同じ紺（実画面で緑が浮いたため）。
+  it('ダークの地は他のタブと同じ紺', () => {
+    expect(DARK_PALETTE.bg).toBe('#0B1524')
   })
 
   it('alphaGain はダーク 1（素通し）・ライト 1.6（紙で薄く沈む線を底上げ）', () => {

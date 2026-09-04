@@ -28,13 +28,14 @@ export type FieldPalette = {
   inks: Record<string, string>  // ダークの線の色 → この組での色
 }
 
-// bg はアプリのブランド色「常盤」の brand-900（tailwind.config.js）と同じ値。
-// Recall の地の色は DOM 側（RecallScreen.tsx）でも同じ dark:bg-brand-900 を使う（段2で揃える）。
+// bg は他のタブと同じ紺（アプリのダーク既定のグラデーションが透ける前提の色）。
+// 2026-09-05: D6（ブランド色の緑）は取り下げ。実画面で緑が紺のページの中に1本の帯として
+// 浮いたため、紺に戻した（詳細は設計書 §1 D6）。
 export const DARK_PALETTE: FieldPalette = {
-  bg: '#0d3a2b',
-  label: '#B9CDC3',
-  outline: '#F2F5F1',
-  labelBg: 'rgba(13,58,43,.8)',
+  bg: '#0B1524',
+  label: '#A9B8CC',
+  outline: '#EBF2FB',
+  labelBg: 'rgba(11,21,36,.75)',
   glow: 0.25,
   alphaGain: 1,
   inks: {

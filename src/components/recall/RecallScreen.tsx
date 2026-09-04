@@ -229,7 +229,7 @@ export function RecallScreen() {
   const pill = notice ?? data.saveError ?? (data.error && !fatal ? data.error : null)
 
   return (
-    <div className="min-h-[70vh] bg-[#F5F7FA] dark:bg-brand-900 text-slate-800 dark:text-[#F2F5F1]">
+    <div className="min-h-[70vh] bg-[#F5F7FA] dark:bg-transparent text-slate-800 dark:text-[#F2F5F1]">
       {data.loading ? (
         <p className="p-6 text-sm text-slate-500 dark:text-slate-400">読み込んでいます</p>
       ) : fatal ? (

@@ -73,7 +73,7 @@ function Plate({ plate, onOpen }: { plate: PlateModel; onOpen: (slot: number) =>
   const kept = plate.kept + plate.settled
   return (
     <button type="button" onClick={() => onOpen(plate.slot)} aria-label={plate.label}
-      className="relative grid grid-cols-[72px_1fr] gap-x-3.5 gap-y-1.5 items-center border border-slate-300/70 dark:border-white/20 px-4 pt-3.5 pb-3 text-left text-slate-800 dark:text-[#F2F5F1] hover:border-slate-400 dark:hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-brand-900
+      className="relative grid grid-cols-[72px_1fr] gap-x-3.5 gap-y-1.5 items-center border border-slate-300/70 dark:border-white/20 px-4 pt-3.5 pb-3 text-left text-slate-800 dark:text-[#F2F5F1] hover:border-slate-400 dark:hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900
         before:content-[''] before:absolute before:left-[-1px] before:top-[-1px] before:w-2 before:h-2 before:border before:border-current before:border-r-0 before:border-b-0
         after:content-[''] after:absolute after:right-[-1px] after:bottom-[-1px] after:w-2 after:h-2 after:border after:border-current after:border-l-0 after:border-t-0">
       <CoreEmblem slot={plate.slot} kind={plate.kind} size={72} className="row-span-2" />
@@ -102,7 +102,7 @@ export function RecallDex({ plates, empty, today, counts, total, onOpen, onSweep
   const now = new Date()
 
   return (
-    <div className="bg-[#F5F7FA] dark:bg-brand-900 text-slate-800 dark:text-[#F2F5F1] rounded-lg p-4">
+    <div className="bg-[#F5F7FA] dark:bg-transparent text-slate-800 dark:text-[#F2F5F1] rounded-lg p-4">
       {/* 見出し（設計 §2.1） */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

@@ -89,7 +89,7 @@ export function RecallLift({ slot, planets, origin, cardOpen, onClose, onCloseCa
   }
 
   return (
-    <div className="fixed inset-0 z-20 bg-[#F5F7FA]/[.92] dark:bg-brand-900/[.92]" style={style}>
+    <div className="fixed inset-0 z-20 bg-[#F5F7FA]/[.92] dark:bg-[#0B1524]/[.92]" style={style}>
       <RecallField
         planets={planets} center="outside" reduced={reduced} initialNear={slot}
         shelf={NO_SHELF} again={NO_AGAIN} lensPageId={lensPageId} cardOpen={cardOpen}
@@ -115,7 +115,7 @@ export function RecallLift({ slot, planets, origin, cardOpen, onClose, onCloseCa
       {/* 閉じる（設計 §2.6「戻り」）。canvas の外側が無いので、下に置く。 */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-[max(18px,env(safe-area-inset-bottom))]">
         <button type="button" onClick={close}
-          className="pointer-events-auto rounded-full border border-slate-300/70 dark:border-white/25 bg-[#F5F7FA]/90 dark:bg-brand-900/80 px-5 py-2.5 text-[12px] tracking-[.1em] text-slate-600 dark:text-slate-200 hover:border-slate-400 dark:hover:border-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+          className="pointer-events-auto rounded-full border border-slate-300/70 dark:border-white/25 bg-[#F5F7FA]/90 dark:bg-[#0B1524]/80 px-5 py-2.5 text-[12px] tracking-[.1em] text-slate-600 dark:text-slate-200 hover:border-slate-400 dark:hover:border-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
           戻る
         </button>
       </div>

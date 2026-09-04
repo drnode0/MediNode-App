@@ -54,7 +54,7 @@ Recall の**玄関（開いたときの画面）と、分野の中の見せ方**
 | D3 | 芯＝**紋章**として残す。一覧 72px・分野ページ 96px | 針金細工が最もきれいに見える大きさ。族の動きは止めない |
 | D4 | 分野名は**和名＋英名**。族名は**英語**（Flow / Exchange / Signal / Invasion / Structure / Regulation / System） | `CORE_LABEL` の日本語は画面に出さない（内部名・テストは据え置き） |
 | D5 | **隠しコマンド**: 分野ページの紋章を押すと、球体が画面から浮き出て、指で回せる。戻ると紋章に収まる | 既存の近景（`RecallField` の near）を流用。ドラッグ・慣性・見下ろしはそのまま |
-| D6 | Recall のダーク＝**Node Field の緑**（アプリの brand-900 `#0d3a2b` 系）。ライトはアプリの紙 `#F5F7FA` のまま | 線画の原則（面・塗り・影を使わない）は不変 |
+| D6 | ~~Recall のダーク＝**Node Field の緑**（アプリの brand-900 `#0d3a2b` 系）~~。**2026-09-05 に取り下げ。** 実画面で緑が紺のページの中に1本の帯として浮いたため、ダークは他のタブと同じ紺に戻す。ライトはアプリの紙 `#F5F7FA` のまま（変更なし） | 線画の原則（面・塗り・影を使わない）は不変 |
 | D7 | 確かめる＝分野ページの「この分野を確かめる」。**棚（canvas の弧）は廃止**し、カードを1枚ずつ順に出す（最大5） | 候補の選び方（`pickCandidates`）は不変 |
 | D8 | 記憶の見せ方＝**点の濃さ**。居場所5段を点の見た目に写す。境目の名前（09-04 決定7）は不要になる | 明るさ＝保持力の向き（09-04 で直した向き）を保つ |
 | D9 | **星図（案A）は不採用。** ラフに残し、他のアプリへの転用候補にする | 本人「どこかで他のアプリで使うかも」 |
@@ -160,17 +160,21 @@ Recall                                   592 主張
 - 視点（外から／中心から）の切り替えは出さない。`localStorage` の `recall.center` は読まない（既定＝外から）
 - 一覧の紋章（72px）は押しても何も起きない（一枚全体のタップ＝分野ページ）
 
-### 2.7 テーマ（D6）
+### 2.7 テーマ（D6・2026-09-05 取り下げ後）
 
 | | ライト | ダーク |
 |---|---|---|
-| 地 | `#F5F7FA`（アプリの soft） | `#0d3a2b`（brand-900・Node Field の緑） |
-| 線・文字 | 紺 `#243650` 系（既存 `LIGHT_PALETTE`） | 白 `#F2F5F1`。薄い文字 `#B9CDC3` |
+| 地 | `#F5F7FA`（アプリの soft） | `#0B1524`（他のタブと同じ紺） |
+| 線・文字 | 紺 `#243650` 系（既存 `LIGHT_PALETTE`） | 白 `#F2F5F1`。薄い文字 `#A9B8CC` |
 | 離れかけ（金） | `#A86B0C` | `#F0D68A` |
 | 芯の色 | 既存 `LIGHT_PALETTE.inks` | 既存 `DARK_PALETTE.inks`（白の3温度） |
 
-`field-palette.ts` の `DARK_PALETTE` の `bg` / `label` / `labelBg` を緑の組に改める（`inks` は変えない）。
-Recall 画面の DOM 側は Tailwind の `dark:bg-brand-900` などで同じ色を使う。カード（`RecallCard`）は既存の色のまま。
+`field-palette.ts` の `DARK_PALETTE` の `bg` / `label` / `outline` / `labelBg` は、緑を試したのち
+2026-09-05 に紺（`#0B1524` 系）へ戻した（`inks` は変えない）。
+Recall 画面の DOM 側は、ページの地（`page.tsx` の `dark:from-gray-900 dark:to-gray-800`）が
+そのまま透けるよう、ダークで自前の背景色を塗らない（`dark:bg-transparent`）。隠しコマンドの覆い
+（`RecallLift`）だけは下が透けてはいけないので、紺の 92%（`dark:bg-[#0B1524]/[.92]`）を塗る。
+カード（`RecallCard`）は既存の色のまま。
 
 **ライトの線の薄さ**は、ラフでは重ね描きで濃さを稼いだが、本実装では紋章とトレイが DOM と 72px の canvas なので
 問題が小さい。隠しコマンドの近景（canvas）だけ、`FieldPalette` に `alphaGain`（ライト 1.6）を足して
@@ -289,7 +293,7 @@ trayLayout(n: number, widthPx: number): { size: 6 | 4; gap: 3 | 2; perRow: numbe
 | `emblem-loop.ts` | `src/components/recall/` | 紋章の共有 rAF（画面外は描かない・30fps・非表示で止める） | |
 | `RecallScreen.tsx` | 同上 | 画面の状態（一覧／分野／確かめる／浮き出し）と `RecallCard` の出し入れ。**書き直す** | 上の全部・`useFieldData` |
 | `useFieldData.ts` | 同上 | いまのまま（planets・band・counts・candidatesOf・nextDueOf）。標本帳もこれを読む | 変更なし |
-| `field-palette.ts` | `src/lib/recall/` | ダークを緑の組に。`alphaGain` を足す | |
+| `field-palette.ts` | `src/lib/recall/` | ダークは紺のまま（緑は 09-05 に取り下げ）。`alphaGain` を足す | |
 | `/dev/recall-screen` | `src/app/dev/` | いまのまま動く（`RecallScreen` を差し替えるので自動的に標本帳になる） | |
 
 `RecallField.tsx` / `field.ts` / `field-camera.ts` / `field-render.ts` / `field-layout.ts` / `field-angle.ts` は
