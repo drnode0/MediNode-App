@@ -584,35 +584,106 @@ git commit -m "feat(spread): 言い換えた文の逃げ道を節の部品と参
 ### Task 6: 主役を含めて節の中で並べ替える
 
 **Files:**
+- Modify: `src/lib/spread-edit.ts`（`swapMainWithFirstExtra` を新設）
 - Modify: `src/app/admin/spread-edit/OverlayBuilder.tsx`（`SectionEditor` の `partBlock`）
+- Test: `src/lib/__tests__/spread-edit.test.ts`
+
+このリポジトリにReactコンポーネントのテストは無い（`@testing-library` を入れていない）。
+入れ替えの判断はテストで固定したいので、**オーバレイを受けてオーバレイを返す純関数に切り出してから**画面につなぐ。
 
 **Interfaces:**
 - Consumes: `overlay.parts[anchor]`（主役・未設定なら自動判定）と `overlay.extraParts[anchor]`（配列）
-- Produces: 画面上の並び替えだけ。データの形は変えない
+- Produces: `swapMainWithFirstExtra(overlay: SpreadOverlay, anchor: string): SpreadOverlay`
 
-- [ ] **Step 1: 入れ替えの関数を書く**
+- [ ] **Step 1: 失敗するテストを書く**
 
-`SectionEditor` の中、`partBlock` の定義より前に置く。
+`src/lib/__tests__/spread-edit.test.ts` の末尾に足す。
 
 ```ts
-  // 主役と追加を1本の並びとして扱う。上下ボタンは並びの位置で動くが、保存の形は
-  // 「主役1つ＋追加の配列」のままなので、主役と追加の先頭の交換だけ特別に書く。
-  //
-  // 主役が自動判定（parts[anchor] 未設定）のときは交換できない。降ろすには原本の表の
-  // 中身をオーバレイに写すことになり、原本を直したときに黙って古くなるため。
-  const swapMain = () => {
-    if (!main || extras.length === 0) return
-    const next = [...extras]
-    const [head] = next.splice(0, 1)
-    onChange({
-      ...overlay,
-      parts: { ...(overlay.parts ?? {}), [sec.anchor]: head },
-      extraParts: { ...(overlay.extraParts ?? {}), [sec.anchor]: [main, ...next] },
-    })
-  }
+describe('swapMainWithFirstExtra（主役と追加の先頭の入れ替え）', () => {
+  const note: SpreadPart = { kind: 'note', inlines: [{ text: '主役' }] }
+  const big: SpreadPart = { kind: 'bignumber', value: '9.1%', caption: [] }
+  const gauge: SpreadPart = { kind: 'gauge', items: [{ value: '1', label: [] }] }
+
+  it('主役と追加の先頭を入れ替え、残りの追加の並びは保つ', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note }, extraParts: { 'sec-1': [big, gauge] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-1']).toEqual(big)
+    expect(out.extraParts?.['sec-1']).toEqual([note, gauge])
+  })
+
+  it('主役が自動判定（parts に無い）のときは何も変えない', () => {
+    const before: SpreadOverlay = { extraParts: { 'sec-1': [big] } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('追加が無いときは何も変えない', () => {
+    const before: SpreadOverlay = { parts: { 'sec-1': note } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('他の節のオーバレイに触らない', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note, 'sec-2': gauge }, extraParts: { 'sec-1': [big] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-2']).toEqual(gauge)
+  })
+})
 ```
 
-- [ ] **Step 2: 主役に下ボタンを足す**
+- [ ] **Step 2: 失敗を確かめる**
+
+```bash
+npx vitest run src/lib/__tests__/spread-edit.test.ts -t 'swapMainWithFirstExtra'
+```
+
+`swapMainWithFirstExtra is not a function` で落ちること。
+
+- [ ] **Step 3: 実装する**
+
+`src/lib/spread-edit.ts` の末尾に足す。
+
+```ts
+/**
+ * 節の主役と、追加の先頭を入れ替える。
+ *
+ * 画面では主役と追加を1本の並びとして扱うが、保存の形は「主役1つ＋追加の配列」のままなので、
+ * 並びをまたぐこの1手だけを別に持つ。
+ *
+ * 主役が自動判定（parts に無い）のときは何もしない。降ろすには原本の表の中身をオーバレイに
+ * 写すことになり、原本を直したときに黙って古くなるため。呼ぶ側はボタンを無効にして、
+ * 効かない理由を画面に出すこと。
+ */
+export function swapMainWithFirstExtra(overlay: SpreadOverlay, anchor: string): SpreadOverlay {
+  const main = overlay.parts?.[anchor]
+  const extras = overlay.extraParts?.[anchor] ?? []
+  if (!main || extras.length === 0) return overlay
+  return {
+    ...overlay,
+    parts: { ...(overlay.parts ?? {}), [anchor]: extras[0] },
+    extraParts: { ...(overlay.extraParts ?? {}), [anchor]: [main, ...extras.slice(1)] },
+  }
+}
+```
+
+- [ ] **Step 4: テストが通ることを確かめる**
+
+```bash
+npx vitest run src/lib/__tests__/spread-edit.test.ts -t 'swapMainWithFirstExtra'
+```
+
+4件とも PASS すること。
+
+- [ ] **Step 5: 主役に下ボタンを足す**
+
+`OverlayBuilder.tsx` の import に `swapMainWithFirstExtra` を足す。`SectionEditor` の中、`partBlock` の定義より前に置く。
+
+```ts
+  const swapMain = () => onChange(swapMainWithFirstExtra(overlay, sec.anchor))
+```
 
 `partBlock` の `{slot !== 'main' && (...)}` のブロックの前に足す。
 
@@ -624,7 +695,7 @@ git commit -m "feat(spread): 言い換えた文の逃げ道を節の部品と参
         )}
 ```
 
-- [ ] **Step 3: 追加の先頭の上ボタンを主役との交換にする**
+- [ ] **Step 6: 追加の先頭の上ボタンを主役との交換にする**
 
 `slot !== 'main'` のブロックの「上へ」を差し替える。
 
@@ -642,7 +713,7 @@ git commit -m "feat(spread): 言い換えた文の逃げ道を節の部品と参
             </IconButton>
 ```
 
-- [ ] **Step 4: 効かない理由を1行出す**
+- [ ] **Step 7: 効かない理由を1行出す**
 
 `partBlock` の `<PartForm ... />` の直前に足す。
 
@@ -654,20 +725,20 @@ git commit -m "feat(spread): 言い換えた文の逃げ道を節の部品と参
       )}
 ```
 
-- [ ] **Step 5: 型検査とテストを通す**
+- [ ] **Step 8: 型検査とテストを通す**
 
 ```bash
 npx tsc --noEmit && npm test
 ```
 
-- [ ] **Step 6: 手で確かめる**
+- [ ] **Step 9: 手で確かめる**
 
 プレビューで、主役を「補足ノート」に置き換えてある節の追加部品で「上へ」を押し、主役と入れ替わることを確かめる。主役が自動判定のままの節では上ボタンが無効で、理由の1行が出ることを確かめる。
 
-- [ ] **Step 7: コミット**
+- [ ] **Step 10: コミット**
 
 ```bash
-git add src/app/admin/spread-edit/OverlayBuilder.tsx
+git add src/lib/spread-edit.ts src/lib/__tests__/spread-edit.test.ts src/app/admin/spread-edit/OverlayBuilder.tsx
 git commit -m "feat(spread): 主役を含めて節の中の部品を並べ替えられるようにする"
 ```
 
@@ -726,7 +797,7 @@ npx vitest run src/lib/__tests__/spread-edit.test.ts -t 'sourceCandidates'
 
 - [ ] **Step 3: 実装する**
 
-`src/lib/spread-edit.ts` の末尾に足す（`textOf` を `@/lib/reader-spread` から import 済みか確かめる。無ければ足す）。
+`src/lib/spread-edit.ts` の末尾に足す（`textOf` と `ReaderBlock` は既に import されている）。
 
 ```ts
 /**
@@ -862,7 +933,7 @@ git commit -m "feat(spread): 各節の原本の表・図を選んで表層に出
 
 **Files:**
 - Create: `src/app/admin/spread-edit/SurfaceChecklist.tsx`
-- Modify: `src/app/admin/spread-edit/OverlayBuilder.tsx`（一覧を先頭に置く。`SectionInfo` を export する）
+- Modify: `src/app/admin/spread-edit/OverlayBuilder.tsx`（一覧を先頭に置く。`KIND_LABEL` を export する）
 - Modify: `src/app/admin/spread-edit/SpreadEditClient.tsx`（保存ボタンの横に「未決 N節」）
 - Modify: `src/lib/spread-edit.ts`（`undecidedAnchors`）
 - Test: `src/lib/__tests__/spread-edit.test.ts`
@@ -912,7 +983,7 @@ export function undecidedAnchors(anchors: string[], overlay: SpreadOverlay): str
 }
 ```
 
-`SpreadOverlay` を import に足す。
+`SpreadOverlay` は既に import されている。
 
 - [ ] **Step 4: テストが通ることを確かめる**
 
