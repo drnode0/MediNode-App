@@ -137,6 +137,17 @@ export function RecallProvider({ children }: { children: React.ReactNode }) {
     const at = new Date()
     setProgress((prev) => keepOptimistic(prev, claimId, keepIt, at))
     mark(claimId, true)
+    // 取り消しの合図は Node と同時に出す（通信を待たない）。サーバーの返事を待って
+    // からだと、色が変わった瞬間とメッセージが出る瞬間がずれ、何の確認か分かりにくい
+    // という指摘があった（2026-09-04）。外したときは出さない（もう一度押せば戻るため）。
+    if (keepIt) {
+      if (undoTimer.current) clearTimeout(undoTimer.current)
+      setUndo({ claimId })
+      undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
+    } else {
+      if (undoTimer.current) { clearTimeout(undoTimer.current); undoTimer.current = null }
+      setUndo(null)
+    }
     try {
       const res = await fetch('/api/recall/keep', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -148,19 +159,14 @@ export function RecallProvider({ children }: { children: React.ReactNode }) {
       gateRef.current!.issue() // これより前に始まった読み込みの応答は、この1件を巻き戻さない
       setProgress((prev) => replaceProgress(prev, row))
       setSaveError(null)
-      // 残したときだけ取り消しを出す。外したときは出さない（もう一度押せば戻るため）。
-      if (keepIt) {
-        if (undoTimer.current) clearTimeout(undoTimer.current)
-        setUndo({ claimId })
-        undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
-      } else {
-        setUndo(null)
-      }
     } catch (e) {
-      // 押す前の一覧へ戻す。押したことが無かったのと同じ状態にする。
+      // 押す前の状態へ戻す。楽観的に出した一覧の変化も取り消しの合図も、
+      // 押したことが無かったのと同じ状態に戻す。
       if (aliveRef.current) {
         setProgress(before)
         setSaveError(e instanceof Error ? e.message : '保存に失敗しました')
+        if (undoTimer.current) { clearTimeout(undoTimer.current); undoTimer.current = null }
+        setUndo(null)
       }
       // RecallScreen（既存・無変更）は keep の失敗を await/catch で受け止め、
       // 保存中の見た目（「記録しています」）を必ず終わらせる契約を持つ。
