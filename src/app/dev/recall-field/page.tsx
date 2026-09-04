@@ -67,6 +67,8 @@ export default function DevRecallFieldPage() {
   const field = useRef<FieldHandle>(null)
   const [center, setCenter] = useState<FieldCenter>('outside')
   const [reduced, setReduced] = useState(false)
+  // タスク13の検証用: initialNear を渡す/渡さないを切り替える（本番の隠しコマンドはまだ無い＝14で足す）
+  const [initialNear, setInitialNear] = useState<number | undefined>(undefined)
   const [stage, setStage] = useState<FieldStage>('mid')
   const [front, setFront] = useState<number | null>(null)
   const [lensPageId, setLensPageId] = useState<string | null>(null)
@@ -134,8 +136,8 @@ export default function DevRecallFieldPage() {
 
   return (
     <div className="fixed inset-0 bg-[#F5F7FA] dark:bg-[#0B1524] text-slate-800 dark:text-slate-100" style={{ fontFamily: '"Zen Kaku Gothic New",sans-serif' }}>
-      <RecallField ref={field}
-        planets={planets} center={center} reduced={reduced}
+      <RecallField ref={field} key={initialNear ?? 'none'}
+        planets={planets} center={center} reduced={reduced} initialNear={initialNear}
         shelf={shelf} again={new Set()} lensPageId={lensPageId} cardOpen={false} shelfBottom={72}
         onFront={setFront}
         onStage={(s) => { setStage(s); if (s !== 'near') setLensPageId(null) }}
@@ -168,6 +170,10 @@ export default function DevRecallFieldPage() {
         </button>
         <button type="button" className={btn} onClick={() => setReduced((v) => !v)}>動きを減らす: {reduced ? 'する' : 'しない'}</button>
         <button type="button" className={btn} onClick={() => field.current?.enterNear()}>寄る</button>
+        <button type="button" className={btn} data-testid="initial-near-toggle"
+          onClick={() => setInitialNear((v) => (v === undefined ? 2 : undefined))}>
+          initialNear: {initialNear ?? 'なし'}
+        </button>
         <button type="button" className={btn} onClick={() => field.current?.backToMid()}>中景へ</button>
         <button type="button" className={btn} onClick={() => setShelf(escapingHere.map((d) => d.claimId))}>この惑星を確かめる</button>
         <button type="button" className={btn} onClick={() => setShelf([])}>戻す</button>
