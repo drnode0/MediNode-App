@@ -69,6 +69,7 @@ export default function DevRecallFieldPage() {
   const [front, setFront] = useState<number | null>(null)
   const [lensPageId, setLensPageId] = useState<string | null>(null)
   const [shelf, setShelf] = useState<string[]>([])
+  const [foldEmpty, setFoldEmpty] = useState(true)
 
   const planets: Planet[] = useMemo(() => {
     const bySlot = makeClaims()
@@ -104,6 +105,25 @@ export default function DevRecallFieldPage() {
 
   const btn = 'rounded-full border border-slate-500/50 px-3 py-1.5 text-[12px] text-slate-200 hover:bg-white/10'
 
+  // 帯（本番と同じ作り）。主張のある席が先頭・席番号順、空の席は末尾に畳む。
+  const band = planets.map((p) => ({
+    slot: p.seat.slot, label: p.seat.label, n: p.seat.n,
+    escaping: p.dots.filter((d) => isEscaping(d.state.kind, d.state.remaining)).length,
+  }))
+  const full = band.filter((s) => s.n > 0)
+  const empty = band.filter((s) => s.n === 0)
+  const seatButton = (s: typeof band[number]) => (
+    <li key={s.slot}>
+      <button type="button" onClick={() => field.current?.jumpTo(s.slot)}
+        aria-current={front === s.slot ? 'true' : undefined}
+        className={`whitespace-nowrap rounded px-2 py-1 text-[11.5px] ${front === s.slot ? 'bg-amber-200/90 text-slate-900' : 'text-slate-400 hover:text-slate-100 hover:bg-white/10'}`}>
+        {s.label}
+        {s.n > 0 && <span className="ml-1.5 opacity-60 tabular-nums">{s.n}</span>}
+        {s.escaping > 0 && <span className={`ml-1.5 tabular-nums ${front === s.slot ? 'text-amber-800' : 'text-amber-200'}`}>●{s.escaping}</span>}
+      </button>
+    </li>
+  )
+
   return (
     <div className="fixed inset-0 bg-[#0B1524] text-slate-100" style={{ fontFamily: '"Zen Kaku Gothic New",sans-serif' }}>
       <RecallField ref={field}
@@ -127,6 +147,21 @@ export default function DevRecallFieldPage() {
         <button type="button" className={btn} onClick={() => setShelf(escapingHere.map((d) => d.claimId))}>この惑星を確かめる</button>
         <button type="button" className={btn} onClick={() => setShelf([])}>戻す</button>
       </div>
+      <nav aria-label="ジャンル" className="absolute left-3 right-3 bottom-3 rounded-[10px] border border-slate-600/40 bg-[rgba(22,41,63,.92)] overflow-hidden backdrop-blur">
+        <ul className="flex gap-1 m-0 px-2 py-1.5 list-none overflow-x-auto">
+          {full.map(seatButton)}
+          {empty.length > 0 && (
+            <li>
+              <button type="button" onClick={() => setFoldEmpty((v) => !v)}
+                className="whitespace-nowrap rounded px-2 py-1 text-[11.5px] text-slate-500 hover:text-slate-300">
+                {foldEmpty ? `空の席 ${empty.length} ▸` : '空の席を畳む ◂'}
+              </button>
+            </li>
+          )}
+          {!foldEmpty && empty.map(seatButton)}
+        </ul>
+      </nav>
+
       <div className="absolute right-4 top-4 text-right text-[11.5px] text-slate-400">
         <div>{stage}　{here ? here.seat.label : '—'}</div>
         <div>主張 {here?.seat.n ?? 0}　離れかけ {escapingHere.length}</div>
