@@ -95,7 +95,7 @@ export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRea
               )}
               {section.rows.map((row) => (
                 <button type="button" key={row.claimId} onClick={() => onRow(row.claimId, row.look)}
-                  className="grid w-full min-h-11 grid-cols-[18px_1fr_auto] items-baseline gap-3 border-b border-slate-200/70 dark:border-white/10 py-2.5 text-left text-[13.5px] leading-relaxed">
+                  className="grid w-full min-h-11 grid-cols-[18px_1fr_auto] items-baseline gap-3 border-b border-slate-200/70 dark:border-white/10 py-2.5 text-left text-[13.5px] leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
                   <RecallDot look={row.look} size={9} row className="translate-y-[1px]" />
                   <span className={`line-clamp-2 ${row.look.kind === 'cold' ? 'text-slate-400 dark:text-slate-500' : ''}`}>{row.body}</span>
                   <span
