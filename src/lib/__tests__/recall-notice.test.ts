@@ -17,6 +17,8 @@ describe('checkNotice', () => {
     expect(msg).toContain('まだ残した主張がありません')
     expect(msg).toContain('残す')
     expect(msg).not.toContain('日後')
+    // 席名を渡さない文言にも球は出てこない（退役済み）
+    expect(msg).not.toContain('球')
   })
 
   it('先の期限は「◯日後に◯件」', () => {

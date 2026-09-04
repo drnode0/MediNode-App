@@ -129,7 +129,10 @@ export default function DevRecallScreenPage() {
   const toggleDark = () => setDark(document.documentElement.classList.toggle('dark'))
 
   return (
-    <>
+    // 本物の page.tsx と同じ外枠（min-h-screen の gradient）。Recall タブの地の色は
+    // page.tsx 側のこの gradient の中で決まるので、ここが無いと見た目の判断が食い違う
+    // （2026-09-05 レビュー指摘）。
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
       {/* アプリのヘッダーの真似（page.tsx の data-app-header と同じ色・高さ・sticky）。 */}
       <div data-app-header className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
@@ -155,6 +158,6 @@ export default function DevRecallScreenPage() {
           </div>
         </RecallProvider>
       )}
-    </>
+    </div>
   )
 }

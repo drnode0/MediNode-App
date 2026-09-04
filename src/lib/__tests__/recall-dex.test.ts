@@ -236,8 +236,17 @@ describe('分野ページ pageModelOf', () => {
   })
 
   it('plate は planet 全体（消えた主張を含む dots）から作る', () => {
+    // claims には無い 'gone' も planet.dots には残っているので、plate の件数は
+    // claims 側の5件ではなく planet.dots の6件（a1〜a4・b1・gone）から数える。
+    // a2 は dotOf の remaining 省略値 0 のまま 'settled' を渡しているので、
+    // isEscaping（保持力が閾値未満の「残した」）に先取りされて escaping 側に入る。
     const m = pageModelOf(planet, claims)
-    expect(m.plate).toEqual(plateOf(planet))
+    expect(m.plate.n).toBe(6)
+    expect(m.plate.kept).toBe(1) // a1
+    expect(m.plate.settled).toBe(0)
+    expect(m.plate.touched).toBe(1) // a4
+    expect(m.plate.cold).toBe(3) // a3・b1・gone
+    expect(m.plate.escaping).toBe(1) // a2
   })
 })
 

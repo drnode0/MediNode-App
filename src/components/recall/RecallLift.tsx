@@ -7,7 +7,7 @@
 // 出方: transform-origin を紋章の中心に置き、scale(.2)→1・opacity 0→1 を 500ms。
 // 戻りは 350ms の逆。動きを減らす設定なら遷移なし。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RecallField, type FieldHandle } from './RecallField'
+import { RecallField } from './RecallField'
 import type { Planet } from '@/lib/recall/field-render'
 import { genreEnglishOf } from '@/lib/recall/genre-en'
 import { useReducedMotion } from './useReducedMotion'
@@ -34,7 +34,6 @@ type Props = {
 
 export function RecallLift({ slot, planets, origin, cardOpen, onClose, onCloseCard, onDotTap }: Props) {
   const reduced = useReducedMotion()
-  const field = useRef<FieldHandle>(null)
   const [lensPageId, setLensPageId] = useState<string | null>(null)
   const [entered, setEntered] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -91,7 +90,7 @@ export function RecallLift({ slot, planets, origin, cardOpen, onClose, onCloseCa
 
   return (
     <div className="fixed inset-0 z-20 bg-[#F5F7FA]/[.92] dark:bg-brand-900/[.92]" style={style}>
-      <RecallField ref={field}
+      <RecallField
         planets={planets} center="outside" reduced={reduced} initialNear={slot}
         shelf={NO_SHELF} again={NO_AGAIN} lensPageId={lensPageId} cardOpen={cardOpen}
         onFront={() => {}}

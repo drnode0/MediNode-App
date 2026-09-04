@@ -14,7 +14,7 @@ export function checkNotice(candidateCount: number, due: NextDue | null, now: Da
     // 分野の文言では「球」を出さない（差し替え後に、いない物を指す言葉が残らないようにする）。
     return seatName
       ? 'この分野に、まだ残した主張がありません。主張を開いて「残す」を押すと、ここから確かめられます'
-      : 'まだ残した主張がありません。球の主張を開いて「残す」を押すと、ここから確かめられます'
+      : 'まだ残した主張がありません。主張を開いて「残す」を押すと、ここから確かめられます'
   }
   // 日数の出し方（過ぎていたら「日後」を作らない）は daysUntilDue（srs.ts）に1か所へまとめてある。
   const days = daysUntilDue(due, now)

@@ -30,8 +30,11 @@ describe('席の英名', () => {
     expect(genreEnglishOf(-1)).toBe('')
   })
 
-  it('表に無い名前（架空の席）は空文字', () => {
-    expect(GENRE_EN['架空の席']).toBeUndefined()
+  it('席の範囲内でも GENRE_SEATS に無い番号（席と席の外の間の穴）は空文字', () => {
+    // GENRE_SEATS は 37 席（添字 0〜36）。63（OTHER_SLOT）より前で GENRE_SEATS の外の
+    // 番号を渡し、genreEnglishOf が「席が無い」を空文字で返すことを公開関数越しに確かめる。
+    expect(GENRE_SEATS.length).toBeLessThan(OTHER_SLOT)
+    expect(genreEnglishOf(GENRE_SEATS.length)).toBe('')
   })
 })
 
