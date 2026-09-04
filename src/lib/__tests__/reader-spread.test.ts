@@ -1466,6 +1466,13 @@ describe('source 部品（原本の表・図を指すだけの部品）', () => 
     })
     expect(verifyVerbatim(spread, doc, null).ok).toBe(true)
   })
+
+  it('topParts は節に属さず指す先を解決できないので、source を落とす', () => {
+    const out = sanitizeOverlay({
+      topParts: [{ kind: 'source', blockId: 'blk-1' }, { kind: 'none' }],
+    })
+    expect(out.topParts).toEqual([{ kind: 'none' }])
+  })
 })
 
 describe('sectionDisplay（source が指すブロックの取り分け）', () => {
@@ -1512,5 +1519,26 @@ describe('danglingSourceParts（指す先を失った source）', () => {
 
   it('source を使っていないスプレッドは空を返す（従来の投入を止めない）', () => {
     expect(danglingSourceParts(spreadWith({ kind: 'none' }, []))).toEqual([])
+  })
+
+  it('主役でなく extraParts の中で指す先を失った source も拾う', () => {
+    const spread: SpreadDoc = {
+      version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+      sections: [{ ...base, part: { kind: 'none' }, extraParts: [{ kind: 'source', blockId: 'blk-e' }], deep: [] }],
+      tail: [], quizzes: [], icons: {},
+    }
+    expect(danglingSourceParts(spread)).toEqual(['blk-e'])
+  })
+
+  it('節の順・部品の順で返す', () => {
+    const spread: SpreadDoc = {
+      version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+      sections: [
+        { ...base, anchor: 'sec-1', part: { kind: 'source', blockId: 'blk-1' }, deep: [] },
+        { ...base, anchor: 'sec-2', part: { kind: 'source', blockId: 'blk-2' }, deep: [] },
+      ],
+      tail: [], quizzes: [], icons: {},
+    }
+    expect(danglingSourceParts(spread)).toEqual(['blk-1', 'blk-2'])
   })
 })

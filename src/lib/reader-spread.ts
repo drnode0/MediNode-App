@@ -475,9 +475,12 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
     }
     out.partTitles = titles
   }
-  // 先頭に置く部品も主役部品と同じ関門を通す。
+  // 先頭に置く部品も主役部品と同じ関門を通す。ただし source はここで追加で落とす。
+  // source は節の深掘り（SpreadSection.deep）の中のブロックしか指せないが、topParts は
+  // 節に属さない枠なので、指す先を解決する術がない（danglingSourceParts も
+  // spread.sections しか見ないので、topParts に紛れ込んだ source は素通りしてしまう）。
   if (overlay.topParts) {
-    out.topParts = overlay.topParts.filter(isUsablePart).map(stripPartHref)
+    out.topParts = overlay.topParts.filter((p) => isUsablePart(p) && p.kind !== 'source').map(stripPartHref)
   }
   // 参考文献の圧縮行は行の取捨とキー・文言の正規化を sanitizeRefs に集める
   // （編集画面のビルダーも同じ1本を引き、関門の入力が中と外で割れないようにしている）。
