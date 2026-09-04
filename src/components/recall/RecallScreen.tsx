@@ -21,10 +21,36 @@ import { RecallCard } from './RecallCard'
 import { RecallDex } from './RecallDex'
 import { RecallPlatePage } from './RecallPlatePage'
 import { platesOf, todayOf, pageModelOf, type DotLook } from '@/lib/recall/dex'
+import { startRun, advance, isRunDone, nextSweepSlot, runSummary, type QuizRun } from '@/lib/recall/dex-quiz'
+import { checkNotice } from '@/lib/recall/notice'
 
 const NOTICE_MS = 4000
 
 type View = { kind: 'dex' } | { kind: 'page'; slot: number }
+
+// 「この分野を確かめる」の列（queue）を進めている間だけ、カードの上に「2 / 5」を出す
+// （設計 §2.5 手順3）。RecallCard は変えないので、実際に描かれたカードの DOM を測って
+// その少し上に重ねる（内容量で高さが変わるカードなので、ResizeObserver で追う）。
+function QuizProgress({ current, total }: { current: number; total: number }) {
+  const [top, setTop] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = document.querySelector('[role="dialog"][aria-label="主張のカード"]') as HTMLElement | null
+    if (!el) { setTop(null); return }
+    const update = () => setTop(el.getBoundingClientRect().top)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize', update)
+    return () => { ro.disconnect(); window.removeEventListener('resize', update) }
+  }, [current, total])
+  if (top === null) return null
+  return (
+    <div className="fixed left-1/2 -translate-x-1/2 z-30 text-[11px] tracking-[.1em] text-slate-500 dark:text-slate-300 tabular-nums"
+      style={{ top: Math.max(8, top - 26) }}>
+      {current} / {total}
+    </div>
+  )
+}
 
 export function RecallScreen() {
   const data = useFieldData()
@@ -32,6 +58,7 @@ export function RecallScreen() {
 
   const [view, setView] = useState<View>({ kind: 'dex' })
   const [card, setCard] = useState<{ claimId: string; mode: 'quiz' | 'view' } | null>(null)
+  const [run, setRun] = useState<QuizRun | null>(null)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   // 一覧を離れる直前の window.scrollY。戻ったときに読み戻す（上のコメント参照）。
@@ -51,7 +78,15 @@ export function RecallScreen() {
   }, [])
   useEffect(() => () => clearTimers(), [clearTimers])
 
-  const say = useCallback((msg: string) => { setNotice(msg); later(() => setNotice(null), NOTICE_MS) }, [later])
+  // 一言を出すタイマーは1本だけ生かす。前の一言を消すはずだったタイマーを放っておくと、
+  // 短い間隔で say を呼び直したとき（確かめる→列の終わり→次の分野…）に、後から出した一言を
+  // 先勝ちの古いタイマーが消してしまう（離れかけを順に確かめる、で実際に踏んだ）。
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const say = useCallback((msg: string) => {
+    if (noticeTimer.current) { clearTimeout(noticeTimer.current); timers.current.delete(noticeTimer.current) }
+    setNotice(msg)
+    noticeTimer.current = later(() => { noticeTimer.current = null; setNotice(null) }, NOTICE_MS)
+  }, [later])
 
   // カードは操作の起点を覆うので、答えずに抜ける手段をもう1つ用意する。
   // Esc は開いているカードのモード・状態を問わず閉じる（記録は書かない）。
@@ -95,31 +130,60 @@ export function RecallScreen() {
     } else {
       window.scrollTo(0, 0)
     }
-  }, [view.kind])
+    // 「離れかけを順に確かめる」は page → page（別の分野）へ直に移ることがある（手順6）。
+    // view.kind だけを見ていると、その乗り換えでスクロール位置が引き継がれてしまうため、
+    // page のときは slot も見る。
+  }, [view.kind, view.kind === 'page' ? view.slot : null])
 
   const openPage = useCallback((slot: number) => {
-    dexScrollY.current = window.scrollY
+    if (view.kind === 'dex') dexScrollY.current = window.scrollY
     setView({ kind: 'page', slot })
-  }, [])
+  }, [view.kind])
   const onBack = useCallback(() => setView({ kind: 'dex' }), [])
+
+  // 「この分野を確かめる」（D7 手順1〜2）。候補が0件なら一言、あれば列を作って先頭のカードを開く。
+  // 「離れかけを順に確かめる」から分野をまたぐとき（手順6）もここを呼び直す。
+  const startCheck = useCallback((slot: number, sweep: boolean) => {
+    const ids = data.candidatesOf(slot).map((p) => p.claimId)
+    const next = startRun(slot, ids, sweep)
+    if (!next) {
+      const label = plates.find((p) => p.slot === slot)?.label
+      const msg = checkNotice(0, data.nextDueOf(slot), new Date(), label)
+      if (msg) say(msg)
+      return
+    }
+    setRun(next)
+    setCard({ claimId: next.queue[next.index], mode: 'quiz' })
+  }, [data, plates, say])
+
+  const onCheck = useCallback(() => {
+    if (view.kind !== 'page') return
+    startCheck(view.slot, false)
+  }, [view, startCheck])
+
   const onSweep = useCallback(() => {
-    const first = plates.find((p) => p.escaping > 0)
-    if (!first) { say('いま離れかけの主張はありません'); return }
-    openPage(first.slot)
-  }, [plates, say, openPage])
+    const slot = nextSweepSlot(plates, null)
+    if (slot === null) { say('いま離れかけの主張はありません'); return }
+    openPage(slot)
+    startCheck(slot, true)
+  }, [plates, say, openPage, startCheck])
+
   const onRow = useCallback((claimId: string, look: DotLook) => {
     setCard({ claimId, mode: look.kind === 'escaping' ? 'quiz' : 'view' })
   }, [])
   const onRead = useCallback((pageId: string, title: string) => {
     openReader({ objectID: pageId, title, notionUrl: '', owner: 'subscription' })
   }, [openReader])
-  // 紋章（隠しコマンド D5）と「この分野を確かめる」（D7）はどちらも次のタスクで繋ぐ。
-  // ここでは押しても何も起きない状態にしておくだけ。
+  // 紋章（隠しコマンド D5）は次のタスクで繋ぐ。ここでは押しても何も起きない状態にしておくだけ。
   const onEmblem = useCallback(() => {}, [])
-  const onCheck = useCallback(() => {}, [])
 
   const kept = (id: string) => { const p = data.progressById.get(id); return !!p && !p.removedAt }
   const cardClaim = card ? data.claimById.get(card.claimId) : undefined
+  // 「この分野を確かめる」の列で、いま開いているカードがその列のカードのときだけバッジを出す
+  // （行を直にタップした単発の quiz は run を持たないので出ない）。
+  const runProgress = run && card && card.mode === 'quiz' && run.queue[run.index] === card.claimId
+    ? { current: run.index + 1, total: run.queue.length }
+    : null
   // 読み込みに失敗して出すものが無いときだけ、画面いっぱいの知らせにする。
   const fatal = data.error && !data.claims.length ? data.error : null
   // 出す知らせは1つ。押した直後の一言を優先し、無ければ保存の失敗、
@@ -153,6 +217,8 @@ export function RecallScreen() {
         </>
       )}
 
+      {runProgress && <QuizProgress current={runProgress.current} total={runProgress.total} />}
+
       {card && cardClaim && (
         <RecallCard key={card.claimId + card.mode} claim={cardClaim} mode={card.mode} kept={kept(cardClaim.claimId)} pending={saving}
           onAnswer={async (r) => {
@@ -161,11 +227,39 @@ export function RecallScreen() {
             try {
               await data.review(cardClaim.claimId, r)
             } catch {
-              setSaving(false); setCard(null)
+              setSaving(false)
               say('保存に失敗しました。通信を確かめてもう一度')
+              return // 失敗ではカードを閉じない・列（run）もそのまま（onKeep と同じ扱い）
+            }
+            setSaving(false)
+
+            const current = run
+            if (!current) { setCard(null); return } // 行を直にタップした単発の quiz（列を持たない）
+
+            const advanced = advance(current)
+            if (!isRunDone(advanced)) {
+              setRun(advanced)
+              setCard({ claimId: advanced.queue[advanced.index], mode: 'quiz' })
               return
             }
-            setSaving(false); setCard(null)
+
+            // 列の終わり（設計 §2.5 手順5）。
+            setCard(null)
+            setRun(null)
+            if (!advanced.sweep) {
+              say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
+              return
+            }
+            // 「離れかけを順に確かめる」の続き（手順6）。次の分野があれば移って続ける。
+            const nextSlot = nextSweepSlot(plates, advanced.slot)
+            if (nextSlot === null) {
+              setView({ kind: 'dex' })
+              say('今日の離れかけを確かめました')
+              return
+            }
+            say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
+            openPage(nextSlot)
+            startCheck(nextSlot, true)
           }}
           onKeep={async (k) => {
             // keep も失敗すると reject する（RecallProvider）。ここで必ず受け止める。
@@ -173,7 +267,7 @@ export function RecallScreen() {
             try { await data.keep(cardClaim.claimId, k) } catch { say('保存に失敗しました。通信を確かめてもう一度') }
             setSaving(false)
           }}
-          onClose={() => setCard(null)} />
+          onClose={() => { setCard(null); setRun(null) }} />
       )}
     </div>
   )
