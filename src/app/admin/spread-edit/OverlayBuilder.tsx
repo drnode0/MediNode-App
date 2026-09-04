@@ -320,6 +320,11 @@ function VerbatimInput({
 export const KIND_LABEL: Record<string, string> = {
   auto: '原本の表（自動）',
   none: '表層なし',
+  // 表を持つ節は大半が comparison（原本の表がそのまま昇格したもの）になるので、
+  // ここが無いと一覧行が「自動判定のまま（comparison）」と英語の識別子のまま出てしまう。
+  // matrix は comparison と同じ形（rows・focus・title）の部品なので同時に足す。
+  comparison: '比較表',
+  matrix: '分類表',
   flow: '判断フロー',
   cards: '比較カード',
   gonogo: 'Go / No-Go',
@@ -618,8 +623,10 @@ function SectionEditor({
         ? partBlock(main, 'main')
         : (
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-2.5 mb-2 flex items-center gap-2">
+            {/* 「無し」ではなく KIND_LABEL の「表層なし」を使う。一覧（SurfaceChecklist）の
+                「自動判定のまま（表層なし）」と呼び名をそろえ、同じ状態を別の言葉で呼ばないようにする。 */}
             <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              主役の部品: {sec.autoKind === 'none' ? '無し（自動判定）' : `${KIND_LABEL[sec.autoKind] ?? sec.autoKind}（自動判定）`}
+              主役の部品: {KIND_LABEL[sec.autoKind] ?? sec.autoKind}（自動判定）
             </span>
             <span className="flex-1" />
             <select
