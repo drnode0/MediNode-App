@@ -3,17 +3,19 @@
 // 芯そのものの描き方は drawCore3D（field-render.ts）に委ね、ここは
 // canvas の張り方（dpr）・rAF への登録・画面外の間引き・テーマの読み方だけを持つ。
 //
-// 見た目の正本はオーナーのラフ（drawEmblem）。地を塗ってから芯を描き、
-// 半径 size×0.47 の薄い輪郭（alpha 0.5）を重ねる。ラフは白地に2回重ね描き
-// （multiply）していたが、本実装では canvas が小さく DOM 側の文字と分業するので
-// 重ね描きはしない（設計書 2.7）。
+// 見た目の正本はオーナーのラフ（drawEmblem）。ラフは地を塗ってから芯を描いていたが、
+// canvas 自体は塗りつぶさない（clearRect のみ＝透明）。一枚（plate）の背景をそのまま
+// 透かすことで、線画の原則（面・塗り・影を使わない）にも合わせ、画面外で間引かれて
+// いた紋章がテーマ替わりの再描画前に見えても「白い箱」にはならないようにする
+// （古いテーマの線色が透明地に残るだけで済む。線色の残りは registerThemeRedraw で消す）。
+// 半径 size×0.47 の薄い輪郭（alpha 0.5）を重ねる。
 import { useEffect, useRef } from 'react'
 import { drawCore3D } from '@/lib/recall/field-render'
 import { coreIndividual, CORE_SPIN, type CoreKind } from '@/lib/recall/cores'
 import { paletteOf } from '@/lib/recall/field-palette'
 import { isDarkNow } from './useIsDark'
 import { useReducedMotion } from './useReducedMotion'
-import { registerEmblem } from './emblem-loop'
+import { registerEmblem, registerThemeRedraw } from './emblem-loop'
 
 type Props = {
   slot: number
@@ -44,8 +46,6 @@ export function CoreEmblem({ slot, kind, size, className }: Props) {
       const palette = paletteOf(isDarkNow())
       const t = now * 0.001
       ctx.clearRect(0, 0, size, size)
-      ctx.fillStyle = palette.bg
-      ctx.fillRect(0, 0, size, size)
       drawCore3D(ctx, {
         cx: size / 2,
         cy: size / 2,
@@ -73,6 +73,12 @@ export function CoreEmblem({ slot, kind, size, className }: Props) {
     let unregister: (() => void) | null = null
     let io: IntersectionObserver | null = null
 
+    // テーマ（<html> の dark クラス）が変わった瞬間は、画面外で間引かれている紋章
+    // （動きを減らす設定で1回描いて止めた紋章も含む）も可視判定を無視して描き直す。
+    // これをしないと、ライトで開いて下へスクロールする前にダークへ切り替えたとき、
+    // 次にその紋章が見えるまで古いテーマの線色が残ってしまう。
+    const unregisterTheme = registerThemeRedraw(draw)
+
     if (reduced) {
       // 動きを減らす設定では1回だけ描いて止める（共有 rAF には登録しない）。
       draw(performance.now())
@@ -89,6 +95,7 @@ export function CoreEmblem({ slot, kind, size, className }: Props) {
     return () => {
       io?.disconnect()
       unregister?.()
+      unregisterTheme()
     }
   }, [slot, kind, size, reduced])
 
