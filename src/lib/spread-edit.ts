@@ -86,3 +86,24 @@ export const SEGMENT_COLORS = [
   { value: 'green_background', label: '緑マーカー' },
   { value: 'red_background', label: '赤マーカー' },
 ] as const
+
+/**
+ * 節の主役と、追加の先頭を入れ替える。
+ *
+ * 画面では主役と追加を1本の並びとして扱うが、保存の形は「主役1つ＋追加の配列」のままなので、
+ * 並びをまたぐこの1手だけを別に持つ。
+ *
+ * 主役が自動判定（parts に無い）のときは何もしない。降ろすには原本の表の中身をオーバレイに
+ * 写すことになり、原本を直したときに黙って古くなるため。呼ぶ側はボタンを無効にして、
+ * 効かない理由を画面に出すこと。
+ */
+export function swapMainWithFirstExtra(overlay: SpreadOverlay, anchor: string): SpreadOverlay {
+  const main = overlay.parts?.[anchor]
+  const extras = overlay.extraParts?.[anchor] ?? []
+  if (!main || extras.length === 0) return overlay
+  return {
+    ...overlay,
+    parts: { ...(overlay.parts ?? {}), [anchor]: extras[0] },
+    extraParts: { ...(overlay.extraParts ?? {}), [anchor]: [main, ...extras.slice(1)] },
+  }
+}

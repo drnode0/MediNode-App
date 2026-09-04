@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart, refForItem, withRefs } from '../spread-edit'
-import { makeVerbatimChecker } from '../reader-spread'
+import { candidateLines, emptyPart, refForItem, swapMainWithFirstExtra, withRefs } from '../spread-edit'
+import { makeVerbatimChecker, type SpreadOverlay, type SpreadPart } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
 const t = (text: string) => [{ text }]
@@ -78,5 +78,38 @@ describe('参考文献の圧縮行（編集画面）', () => {
     expect(withRefs({}, [ref])).toEqual({ refs: [ref] })
     expect(withRefs({ shortLabels: { '1': '目標SpO2' } }, [ref]).shortLabels).toEqual({ '1': '目標SpO2' })
     expect(withRefs({ refs: [ref] }, []).refs).toBeUndefined()
+  })
+})
+
+describe('swapMainWithFirstExtra（主役と追加の先頭の入れ替え）', () => {
+  const note: SpreadPart = { kind: 'note', inlines: [{ text: '主役' }] }
+  const big: SpreadPart = { kind: 'bignumber', value: '9.1%', caption: [] }
+  const gauge: SpreadPart = { kind: 'gauge', items: [{ value: '1', label: [] }] }
+
+  it('主役と追加の先頭を入れ替え、残りの追加の並びは保つ', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note }, extraParts: { 'sec-1': [big, gauge] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-1']).toEqual(big)
+    expect(out.extraParts?.['sec-1']).toEqual([note, gauge])
+  })
+
+  it('主役が自動判定（parts に無い）のときは何も変えない', () => {
+    const before: SpreadOverlay = { extraParts: { 'sec-1': [big] } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('追加が無いときは何も変えない', () => {
+    const before: SpreadOverlay = { parts: { 'sec-1': note } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('他の節のオーバレイに触らない', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note, 'sec-2': gauge }, extraParts: { 'sec-1': [big] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-2']).toEqual(gauge)
   })
 })

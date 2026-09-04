@@ -13,7 +13,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
-import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
+import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, swapMainWithFirstExtra, withRefs } from '@/lib/spread-edit'
 
 type Checker = (s: string) => boolean
 
@@ -531,6 +531,9 @@ function SectionEditor({
     else delete shortLabels[sec.anchor]
     onChange({ ...overlay, shortLabels })
   }
+  // 主役と追加の先頭の入れ替え。主役が自動判定（parts に無い）のときは純関数側が何もせず
+  // オーバレイをそのまま返すので、ここでは呼ぶだけでよい（無効化はボタン側で行う）。
+  const swapMain = () => onChange(swapMainWithFirstExtra(overlay, sec.anchor))
 
   const partBlock = (part: SpreadPart, slot: 'main' | number) => (
     <div key={slot === 'main' ? 'main' : `x${slot}`} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2 bg-white dark:bg-gray-800/60">
@@ -540,9 +543,24 @@ function SectionEditor({
         </span>
         <span className="text-[10px] text-gray-400">{slot === 'main' ? '主役（最初に出る）' : `追加 ${(slot as number) + 1}`}</span>
         <span className="flex-1" />
+        {slot === 'main' && (
+          <IconButton title="下へ（追加の先頭と入れ替える）" onClick={swapMain} disabled={extras.length === 0}>
+            <ChevronDown className="w-3.5 h-3.5" aria-hidden />
+          </IconButton>
+        )}
         {slot !== 'main' && (
           <>
-            <IconButton title="上へ" onClick={() => { const n = [...extras]; const i = slot as number; const [x] = n.splice(i, 1); n.splice(i - 1, 0, x); setExtras(n) }} disabled={slot === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
+            <IconButton
+              title={slot === 0 && !main ? '先に主役を置き換えてください（原本の表は降ろせません）' : '上へ'}
+              onClick={() => {
+                if (slot === 0) { swapMain(); return }
+                const n = [...extras]; const i = slot as number
+                const [x] = n.splice(i, 1); n.splice(i - 1, 0, x); setExtras(n)
+              }}
+              disabled={slot === 0 && !main}
+            >
+              <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+            </IconButton>
             <IconButton title="下へ" onClick={() => { const n = [...extras]; const i = slot as number; const [x] = n.splice(i, 1); n.splice(i + 1, 0, x); setExtras(n) }} disabled={slot === extras.length - 1}><ChevronDown className="w-3.5 h-3.5" aria-hidden /></IconButton>
           </>
         )}
@@ -553,6 +571,11 @@ function SectionEditor({
           <Trash2 className="w-3.5 h-3.5" aria-hidden />
         </IconButton>
       </div>
+      {slot === 0 && !main && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+          主役が自動判定のままなので、ここより上へは動かせません。先に主役を置き換えてください。
+        </p>
+      )}
       <PartForm
         part={part}
         onChange={(p) => (slot === 'main' ? setMain(p) : setExtras(extras.map((x, j) => (j === slot ? p : x))))}
