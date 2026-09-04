@@ -103,6 +103,7 @@ function InlinesEditor({
   own,
   notes,
   placeholder,
+  onAddToNotes,
 }: {
   value: ReaderInline[]
   onChange: (v: ReaderInline[]) => void
@@ -110,7 +111,11 @@ function InlinesEditor({
   own: string[]
   notes: string[]
   placeholder?: string
+  // 書き下ろしの文をスプレッドノートへ足す口。渡されたときだけ赤枠の横にボタンを出す。
+  // 逐語検査そのものは緩めない（文言がレビューできる場所に残る、という性質を保つ）。
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
+  const [adding, setAdding] = useState(false)
   const text = textOf(value)
   const bad = text.trim() !== '' && !checker(text)
   const segs = value.length > 0 ? value : [{ text: '' }]
@@ -173,6 +178,25 @@ function InlinesEditor({
           ＋文節（強調や色を部分にかける単位）
         </button>
         {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
+        {bad && onAddToNotes && (
+          <button
+            type="button"
+            disabled={adding}
+            onClick={async () => {
+              setAdding(true)
+              try {
+                // ノートへ送るのは文節ごとではなく、つないだ文全体（text）。
+                // 逐語照合の単位が連結テキストのため、文節単位で足しても赤は消えない。
+                await onAddToNotes(text.trim())
+              } finally {
+                setAdding(false)
+              }
+            }}
+            className="text-[11px] rounded-full border border-brand-600 text-brand-700 dark:text-brand-300 px-2 py-0.5 disabled:opacity-40"
+          >
+            {adding ? '追加中…' : 'この文をスプレッドノートに追加'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -185,12 +209,14 @@ function LinesEditor({
   checker,
   own,
   notes,
+  onAddToNotes,
 }: {
   lines: ReaderInline[][]
   onChange: (v: ReaderInline[][]) => void
   checker: Checker
   own: string[]
   notes: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const move = (i: number, d: number) => {
     const next = [...lines]
@@ -203,7 +229,7 @@ function LinesEditor({
       {lines.map((line, i) => (
         <div key={i} className="flex items-start gap-1">
           <div className="flex-1 min-w-0">
-            <InlinesEditor value={line} onChange={(v) => onChange(lines.map((l, j) => (j === i ? v : l)))} checker={checker} own={own} notes={notes} />
+            <InlinesEditor value={line} onChange={(v) => onChange(lines.map((l, j) => (j === i ? v : l)))} checker={checker} own={own} notes={notes} onAddToNotes={onAddToNotes} />
           </div>
           <div className="flex flex-col">
             <IconButton title="上へ" onClick={() => move(i, -1)} disabled={i === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
@@ -314,8 +340,8 @@ const KIND_LABEL: Record<string, string> = {
 // ここからは作らない（表を出したいときは原本に表を書く）。
 const ADDABLE: SpreadPart['kind'][] = ['flow', 'cards', 'gonogo', 'gauge', 'note', 'bignumber']
 
-function PartForm({ part, onChange, checker, own, notes }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[] }) {
-  const common = { checker, own, notes }
+function PartForm({ part, onChange, checker, own, notes, onAddToNotes }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[]; onAddToNotes?: (text: string) => Promise<void> }) {
+  const common = { checker, own, notes, onAddToNotes }
   if (part.kind === 'flow' || part.kind === 'timeline') {
     const steps = part.steps
     return (
@@ -460,12 +486,14 @@ function SectionEditor({
   onChange,
   checker,
   notes,
+  onAddToNotes,
 }: {
   sec: SectionInfo
   overlay: SpreadOverlay
   onChange: (o: SpreadOverlay) => void
   checker: Checker
   notes: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const own = useMemo(() => candidateLines(sec.deep), [sec.deep])
   const main = overlay.parts?.[sec.anchor]
@@ -517,6 +545,7 @@ function SectionEditor({
         checker={checker}
         own={own}
         notes={notes}
+        onAddToNotes={onAddToNotes}
       />
     </div>
   )
@@ -592,6 +621,7 @@ function RefsEditor({
   notes,
   items,
   texts,
+  onAddToNotes,
 }: {
   overlay: SpreadOverlay
   onChange: (o: SpreadOverlay) => void
@@ -599,6 +629,7 @@ function RefsEditor({
   notes: string[]
   items: ReaderBlock[]
   texts: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const refs = overlay.refs ?? []
   // 何行目を指しているかの表示は、関門とリンクが引くのと同じ索引から出す。
@@ -631,6 +662,7 @@ function RefsEditor({
         own={texts}
         notes={notes}
         ownLabel="記事末の文献一覧"
+        onAddToNotes={onAddToNotes}
       />
     </Field>
   )
@@ -842,9 +874,9 @@ export function OverlayBuilder({
   return (
     <div>
       {sections.map((sec) => (
-        <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
+        <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
       ))}
-      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} />
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} onAddToNotes={onAddToNotes} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
     </div>
   )
