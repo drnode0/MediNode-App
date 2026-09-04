@@ -1,7 +1,7 @@
 // 標本帳（図鑑）タスク11: 「確かめる」の列（キュー）を進める純関数。
 // 描画はテストできない（DOM を持たない）ので、進み方の判断だけをここで確かめる。
 import { describe, it, expect } from 'vitest'
-import { startRun, advance, nextSweepSlot, runSummary, type QuizRun } from '@/lib/recall/dex-quiz'
+import { startRun, advance, isRunDone, nextSweepSlot, runSummary, type QuizRun } from '@/lib/recall/dex-quiz'
 import type { PlateModel } from '@/lib/recall/dex'
 import type { NextDue } from '@/lib/recall/srs'
 
@@ -33,14 +33,38 @@ describe('advance', () => {
   it('次のカードがあれば index・answered を1つ進める', () => {
     const next = advance(run())
     expect(next).toEqual({ slot: 4, queue: ['a', 'b', 'c'], index: 1, answered: 1, sweep: false })
+    expect(isRunDone(next)).toBe(false)
   })
 
-  it('末尾（最後の1枚を答えた後）は null（終わり）', () => {
-    expect(advance(run({ index: 2, answered: 2 }))).toBeNull()
+  it('末尾（最後の1枚を答えた後）は index が queue.length に達し、isRunDone が true になる', () => {
+    const next = advance(run({ index: 2, answered: 2 }))
+    expect(next).toEqual({ slot: 4, queue: ['a', 'b', 'c'], index: 3, answered: 3, sweep: false })
+    expect(isRunDone(next)).toBe(true)
   })
 
-  it('1件しかない列は、1枚目を答えると即 null', () => {
-    expect(advance(run({ queue: ['a'], index: 0, answered: 0 }))).toBeNull()
+  it('1件しかない列は、1枚目を答えると即 isRunDone', () => {
+    const next = advance(run({ queue: ['a'], index: 0, answered: 0 }))
+    expect(next).toEqual({ slot: 4, queue: ['a'], index: 1, answered: 1, sweep: false })
+    expect(isRunDone(next)).toBe(true)
+  })
+
+  it('列を最後まで答え切ると、answered は queue.length に一致する（runSummary の入力）', () => {
+    let r = run({ queue: ['a', 'b', 'c'], index: 0, answered: 0 })
+    r = advance(r)
+    r = advance(r)
+    r = advance(r)
+    expect(isRunDone(r)).toBe(true)
+    expect(r.answered).toBe(3)
+    expect(runSummary(r, null, NOW)).toBe('3件を確かめました。次に確かめる主張はいまありません')
+  })
+
+  it('途中でやめた（3枚中2枚だけ答えた）ときは、answered が2のまま summary に出る', () => {
+    let r = run({ queue: ['a', 'b', 'c'], index: 0, answered: 0 })
+    r = advance(r)
+    r = advance(r)
+    expect(isRunDone(r)).toBe(false)
+    expect(r.answered).toBe(2)
+    expect(runSummary(r, null, NOW)).toBe('2件を確かめました。次に確かめる主張はいまありません')
   })
 })
 

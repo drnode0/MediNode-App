@@ -13,13 +13,17 @@ export function startRun(slot: number, candidateIds: string[], sweep: boolean): 
   return { slot, queue: [...candidateIds], index: 0, answered: 0, sweep }
 }
 
-// いま index の1枚に「覚えた／まだ」を答えた後に呼ぶ。次のカードがあれば index・answered を
-// 1つ進めて返す。無ければ null（列の終わり）。列の最後の1枚を答えた直後は null になるので、
-// そのときの「答えた件数」は呼び出し側が run.answered + 1（＝queue.length）として summary に渡す。
-export function advance(run: QuizRun): QuizRun | null {
-  const nextIndex = run.index + 1
-  if (nextIndex >= run.queue.length) return null
-  return { ...run, index: nextIndex, answered: run.answered + 1 }
+// いま index の1枚に「覚えた／まだ」を答えた後に呼ぶ。index・answered を必ず1つ進めて返す
+// （index が queue.length に達してもよい）。終わったかどうかは isRunDone で判定する。
+// こうしておけば runSummary は run.answered をそのまま読むだけでよく、「呼び出し側が1を足す」
+// という暗黙の約束を呼ぶ側に残さない。
+export function advance(run: QuizRun): QuizRun {
+  return { ...run, index: run.index + 1, answered: run.answered + 1 }
+}
+
+// 列を最後まで答え終えたら true（次に開くカードが無い）。
+export function isRunDone(run: QuizRun): boolean {
+  return run.index >= run.queue.length
 }
 
 // 「離れかけを順に確かめる」で次に開く分野の席番号。離れかけ（escaping > 0）のある分野だけを
