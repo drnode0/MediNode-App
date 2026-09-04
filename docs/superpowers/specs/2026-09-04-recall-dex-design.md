@@ -229,7 +229,7 @@ trayLayout(n: number, widthPx: number): { size: 6 | 4; gap: 3 | 2; perRow: numbe
 |---|---|
 | 総論 | Overview |
 | 医療倫理 | Medical Ethics |
-| 救急蘇生 | Resuscitation |
+| 救急蘇生 | Emergency Resuscitation |
 | 呼吸 | Respiratory |
 | 循環 | Cardiovascular |
 | 中枢神経 | Neurology |
@@ -239,8 +239,8 @@ trayLayout(n: number, widthPx: number): { size: 6 | 4; gap: 3 | 2; perRow: numbe
 | 消化管・その他腹部 | GI & Abdomen |
 | 血液凝固線溶系 | Coagulation |
 | 代謝内分泌 | Metabolic & Endocrine |
-| 感染症 | Infection |
-| 多臓器障害 | Multiple Organ Dysfunction |
+| 感染症 | Infectious Diseases |
+| 多臓器障害 | MODS |
 | 外傷・整形 | Trauma & Orthopedics |
 | 熱傷 | Burns |
 | 急性中毒 | Toxicology |
@@ -270,7 +270,8 @@ trayLayout(n: number, widthPx: number): { size: 6 | 4; gap: 3 | 2; perRow: numbe
 族: `flow` Flow／`exchange` Exchange／`signal` Signal／`invasion` Invasion／`structure` Structure／
 `regulation` Regulation／`system` System。`CoreKind` の内部名がそのまま英語なので、表示は先頭を大文字にするだけ。
 
-英名は仮置き。**オーナーが表を直せば画面が変わる**。テストは「廃番以外の全席に英名があり、重複しない」だけを見る。
+英名はオーナー確認済み（2026-09-04・3件を差し替え: 救急蘇生 Emergency Resuscitation ／ 感染症 Infectious Diseases ／
+多臓器障害 MODS）。**表を直せば画面が変わる**。テストは「廃番以外の全席に英名があり、重複しない」だけを見る。
 
 ---
 
