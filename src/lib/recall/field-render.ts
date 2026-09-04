@@ -176,8 +176,10 @@ const ARC_LABEL_R = 3.98
 const SHELF_GAP = 52
 const SHELF_BOTTOM = 34
 const SHELF_LIFT = 60
+// 境目の名前を輪のどこに置くか探すときの、輪をなぞる点の数。
+const EDGE_LABEL_SAMPLES = 48
 // モヤ（決定10）。塗らず、短い線を散らして像を結ばせない。
-const HAZE_STROKES = 9
+const HAZE_STROKES = 12
 
 const hash = (a: number, b: number) => {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) >>> 0
@@ -187,16 +189,22 @@ const hash = (a: number, b: number) => {
 }
 
 // 空の惑星のモヤ。席番号だけから決まるので、毎フレーム散らし直さない。
+//
+// 散らす範囲は、主張がある惑星と同じ広さ（いちばん外の霧 R_COLD まで）にする。
+// 2026-09-04 に実機で2つの失敗を見て、いまの形になった。
+//   ・輪郭のすぐ内側に詰めると、線が中心で交わって小さな星に見えた
+//   ・向きを接線に揃えると、破線の円＝輪郭に見えた（決定10 は輪郭を引かないと決めている）
+// 広く散らし、向きは揃えない。半径は平方根で配って、内側に溜まらないようにする。
 function drawHaze(ctx: CanvasRenderingContext2D, slot: number, X: number, Y: number, S: number, depth: number) {
   ctx.strokeStyle = INK_OUTLINE
   ctx.lineWidth = 0.6
   ctx.globalAlpha = HAZE_ALPHA * depth
   ctx.beginPath()
   for (let i = 0; i < HAZE_STROKES; i++) {
-    const a = hash(slot, i * 2 + 1) * Math.PI * 2
-    const r = S * (0.4 + hash(slot, i * 2 + 2) * 1.6)
-    const len = S * 0.5
-    const dir = hash(slot, i * 2 + 3) * Math.PI * 2
+    const a = hash(slot, i * 3 + 1) * Math.PI * 2
+    const r = S * (0.8 + Math.sqrt(hash(slot, i * 3 + 2)) * (R_COLD - 0.8))
+    const len = S * 0.7
+    const dir = hash(slot, i * 3 + 3) * Math.PI * 2
     const x = X + Math.cos(a) * r, y = Y + Math.sin(a) * r
     ctx.moveTo(x - Math.cos(dir) * len / 2, y - Math.sin(dir) * len / 2)
     ctx.lineTo(x + Math.cos(dir) * len / 2, y + Math.sin(dir) * len / 2)
@@ -295,11 +303,13 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
 
     const dotScale = Math.max(1, Math.min(4.4, S / 38))
     for (const dot of planet.dots) {
-      if (flyingIds.has(dot.claimId)) continue
       const place = placeOf(dot.state.kind, dot.state.remaining, dot.jitter)
       const at = onRing(dot.angle + spin / place.r, place.r, place.y)
       if (!at) continue
+      // 棚にいるあいだも輪の上の居場所は控える。覚えたときに輪へ帰る先が、
+      // 剥がれた時点の古い位置ではなく、いまの居場所（保持力1＝内側）になる。
       hits.dotPos.set(dot.claimId, { X: at.X, Y: at.Y })
+      if (flyingIds.has(dot.claimId)) continue
       const look = lookOf(dot.state.kind, dot.state.remaining, T, reduced, dot.phase)
       let alpha = look.alpha * depth
       // レンズ。押した記事だけ明るく、他は沈む。
@@ -341,10 +351,17 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       ctx.textBaseline = 'middle'
       ctx.fillStyle = INK_LABEL
       for (const [r, text] of EDGE_LABELS) {
-        const q = onRing(Math.PI, r)
-        if (!q) continue
+        // 名前は輪の左端に添える（設計 決定7）。輪の上の固定の角度に置くと、
+        // どの席を見ているかで名前が画面のあちこちへ動く（輪の角度は世界の側で決まるため）。
+        // 描くのに使うのと同じ点を辿って、いちばん左に来た点を選ぶ。
+        let at: { X: number; Y: number } | null = null
+        for (let i = 0; i < EDGE_LABEL_SAMPLES; i++) {
+          const q = onRing((i / EDGE_LABEL_SAMPLES) * Math.PI * 2, r)
+          if (q && (!at || q.X < at.X)) at = q
+        }
+        if (!at) continue
         ctx.globalAlpha = 0.8 * a.edgeAlpha
-        ctx.fillText(text, q.X - 6, q.Y)
+        ctx.fillText(text, at.X - 6, at.Y)
       }
       ctx.textBaseline = 'alphabetic'
     }
