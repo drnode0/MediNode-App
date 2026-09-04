@@ -114,6 +114,13 @@ export function releaseVelocity(vel: number, sinceLastMoveMs: number): number {
   return sinceLastMoveMs > HOLD_MS ? 0 : vel
 }
 
+// リングのゆっくりした自転（ラジアン毎秒）。約3分で一周する。
+// 2026-09-04 にオーナーの指示で入れた（決定14）。09-04 の当初は「リングの自転は既定で止める」
+// だったが、止めると画面が静止画に見えるため向きを変えた。
+// 遠景・中景でだけ回る（近景は惑星が画面の中央から動かないことを優先する）。
+// 指で回しているあいだ・慣性が残っているあいだ・動きを減らす設定では回さない。
+export const IDLE_SPIN = 0.035
+
 // 慣性の減速。必ず 0 へ収束する（COAST_MIN を割ったところで止める）。
 export function coast(vel: number, dtSec: number): number {
   if (!Number.isFinite(vel) || Math.abs(vel) < COAST_MIN) return 0

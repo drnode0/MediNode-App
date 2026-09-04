@@ -180,6 +180,12 @@ const SHELF_LIFT = 60
 const EDGE_LABEL_SAMPLES = 48
 // モヤ（決定10）。塗らず、短い線を散らして像を結ばせない。
 const HAZE_STROKES = 12
+// モヤの粒の数の上限と、1粒の長さの上限（画面のピクセル）。
+// 長さを惑星の大きさに比例させると、寄ったときに引っかき傷のような長い線になる
+//（2026-09-04 に実機で確認）。粒は画面上で常に短いままにして、
+// 惑星が大きく見えるときは「長く」ではなく「数を増やして」濃さを保つ。
+const HAZE_STROKES_MAX = 72
+const HAZE_LEN_MAX = 3.5
 
 const hash = (a: number, b: number) => {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) >>> 0
@@ -194,16 +200,18 @@ const hash = (a: number, b: number) => {
 // 2026-09-04 に実機で2つの失敗を見て、いまの形になった。
 //   ・輪郭のすぐ内側に詰めると、線が中心で交わって小さな星に見えた
 //   ・向きを接線に揃えると、破線の円＝輪郭に見えた（決定10 は輪郭を引かないと決めている）
-// 広く散らし、向きは揃えない。半径は平方根で配って、内側に溜まらないようにする。
+//   ・長さを惑星の大きさに比例させると、中景で引っかき傷のような長い線になった
+// 広く散らし、向きは揃えず、粒は画面上で短いまま。半径は平方根で配って内側に溜まらないようにする。
 function drawHaze(ctx: CanvasRenderingContext2D, slot: number, X: number, Y: number, S: number, depth: number) {
   ctx.strokeStyle = INK_OUTLINE
   ctx.lineWidth = 0.6
   ctx.globalAlpha = HAZE_ALPHA * depth
   ctx.beginPath()
-  for (let i = 0; i < HAZE_STROKES; i++) {
+  const strokes = Math.max(HAZE_STROKES, Math.min(HAZE_STROKES_MAX, Math.round(S * 1.8)))
+  const len = Math.min(S * 0.5, HAZE_LEN_MAX)
+  for (let i = 0; i < strokes; i++) {
     const a = hash(slot, i * 3 + 1) * Math.PI * 2
     const r = S * (0.8 + Math.sqrt(hash(slot, i * 3 + 2)) * (R_COLD - 0.8))
-    const len = S * 0.7
     const dir = hash(slot, i * 3 + 3) * Math.PI * 2
     const x = X + Math.cos(a) * r, y = Y + Math.sin(a) * r
     ctx.moveTo(x - Math.cos(dir) * len / 2, y - Math.sin(dir) * len / 2)

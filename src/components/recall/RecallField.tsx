@@ -16,7 +16,7 @@ import {
   stageOfZoom, stageOfFov, zoomStep, fovStep, clampZoom, clampFov,
   dragYaw, dragPitch, dragVelocity, releaseVelocity, coast,
   clampPitchOutside, clampPitchInside, edgeLabelAlpha, easeInOutCubic, wrapNear,
-  FLY_MS, JUMP_MS, SHELF_MS, SHELF_DELAY_MS, SHELF_STAGGER_MS,
+  FLY_MS, JUMP_MS, SHELF_MS, SHELF_DELAY_MS, SHELF_STAGGER_MS, IDLE_SPIN,
   RING_PITCH, INSIDE_STAGE,
   type FieldStage,
 } from '@/lib/recall/field-camera'
@@ -193,6 +193,9 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
           if (stage.current === 'near') handYaw.current += vel.current * dt
           else cam.current.rotY += vel.current * dt
           vel.current = coast(vel.current, dt)
+        } else if (!drag.current && !P.reduced && stage.current !== 'near') {
+          // ゆっくりした自転（決定14）。手で回していないあいだだけ、リングが自分で回る。
+          cam.current.rotY += IDLE_SPIN * dt
         }
         const c = cam.current
         if (stage.current === 'near') {
