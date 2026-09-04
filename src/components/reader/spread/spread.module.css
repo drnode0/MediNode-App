@@ -427,6 +427,9 @@
 .topParts {
   margin: 0 0 1.2rem;
 }
+.sourcePart {
+  margin: 0 0 1.25rem;
+}
 
 /* ===== 節末: この節から生まれた問い（気になる投票つき） ===== */
 .qBox {

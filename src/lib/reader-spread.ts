@@ -100,6 +100,12 @@ export type SpreadPart =
   // 逐語一致検査の対象にしない（gauge.title・flow の step.label と同じ扱い）。
   // then（その枝の答え）と note（但し書き）は医学的内容なので逐語検査の対象。
   | { kind: 'decision'; question?: string; branches: { when: string; then: ReaderInline[]; note?: ReaderInline[] }[] }
+  // 原本の表・図をそのまま表層に出す部品。中身は持たず、原本のブロックID だけを指す。
+  // 節の主役は「その節に最初に出てくる表」を自動で拾うだけなので、2つ目の表もグラフも
+  // 表層に上げる手が無かった。中身を写す（comparison を渡す）と原本を直したときに
+  // 黙って古くなるため、参考文献の紐づけ（sourceId）と同じくIDだけを持つ。
+  // 文字列を持たないので逐語一致検査の対象は無い。指す先を失ったときは保存を止める。
+  | { kind: 'source'; blockId: string }
   | { kind: 'none' }
 
 export type SpreadSection = {
@@ -316,8 +322,26 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
   }
 }
 
-// SpreadPart の既知の kind。SpreadPartView（描画側）が対応しているのはこれだけ。
-const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'decision', 'none'])
+// SpreadPart の既知の kind。source を除けば SpreadPartView（描画側）が対応しているのはこれだけ。
+// source だけは中身を持たず原本のブロックIDを指すだけの部品で、描くのは SpreadPartView
+// ではなく ReaderSpread 側の SurfacePart（RenderedBlocks 経由）。判定対象は変わらない。
+const KNOWN_PART_KINDS = new Set<SpreadPart['kind']>(['comparison', 'matrix', 'flow', 'timeline', 'bignumber', 'gonogo', 'gauge', 'cards', 'note', 'decision', 'source', 'none'])
+
+/**
+ * オーバレイ由来の part を採用してよいかの判定。
+ *
+ * kind の許可リストに加えて、source は blockId が無いと何も描けない
+ * （指す先を持たない部品が黙って空の表層になる）ので、ここで落とす。
+ *
+ * sanitizeOverlay の外（編集画面の「決定ずみ」判定）からも同じ関門を引けるように export する。
+ * ここが2箇所に別々の条件で書かれると、一覧は「決定ずみ」と言うのに保存後は自動判定のまま、
+ * という食い違いが起きる。
+ */
+export function isUsablePart(p: SpreadPart): boolean {
+  if (!KNOWN_PART_KINDS.has(p.kind)) return false
+  if (p.kind === 'source') return typeof p.blockId === 'string' && p.blockId.trim() !== ''
+  return true
+}
 
 // part の中の ReaderInline から href だけを落とす（text/bold/italic/code/color は残す）。
 function stripInlineHref(list: ReaderInline[]): ReaderInline[] {
@@ -382,6 +406,8 @@ function stripPartHref(part: SpreadPart): SpreadPart {
           ...(br.note ? { note: stripInlineHref(br.note) } : {}),
         })),
       }
+    case 'source':
+      return part
     case 'none':
       return part
   }
@@ -432,7 +458,7 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
   if (overlay.parts) {
     const parts: Record<string, SpreadPart> = {}
     for (const [anchor, part] of Object.entries(overlay.parts)) {
-      if (!KNOWN_PART_KINDS.has(part.kind)) continue
+      if (!isUsablePart(part)) continue
       parts[anchor] = stripPartHref(part)
     }
     out.parts = parts
@@ -441,7 +467,7 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
   if (overlay.extraParts) {
     const extra: Record<string, SpreadPart[]> = {}
     for (const [anchor, list] of Object.entries(overlay.extraParts)) {
-      extra[anchor] = list.filter((p) => KNOWN_PART_KINDS.has(p.kind)).map(stripPartHref)
+      extra[anchor] = list.filter(isUsablePart).map(stripPartHref)
     }
     out.extraParts = extra
   }
@@ -455,9 +481,12 @@ export function sanitizeOverlay(overlay: SpreadOverlay): SpreadOverlay {
     }
     out.partTitles = titles
   }
-  // 先頭に置く部品も主役部品と同じ関門を通す。
+  // 先頭に置く部品も主役部品と同じ関門を通す。ただし source はここで追加で落とす。
+  // source は節の深掘り（SpreadSection.deep）の中のブロックしか指せないが、topParts は
+  // 節に属さない枠なので、指す先を解決する術がない（danglingSourceParts も
+  // spread.sections しか見ないので、topParts に紛れ込んだ source は素通りしてしまう）。
   if (overlay.topParts) {
-    out.topParts = overlay.topParts.filter((p) => KNOWN_PART_KINDS.has(p.kind)).map(stripPartHref)
+    out.topParts = overlay.topParts.filter((p) => isUsablePart(p) && p.kind !== 'source').map(stripPartHref)
   }
   // 参考文献の圧縮行は行の取捨とキー・文言の正規化を sanitizeRefs に集める
   // （編集画面のビルダーも同じ1本を引き、関門の入力が中と外で割れないようにしている）。
@@ -570,6 +599,9 @@ function verbatimTargets(spread: SpreadDoc): string[] {
           out.push(textOf(br.then))
           if (br.note) out.push(textOf(br.note))
         }
+        break
+      case 'source':
+        // 原本のブロックを指すだけで文字列を持たない。原本そのものなので照合の必要が無い。
         break
       case 'none':
         // 表層なし。対象に入れる文字列がない。
@@ -726,6 +758,13 @@ function tableCoveredByCards(rows: ReaderInline[][][], covered: Set<string>): bo
 export function sectionDisplay(section: SpreadSection): SectionDisplay {
   let deep = section.deep
   const part = section.part
+  // source が指したブロックは表層に出るので、深掘りからは除く（同じものが2回出ないように）。
+  // 主役だけでなく追加の部品も見る。表を主役に上げたときの dropTable と同じ思想だが、
+  // あちらは中身の一致で探すのに対し、こちらはブロックIDで直接引ける。
+  const sourceIds = new Set(
+    [part, ...(section.extraParts ?? [])].flatMap((p) => (p.kind === 'source' ? [p.blockId] : [])),
+  )
+  if (sourceIds.size > 0) deep = deep.filter((b) => !(b.blockId && sourceIds.has(b.blockId)))
   // 表層へ昇格した表を深掘りから除く（中身は表層に必ず表示されることが前提の除去）。
   const dropTable = (matches: (rows: ReaderInline[][][]) => boolean) => {
     const idx = deep.findIndex((b) => b.kind === 'table' && matches(b.rows))
@@ -1134,6 +1173,30 @@ export function refLinkage(refsItems: ReaderBlock[], refs: SpreadRef[] | undefin
     else claimed.add(at)
   }
   return { dropped: refsItems.filter((_, i) => !claimed.has(i)), dangling }
+}
+
+/**
+ * 指す先を失った source 部品を、節（anchor）と blockId の組で返す。
+ *
+ * 原本が書き換わってブロックが消えると、その部品は何も描けない。別のブロックに
+ * 当てにいくと読者に違う図を出すので、当てにいかずに保存を止める（参考文献の
+ * 「指す先を失った圧縮行」と同じ fail-closed）。
+ *
+ * これは保存を完全に止める関門なので、blockId（32桁のID）だけを返すと、オーナーは
+ * それだけを手がかりに節を探すことになる。参考文献の同種の関門（refLinkage）が
+ * 行のタイトルを返すのと非対称にならないよう、どの節かが分かる anchor も添えて返す。
+ *
+ * source を使っていないスプレッドでは必ず空を返すので、従来の投入は止まらない。
+ */
+export function danglingSourceParts(spread: SpreadDoc): { anchor: string; blockId: string }[] {
+  const out: { anchor: string; blockId: string }[] = []
+  for (const s of spread.sections) {
+    const ids = new Set(s.deep.flatMap((b) => (b.blockId ? [b.blockId] : [])))
+    for (const p of [s.part, ...(s.extraParts ?? [])]) {
+      if (p.kind === 'source' && !ids.has(p.blockId)) out.push({ anchor: s.anchor, blockId: p.blockId })
+    }
+  }
+  return out
 }
 
 /**

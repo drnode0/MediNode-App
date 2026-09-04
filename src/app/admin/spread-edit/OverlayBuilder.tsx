@@ -13,7 +13,9 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
-import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, withRefs } from '@/lib/spread-edit'
+import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, swapMainWithFirstExtra, withRefs } from '@/lib/spread-edit'
+import { SourcePicker } from './SourcePicker'
+import { SurfaceChecklist } from './SurfaceChecklist'
 
 type Checker = (s: string) => boolean
 
@@ -94,6 +96,30 @@ function CandidatePicker({ own, notes, onPick, ownLabel = 'この節の原本' }
   )
 }
 
+// 書き下ろした文をスプレッドノートへ足す口。逐語検査そのものは緩めず、
+// 「文言がレビューできる場所に残る」という性質を保ったまま赤枠から抜ける。
+// InlinesEditor・VerbatimInput・PartForm内の生の <input>（ゲージの値・大きな数値の値）が共有する。
+function AddToNotesButton({ text, onAddToNotes }: { text: string; onAddToNotes: (text: string) => Promise<void> }) {
+  const [adding, setAdding] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={adding}
+      onClick={async () => {
+        setAdding(true)
+        try {
+          await onAddToNotes(text)
+        } finally {
+          setAdding(false)
+        }
+      }}
+      className="text-[11px] rounded-full border border-brand-600 text-brand-700 dark:text-brand-300 px-2 py-0.5 disabled:opacity-40"
+    >
+      {adding ? '追加中…' : 'この文をスプレッドノートに追加'}
+    </button>
+  )
+}
+
 // 1つの文（ReaderInline[]）の編集。文節（セグメント）ごとに 強調・色 を持てる。
 // 連結テキストが逐語照合に落ちると赤枠になる。
 function InlinesEditor({
@@ -103,6 +129,7 @@ function InlinesEditor({
   own,
   notes,
   placeholder,
+  onAddToNotes,
 }: {
   value: ReaderInline[]
   onChange: (v: ReaderInline[]) => void
@@ -110,6 +137,9 @@ function InlinesEditor({
   own: string[]
   notes: string[]
   placeholder?: string
+  // 書き下ろしの文をスプレッドノートへ足す口。渡されたときだけ赤枠の横にボタンを出す。
+  // 逐語検査そのものは緩めない（文言がレビューできる場所に残る、という性質を保つ）。
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const text = textOf(value)
   const bad = text.trim() !== '' && !checker(text)
@@ -173,6 +203,9 @@ function InlinesEditor({
           ＋文節（強調や色を部分にかける単位）
         </button>
         {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
+        {/* ノートへ送るのは文節ごとではなく、つないだ文全体（text）。
+            逐語照合の単位が連結テキストのため、文節単位で足しても赤は消えない。 */}
+        {bad && onAddToNotes && <AddToNotesButton text={text.trim()} onAddToNotes={onAddToNotes} />}
       </div>
     </div>
   )
@@ -185,12 +218,14 @@ function LinesEditor({
   checker,
   own,
   notes,
+  onAddToNotes,
 }: {
   lines: ReaderInline[][]
   onChange: (v: ReaderInline[][]) => void
   checker: Checker
   own: string[]
   notes: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const move = (i: number, d: number) => {
     const next = [...lines]
@@ -203,7 +238,7 @@ function LinesEditor({
       {lines.map((line, i) => (
         <div key={i} className="flex items-start gap-1">
           <div className="flex-1 min-w-0">
-            <InlinesEditor value={line} onChange={(v) => onChange(lines.map((l, j) => (j === i ? v : l)))} checker={checker} own={own} notes={notes} />
+            <InlinesEditor value={line} onChange={(v) => onChange(lines.map((l, j) => (j === i ? v : l)))} checker={checker} own={own} notes={notes} onAddToNotes={onAddToNotes} />
           </div>
           <div className="flex flex-col">
             <IconButton title="上へ" onClick={() => move(i, -1)} disabled={i === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
@@ -262,7 +297,6 @@ function VerbatimInput({
   // 逐語検査そのものは緩めない（文言がレビューできる場所に残る、という性質を保つ）。
   onAddToNotes?: (text: string) => Promise<void>
 }) {
-  const [adding, setAdding] = useState(false)
   const bad = value.trim() !== '' && !checker(value)
   return (
     <div className={`rounded-lg border px-1.5 py-1 ${bad ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
@@ -275,23 +309,7 @@ function VerbatimInput({
       <div className="flex items-center gap-2 pt-0.5 flex-wrap">
         <CandidatePicker own={own} notes={notes} onPick={onChange} ownLabel={ownLabel} />
         {bad && <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>}
-        {bad && onAddToNotes && (
-          <button
-            type="button"
-            disabled={adding}
-            onClick={async () => {
-              setAdding(true)
-              try {
-                await onAddToNotes(value.trim())
-              } finally {
-                setAdding(false)
-              }
-            }}
-            className="text-[11px] rounded-full border border-brand-600 text-brand-700 dark:text-brand-300 px-2 py-0.5 disabled:opacity-40"
-          >
-            {adding ? '追加中…' : 'この文をスプレッドノートに追加'}
-          </button>
-        )}
+        {bad && onAddToNotes && <AddToNotesButton text={value.trim()} onAddToNotes={onAddToNotes} />}
       </div>
     </div>
   )
@@ -299,23 +317,34 @@ function VerbatimInput({
 
 // ---------------------------------------------------------------- 部品ごとの編集フォーム
 
-const KIND_LABEL: Record<string, string> = {
+export const KIND_LABEL: Record<string, string> = {
   auto: '原本の表（自動）',
   none: '表層なし',
+  // 表を持つ節は大半が comparison（原本の表がそのまま昇格したもの）になるので、
+  // ここが無いと一覧行が「自動判定のまま（comparison）」と英語の識別子のまま出てしまう。
+  // matrix は comparison と同じ形（rows・focus・title）の部品なので同時に足す。
+  comparison: '比較表',
+  matrix: '分類表',
   flow: '判断フロー',
+  // timeline と decision は ADDABLE に無いので画面からは作れないが、「JSONを直接編集」の
+  // 窓口や制作スキル由来のオーバレイからは入りうる。無いと comparison と同じ症状
+  // （一覧行に英語の識別子が出る）になるので、SpreadPart の全ての kind を覆っておく。
+  timeline: '時系列',
+  decision: '分岐の判断図',
   cards: '比較カード',
   gonogo: 'Go / No-Go',
   gauge: '実測値ゲージ',
   note: '補足ノート',
   bignumber: '大きな数値',
+  source: '原本の表・図',
 }
 
 // 編集ビルダーで新しく作れる部品。comparison/matrix は原本の表から自動で立つので
 // ここからは作らない（表を出したいときは原本に表を書く）。
-const ADDABLE: SpreadPart['kind'][] = ['flow', 'cards', 'gonogo', 'gauge', 'note', 'bignumber']
+const ADDABLE: SpreadPart['kind'][] = ['flow', 'cards', 'gonogo', 'gauge', 'note', 'bignumber', 'source']
 
-function PartForm({ part, onChange, checker, own, notes }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[] }) {
-  const common = { checker, own, notes }
+function PartForm({ part, onChange, checker, own, notes, onAddToNotes, deep }: { part: SpreadPart; onChange: (p: SpreadPart) => void; checker: Checker; own: string[]; notes: string[]; onAddToNotes?: (text: string) => Promise<void>; deep: ReaderBlock[] }) {
+  const common = { checker, own, notes, onAddToNotes }
   if (part.kind === 'flow' || part.kind === 'timeline') {
     const steps = part.steps
     return (
@@ -400,24 +429,37 @@ function PartForm({ part, onChange, checker, own, notes }: { part: SpreadPart; o
         <Field label="図の呼び名（自由に書ける）">
           <NameInput value={part.title ?? ''} onChange={(v) => onChange({ ...part, title: v || undefined })} placeholder="例: 院内死亡率（SpO₂帯別・1027例の観察研究）" />
         </Field>
-        {part.items.map((it, i) => (
-          <div key={i} className="flex items-start gap-1 mb-1">
-            <input
-              value={it.value}
-              onChange={(e) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })}
-              placeholder="値（8.7%）"
-              className={`w-20 text-xs rounded-lg border px-2 py-1 bg-transparent ${it.value.trim() && !checker(it.value) ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}
-            />
-            <div className="flex-1 min-w-0">
-              <InlinesEditor value={it.label} onChange={(v) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, label: v } : x)) })} {...common} placeholder="条件（88〜92%）" />
+        {part.items.map((it, i) => {
+          // ゲージの値も逐語照合の対象。狭い入力を横並びの行に置いているため、
+          // 逃げ道のボタンは行を崩さないよう行の下にだけ出す。
+          const valueBad = it.value.trim() !== '' && !checker(it.value)
+          return (
+            <div key={i} className="mb-1">
+              <div className="flex items-start gap-1">
+                <input
+                  value={it.value}
+                  onChange={(e) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })}
+                  placeholder="値（8.7%）"
+                  className={`w-20 text-xs rounded-lg border px-2 py-1 bg-transparent ${valueBad ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <InlinesEditor value={it.label} onChange={(v) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, label: v } : x)) })} {...common} placeholder="条件（88〜92%）" />
+                </div>
+                <label className="text-[11px] text-gray-500 dark:text-gray-400 inline-flex items-center gap-1 whitespace-nowrap pt-2">
+                  <input type="checkbox" checked={!!it.warn} onChange={(e) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, warn: e.target.checked || undefined } : x)) })} />
+                  悪い側（赤）
+                </label>
+                <IconButton title="この項目を削除" onClick={() => onChange({ ...part, items: part.items.filter((_, j) => j !== i) })} disabled={part.items.length <= 1}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
+              </div>
+              {valueBad && onAddToNotes && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>
+                  <AddToNotesButton text={it.value.trim()} onAddToNotes={onAddToNotes} />
+                </div>
+              )}
             </div>
-            <label className="text-[11px] text-gray-500 dark:text-gray-400 inline-flex items-center gap-1 whitespace-nowrap pt-2">
-              <input type="checkbox" checked={!!it.warn} onChange={(e) => onChange({ ...part, items: part.items.map((x, j) => (j === i ? { ...x, warn: e.target.checked || undefined } : x)) })} />
-              悪い側（赤）
-            </label>
-            <IconButton title="この項目を削除" onClick={() => onChange({ ...part, items: part.items.filter((_, j) => j !== i) })} disabled={part.items.length <= 1}><Trash2 className="w-3.5 h-3.5" aria-hidden /></IconButton>
-          </div>
-        ))}
+          )
+        })}
         <button type="button" onClick={() => onChange({ ...part, items: [...part.items, { value: '', label: [] }] })} className="text-[11px] text-brand-700 dark:text-brand-300 inline-flex items-center gap-1">
           <Plus className="w-3.5 h-3.5" aria-hidden />項目を足す
         </button>
@@ -432,18 +474,36 @@ function PartForm({ part, onChange, checker, own, notes }: { part: SpreadPart; o
     )
   }
   if (part.kind === 'bignumber') {
+    // 大きな数値の値も逐語照合の対象。狭い入力を横並びの行に置いているため、
+    // 逃げ道のボタンは行を崩さないよう行の下にだけ出す。
+    const valueBad = part.value.trim() !== '' && !checker(part.value)
     return (
-      <div className="flex items-start gap-1">
-        <input
-          value={part.value}
-          onChange={(e) => onChange({ ...part, value: e.target.value })}
-          placeholder="値"
-          className={`w-24 text-xs rounded-lg border px-2 py-1 bg-transparent ${part.value.trim() && !checker(part.value) ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}
-        />
-        <div className="flex-1 min-w-0">
-          <InlinesEditor value={part.caption} onChange={(v) => onChange({ ...part, caption: v })} {...common} placeholder="説明" />
+      <div>
+        <div className="flex items-start gap-1">
+          <input
+            value={part.value}
+            onChange={(e) => onChange({ ...part, value: e.target.value })}
+            placeholder="値"
+            className={`w-24 text-xs rounded-lg border px-2 py-1 bg-transparent ${valueBad ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}
+          />
+          <div className="flex-1 min-w-0">
+            <InlinesEditor value={part.caption} onChange={(v) => onChange({ ...part, caption: v })} {...common} placeholder="説明" />
+          </div>
         </div>
+        {valueBad && onAddToNotes && (
+          <div className="flex items-center gap-2 pt-0.5">
+            <span className="text-[11px] text-red-600 dark:text-red-400">原本にもスプレッドノートにも無い文です</span>
+            <AddToNotesButton text={part.value.trim()} onAddToNotes={onAddToNotes} />
+          </div>
+        )}
       </div>
+    )
+  }
+  if (part.kind === 'source') {
+    return (
+      <Field label="この節の原本から選ぶ（中身は写さず、原本を直せば追いつきます）">
+        <SourcePicker deep={deep} value={part.blockId} onChange={(blockId) => onChange({ ...part, blockId })} />
+      </Field>
     )
   }
   // comparison / matrix / none: 中身は原本の表なので、ここで編集するものが無い
@@ -460,12 +520,14 @@ function SectionEditor({
   onChange,
   checker,
   notes,
+  onAddToNotes,
 }: {
   sec: SectionInfo
   overlay: SpreadOverlay
   onChange: (o: SpreadOverlay) => void
   checker: Checker
   notes: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const own = useMemo(() => candidateLines(sec.deep), [sec.deep])
   const main = overlay.parts?.[sec.anchor]
@@ -489,6 +551,9 @@ function SectionEditor({
     else delete shortLabels[sec.anchor]
     onChange({ ...overlay, shortLabels })
   }
+  // 主役と追加の先頭の入れ替え。主役が自動判定（parts に無い）のときは純関数側が何もせず
+  // オーバレイをそのまま返すので、ここでは呼ぶだけでよい（無効化はボタン側で行う）。
+  const swapMain = () => onChange(swapMainWithFirstExtra(overlay, sec.anchor))
 
   const partBlock = (part: SpreadPart, slot: 'main' | number) => (
     <div key={slot === 'main' ? 'main' : `x${slot}`} className="rounded-xl border border-gray-300 dark:border-gray-600 p-2.5 mb-2 bg-white dark:bg-gray-800/60">
@@ -498,9 +563,24 @@ function SectionEditor({
         </span>
         <span className="text-[10px] text-gray-400">{slot === 'main' ? '主役（最初に出る）' : `追加 ${(slot as number) + 1}`}</span>
         <span className="flex-1" />
+        {slot === 'main' && (
+          <IconButton title="下へ（追加の先頭と入れ替える）" onClick={swapMain} disabled={extras.length === 0}>
+            <ChevronDown className="w-3.5 h-3.5" aria-hidden />
+          </IconButton>
+        )}
         {slot !== 'main' && (
           <>
-            <IconButton title="上へ" onClick={() => { const n = [...extras]; const i = slot as number; const [x] = n.splice(i, 1); n.splice(i - 1, 0, x); setExtras(n) }} disabled={slot === 0}><ChevronUp className="w-3.5 h-3.5" aria-hidden /></IconButton>
+            <IconButton
+              title={slot === 0 && !main ? '先に主役を置き換えてください（原本の表は降ろせません）' : '上へ'}
+              onClick={() => {
+                if (slot === 0) { swapMain(); return }
+                const n = [...extras]; const i = slot as number
+                const [x] = n.splice(i, 1); n.splice(i - 1, 0, x); setExtras(n)
+              }}
+              disabled={slot === 0 && !main}
+            >
+              <ChevronUp className="w-3.5 h-3.5" aria-hidden />
+            </IconButton>
             <IconButton title="下へ" onClick={() => { const n = [...extras]; const i = slot as number; const [x] = n.splice(i, 1); n.splice(i + 1, 0, x); setExtras(n) }} disabled={slot === extras.length - 1}><ChevronDown className="w-3.5 h-3.5" aria-hidden /></IconButton>
           </>
         )}
@@ -511,18 +591,25 @@ function SectionEditor({
           <Trash2 className="w-3.5 h-3.5" aria-hidden />
         </IconButton>
       </div>
+      {slot === 0 && !main && (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+          主役が自動判定のままなので、ここより上へは動かせません。先に主役を置き換えてください。
+        </p>
+      )}
       <PartForm
         part={part}
         onChange={(p) => (slot === 'main' ? setMain(p) : setExtras(extras.map((x, j) => (j === slot ? p : x))))}
         checker={checker}
         own={own}
         notes={notes}
+        onAddToNotes={onAddToNotes}
+        deep={sec.deep}
       />
     </div>
   )
 
   return (
-    <div className="mb-4">
+    <div className="mb-4" id={`edit-${sec.anchor}`}>
       <div className="flex items-center gap-2 mb-1.5">
         <span className="w-5 h-5 rounded-full bg-brand-600 text-white text-[11px] font-bold inline-flex items-center justify-center">{sec.n ?? '-'}</span>
         <span className="text-xs font-bold text-gray-700 dark:text-gray-200 flex-1 min-w-0 truncate">{sectionTitleText(sec)}</span>
@@ -541,8 +628,10 @@ function SectionEditor({
         ? partBlock(main, 'main')
         : (
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-2.5 mb-2 flex items-center gap-2">
+            {/* 「無し」ではなく KIND_LABEL の「表層なし」を使う。一覧（SurfaceChecklist）の
+                「自動判定のまま（表層なし）」と呼び名をそろえ、同じ状態を別の言葉で呼ばないようにする。 */}
             <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              主役の部品: {sec.autoKind === 'none' ? '無し（自動判定）' : `${KIND_LABEL[sec.autoKind] ?? sec.autoKind}（自動判定）`}
+              主役の部品: {KIND_LABEL[sec.autoKind] ?? sec.autoKind}（自動判定）
             </span>
             <span className="flex-1" />
             <select
@@ -592,6 +681,7 @@ function RefsEditor({
   notes,
   items,
   texts,
+  onAddToNotes,
 }: {
   overlay: SpreadOverlay
   onChange: (o: SpreadOverlay) => void
@@ -599,6 +689,7 @@ function RefsEditor({
   notes: string[]
   items: ReaderBlock[]
   texts: string[]
+  onAddToNotes?: (text: string) => Promise<void>
 }) {
   const refs = overlay.refs ?? []
   // 何行目を指しているかの表示は、関門とリンクが引くのと同じ索引から出す。
@@ -631,6 +722,7 @@ function RefsEditor({
         own={texts}
         notes={notes}
         ownLabel="記事末の文献一覧"
+        onAddToNotes={onAddToNotes}
       />
     </Field>
   )
@@ -841,10 +933,19 @@ export function OverlayBuilder({
   }, [draft, refItems])
   return (
     <div>
+      <SurfaceChecklist
+        rows={sections.map((s) => ({ anchor: s.anchor, n: s.n, title: sectionTitleText(s), deep: s.deep, autoKind: s.autoKind }))}
+        overlay={overlay}
+        kindLabel={KIND_LABEL}
+        onPickSource={(anchor, blockId) =>
+          onChange({ ...overlay, parts: { ...(overlay.parts ?? {}), [anchor]: { kind: 'source', blockId } } })
+        }
+        onNone={(anchor) => onChange({ ...overlay, parts: { ...(overlay.parts ?? {}), [anchor]: { kind: 'none' } } })}
+      />
       {sections.map((sec) => (
-        <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} />
+        <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
       ))}
-      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} />
+      <RefsEditor overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} items={refItems} texts={refTexts} onAddToNotes={onAddToNotes} />
       <QuizEditor overlay={overlay} onChange={onChange} sections={sections} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
     </div>
   )

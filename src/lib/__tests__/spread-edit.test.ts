@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart, refForItem, withRefs } from '../spread-edit'
-import { makeVerbatimChecker } from '../reader-spread'
+import { candidateLines, emptyPart, refForItem, sourceCandidates, swapMainWithFirstExtra, undecidedAnchors, withRefs } from '../spread-edit'
+import { makeVerbatimChecker, type SpreadOverlay, type SpreadPart } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
 const t = (text: string) => [{ text }]
@@ -78,5 +78,91 @@ describe('参考文献の圧縮行（編集画面）', () => {
     expect(withRefs({}, [ref])).toEqual({ refs: [ref] })
     expect(withRefs({ shortLabels: { '1': '目標SpO2' } }, [ref]).shortLabels).toEqual({ '1': '目標SpO2' })
     expect(withRefs({ refs: [ref] }, []).refs).toBeUndefined()
+  })
+})
+
+describe('swapMainWithFirstExtra（主役と追加の先頭の入れ替え）', () => {
+  const note: SpreadPart = { kind: 'note', inlines: [{ text: '主役' }] }
+  const big: SpreadPart = { kind: 'bignumber', value: '9.1%', caption: [] }
+  const gauge: SpreadPart = { kind: 'gauge', items: [{ value: '1', label: [] }] }
+
+  it('主役と追加の先頭を入れ替え、残りの追加の並びは保つ', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note }, extraParts: { 'sec-1': [big, gauge] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-1']).toEqual(big)
+    expect(out.extraParts?.['sec-1']).toEqual([note, gauge])
+  })
+
+  it('主役が自動判定（parts に無い）のときは何も変えない', () => {
+    const before: SpreadOverlay = { extraParts: { 'sec-1': [big] } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('追加が無いときは何も変えない', () => {
+    const before: SpreadOverlay = { parts: { 'sec-1': note } }
+    expect(swapMainWithFirstExtra(before, 'sec-1')).toEqual(before)
+  })
+
+  it('他の節のオーバレイに触らない', () => {
+    const out = swapMainWithFirstExtra(
+      { parts: { 'sec-1': note, 'sec-2': gauge }, extraParts: { 'sec-1': [big] } },
+      'sec-1',
+    )
+    expect(out.parts?.['sec-2']).toEqual(gauge)
+  })
+})
+
+describe('sourceCandidates（表層に上げられる原本のブロック）', () => {
+  it('表と画像だけを、登場順に、見分けの付く名前で返す', () => {
+    const blocks: ReaderBlock[] = [
+      { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' },
+      { kind: 'table', rows: [[t('NIV群'), t('酸素マスク群')], [t('9.1%'), t('18.5%')]], blockId: 'blk-t' },
+      { kind: 'image', url: 'https://example.org/a.png', caption: '低酸素血症の発生率', blockId: 'blk-i' },
+      { kind: 'image', url: 'https://example.org/b.png', caption: null, blockId: 'blk-i2' },
+      { kind: 'table', rows: [[t('マスク種類')]], blockId: 'blk-t2' },
+    ]
+    expect(sourceCandidates(blocks)).toEqual([
+      { blockId: 'blk-t', label: '表: NIV群／酸素マスク群' },
+      { blockId: 'blk-i', label: '図: 低酸素血症の発生率' },
+      { blockId: 'blk-i2', label: '図: 2つ目' },
+      { blockId: 'blk-t2', label: '表: マスク種類' },
+    ])
+  })
+
+  it('ブロックIDを持たないブロックは候補にしない（指す先にできないため）', () => {
+    const blocks: ReaderBlock[] = [{ kind: 'table', rows: [[t('A')]] }]
+    expect(sourceCandidates(blocks)).toEqual([])
+  })
+})
+
+describe('undecidedAnchors（主役をまだ決めていない節）', () => {
+  it('parts に無い節だけを返す。表層なしを選んだ節は決定ずみ', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'note', inlines: [{ text: 'x' }] }, 'sec-2': { kind: 'none' } },
+    }
+    expect(undecidedAnchors(['sec-1', 'sec-2', 'sec-3'], overlay)).toEqual(['sec-3'])
+  })
+
+  it('オーバレイが空なら全部が未決', () => {
+    expect(undecidedAnchors(['sec-1', 'sec-2'], {})).toEqual(['sec-1', 'sec-2'])
+  })
+
+  // 「原本の表・図」を選んだ直後は emptyPart('source') が blockId: '' を入れる。
+  // sanitizeOverlay（isUsablePart）はこの形を落とすので、一覧が「決定ずみ」を名乗っても
+  // 保存後の実体は自動判定のままになる。ここが空文字の間は未決のまま数える。
+  it('source を選んだ直後（blockId が空文字）はまだ未決のまま', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'source', blockId: '' } },
+    }
+    expect(undecidedAnchors(['sec-1'], overlay)).toEqual(['sec-1'])
+  })
+
+  it('source の指す先を選べば決定ずみになる', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'source', blockId: 'blk-1' } },
+    }
+    expect(undecidedAnchors(['sec-1'], overlay)).toEqual([])
   })
 })

@@ -15,7 +15,10 @@ import { canonicalPageId, quizFeedback, type SpreadOverlay, type SpreadQuiz } fr
 // どちらも押した人がその場で直せるものなので、素のエラー名ではなく何が食い違ったかを出す。
 // 文言はスプレッドの編集画面（spread-edit/SpreadEditClient）と揃える。片方だけに文言があると、
 // この画面から押した人だけが「失敗しました: refs_incomplete」を見ることになる。
-function failureMessage(d: { error?: string; missing?: string[]; dangling?: string[] }, status: number): string {
+function failureMessage(
+  d: { error?: string; missing?: string[]; dangling?: string[]; sections?: { anchor: string; blockId: string }[] },
+  status: number,
+): string {
   // verbatim_mismatch＝生成側が本文を書き換えた、または原本が変わった。
   // どちらにせよ投入はさせず、何が食い違ったかを示す。
   if (d.error === 'verbatim_mismatch') {
@@ -26,6 +29,11 @@ function failureMessage(d: { error?: string; missing?: string[]; dangling?: stri
   // 直す場所はスプレッドの編集画面なので、漏れた原本の行と指す先を失った圧縮行を並べて出す。
   if (d.error === 'refs_incomplete') {
     return `参考文献の紐づけが揃っていません。漏れた原本の行: ${(d.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(d.dangling ?? []).join(' / ') || 'なし'}`
+  }
+  // source_missing＝原本のブロック（表・画像）を指す部品が、ブロックが消えたので指す先を失った。
+  // 直す場所はスプレッドの編集画面なので、文言はそちら（SpreadEditClient）と揃える。
+  if (d.error === 'source_missing') {
+    return `原本から消えたブロックを指している部品があります: ${(d.sections ?? []).map((s) => `節${s.anchor}: ${s.blockId}`).join(' / ')}`
   }
   return `失敗しました: ${d.error ?? status}`
 }

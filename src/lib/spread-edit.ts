@@ -2,7 +2,7 @@
 // 「文はタイプさせず、原本とスプレッドノートから選ばせる」ための候補抽出と、
 // 部品の空雛形を持つ。ここは純関数だけ（描画は SpreadEditClient 側）。
 import { calloutRole, type ReaderBlock } from './reader-doc'
-import { textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
+import { isUsablePart, textOf, type SpreadOverlay, type SpreadPart, type SpreadRef } from './reader-spread'
 
 /**
  * 節の深掘りから、部品に載せる候補になる文を登場順・重複なしで返す。
@@ -51,6 +51,9 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
       return { kind, inlines: [] }
     case 'decision':
       return { kind, question: '', branches: [{ when: '', then: [] }, { when: '', then: [] }] }
+    case 'source':
+      // 原本のブロックを選ばせる部品。選択前の雛形は指す先を持たない。
+      return { kind, blockId: '' }
     case 'none':
       return { kind: 'none' }
   }
@@ -83,3 +86,75 @@ export const SEGMENT_COLORS = [
   { value: 'green_background', label: '緑マーカー' },
   { value: 'red_background', label: '赤マーカー' },
 ] as const
+
+/**
+ * 節の主役と、追加の先頭を入れ替える。
+ *
+ * 画面では主役と追加を1本の並びとして扱うが、保存の形は「主役1つ＋追加の配列」のままなので、
+ * 並びをまたぐこの1手だけを別に持つ。
+ *
+ * 主役が自動判定（parts に無い）のときは何もしない。降ろすには原本の表の中身をオーバレイに
+ * 写すことになり、原本を直したときに黙って古くなるため。呼ぶ側はボタンを無効にして、
+ * 効かない理由を画面に出すこと。
+ */
+export function swapMainWithFirstExtra(overlay: SpreadOverlay, anchor: string): SpreadOverlay {
+  const main = overlay.parts?.[anchor]
+  const extras = overlay.extraParts?.[anchor] ?? []
+  if (!main || extras.length === 0) return overlay
+  return {
+    ...overlay,
+    parts: { ...(overlay.parts ?? {}), [anchor]: extras[0] },
+    extraParts: { ...(overlay.extraParts ?? {}), [anchor]: [main, ...extras.slice(1)] },
+  }
+}
+
+/**
+ * その節で表層に上げられる原本のブロック（表と画像）を、登場順に返す。
+ *
+ * 名前は見分けが付けばよいので、表は先頭行のセル、画像はキャプションから作る。
+ * キャプションの無い画像は「図: N つ目」で数える（同じ名前が並ぶと選べないため）。
+ * ブロックIDを持たないブロックは、指す先にできないので候補から外す。
+ */
+export function sourceCandidates(deep: ReaderBlock[]): { blockId: string; label: string }[] {
+  const out: { blockId: string; label: string }[] = []
+  let images = 0
+  for (const b of deep) {
+    if (b.kind === 'image') {
+      images += 1
+      if (!b.blockId) continue
+      out.push({ blockId: b.blockId, label: `図: ${b.caption?.trim() || `${images}つ目`}` })
+      continue
+    }
+    if (b.kind !== 'table' || !b.blockId) continue
+    const head = (b.rows[0] ?? []).map((cell) => textOf(cell).trim()).filter(Boolean).join('／')
+    out.push({ blockId: b.blockId, label: `表: ${head || '見出しなし'}` })
+  }
+  return out
+}
+
+/**
+ * 主役の部品が「決定ずみ」と数えてよい形かどうか。
+ *
+ * parts[anchor] が存在するだけでは足りない。「原本の表・図」を選んだ直後は
+ * emptyPart('source') が blockId: '' の雛形を入れるが、この形は保存時に sanitizeOverlay
+ * （isUsablePart）が落とすので、一覧が「決定ずみ」と数えても実体は自動判定のままになる。
+ * 一覧の「未決 N節」は取りこぼしを防ぐための数なので、ここで嘘をつくと目的を外す。
+ *
+ * undecidedAnchors と SurfaceChecklist（編集画面の一覧）の両方がこの1本を呼ぶ。
+ * 2か所に別々の条件を書くと、どちらかを直したときにまた食い違いが再発する。
+ */
+export function isDecidedPart(part: SpreadPart | undefined): boolean {
+  return !!part && isUsablePart(part)
+}
+
+/**
+ * 主役の部品をまだ決めていない節を返す。
+ *
+ * 「未決」は間違いではなく手つかず。逐語一致と文献の紐づけは間違いが読者に出るので
+ * 保存を止めるが、こちらは数を出すだけで止めない（既存の記事はほとんどの節が
+ * 自動判定のままなので、止めるとその場で保存できなくなる）。
+ * 「表層なしにする」を選んだ節（kind: 'none'）は決定ずみとして数えない。
+ */
+export function undecidedAnchors(anchors: string[], overlay: SpreadOverlay): string[] {
+  return anchors.filter((a) => !isDecidedPart(overlay.parts?.[a]))
+}

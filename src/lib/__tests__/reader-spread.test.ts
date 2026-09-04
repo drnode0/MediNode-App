@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { canonicalPageId, isFocusCell, splitPrefaceBlocks, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { canonicalPageId, isFocusCell, splitPrefaceBlocks, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, danglingSourceParts, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc, ReaderInline } from '../reader-doc'
-import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
+import type { SpreadDoc, SpreadPart, SpreadQuiz, SpreadRef } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
 
@@ -1437,5 +1437,115 @@ describe('文献行の一次資料URLが別ブロックに置かれている原�
     const parts = splitTailBlocks([head, inline])
     expect(parts.refsItems).toEqual([inline])
     expect(refHrefs(parts.refsItems, [{ title: 'x', source: '', note: '', sourceId: 'blk-A' }])).toEqual(['https://example.org/a'])
+  })
+})
+
+describe('source 部品（原本の表・図を指すだけの部品）', () => {
+  it('blockId を持つ source は sanitizeOverlay を通り、持たない source は落ちる', () => {
+    const out = sanitizeOverlay({
+      parts: { s1: { kind: 'source', blockId: 'blk-1' } },
+      extraParts: {
+        s2: [
+          { kind: 'source', blockId: 'blk-2' },
+          { kind: 'source', blockId: '  ' } as SpreadPart,
+          { kind: 'source' } as unknown as SpreadPart,
+        ],
+      },
+    })
+    expect(out.parts).toEqual({ s1: { kind: 'source', blockId: 'blk-1' } })
+    expect(out.extraParts).toEqual({ s2: [{ kind: 'source', blockId: 'blk-2' }] })
+  })
+
+  it('source は逐語検査の対象にしない（文字列を持たないため）', () => {
+    const doc: ReaderDoc = {
+      title: 'x', icon: null, cover: null, lastEdited: null,
+      blocks: [{ kind: 'heading', level: 2, inlines: [{ text: '1. 節' }] }],
+    }
+    const spread = applyOverlay(buildSpreadDraft(doc, 'p'), {
+      parts: { 'sec-1': { kind: 'source', blockId: 'どこにも無いID' } },
+    })
+    expect(verifyVerbatim(spread, doc, null).ok).toBe(true)
+  })
+
+  it('topParts は節に属さず指す先を解決できないので、source を落とす', () => {
+    const out = sanitizeOverlay({
+      topParts: [{ kind: 'source', blockId: 'blk-1' }, { kind: 'none' }],
+    })
+    expect(out.topParts).toEqual([{ kind: 'none' }])
+  })
+})
+
+describe('sectionDisplay（source が指すブロックの取り分け）', () => {
+  const table: ReaderBlock = { kind: 'table', rows: [[t('A'), t('B')]], blockId: 'blk-t' }
+  const img: ReaderBlock = { kind: 'image', url: 'https://example.org/a.png', caption: '図1', blockId: 'blk-i' }
+  const para: ReaderBlock = { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' }
+
+  it('主役と追加が指したブロックを深掘りから除く', () => {
+    const view = sectionDisplay({
+      n: 1, anchor: 'sec-1', title: '1. 節', shortLabel: null,
+      part: { kind: 'source', blockId: 'blk-t' },
+      extraParts: [{ kind: 'source', blockId: 'blk-i' }],
+      deep: [table, img, para],
+    })
+    expect(view.deep).toEqual([para])
+  })
+
+  it('指していないブロックは残る', () => {
+    const view = sectionDisplay({
+      n: 1, anchor: 'sec-1', title: '1. 節', shortLabel: null,
+      part: { kind: 'source', blockId: 'blk-i' },
+      deep: [table, img, para],
+    })
+    expect(view.deep).toEqual([table, para])
+  })
+})
+
+describe('danglingSourceParts（指す先を失った source）', () => {
+  const base = { n: 1 as number | null, anchor: 'sec-1', title: '1. 節', shortLabel: null }
+  const spreadWith = (part: SpreadPart, deep: ReaderBlock[]): SpreadDoc => ({
+    version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+    sections: [{ ...base, part, deep }], tail: [], quizzes: [], icons: {},
+  })
+
+  it('指す先が深掘りにあれば空を返す', () => {
+    const table: ReaderBlock = { kind: 'table', rows: [[t('A')]], blockId: 'blk-t' }
+    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [table]))).toEqual([])
+  })
+
+  // 保存を止める関門なので、blockId だけでなくどの節かも返す（オーナーが32桁のIDだけを
+  // 手がかりに節を探さずに済むように）。
+  it('指す先が消えていたら anchor と blockId を返す', () => {
+    const para: ReaderBlock = { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' }
+    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [para]))).toEqual([
+      { anchor: 'sec-1', blockId: 'blk-t' },
+    ])
+  })
+
+  it('source を使っていないスプレッドは空を返す（従来の投入を止めない）', () => {
+    expect(danglingSourceParts(spreadWith({ kind: 'none' }, []))).toEqual([])
+  })
+
+  it('主役でなく extraParts の中で指す先を失った source も拾う', () => {
+    const spread: SpreadDoc = {
+      version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+      sections: [{ ...base, part: { kind: 'none' }, extraParts: [{ kind: 'source', blockId: 'blk-e' }], deep: [] }],
+      tail: [], quizzes: [], icons: {},
+    }
+    expect(danglingSourceParts(spread)).toEqual([{ anchor: 'sec-1', blockId: 'blk-e' }])
+  })
+
+  it('節の順・部品の順で返す', () => {
+    const spread: SpreadDoc = {
+      version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+      sections: [
+        { ...base, anchor: 'sec-1', part: { kind: 'source', blockId: 'blk-1' }, deep: [] },
+        { ...base, anchor: 'sec-2', part: { kind: 'source', blockId: 'blk-2' }, deep: [] },
+      ],
+      tail: [], quizzes: [], icons: {},
+    }
+    expect(danglingSourceParts(spread)).toEqual([
+      { anchor: 'sec-1', blockId: 'blk-1' },
+      { anchor: 'sec-2', blockId: 'blk-2' },
+    ])
   })
 })

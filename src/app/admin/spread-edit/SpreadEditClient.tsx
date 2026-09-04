@@ -17,8 +17,8 @@ import { ChevronLeft } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
-import { applyOverlay, buildSpreadDraft, canonicalPageId, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
-import { candidateLines } from '@/lib/spread-edit'
+import { applyOverlay, buildSpreadDraft, canonicalPageId, danglingSourceParts, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { candidateLines, undecidedAnchors } from '@/lib/spread-edit'
 import { OverlayBuilder } from './OverlayBuilder'
 import type { ReaderBlock, ReaderDoc } from '@/lib/reader-doc'
 
@@ -113,10 +113,15 @@ export function SpreadEditClient() {
     const linkage = refLinkage(refItemsOf(spread.tail), spread.refs)
     const refsMissing = candidateLines(linkage.dropped)
     const refsDangling = linkage.dangling.map((r) => r?.title || '（タイトルなし）')
-    return { spread: shown, missing: check.missing, refsMissing, refsDangling }
+    // 指す先を失った source 部品。原本のブロックが消えると何も描けないので、
+    // 圧縮行と同じく当てにいかず止める。
+    const sourcesMissing = danglingSourceParts(spread)
+    // 未決の節数。間違いではないので blocked には入れず、数だけ出す。
+    const undecided = undecidedAnchors(spread.sections.map((s) => s.anchor), overlay)
+    return { spread: shown, missing: check.missing, refsMissing, refsDangling, sourcesMissing, undecided }
   }, [draft, base, overlay])
-  // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行＋指す先を失った圧縮行）。
-  const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0 || built.refsDangling.length > 0
+  // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行＋指す先を失った圧縮行＋指す先を失った source）。
+  const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0 || built.refsDangling.length > 0 || built.sourcesMissing.length > 0
 
   const save = async () => {
     if (!draft) return
@@ -135,7 +140,9 @@ export function SpreadEditClient() {
             ? `逐語一致検査に落ちました: ${(data.missing ?? []).join(' / ')}`
             : data.error === 'refs_incomplete'
               ? `参考文献の紐づけが揃っていません。漏れた原本の行: ${(data.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(data.dangling ?? []).join(' / ') || 'なし'}`
-              : `保存できません（${data.error ?? res.status}）`,
+              : data.error === 'source_missing'
+                ? `原本から消えたブロックを指している部品があります: ${((data.sections ?? []) as { anchor: string; blockId: string }[]).map((s) => `節${s.anchor}: ${s.blockId}`).join(' / ')}`
+                : `保存できません（${data.error ?? res.status}）`,
         )
         return
       }
@@ -204,6 +211,12 @@ export function SpreadEditClient() {
           {built && built.refsDangling.length > 0 && (
             <span className="text-xs text-red-600 dark:text-red-400">指す先を失った圧縮行が {built.refsDangling.length} 件</span>
           )}
+          {built && built.sourcesMissing.length > 0 && (
+            <span className="text-xs text-red-600 dark:text-red-400">原本から消えたブロックを指す部品が {built.sourcesMissing.length} 件</span>
+          )}
+          {built && built.undecided.length > 0 && (
+            <span className="text-xs text-amber-700 dark:text-amber-400">未決 {built.undecided.length}節</span>
+          )}
           {built && !blocked && draft && (
             <span className="text-xs text-brand-700 dark:text-brand-300">逐語一致検査を通っています</span>
           )}
@@ -248,6 +261,19 @@ export function SpreadEditClient() {
                   <ul className="list-disc pl-5 mt-1 space-y-0.5">
                     {built.refsDangling.map((m, i) => (
                       <li key={`${m}-${i}`}>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* 指す先を失った source 部品。原本のブロックが消えると何も描けないので、
+                  別のブロックに当てにいかず止める（圧縮行と同じ fail-closed）。 */}
+              {built.sourcesMissing.length > 0 && (
+                <div className="mb-3 text-sm text-red-600 dark:text-red-400">
+                  <p className="font-bold">原本から消えたブロックを指す部品（このままでは保存できません）</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5">
+                    {built.sourcesMissing.map((s) => (
+                      <li key={`${s.anchor}-${s.blockId}`}>節{s.anchor}: {s.blockId}</li>
                     ))}
                   </ul>
                 </div>
