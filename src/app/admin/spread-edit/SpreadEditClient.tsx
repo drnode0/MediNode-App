@@ -141,7 +141,7 @@ export function SpreadEditClient() {
             : data.error === 'refs_incomplete'
               ? `参考文献の紐づけが揃っていません。漏れた原本の行: ${(data.missing ?? []).join(' / ') || 'なし'} ／ 指す先を失った圧縮行: ${(data.dangling ?? []).join(' / ') || 'なし'}`
               : data.error === 'source_missing'
-                ? `原本から消えたブロックを指している部品があります: ${(data.blockIds ?? []).join(' / ')}`
+                ? `原本から消えたブロックを指している部品があります: ${((data.sections ?? []) as { anchor: string; blockId: string }[]).map((s) => `節${s.anchor}: ${s.blockId}`).join(' / ')}`
                 : `保存できません（${data.error ?? res.status}）`,
         )
         return
@@ -272,8 +272,8 @@ export function SpreadEditClient() {
                 <div className="mb-3 text-sm text-red-600 dark:text-red-400">
                   <p className="font-bold">原本から消えたブロックを指す部品（このままでは保存できません）</p>
                   <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                    {built.sourcesMissing.map((id) => (
-                      <li key={id}>{id}</li>
+                    {built.sourcesMissing.map((s) => (
+                      <li key={`${s.anchor}-${s.blockId}`}>節{s.anchor}: {s.blockId}</li>
                     ))}
                   </ul>
                 </div>

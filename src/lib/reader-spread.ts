@@ -1176,20 +1176,24 @@ export function refLinkage(refsItems: ReaderBlock[], refs: SpreadRef[] | undefin
 }
 
 /**
- * 指す先を失った source 部品の blockId を返す。
+ * 指す先を失った source 部品を、節（anchor）と blockId の組で返す。
  *
  * 原本が書き換わってブロックが消えると、その部品は何も描けない。別のブロックに
  * 当てにいくと読者に違う図を出すので、当てにいかずに保存を止める（参考文献の
  * 「指す先を失った圧縮行」と同じ fail-closed）。
  *
+ * これは保存を完全に止める関門なので、blockId（32桁のID）だけを返すと、オーナーは
+ * それだけを手がかりに節を探すことになる。参考文献の同種の関門（refLinkage）が
+ * 行のタイトルを返すのと非対称にならないよう、どの節かが分かる anchor も添えて返す。
+ *
  * source を使っていないスプレッドでは必ず空を返すので、従来の投入は止まらない。
  */
-export function danglingSourceParts(spread: SpreadDoc): string[] {
-  const out: string[] = []
+export function danglingSourceParts(spread: SpreadDoc): { anchor: string; blockId: string }[] {
+  const out: { anchor: string; blockId: string }[] = []
   for (const s of spread.sections) {
     const ids = new Set(s.deep.flatMap((b) => (b.blockId ? [b.blockId] : [])))
     for (const p of [s.part, ...(s.extraParts ?? [])]) {
-      if (p.kind === 'source' && !ids.has(p.blockId)) out.push(p.blockId)
+      if (p.kind === 'source' && !ids.has(p.blockId)) out.push({ anchor: s.anchor, blockId: p.blockId })
     }
   }
   return out

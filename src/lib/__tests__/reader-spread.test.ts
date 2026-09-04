@@ -1512,9 +1512,13 @@ describe('danglingSourceParts（指す先を失った source）', () => {
     expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [table]))).toEqual([])
   })
 
-  it('指す先が消えていたら blockId を返す', () => {
+  // 保存を止める関門なので、blockId だけでなくどの節かも返す（オーナーが32桁のIDだけを
+  // 手がかりに節を探さずに済むように）。
+  it('指す先が消えていたら anchor と blockId を返す', () => {
     const para: ReaderBlock = { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' }
-    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [para]))).toEqual(['blk-t'])
+    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [para]))).toEqual([
+      { anchor: 'sec-1', blockId: 'blk-t' },
+    ])
   })
 
   it('source を使っていないスプレッドは空を返す（従来の投入を止めない）', () => {
@@ -1527,7 +1531,7 @@ describe('danglingSourceParts（指す先を失った source）', () => {
       sections: [{ ...base, part: { kind: 'none' }, extraParts: [{ kind: 'source', blockId: 'blk-e' }], deep: [] }],
       tail: [], quizzes: [], icons: {},
     }
-    expect(danglingSourceParts(spread)).toEqual(['blk-e'])
+    expect(danglingSourceParts(spread)).toEqual([{ anchor: 'sec-1', blockId: 'blk-e' }])
   })
 
   it('節の順・部品の順で返す', () => {
@@ -1539,6 +1543,9 @@ describe('danglingSourceParts（指す先を失った source）', () => {
       ],
       tail: [], quizzes: [], icons: {},
     }
-    expect(danglingSourceParts(spread)).toEqual(['blk-1', 'blk-2'])
+    expect(danglingSourceParts(spread)).toEqual([
+      { anchor: 'sec-1', blockId: 'blk-1' },
+      { anchor: 'sec-2', blockId: 'blk-2' },
+    ])
   })
 })

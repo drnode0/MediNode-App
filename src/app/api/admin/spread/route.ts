@@ -96,10 +96,11 @@ export async function PUT(req: Request) {
     )
   }
   // 指す先を失った source 部品。原本のブロックが消えると何も描けないので、
-  // 圧縮行と同じく当てにいかずに止める。
+  // 圧縮行と同じく当てにいかずに止める。blockId だけでなくどの節かも返す
+  // （保存を完全に止める関門なので、32桁のIDだけを手がかりに節を探させない）。
   const danglingSources = danglingSourceParts(spread)
   if (danglingSources.length > 0) {
-    return NextResponse.json({ error: 'source_missing', blockIds: danglingSources }, { status: 400 })
+    return NextResponse.json({ error: 'source_missing', sections: danglingSources }, { status: 400 })
   }
 
   const status = body.publish ? 'published' : 'draft'
