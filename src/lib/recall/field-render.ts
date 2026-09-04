@@ -16,6 +16,7 @@ import {
   type PlanetSummary,
 } from './field-layout'
 import { easeInOutCubic, RING_PITCH, INSIDE_STAGE } from './field-camera'
+import type { PageFan } from './field-angle'
 import {
   makeProjector, type FieldCamera, type FieldCenter, type FieldSeat, type Projector,
 } from './field'
@@ -124,14 +125,11 @@ export type ClaimDot = {
   phase: number    // 明滅の位相
 }
 
-// 記事の扇形（段3）。渡されなければ扇形も記事名も描かない。
-export type PageArc = { pageId: string; title: string; n: number; a0: number; a1: number }
-
 export type Planet = {
   seat: FieldSeat
   summary: PlanetSummary
   dots: ClaimDot[]
-  pages?: PageArc[]
+  pages?: PageFan[]   // 記事の扇形（段3）。渡されなければ扇形も記事名も描かない
 }
 
 // 輪から棚へ離れた主張。dir 1 で棚へ、-1 で輪へ戻る。
