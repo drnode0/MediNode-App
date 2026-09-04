@@ -51,6 +51,9 @@ export function emptyPart(kind: SpreadPart['kind']): SpreadPart {
       return { kind, inlines: [] }
     case 'decision':
       return { kind, question: '', branches: [{ when: '', then: [] }, { when: '', then: [] }] }
+    case 'source':
+      // 原本のブロックを選ばせる部品。選択前の雛形は指す先を持たない。
+      return { kind, blockId: '' }
     case 'none':
       return { kind: 'none' }
   }

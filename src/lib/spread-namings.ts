@@ -63,6 +63,9 @@ function fromPart(part: SpreadPart, at: string): Naming[] {
     case 'bignumber':
       // 数値部品に命名はない
       break
+    case 'source':
+      // 表示上の命名を持たない（原本のブロックをそのまま出す）。
+      break
     case 'none':
       // 表層なし
       break

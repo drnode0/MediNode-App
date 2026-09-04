@@ -1439,3 +1439,31 @@ describe('文献行の一次資料URLが別ブロックに置かれている原�
     expect(refHrefs(parts.refsItems, [{ title: 'x', source: '', note: '', sourceId: 'blk-A' }])).toEqual(['https://example.org/a'])
   })
 })
+
+describe('source 部品（原本の表・図を指すだけの部品）', () => {
+  it('blockId を持つ source は sanitizeOverlay を通り、持たない source は落ちる', () => {
+    const out = sanitizeOverlay({
+      parts: { s1: { kind: 'source', blockId: 'blk-1' } },
+      extraParts: {
+        s2: [
+          { kind: 'source', blockId: 'blk-2' },
+          { kind: 'source', blockId: '  ' } as SpreadPart,
+          { kind: 'source' } as unknown as SpreadPart,
+        ],
+      },
+    })
+    expect(out.parts).toEqual({ s1: { kind: 'source', blockId: 'blk-1' } })
+    expect(out.extraParts).toEqual({ s2: [{ kind: 'source', blockId: 'blk-2' }] })
+  })
+
+  it('source は逐語検査の対象にしない（文字列を持たないため）', () => {
+    const doc: ReaderDoc = {
+      title: 'x', icon: null, cover: null, lastEdited: null,
+      blocks: [{ kind: 'heading', level: 2, inlines: [{ text: '1. 節' }] }],
+    }
+    const spread = applyOverlay(buildSpreadDraft(doc, 'p'), {
+      parts: { 'sec-1': { kind: 'source', blockId: 'どこにも無いID' } },
+    })
+    expect(verifyVerbatim(spread, doc, null).ok).toBe(true)
+  })
+})
