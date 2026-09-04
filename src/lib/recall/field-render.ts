@@ -20,11 +20,11 @@ import type { PageFan } from './field-angle'
 import {
   makeProjector, type FieldCamera, type FieldCenter, type FieldSeat, type Projector,
 } from './field'
+import { DARK_PALETTE, inkOf, type FieldPalette } from './field-palette'
 
-// 地と文字。芯とLPに揃えた3段の白は core-shapes 側にある。
-export const FIELD_BG = '#0B1524'
-export const INK_LABEL = '#A9B8CC'
-export const INK_OUTLINE = '#EBF2FB'
+// 地と文字の色は field-palette.ts（ダーク／ライトの2組）。ここは受け取った1組で描くだけ。
+// FIELD_BG はダークの地。ライトの地は LIGHT_PALETTE.bg。
+export const FIELD_BG = DARK_PALETTE.bg
 
 // ── 芯（族）─────────────────────────────────────
 export type CoreDrawOptions = {
@@ -39,6 +39,7 @@ export type CoreDrawOptions = {
   minA?: number        // 光が当たっていない側の下限
   dim?: number         // 全体の濃さ（奥の惑星を薄くするのに使う）
   density?: number
+  palette?: FieldPalette  // 省略するとダーク（芯の線の定義そのままの色）
 }
 
 function strokeSegments(ctx: CanvasRenderingContext2D, seg: number[]) {
@@ -61,6 +62,7 @@ export function drawCore3D(ctx: CanvasRenderingContext2D, o: CoreDrawOptions) {
   const cy = Math.cos(yaw), sy = Math.sin(yaw)
   const cp = Math.cos(pitch), sp = Math.sin(pitch)
   const fade = o.dim ?? 1
+  const pal = o.palette ?? DARK_PALETTE
   const layers: CoreLayer[] = coreLayers(o.kind, t, { density: o.density, glow: !o.reduced })
   ctx.lineCap = 'round'
   for (const layer of layers) {
@@ -95,7 +97,7 @@ export function drawCore3D(ctx: CanvasRenderingContext2D, o: CoreDrawOptions) {
         prev = cur
       }
     }
-    ctx.strokeStyle = layer.ink
+    ctx.strokeStyle = inkOf(pal, layer.ink)
     for (let i = 0; i < DEPTH_STEPS; i++) {
       const seg = buckets[i]
       if (!seg.length) continue
@@ -105,7 +107,7 @@ export function drawCore3D(ctx: CanvasRenderingContext2D, o: CoreDrawOptions) {
       strokeSegments(ctx, seg)
     }
     if (glowSeg.length) {
-      ctx.strokeStyle = INK_HALO
+      ctx.strokeStyle = inkOf(pal, INK_HALO)
       ctx.globalAlpha = 0.85 * fade
       ctx.lineWidth = 1.6
       strokeSegments(ctx, glowSeg)
@@ -155,6 +157,8 @@ export type FieldFrameArgs = {
   t: number                  // 秒
   reduced: boolean
   edgeAlpha: number          // 境目の名前の濃さ（field-camera が決める）
+  palette: FieldPalette      // 地と線の色（ダーク／ライト）
+  shelfBottom?: number       // 棚の、画面の下端からの高さ（px）。下の帯・ボタンより上に置く
 }
 
 export type FieldHits = {
@@ -172,9 +176,10 @@ const CORE_R_RATIO = 0.42
 // 記事の扇形と記事名の高度。
 const ARC_R = 3.62
 const ARC_LABEL_R = 3.98
-// 棚（画面の下の横一列）。
+// 棚（画面の下の横一列）。画面の下端からの高さは呼び出し側が渡す
+//（帯やボタンの下に潜ると、棚をタップできない。2026-09-04 に実画面で確認）。
 const SHELF_GAP = 52
-const SHELF_BOTTOM = 34
+export const SHELF_BOTTOM_DEFAULT = 34
 const SHELF_LIFT = 60
 // 境目の名前を輪のどこに置くか探すときの、輪をなぞる点の数。
 const EDGE_LABEL_SAMPLES = 48
@@ -202,8 +207,8 @@ const hash = (a: number, b: number) => {
 //   ・向きを接線に揃えると、破線の円＝輪郭に見えた（決定10 は輪郭を引かないと決めている）
 //   ・長さを惑星の大きさに比例させると、中景で引っかき傷のような長い線になった
 // 広く散らし、向きは揃えず、粒は画面上で短いまま。半径は平方根で配って内側に溜まらないようにする。
-function drawHaze(ctx: CanvasRenderingContext2D, slot: number, X: number, Y: number, S: number, depth: number) {
-  ctx.strokeStyle = INK_OUTLINE
+function drawHaze(ctx: CanvasRenderingContext2D, pal: FieldPalette, slot: number, X: number, Y: number, S: number, depth: number) {
+  ctx.strokeStyle = pal.outline
   ctx.lineWidth = 0.6
   ctx.globalAlpha = HAZE_ALPHA * depth
   ctx.beginPath()
@@ -223,9 +228,9 @@ function drawHaze(ctx: CanvasRenderingContext2D, slot: number, X: number, Y: num
 
 // 1コマ描く。返り値はタップ判定の位置（描いた場所と選ばれる場所を二度と食い違わせない）。
 export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): FieldHits {
-  const { W, H, cam, center, t, reduced } = a
+  const { W, H, cam, center, t, reduced, palette: pal } = a
   ctx.clearRect(0, 0, W, H)
-  ctx.fillStyle = FIELD_BG
+  ctx.fillStyle = pal.bg
   ctx.fillRect(0, 0, W, H)
 
   const project: Projector = makeProjector(cam, center, W, H)
@@ -264,7 +269,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
 
     // 空の惑星はモヤだけ。輪郭も芯も描かない（決定10・11）。
     if (sum.haze) {
-      drawHaze(ctx, seat.slot, X, Y, S, depth)
+      drawHaze(ctx, pal, seat.slot, X, Y, S, depth)
     }
     if (sum.core) {
       // 奥行きの薄さは dim で渡す。外側で globalAlpha を掛けても、
@@ -274,11 +279,12 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
         kind: seat.kind, t: T * ind.rate, reduced, dim: depth,
         yaw: T * ind.rate * CORE_SPIN[seat.kind] + handYaw,
         pitch: ind.tilt + handPitch,
+        palette: pal,
       })
     }
     if (sum.outline) {
       ctx.globalAlpha = sum.outlineAlpha * depth
-      ctx.strokeStyle = INK_OUTLINE
+      ctx.strokeStyle = pal.outline
       ctx.lineWidth = 0.8
       ctx.beginPath()
       ctx.arc(X, Y, S, 0, Math.PI * 2)
@@ -286,7 +292,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     }
     // 離れかけの光。惑星が小さくて点が読めない段（遠景・中景）の要約。
     if (S < LABEL_MIN_R && sum.halos > 0) {
-      ctx.fillStyle = INK_HALO
+      ctx.fillStyle = inkOf(pal, INK_HALO)
       for (let i = 0; i < Math.min(HALO_MAX, sum.halos); i++) {
         ctx.globalAlpha = 0.85 * depth
         const ang = -Math.PI * 0.35 + i * 0.22
@@ -323,15 +329,16 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       // レンズ。押した記事だけ明るく、他は沈む。
       if (isNear && a.lensPageId && dot.pageId !== a.lensPageId) alpha *= 0.22
       const size = look.size * dotScale * (inside ? (at.k * seat.r) / S : 1)
+      const ink = inkOf(pal, look.ink)
       if (look.glow && S > LABEL_MIN_R) {
-        ctx.globalAlpha = alpha * 0.25
-        ctx.fillStyle = look.ink
+        ctx.globalAlpha = alpha * pal.glow
+        ctx.fillStyle = ink
         ctx.beginPath()
         ctx.arc(at.X, at.Y, size * 2.6, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.globalAlpha = alpha
-      ctx.fillStyle = look.ink
+      ctx.fillStyle = ink
       ctx.beginPath()
       ctx.arc(at.X, at.Y, size, 0, Math.PI * 2)
       ctx.fill()
@@ -340,7 +347,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
 
     // 境目の名前（決定7）。近景に入った直後だけ、輪の境目に薄い円と名前。
     if (isNear && a.edgeAlpha > 0) {
-      ctx.strokeStyle = INK_LABEL
+      ctx.strokeStyle = pal.label
       ctx.lineWidth = 0.7
       for (const r of EDGE_CIRCLES) {
         ctx.globalAlpha = 0.16 * a.edgeAlpha
@@ -357,7 +364,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       ctx.font = '400 10.5px "Zen Kaku Gothic New",sans-serif'
       ctx.textAlign = 'right'
       ctx.textBaseline = 'middle'
-      ctx.fillStyle = INK_LABEL
+      ctx.fillStyle = pal.label
       for (const [r, text] of EDGE_LABELS) {
         // 名前は輪の左端に添える（設計 決定7）。輪の上の固定の角度に置くと、
         // どの席を見ているかで名前が画面のあちこちへ動く（輪の角度は世界の側で決まるため）。
@@ -382,7 +389,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       for (const page of planet.pages) {
         const lit = !a.lensPageId || a.lensPageId === page.pageId
         ctx.globalAlpha = (lit ? 0.22 : 0.08) * depth
-        ctx.strokeStyle = INK_LABEL
+        ctx.strokeStyle = pal.label
         ctx.lineWidth = 1
         ctx.beginPath()
         let started = false
@@ -398,9 +405,9 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
         const text = `${page.title}  ${page.n}`
         const w = ctx.measureText(text).width + 14
         ctx.globalAlpha = (lit ? 0.85 : 0.35) * depth
-        ctx.fillStyle = 'rgba(11,21,36,.75)'
+        ctx.fillStyle = pal.labelBg
         ctx.fillRect(label.X - w / 2, label.Y - 9, w, 18)
-        ctx.fillStyle = a.lensPageId === page.pageId ? INK_HALO : INK_LABEL
+        ctx.fillStyle = a.lensPageId === page.pageId ? inkOf(pal, INK_HALO) : pal.label
         ctx.fillText(text, label.X, label.Y)
         hits.pages.push({ pageId: page.pageId, x: label.X - w / 2, y: label.Y - 9, w, h: 18 })
       }
@@ -410,12 +417,12 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     // 惑星の名前と件数（中景）。近景では上の見出しが担うので出さない。
     if (!isNear && S > LABEL_MIN_R) {
       ctx.globalAlpha = 0.6 * depth
-      ctx.fillStyle = INK_LABEL
+      ctx.fillStyle = pal.label
       ctx.textAlign = 'center'
       ctx.font = '400 10px "Zen Kaku Gothic New",sans-serif'
       ctx.fillText(seat.n ? `${seat.label}　${seat.n}` : seat.label, X, Y + S * 3.5 + 14)
       if (sum.halos > 0) {
-        ctx.fillStyle = INK_HALO
+        ctx.fillStyle = inkOf(pal, INK_HALO)
         ctx.fillText(`離れかけ ${sum.halos}`, X, Y + S * 3.5 + 28)
       }
     }
@@ -427,7 +434,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
   for (let i = 0; i < n; i++) {
     const f = a.flying[i]
     const toX = W / 2 + (i - (n - 1) / 2) * SHELF_GAP
-    const toY = H - SHELF_BOTTOM
+    const toY = H - (a.shelfBottom ?? SHELF_BOTTOM_DEFAULT)
     const from = f.dir === 1 ? f.from : hits.dotPos.get(f.claimId) ?? f.from
     const e = easeInOutCubic(Math.max(0, Math.min(1, f.p)))
     const midX = (from.X + toX) / 2
@@ -436,7 +443,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     const y = (1 - e) * (1 - e) * from.Y + 2 * (1 - e) * e * midY + e * e * toY
     const r = 3 + 3.5 * e
     ctx.globalAlpha = 0.28
-    ctx.fillStyle = INK_HALO
+    ctx.fillStyle = inkOf(pal, INK_HALO)
     ctx.beginPath()
     ctx.arc(x, y, r * 2.4, 0, Math.PI * 2)
     ctx.fill()

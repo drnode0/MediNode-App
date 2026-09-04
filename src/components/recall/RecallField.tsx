@@ -20,6 +20,8 @@ import {
   RING_PITCH, INSIDE_STAGE,
   type FieldStage,
 } from '@/lib/recall/field-camera'
+import { paletteOf } from '@/lib/recall/field-palette'
+import { isDarkNow } from './useIsDark'
 
 export type FieldHandle = {
   // 惑星へ寄る。空の惑星（主張0件）には入れないので false を返す。
@@ -35,6 +37,7 @@ type Props = {
   center: FieldCenter
   reduced: boolean
   shelf: string[]              // 棚に並ぶ主張（並び順のまま）
+  shelfBottom?: number         // 棚の高さ（画面の下端から px）。下の UI に重ねない
   again: Set<string>           // 「まだ」と答えたもの
   lensPageId: string | null
   cardOpen: boolean
@@ -230,6 +233,10 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
         lensPageId: P.lensPageId, flying,
         t: now * 0.001, reduced: P.reduced,
         edgeAlpha: edgeLabelAlpha(enteredAt.current, now, dragged.current, stage.current),
+        // 地と線の色はアプリの実効テーマ（<html>.dark）で毎コマ決める。設定パネルで
+        // 切り替えた瞬間から次のコマで紙⇄紺が入れ替わる。
+        palette: paletteOf(isDarkNow()),
+        shelfBottom: P.shelfBottom,
       })
 
       const front = stage.current === 'near' ? nearSlot.current : frontSlotOf(seats, cam.current.rotY)

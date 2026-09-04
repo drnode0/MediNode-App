@@ -6,8 +6,10 @@
 //   ・空の惑星のモヤの量（37席のうち22席が空＝遠景の6割）が「これから埋まる場所」に見えるか
 //   ・中景で芯が族として見分けられるか。近景で輪の5段と記事の扇形が読めるか
 //   ・回し心地（慣性・近景の2軸）と、境目の名前が3秒で消えること
+//   ・ライト（紙に紺の線）とダーク（紺に白の線）で、同じ5段が同じ強さで見分けられるか。
+//     上の帯はアプリのヘッダーを真似たもの（本物は page.tsx）。タブから来た印象を見るために置く
 import { notFound } from 'next/navigation'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { RecallField, type FieldHandle } from '@/components/recall/RecallField'
 import { fieldLayout } from '@/lib/recall/field'
 import { planetSummary, isEscaping } from '@/lib/recall/field-layout'
@@ -70,6 +72,12 @@ export default function DevRecallFieldPage() {
   const [lensPageId, setLensPageId] = useState<string | null>(null)
   const [shelf, setShelf] = useState<string[]>([])
   const [foldEmpty, setFoldEmpty] = useState(true)
+  const [dark, setDark] = useState(false)
+  useEffect(() => { setDark(document.documentElement.classList.contains('dark')) }, [])
+  const toggleDark = () => {
+    const next = document.documentElement.classList.toggle('dark')
+    setDark(next)
+  }
 
   const planets: Planet[] = useMemo(() => {
     const bySlot = makeClaims()
@@ -103,7 +111,7 @@ export default function DevRecallFieldPage() {
   const here = planets.find((p) => p.seat.slot === hereSlot)
   const escapingHere = here ? here.dots.filter((d) => isEscaping(d.state.kind, d.state.remaining)).slice(0, 5) : []
 
-  const btn = 'rounded-full border border-slate-500/50 px-3 py-1.5 text-[12px] text-slate-200 hover:bg-white/10'
+  const btn = 'rounded-full border border-slate-300 bg-white/85 px-3 py-1.5 text-[12px] text-slate-700 hover:bg-slate-100 dark:border-slate-500/50 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/10'
 
   // 帯（本番と同じ作り）。主張のある席が先頭・席番号順、空の席は末尾に畳む。
   const band = planets.map((p) => ({
@@ -116,19 +124,19 @@ export default function DevRecallFieldPage() {
     <li key={s.slot}>
       <button type="button" onClick={() => field.current?.jumpTo(s.slot)}
         aria-current={front === s.slot ? 'true' : undefined}
-        className={`whitespace-nowrap rounded px-2 py-1 text-[11.5px] ${front === s.slot ? 'bg-amber-200/90 text-slate-900' : 'text-slate-400 hover:text-slate-100 hover:bg-white/10'}`}>
+        className={`whitespace-nowrap rounded px-2 py-1 text-[11.5px] ${front === s.slot ? 'bg-amber-200/90 text-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-900/[.06] dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-white/10'}`}>
         {s.label}
         {s.n > 0 && <span className="ml-1.5 opacity-60 tabular-nums">{s.n}</span>}
-        {s.escaping > 0 && <span className={`ml-1.5 tabular-nums ${front === s.slot ? 'text-amber-800' : 'text-amber-200'}`}>●{s.escaping}</span>}
+        {s.escaping > 0 && <span className={`ml-1.5 tabular-nums ${front === s.slot ? 'text-amber-800' : 'text-amber-700 dark:text-amber-200'}`}>●{s.escaping}</span>}
       </button>
     </li>
   )
 
   return (
-    <div className="fixed inset-0 bg-[#0B1524] text-slate-100" style={{ fontFamily: '"Zen Kaku Gothic New",sans-serif' }}>
+    <div className="fixed inset-0 bg-[#F5F7FA] dark:bg-[#0B1524] text-slate-800 dark:text-slate-100" style={{ fontFamily: '"Zen Kaku Gothic New",sans-serif' }}>
       <RecallField ref={field}
         planets={planets} center={center} reduced={reduced}
-        shelf={shelf} again={new Set()} lensPageId={lensPageId} cardOpen={false}
+        shelf={shelf} again={new Set()} lensPageId={lensPageId} cardOpen={false} shelfBottom={72}
         onFront={setFront}
         onStage={(s) => { setStage(s); if (s !== 'near') setLensPageId(null) }}
         onDotTap={() => { /* dev: 何もしない */ }}
@@ -136,8 +144,25 @@ export default function DevRecallFieldPage() {
         onLens={setLensPageId}
         onCloseCard={() => { /* dev: カードは出さない */ }} />
 
-      <div className="absolute left-4 top-4 flex flex-wrap gap-2 items-center">
-        <span className="text-[11px] tracking-widest text-amber-200">dev｜惑星</span>
+      {/* アプリのヘッダーの真似（page.tsx の data-app-header と同じ色・高さの目安）。タブから来た印象を見る用。 */}
+      <div data-app-header className="absolute inset-x-0 top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-gray-700 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between mb-3">
+            <span className="w-16 text-[11px] text-gray-400">dev</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">MediNode</span>
+            <span className="w-16" />
+          </div>
+          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 gap-0.5 overflow-x-auto">
+            {['検索', '新着', 'ジャンル', 'クイズ', 'Recall'].map((t) => (
+              <span key={t} className={`shrink-0 flex-1 text-center py-1.5 px-1 rounded-lg text-[11px] font-semibold whitespace-nowrap ${t === 'Recall' ? 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300' : 'text-gray-500 dark:text-gray-400'}`}>{t}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute left-4 top-[110px] flex flex-wrap gap-2 items-center">
+        <span className="text-[11px] tracking-widest text-amber-700 dark:text-amber-200">dev｜惑星</span>
+        <button type="button" className={btn} onClick={toggleDark} data-dark={dark}>テーマ: {dark ? 'ダーク' : 'ライト'}</button>
         <button type="button" className={btn} onClick={() => setCenter(center === 'outside' ? 'inside' : 'outside')}>
           中心: {center === 'outside' ? '外から' : '中心から'}
         </button>
@@ -147,13 +172,13 @@ export default function DevRecallFieldPage() {
         <button type="button" className={btn} onClick={() => setShelf(escapingHere.map((d) => d.claimId))}>この惑星を確かめる</button>
         <button type="button" className={btn} onClick={() => setShelf([])}>戻す</button>
       </div>
-      <nav aria-label="ジャンル" className="absolute left-3 right-3 bottom-3 rounded-[10px] border border-slate-600/40 bg-[rgba(22,41,63,.92)] overflow-hidden backdrop-blur">
+      <nav aria-label="ジャンル" className="absolute left-3 right-3 bottom-3 rounded-[10px] border border-slate-300/80 bg-white/90 dark:border-slate-600/40 dark:bg-[rgba(22,41,63,.92)] overflow-hidden backdrop-blur">
         <ul className="flex gap-1 m-0 px-2 py-1.5 list-none overflow-x-auto">
           {full.map(seatButton)}
           {empty.length > 0 && (
             <li>
               <button type="button" onClick={() => setFoldEmpty((v) => !v)}
-                className="whitespace-nowrap rounded px-2 py-1 text-[11.5px] text-slate-500 hover:text-slate-300">
+                className="whitespace-nowrap rounded px-2 py-1 text-[11.5px] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300">
                 {foldEmpty ? `空の席 ${empty.length} ▸` : '空の席を畳む ◂'}
               </button>
             </li>
@@ -162,7 +187,7 @@ export default function DevRecallFieldPage() {
         </ul>
       </nav>
 
-      <div className="absolute right-4 top-4 text-right text-[11.5px] text-slate-400">
+      <div className="absolute right-4 top-[110px] text-right text-[11.5px] text-slate-500 dark:text-slate-400">
         <div>{stage}　{here ? here.seat.label : '—'}</div>
         <div>主張 {here?.seat.n ?? 0}　離れかけ {escapingHere.length}</div>
         <div>空の席 {planets.filter((p) => p.summary.haze).length} / {planets.length}</div>
