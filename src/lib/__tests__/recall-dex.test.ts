@@ -47,7 +47,8 @@ describe('トレイの並び trayLayout', () => {
     expect(t.rows).toBe(2)
     expect(t.shown).toBe(34)
     expect(t.rest).toBe(0)
-    expect(t.perRow).toBeGreaterThanOrEqual(1)
+    // floor((240+3)/9)=27。27×6 + 26×3 = 240 でちょうど収まる幅
+    expect(t.perRow).toBe(27)
   })
 
   it('178 件・幅 240px は 6px だと 7 行になるので 4px へ落ちて全件入る', () => {
@@ -59,6 +60,9 @@ describe('トレイの並び trayLayout', () => {
     expect(t.rows).toBeLessThanOrEqual(TRAY_MAX_ROWS)
     expect(t.shown).toBe(178)
     expect(t.rest).toBe(0)
+    // floor((240+2)/6)=40。40×4 + 39×2 = 238 で収まる
+    expect(t.perRow).toBe(40)
+    expect(t.rows).toBe(5)
   })
 
   it('300 件・幅 240px は 4px でも 6 行に収まらず「ほか rest」が出る', () => {

@@ -80,7 +80,7 @@ export function trayLayout(n: number, widthPx: number): TrayLayout
 
 - [ ] `dotLookOf` は `field-layout.ts` の `lookOf` と同じ向き（保持力が高いほど濃い）。`isEscaping` をそのまま使う
 - [ ] テスト `src/lib/__tests__/recall-dex.test.ts`: 5段の alpha／保持力 1 と 0.3 の kept の大小／escaping が kept より優先／
-  `trayLayout(34, 240)`＝6px・1行 26 個・2行／`trayLayout(178, 240)`＝4px（6px だと 7 行）・shown 178・rest 0／`trayLayout(300, 240)`＝rest > 0／幅 0 でも perRow ≥ 1
+  `trayLayout(34, 240)`＝6px・1行 27 個・2行／`trayLayout(178, 240)`＝4px（6px だと 7 行）・shown 178・rest 0／`trayLayout(300, 240)`＝rest > 0／幅 0 でも perRow ≥ 1
 
 ### 1-3. 一枚・分野ページ・今日の帯のモデル（同じ `dex.ts`）
 
