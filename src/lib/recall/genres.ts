@@ -35,6 +35,19 @@ for (const [i, g] of GENRE_SEATS.entries()) {
   SLOT_BY_KEY.set(key, i)
 }
 
+// 廃番になった席。番号を動かさないので配列には残すが、惑星としては出さない
+// （'29.学会' は 2026-09-03 に Notion 側の選択肢を廃止した）。38席 − 1 = 37個の惑星。
+// 名前で書くのは KIND_BY_SEAT と同じ理由（席番号の並びを触らずに済む）。
+export const RETIRED_SEATS = ['学会'] as const
+
+const RETIRED_SLOTS = new Set(RETIRED_SEATS.map((name) => {
+  const slot = SLOT_BY_KEY.get(canonicalGenreKey(name))
+  if (slot === undefined) throw new Error(`RETIRED_SEATS の席が GENRE_SEATS に無い: "${name}"`)
+  return slot
+}))
+
+export const isRetiredSeat = (slot: number): boolean => RETIRED_SLOTS.has(slot)
+
 export function genreSlotOf(genre: string): number {
   const slot = SLOT_BY_KEY.get(canonicalGenreKey(genre))
   return slot === undefined ? OTHER_SLOT : slot
