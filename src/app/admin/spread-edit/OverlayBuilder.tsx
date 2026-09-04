@@ -326,6 +326,11 @@ export const KIND_LABEL: Record<string, string> = {
   comparison: '比較表',
   matrix: '分類表',
   flow: '判断フロー',
+  // timeline と decision は ADDABLE に無いので画面からは作れないが、「JSONを直接編集」の
+  // 窓口や制作スキル由来のオーバレイからは入りうる。無いと comparison と同じ症状
+  // （一覧行に英語の識別子が出る）になるので、SpreadPart の全ての kind を覆っておく。
+  timeline: '時系列',
+  decision: '分岐の判断図',
   cards: '比較カード',
   gonogo: 'Go / No-Go',
   gauge: '実測値ゲージ',
