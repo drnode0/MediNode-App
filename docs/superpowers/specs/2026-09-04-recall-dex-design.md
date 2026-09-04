@@ -174,7 +174,7 @@ Recall 画面の DOM 側は Tailwind の `dark:bg-brand-900` などで同じ色�
 
 **ライトの線の薄さ**は、ラフでは重ね描きで濃さを稼いだが、本実装では紋章とトレイが DOM と 72px の canvas なので
 問題が小さい。隠しコマンドの近景（canvas）だけ、`FieldPalette` に `alphaGain`（ライト 1.6）を足して
-`drawField` の点と輪郭の alpha に掛ける（式は `field-layout.ts` に出してテストする）。
+`drawField` の点・輪郭・モヤの alpha に掛ける（3か所。式は `field-layout.ts` に出してテストする）。
 
 ### 2.8 文字
 
