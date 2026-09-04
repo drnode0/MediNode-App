@@ -16,6 +16,7 @@ import {
 } from '@/lib/recall/field'
 import { EDGE_LABEL_MS, R_COLD } from '@/lib/recall/field-layout'
 import { GENRE_SEATS, isRetiredSeat } from '@/lib/recall/genres'
+import { pickPlanet, pickNearest, pickPage } from '@/lib/recall/field-render'
 
 const near = (a: number, b: number, digits = 6) => expect(a).toBeCloseTo(b, digits)
 
@@ -256,5 +257,38 @@ describe('段を移る途中', () => {
     const front = focusPointOf('ring', cam.rotY)
     expect(project(front)).not.toBeNull()
     expect(project([-front[0], 0, -front[2]])).toBeNull()
+  })
+})
+
+describe('タップ判定', () => {
+  // 描いた場所と選ばれる場所を食い違わせないため、当たり判定は描画と同じ位置を見る。
+  const hits = {
+    planets: [
+      { slot: 3, X: 100, Y: 100, S: 8, Z: 0.9 },   // 奥（先に描かれる＝下になる）
+      { slot: 7, X: 104, Y: 102, S: 8, Z: -0.8 },  // 手前（上に乗る）
+    ],
+    dots: [{ claimId: 'a', X: 50, Y: 50 }, { claimId: 'b', X: 58, Y: 50 }],
+    pages: [{ pageId: 'p1', x: 10, y: 20, w: 60, h: 18 }],
+    shelf: [],
+    dotPos: new Map<string, { X: number; Y: number }>(),
+  }
+
+  it('惑星が重なったら手前を取る（画面に見えているのは手前）', () => {
+    expect(pickPlanet(hits, 102, 101)).toBe(7)
+  })
+
+  it('どの惑星からも離れていれば何も返さない', () => {
+    expect(pickPlanet(hits, 300, 300)).toBeNull()
+  })
+
+  it('主張の点は、半径の内でいちばん近いものを取る', () => {
+    expect(pickNearest(hits.dots, 52, 50, 11)?.claimId).toBe('a')
+    expect(pickNearest(hits.dots, 56, 50, 11)?.claimId).toBe('b')
+    expect(pickNearest(hits.dots, 200, 200, 11)).toBeNull()
+  })
+
+  it('記事名は札の四角で拾う', () => {
+    expect(pickPage(hits, 40, 28)).toBe('p1')
+    expect(pickPage(hits, 40, 50)).toBeNull()
   })
 })
