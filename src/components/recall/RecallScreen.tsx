@@ -246,6 +246,10 @@ export function RecallScreen() {
             const current = run
             if (!current || current.queue[current.index] !== cardClaim.claimId) {
               setCard(null)
+              // 列とずれた1枚を答えた時点で、その列は捨てる。残しておくと、あとで
+              // たまたま列の現在地の行を直にタップしたときに一致してしまい、
+              // 頼んでいない次のカードが開く（同じ種類の拾い直しの再発）。
+              setRun(null)
               return // 行を直にタップした単発の quiz（列を持たない・または列の現在地とずれている）
             }
 
