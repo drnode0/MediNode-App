@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { canonicalPageId, isFocusCell, splitPrefaceBlocks, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
+import { canonicalPageId, isFocusCell, splitPrefaceBlocks, splitSections, classifyPart, buildSpreadDraft, applyOverlay, compressReferenceItems, danglingSourceParts, refHrefs, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, digestTone, dropPubmedExamples, displayPreface, displayTail, quizFeedback, reviewedDateOf, sanitizeOverlay, sectionDisplay, sectionSources, sectionTitleText, splitDigest, splitStampScope, splitTailBlocks, textOf, verifyVerbatim, visibleQuizzes } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc, ReaderInline } from '../reader-doc'
-import type { SpreadQuiz, SpreadPart, SpreadRef } from '../reader-spread'
+import type { SpreadDoc, SpreadPart, SpreadQuiz, SpreadRef } from '../reader-spread'
 
 const t = (text: string) => [{ text }]
 
@@ -1490,5 +1490,27 @@ describe('sectionDisplay（source が指すブロックの取り分け）', () =
       deep: [table, img, para],
     })
     expect(view.deep).toEqual([table, para])
+  })
+})
+
+describe('danglingSourceParts（指す先を失った source）', () => {
+  const base = { n: 1 as number | null, anchor: 'sec-1', title: '1. 節', shortLabel: null }
+  const spreadWith = (part: SpreadPart, deep: ReaderBlock[]): SpreadDoc => ({
+    version: 1, pageId: 'p', title: 'x', lead: null, preface: [],
+    sections: [{ ...base, part, deep }], tail: [], quizzes: [], icons: {},
+  })
+
+  it('指す先が深掘りにあれば空を返す', () => {
+    const table: ReaderBlock = { kind: 'table', rows: [[t('A')]], blockId: 'blk-t' }
+    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [table]))).toEqual([])
+  })
+
+  it('指す先が消えていたら blockId を返す', () => {
+    const para: ReaderBlock = { kind: 'paragraph', inlines: t('本文。'), blockId: 'blk-p' }
+    expect(danglingSourceParts(spreadWith({ kind: 'source', blockId: 'blk-t' }, [para]))).toEqual(['blk-t'])
+  })
+
+  it('source を使っていないスプレッドは空を返す（従来の投入を止めない）', () => {
+    expect(danglingSourceParts(spreadWith({ kind: 'none' }, []))).toEqual([])
   })
 })

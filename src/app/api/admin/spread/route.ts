@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
-import { applyOverlay, buildSpreadDraft, canonicalPageId, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
+import { applyOverlay, buildSpreadDraft, canonicalPageId, danglingSourceParts, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
 
 /**
@@ -94,6 +94,12 @@ export async function PUT(req: Request) {
       },
       { status: 400 },
     )
+  }
+  // 指す先を失った source 部品。原本のブロックが消えると何も描けないので、
+  // 圧縮行と同じく当てにいかずに止める。
+  const danglingSources = danglingSourceParts(spread)
+  if (danglingSources.length > 0) {
+    return NextResponse.json({ error: 'source_missing', blockIds: danglingSources }, { status: 400 })
   }
 
   const status = body.publish ? 'published' : 'draft'

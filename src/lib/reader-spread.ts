@@ -1167,6 +1167,26 @@ export function refLinkage(refsItems: ReaderBlock[], refs: SpreadRef[] | undefin
 }
 
 /**
+ * 指す先を失った source 部品の blockId を返す。
+ *
+ * 原本が書き換わってブロックが消えると、その部品は何も描けない。別のブロックに
+ * 当てにいくと読者に違う図を出すので、当てにいかずに保存を止める（参考文献の
+ * 「指す先を失った圧縮行」と同じ fail-closed）。
+ *
+ * source を使っていないスプレッドでは必ず空を返すので、従来の投入は止まらない。
+ */
+export function danglingSourceParts(spread: SpreadDoc): string[] {
+  const out: string[] = []
+  for (const s of spread.sections) {
+    const ids = new Set(s.deep.flatMap((b) => (b.blockId ? [b.blockId] : [])))
+    for (const p of [s.part, ...(s.extraParts ?? [])]) {
+      if (p.kind === 'source' && !ids.has(p.blockId)) out.push(p.blockId)
+    }
+  }
+  return out
+}
+
+/**
  * 圧縮行それぞれに対応する、原本の文献行の一次資料リンク。並びは refs と同じ。
  * 指す先が原本に無い行・リンクを持たない行は null（リンクにしない）。
  *
