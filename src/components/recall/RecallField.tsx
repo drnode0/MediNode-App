@@ -36,6 +36,7 @@ type Props = {
   planets: Planet[]
   center: FieldCenter
   reduced: boolean
+  initialNear?: number         // 渡されたら、中景を経由せずこの席の近景で開く（隠しコマンド用）
   shelf: string[]              // 棚に並ぶ主張（並び順のまま）
   shelfBottom?: number         // 棚の高さ（画面の下端から px）。下の UI に重ねない
   again: Set<string>           // 「まだ」と答えたもの
@@ -123,8 +124,20 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
   useEffect(() => {
     if (inited.current || !props.planets.length) return
     inited.current = true
-    cam.current = initialCamera(props.planets.map((p) => p.seat))
-  }, [props.planets])
+    const seats = props.planets.map((p) => p.seat)
+    const initial = initialCamera(seats)
+    const nearSeat = props.initialNear !== undefined
+      ? seats.find((s) => s.slot === props.initialNear && s.n > 0) ?? null
+      : null
+    if (nearSeat) {
+      cam.current = cameraFor(initial, props.center, 'near', nearSeat)
+      stage.current = 'near'
+      nearSlot.current = nearSeat.slot
+      enteredAt.current = performance.now()
+      return
+    }
+    cam.current = initial
+  }, [props.planets]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 視点A/B を切り替えたら、いまの段のカメラへ即座に置き換える（混ぜて飛ばさない）。
   useEffect(() => {

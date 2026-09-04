@@ -1,63 +1,81 @@
 'use client'
-// Recall 画面。惑星（席＝惑星・芯＝族・環状）＋帯＋下部の「この惑星を確かめる」。
-// 確かめる: その惑星の離れかけ（最大5）が輪から剥がれて画面の下の棚に並ぶ。
-// 棚をタップ→カード→覚えた／まだ。覚えたものは光として輪の内側へ帰る。
+// Recall 画面。玄関は標本帳（図鑑）＝分野ごとの一枚（plate）の一覧。
+// 一枚をタップすると分野ページへ、分野ページの「戻る」で一覧へ戻る。
 //
-// 2026-09-04 に球（RecallSphere）から差し替えた（決定13）。切り替えで球は残さない。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// 2026-09-04 に惑星（RecallField・環状・fixed inset-0）から標本帳へ差し替えた
+// （設計 `docs/superpowers/specs/2026-09-04-recall-dex-design.md` §2）。
+// 判断（点の見た目・トレイの配置・今日の帯の中身・記事→節→行のグループ化）は
+// src/lib/recall/dex.ts の純関数が持つ。ここは在庫を作って RecallDex / RecallPlatePage に渡し、
+// view の出し入れとカード・知らせを持つだけ。
+//
+// 一覧（RecallDex）は分野ページを開いても hidden にするだけでアンマウントしない
+// （§2.4「一覧はアンマウントせず…スクロール位置を保つ」）。hidden の間は一覧の紋章が
+// IntersectionObserver で描かれなくなる（段2-1 の設計どおり・意図した副作用）。
+// hidden（display:none）は document の高さを縮めるため、ブラウザが window.scrollY を
+// その場でクランプすることがある。そのため開く前の scrollY を控えておき、戻ったときに
+// 明示的に window.scrollTo で戻す（段5・隠しコマンドの確かめる（D7）は次のタスク）。
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFieldData } from './useFieldData'
-import { useReducedMotion } from './useReducedMotion'
-import { useIsDark } from './useIsDark'
-import { RecallField, type FieldHandle } from './RecallField'
+import { useReader } from '@/components/reader/SubscriptionReader'
 import { RecallCard } from './RecallCard'
-import { genreLabel } from '@/lib/recall/genres'
+import { RecallDex } from './RecallDex'
+import { RecallPlatePage } from './RecallPlatePage'
+import { RecallLift } from './RecallLift'
+import { platesOf, todayOf, pageModelOf, dotLookOf, type DotLook } from '@/lib/recall/dex'
+import { startRun, advance, isRunDone, nextSweepSlot, runSummary, type QuizRun } from '@/lib/recall/dex-quiz'
 import { checkNotice } from '@/lib/recall/notice'
-import { CORE_LABEL } from '@/lib/recall/cores'
-import { isEscaping } from '@/lib/recall/field-layout'
-import type { FieldCenter, FieldStage } from '@/lib/recall/field'
-import { paletteOf, inkOf } from '@/lib/recall/field-palette'
-import { INK_WHITE, INK_COOL, INK_HALO, INK_TOUCHED, INK_DIM } from '@/lib/recall/field-layout'
+import type { RecallState } from '@/lib/recall/types'
 
 const NOTICE_MS = 4000
-const CENTER_KEY = 'recall.center'
 
-// この画面は fixed inset-0 z-0 で、アプリのヘッダー（sticky top-0 z-10・不透明・タブの行を含む）
-// の下に潜る。z-0 は動かせない（上げるとタブの並びごと覆って他のタブへ戻れなくなる）ので、
-// 重なりは上部要素の余白で避ける。高さはタブの行・セーフエリア・文字サイズで変わるため
-// 数値を写し取らず、ヘッダーの実物（data-app-header）を測る。控えは 132px。
-const HEADER_FALLBACK = 132
-// 下の束（帯＋ボタン）の控え。帯 36 ＋ 隙間 8 ＋ ボタン 40 ＋ 下の余白 12。
-const BOTTOM_FALLBACK = 96
-// 棚と知らせは、下の束の上端からこれだけ上に置く。
-const SHELF_GAP_ABOVE = 30
-const HINT_GAP_ABOVE = 62
+type View = { kind: 'dex' } | { kind: 'page'; slot: number }
 
-const STAGE_LABEL: Record<FieldStage, string> = { far: '遠景', mid: '中景', near: '近景' }
+// 「この分野を確かめる」の列（queue）を進めている間だけ、カードの上に「2 / 5」を出す
+// （設計 §2.5 手順3）。RecallCard は変えないので、実際に描かれたカードの DOM を測って
+// その少し上に重ねる（内容量で高さが変わるカードなので、ResizeObserver で追う）。
+function QuizProgress({ current, total }: { current: number; total: number }) {
+  const [top, setTop] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = document.querySelector('[role="dialog"][aria-label="主張のカード"]') as HTMLElement | null
+    if (!el) { setTop(null); return }
+    const update = () => setTop(el.getBoundingClientRect().top)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize', update)
+    return () => { ro.disconnect(); window.removeEventListener('resize', update) }
+  }, [current, total])
+  if (top === null) return null
+  return (
+    <div className="fixed left-1/2 -translate-x-1/2 z-30 text-[11px] tracking-[.1em] text-slate-500 dark:text-slate-300 tabular-nums"
+      style={{ top: Math.max(8, top - 26) }}>
+      {current} / {total}
+    </div>
+  )
+}
 
 export function RecallScreen() {
   const data = useFieldData()
-  const reduced = useReducedMotion()
-  // 凡例の色見本は canvas と同じ表から取る（canvas は毎コマ自分で <html>.dark を見る）。
-  const pal = paletteOf(useIsDark())
-  const field = useRef<FieldHandle>(null)
+  const { open: openReader } = useReader()
 
-  const [shelf, setShelf] = useState<string[]>([])
-  const [again, setAgain] = useState<Set<string>>(new Set())
+  const [view, setView] = useState<View>({ kind: 'dex' })
   const [card, setCard] = useState<{ claimId: string; mode: 'quiz' | 'view' } | null>(null)
+  const [run, setRun] = useState<QuizRun | null>(null)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [front, setFront] = useState<number | null>(null)
-  const [stage, setStage] = useState<FieldStage>('mid')
-  const [nearSlot, setNearSlot] = useState<number | null>(null)
-  const [lensPageId, setLensPageId] = useState<string | null>(null)
-  const [center, setCenter] = useState<FieldCenter>('outside')
-  const [foldEmpty, setFoldEmpty] = useState(true)
-  const [headerH, setHeaderH] = useState(HEADER_FALLBACK)
-  // 下の束（帯＋ボタン）の高さ。スマホではボタンが2段に折れて高くなるので、数値を写し取らず測る。
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const [bottomH, setBottomH] = useState(BOTTOM_FALLBACK)
+  // 隠しコマンド（D5）。開いている分野の紋章の中心（覆いの transform-origin）を持つ。
+  const [lift, setLift] = useState<{ slot: number; origin: { x: number; y: number } } | null>(null)
+  // 一覧を離れる直前の window.scrollY。戻ったときに読み戻す（上のコメント参照）。
+  const dexScrollY = useRef(0)
 
-  // 走らせた setTimeout は全部ここに控える。控えないと「戻す」を押したあとに
+  // カードを閉じる（記録は書かない）。Esc・RecallCard の閉じるボタン・隠しコマンドの覆いの中で
+  // カードの外側をタップしたときの3箇所から同じ形で呼ぶので、ここに1つだけ用意する。
+  const closeCard = useCallback(() => { setCard(null); setRun(null) }, [])
+  // 隠しコマンド（D5）の覆いを閉じる。RecallLift の Esc・visibilitychange の
+  // useEffect が依存するので、毎レンダー新しい関数にならないよう安定させる。
+  const closeLift = useCallback(() => setLift(null), [])
+
+  // 走らせた setTimeout は全部ここに控える。控えないと画面を離れたあとに
   // まだ走っている知らせのタイマーが、消したはずの一言を出し直す。
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
   const later = useCallback((fn: () => void, ms: number) => {
@@ -71,254 +89,241 @@ export function RecallScreen() {
   }, [])
   useEffect(() => () => clearTimers(), [clearTimers])
 
-  const say = useCallback((msg: string) => { setNotice(msg); later(() => setNotice(null), NOTICE_MS) }, [later])
+  // 一言を出すタイマーは1本だけ生かす。前の一言を消すはずだったタイマーを放っておくと、
+  // 短い間隔で say を呼び直したとき（確かめる→列の終わり→次の分野…）に、後から出した一言を
+  // 先勝ちの古いタイマーが消してしまう（離れかけを順に確かめる、で実際に踏んだ）。
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const say = useCallback((msg: string) => {
+    if (noticeTimer.current) { clearTimeout(noticeTimer.current); timers.current.delete(noticeTimer.current) }
+    setNotice(msg)
+    noticeTimer.current = later(() => { noticeTimer.current = null; setNotice(null) }, NOTICE_MS)
+  }, [later])
 
-  // 視点は端末ローカルに覚える。学習記録ではないので Supabase には置かない。
-  useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(CENTER_KEY)
-      if (v === 'inside' || v === 'outside') setCenter(v)
-    } catch { /* 保存できない設定の端末は既定のまま */ }
-  }, [])
-  const pickCenter = (v: FieldCenter) => {
-    setCenter(v)
-    try { window.localStorage.setItem(CENTER_KEY, v) } catch { /* 保存できなくても操作は続ける */ }
-  }
-
-  // カードは下の操作列を覆うので、答えずに抜ける手段をもう1つ用意する。
+  // カードは操作の起点を覆うので、答えずに抜ける手段をもう1つ用意する。
   // Esc は開いているカードのモード・状態を問わず閉じる（記録は書かない）。
+  // 「この分野を確かめる」の列の途中で閉じることもあるので、run も一緒に捨てる
+  // （run を残すと、後で別の行を直に答えたときに古い列が進んでしまう）。
   useEffect(() => {
     if (!card) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCard(null) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCard() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [card])
+  }, [card, closeCard])
 
-  // ヘッダーの高さを実測して、上部の見出しをその下へ逃がす。タブの行が折り返す・
-  // 端末の向きが変わるとヘッダーの高さも変わるので、1回測って終わりにはしない。
+  const { used: plates, empty } = useMemo(() => platesOf(data.planets), [data.planets])
+  const today = useMemo(() => todayOf(plates, data.nextDueOf(null), new Date()), [plates, data.nextDueOf])
+
+  const pagePlate = view.kind === 'page' ? plates.find((p) => p.slot === view.slot) ?? null : null
+  // planet と claimById は必ず同じ useFieldData の同じレンダーから渡す（一覧の「主張 n」と
+  // 分野ページの行数がずれないため。持ち越しの注意）。
+  const pagePlanet = view.kind === 'page' ? data.planets.find((p) => p.seat.slot === view.slot) ?? null : null
+  const pageModel = pagePlanet ? pageModelOf(pagePlanet, data.claimById) : null
+
+  // 分野ページで、開いている間に同期で主張が外れたとき（一枚が見つからなくなったら）
+  // view を dex に戻す（設計 §6）。レンダー中に state を書き換えない。
+  // その分野の「確かめる」の列（run）はもう意味を持たないので、Esc と同じ理由で捨てる。
   useEffect(() => {
-    const el = document.querySelector('[data-app-header]')
-    if (!el) return
-    const sync = () => setHeaderH(el.getBoundingClientRect().height || HEADER_FALLBACK)
-    sync()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(sync)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const el = bottomRef.current
-    if (!el) return
-    const sync = () => setBottomH(el.getBoundingClientRect().height + 12 || BOTTOM_FALLBACK)
-    sync()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(sync)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  const hereSlot = stage === 'near' ? nearSlot : front
-  const herePlanet = useMemo(
-    () => data.planets.find((p) => p.seat.slot === hereSlot) ?? null,
-    [data.planets, hereSlot],
-  )
-  const hereStat = useMemo(() => {
-    const c = { kept: 0, settled: 0, escaping: 0 }
-    for (const d of herePlanet?.dots ?? []) {
-      if (d.state.kind === 'kept') c.kept++
-      if (d.state.kind === 'settled') c.settled++
-      if (isEscaping(d.state.kind, d.state.remaining)) c.escaping++
+    if (view.kind === 'page' && !pagePlate) {
+      setView({ kind: 'dex' })
+      setLift(null)
+      setRun(null)
     }
-    return c
-  }, [herePlanet])
+  }, [view.kind, pagePlate])
 
-  const full = useMemo(() => data.band.filter((s) => s.n > 0), [data.band])
-  const empty = useMemo(() => data.band.filter((s) => s.n === 0), [data.band])
+  // 開いているカードの主張が同期で claimById から消えたら閉じる（設計 §6）。
+  // Esc と同じ理由で run も一緒に捨てる。
+  useEffect(() => {
+    if (card && !data.claimById.has(card.claimId)) {
+      setCard(null)
+      setRun(null)
+    }
+  }, [card, data.claimById])
 
-  const check = useCallback((slot: number | null) => {
-    if (slot === null) { say('確かめる惑星が決まっていません。帯から選ぶか、惑星をタップしてください'); return }
-    const seat = data.seats.find((s) => s.slot === slot)
-    if (!seat || seat.n === 0) { say('この惑星には、まだ主張がありません'); return }
-    if (field.current?.stage() !== 'near') field.current?.enterNear(slot)
-    data.clearSaveError()
-    const cands = data.candidatesOf(slot).map((p) => p.claimId).filter((id) => data.claimById.has(id))
-    if (!cands.length) {
-      const msg = checkNotice(0, data.nextDueOf(slot), new Date(), genreLabel(slot))
+  // view が dex に戻ったら控えておいた scrollY を、page に進んだら先頭を復元する
+  // （hidden＝display:none による document 短縮でブラウザが scrollY をクランプするため、
+  // 自前で戻す。上のファイル冒頭コメント参照）。
+  useLayoutEffect(() => {
+    if (view.kind === 'dex') {
+      window.scrollTo(0, dexScrollY.current)
+    } else {
+      window.scrollTo(0, 0)
+    }
+    // 「離れかけを順に確かめる」は page → page（別の分野）へ直に移ることがある（手順6）。
+    // view.kind だけを見ていると、その乗り換えでスクロール位置が引き継がれてしまうため、
+    // page のときは slot も見る。
+  }, [view.kind, view.kind === 'page' ? view.slot : null])
+
+  const openPage = useCallback((slot: number) => {
+    if (view.kind === 'dex') dexScrollY.current = window.scrollY
+    setView({ kind: 'page', slot })
+    // 別の分野へ移るとき（「離れかけを順に確かめる」の乗り換え含む）、前の分野の
+    // 隠しコマンドの覆いが開いたままだと席がずれる。念のため閉じておく。
+    setLift(null)
+  }, [view.kind])
+  const onBack = useCallback(() => { setView({ kind: 'dex' }); setLift(null) }, [])
+
+  // 「この分野を確かめる」（D7 手順1〜2）。候補が0件なら一言、あれば列を作って先頭のカードを開く。
+  // 「離れかけを順に確かめる」から分野をまたぐとき（手順6）もここを呼び直す。
+  const startCheck = useCallback((slot: number, sweep: boolean) => {
+    const ids = data.candidatesOf(slot).map((p) => p.claimId)
+    const next = startRun(slot, ids, sweep)
+    if (!next) {
+      const label = plates.find((p) => p.slot === slot)?.label
+      const msg = checkNotice(0, data.nextDueOf(slot), new Date(), label)
       if (msg) say(msg)
       return
     }
-    setNotice(null)
-    setAgain(new Set())
-    setShelf(cands)
-  }, [data, say])
+    setRun(next)
+    setCard({ claimId: next.queue[next.index], mode: 'quiz' })
+  }, [data, plates, say])
 
-  // 帯の「すべて」。離れかけのある惑星を順に回る。1惑星ずつで、混ぜない。
-  const sweep = useCallback(() => {
-    const withEscaping = data.band.filter((s) => s.escaping > 0)
-    if (!withEscaping.length) { say('いま離れかけの主張はありません'); return }
-    const cur = stage === 'near' ? nearSlot : front
-    const next = withEscaping.find((s) => cur === null || s.slot > cur) ?? withEscaping[0]
-    field.current?.jumpTo(next.slot)
-    check(next.slot)
-  }, [data.band, stage, nearSlot, front, check, say])
+  const onCheck = useCallback(() => {
+    if (view.kind !== 'page') return
+    startCheck(view.slot, false)
+  }, [view, startCheck])
 
-  const reset = () => {
-    clearTimers()
-    setShelf([]); setAgain(new Set()); setCard(null); setNotice(null); setSaving(false)
-    data.clearSaveError()
-  }
+  const onSweep = useCallback(() => {
+    const slot = nextSweepSlot(plates, null)
+    if (slot === null) { say('いま離れかけの主張はありません'); return }
+    openPage(slot)
+    startCheck(slot, true)
+  }, [plates, say, openPage, startCheck])
 
-  const onAnswer = async (claimId: string, result: 'ok' | 'ng') => {
-    // review は失敗すると reject する（RecallProvider）。ここで必ず受け止める。
-    // 保存できたときだけ棚とカードを動かす。先に動かすと、保存されていない主張が
-    // 棚から消えて答え直せなくなる。失敗したときは棚に残したまま何もしない。
-    setSaving(true)
-    try {
-      await data.review(claimId, result)
-    } catch {
-      setSaving(false); setCard(null)
-      say('保存に失敗しました。通信を確かめてもう一度')
-      return
-    }
-    setSaving(false); setCard(null)
-    if (result === 'ok') {
-      // 覚えた: 棚から外すと、光として輪の内側（保持力1）へ帰る。
-      setShelf((prev) => prev.filter((x) => x !== claimId))
-      setAgain((prev) => { const n = new Set(prev); n.delete(claimId); return n })
-    } else {
-      // まだ: 棚に残り、輪へは戻らない（間隔は1日に戻る）。
-      setAgain((prev) => new Set(prev).add(claimId))
-    }
-  }
+  const onRow = useCallback((claimId: string, look: DotLook) => {
+    setCard({ claimId, mode: look.kind === 'escaping' ? 'quiz' : 'view' })
+  }, [])
+  const onRead = useCallback((pageId: string, title: string) => {
+    openReader({ objectID: pageId, title, notionUrl: '', owner: 'subscription' })
+  }, [openReader])
+  // 紋章（隠しコマンド D5）。押した紋章の中心を覆いの出どころにする。
+  const onEmblem = useCallback((origin: { x: number; y: number }) => {
+    if (view.kind !== 'page') return
+    setLift({ slot: view.slot, origin })
+  }, [view])
+
+  // 主張ID → 記憶の状態。隠しコマンドの点のタップ（claimId だけを受け取る）から、
+  // 行を直にタップしたとき（onRow）と同じ「離れかけなら確かめる、それ以外は閲覧」の
+  // 振り分けをするために引く（dex.ts の dotLookOf と同じ判定）。
+  const claimStateById = useMemo(() => {
+    const m = new Map<string, RecallState>()
+    for (const p of data.planets) for (const d of p.dots) m.set(d.claimId, d.state)
+    return m
+  }, [data.planets])
+  const onLiftDotTap = useCallback((claimId: string) => {
+    const state = claimStateById.get(claimId)
+    const look = state ? dotLookOf(state) : null
+    setCard({ claimId, mode: look?.kind === 'escaping' ? 'quiz' : 'view' })
+  }, [claimStateById])
 
   const kept = (id: string) => { const p = data.progressById.get(id); return !!p && !p.removedAt }
   const cardClaim = card ? data.claimById.get(card.claimId) : undefined
+  // 「この分野を確かめる」の列で、いま開いているカードがその列のカードのときだけバッジを出す
+  // （行を直にタップした単発の quiz は run を持たないので出ない）。
+  const runProgress = run && card && card.mode === 'quiz' && run.queue[run.index] === card.claimId
+    ? { current: run.index + 1, total: run.queue.length }
+    : null
   // 読み込みに失敗して出すものが無いときだけ、画面いっぱいの知らせにする。
   const fatal = data.error && !data.claims.length ? data.error : null
   // 出す知らせは1つ。押した直後の一言を優先し、無ければ保存の失敗、
-  // 最後に「出すものはあるが読み直しに失敗した」を出す。どれも操作は止めない。
+  // 最後に「出すものはあるが読み直しに失敗した」を出す。どれも操作は止めない（分野ページでも出す）。
   const pill = notice ?? data.saveError ?? (data.error && !fatal ? data.error : null)
 
-  const seatButton = (s: { slot: number; label: string; n: number; escaping: number }) => (
-    <li key={s.slot}>
-      <button type="button" onClick={() => field.current?.jumpTo(s.slot)}
-        aria-current={hereSlot === s.slot ? 'true' : undefined}
-        className={`whitespace-nowrap rounded px-2 py-1 text-[11.5px] ${hereSlot === s.slot ? 'bg-amber-200/90 text-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-900/[.06] dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-white/10'}`}>
-        {s.label}
-        {s.n > 0 && <span className="ml-1.5 opacity-60 tabular-nums">{s.n}</span>}
-        {s.escaping > 0 && <span className={`ml-1.5 tabular-nums ${hereSlot === s.slot ? 'text-amber-800' : 'text-amber-700 dark:text-amber-200'}`}>●{s.escaping}</span>}
-      </button>
-    </li>
-  )
-
   return (
-    // z-0（0未満にしない）: ホームのタブ切り替えの1つとしてここへ来る。タブバーは
-    // sticky top-0 z-10 なので、ここを z-10 以上にするとタブの並びごと覆って
-    // 他のタブへ戻る手段が無くなる。0を明示するのは、下のカード（z-30）が
-    // スタッキングコンテキストを作らず外へ抜けて、同じ理由でタブバーを覆うため。
-    <div className="fixed inset-0 z-0 bg-[#F5F7FA] dark:bg-[#0B1524] text-slate-800 dark:text-slate-100 overflow-hidden" style={{ fontFamily: '"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif' }}>
-      <RecallField ref={field}
-        planets={data.planets} center={center} reduced={reduced}
-        shelf={shelf} again={again} lensPageId={lensPageId} cardOpen={!!card}
-        shelfBottom={bottomH + SHELF_GAP_ABOVE}
-        onFront={setFront}
-        onStage={(s, slot) => { setStage(s); setNearSlot(slot); if (s !== 'near') setLensPageId(null) }}
-        onDotTap={(id) => setCard({ claimId: id, mode: 'view' })}
-        onShelfTap={(id) => setCard({ claimId: id, mode: 'quiz' })}
-        onLens={setLensPageId}
-        onCloseCard={() => setCard(null)} />
-
-      {/* 上部の見出し3つ（名前・いま見ている惑星・数）。広い画面では左・中央・右に並び、
-          狭い画面（スマホ）では縦に積む。3つを別々に absolute で置くと、スマホで重なる。 */}
-      <div className="absolute left-7 right-7 grid grid-cols-[1fr_auto_1fr] gap-x-4 gap-y-2 items-start pointer-events-none max-sm:grid-cols-1" style={{ top: headerH + 24 }}>
-        <div>
-          <h1 className="text-[21px] tracking-[.14em] font-semibold" style={{ fontFamily: '"Shippori Mincho",serif' }}>Recall</h1>
-          <p className="mt-1.5 text-[11px] tracking-[.08em] text-slate-500 dark:text-slate-400 dark:font-light">検証済みの主張 {data.claims.length}　中心に近いほど、自分のもの</p>
-        </div>
-        {/* いま見ているジャンル。近景では族名と内訳まで出す。 */}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 items-baseline justify-center max-sm:justify-start min-h-[1px]">
-          {herePlanet && (
-            <>
-              <span className="text-[10.5px] tracking-[.1em] text-slate-500 dark:text-slate-400 border border-slate-300/80 dark:border-slate-600/40 rounded-full px-2">{STAGE_LABEL[stage]}</span>
-              <b className="text-[15px] tracking-[.04em] font-medium">{herePlanet.seat.label}</b>
-              <span className="text-[11.5px] text-slate-500 dark:text-slate-400">{CORE_LABEL[herePlanet.seat.kind]}</span>
-              {stage === 'near' && (
-                <>
-                  <span className="text-[11.5px] text-slate-500 dark:text-slate-400">主張 {herePlanet.seat.n} ・ 残した {hereStat.kept} ・ 深く残した {hereStat.settled}</span>
-                  {hereStat.escaping > 0 && <span className="text-[11.5px] text-amber-700 dark:text-amber-200">離れかけ {hereStat.escaping}</span>}
-                </>
-              )}
-            </>
+    <div className="min-h-[70vh] bg-[#F5F7FA] dark:bg-transparent text-slate-800 dark:text-[#F2F5F1]">
+      {data.loading ? (
+        <p className="p-6 text-sm text-slate-500 dark:text-slate-400">読み込んでいます</p>
+      ) : fatal ? (
+        <p className="p-6 text-sm text-rose-600 dark:text-rose-300">{fatal}</p>
+      ) : (
+        <>
+          {pill && (
+            <p className="p-4 text-[12px] tracking-[.06em] text-cyan-800 dark:text-cyan-100 bg-white/60 dark:bg-[rgba(12,20,30,.60)]">
+              {pill}
+            </p>
           )}
-        </div>
-        <div className="text-right max-sm:text-left">
-          <div className="text-[28px] font-light tabular-nums leading-none mt-1 max-sm:mt-0">{data.claims.length}<small className="text-[11px] text-slate-500 dark:text-slate-400 tracking-widest ml-1.5">主張</small></div>
-          <p className="text-[10.5px] text-slate-500 dark:text-slate-400 tracking-[.1em] mt-1.5">残した {data.counts.kept} ／ 深く残した {data.counts.settled} ／ 読んだ {data.counts.touched}</p>
-        </div>
-      </div>
-
-      <div className="absolute left-7 bottom-[124px] text-[10.5px] text-slate-500 dark:text-slate-400 leading-7 tracking-[.06em] pointer-events-none max-[860px]:hidden">
-        <div><i className="inline-block w-2 h-2 rounded-full mr-2 align-[1px]" style={{ background: inkOf(pal, INK_WHITE), boxShadow: `0 0 8px ${inkOf(pal, INK_WHITE)}` }} />深く残した（輪の内側）</div>
-        <div><i className="inline-block w-2 h-2 rounded-full mr-2 align-[1px]" style={{ background: inkOf(pal, INK_COOL) }} />残した（明るいほど思い出せる）</div>
-        <div><i className="inline-block w-2 h-2 rounded-full mr-2 align-[1px]" style={{ background: inkOf(pal, INK_HALO), boxShadow: `0 0 8px ${inkOf(pal, INK_HALO)}` }} />離れかけ（外縁を割る）</div>
-        <div><i className="inline-block w-2 h-2 rounded-full mr-2 align-[1px]" style={{ background: inkOf(pal, INK_TOUCHED) }} />読んだ　<i className="inline-block w-2 h-2 rounded-full mx-2 align-[1px]" style={{ background: inkOf(pal, INK_DIM) }} />未着手</div>
-      </div>
-
-      {shelf.length > 0 && !card && (
-        <div className="absolute left-1/2 -translate-x-1/2 text-[11px] tracking-[.1em] text-slate-500 dark:text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: bottomH + HINT_GAP_ABOVE + (pill ? 36 : 0) }}>
-          離れた主張が <b className="text-amber-700 dark:text-amber-200 font-medium tabular-nums">{shelf.length}</b>　棚をタップで開く
-        </div>
+          {/* 一覧はアンマウントしない。分野ページの間は hidden にするだけ（file 冒頭コメント参照）。 */}
+          <div hidden={view.kind !== 'dex'}>
+            <RecallDex plates={plates} empty={empty} today={today} counts={data.counts} total={data.claims.length}
+              onOpen={openPage} onSweep={onSweep} />
+          </div>
+          {view.kind === 'page' && pageModel && (
+            <div className="p-4">
+              <RecallPlatePage model={pageModel} onBack={onBack} onCheck={onCheck} onRow={onRow}
+                onEmblem={onEmblem} onRead={onRead} liftOpen={lift !== null} />
+            </div>
+          )}
+        </>
       )}
-      {pill && <div className="absolute left-1/2 -translate-x-1/2 max-w-[90%] text-[12px] tracking-[.06em] text-cyan-800 bg-white/90 border border-slate-300/80 dark:text-cyan-100 dark:bg-[rgba(12,20,30,.92)] dark:border-slate-600/40 rounded-full px-4 py-2 pointer-events-none" style={{ bottom: bottomH + HINT_GAP_ABOVE }}>{pill}</div>}
 
-      {/* 下の束: 帯とボタン。absolute で別々に置くと、スマホでボタンが2段に折れたとき帯に重なる。 */}
-      <div ref={bottomRef} className="absolute left-3 right-3 bottom-3 flex flex-col gap-2 items-center">
-      {/* 帯。主張のある席が先頭で、空の席は末尾に畳む。離れかけの数を光の色で添える。 */}
-      <nav aria-label="ジャンル" className="w-full rounded-[10px] border border-slate-300/80 bg-white/90 dark:border-slate-600/40 dark:bg-[rgba(22,41,63,.92)] overflow-hidden backdrop-blur">
-        <ul className="flex gap-1 m-0 px-2 py-1.5 list-none overflow-x-auto">
-          <li>
-            <button type="button" onClick={sweep}
-              className="whitespace-nowrap rounded px-2 py-1 text-[11.5px] text-amber-700 hover:bg-slate-900/[.06] dark:text-amber-200 dark:hover:bg-white/10">すべて</button>
-          </li>
-          {full.map(seatButton)}
-          {empty.length > 0 && (
-            <li>
-              <button type="button" onClick={() => setFoldEmpty((v) => !v)}
-                className="whitespace-nowrap rounded px-2 py-1 text-[11.5px] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300">
-                {foldEmpty ? `空の席 ${empty.length} ▸` : '空の席を畳む ◂'}
-              </button>
-            </li>
-          )}
-          {!foldEmpty && empty.map(seatButton)}
-        </ul>
-      </nav>
+      {/* 隠しコマンド（D5）。カード（z-30）の下・アプリのヘッダー（z-10）より上に覆う。 */}
+      {lift && (
+        <RecallLift slot={lift.slot} planets={data.planets} origin={lift.origin} cardOpen={card !== null}
+          onClose={closeLift} onCloseCard={closeCard} onDotTap={onLiftDotTap} />
+      )}
 
-      <div className="flex flex-wrap justify-center gap-2.5 items-center max-w-full">
-        <button type="button" onClick={() => check(hereSlot)}
-          className="rounded-full border border-amber-600/50 text-amber-800 bg-white/85 hover:bg-amber-50 dark:border-amber-200/70 dark:text-amber-100 dark:bg-[rgba(12,20,30,.9)] dark:hover:bg-amber-200/10 px-5 py-[11px] text-[12.5px] tracking-[.08em] whitespace-nowrap backdrop-blur">この惑星を確かめる</button>
-        <div className="flex shrink-0 rounded-full border border-slate-300/80 bg-white/85 dark:border-slate-600/40 dark:bg-[rgba(12,20,30,.9)] overflow-hidden backdrop-blur">
-          <button type="button" onClick={() => pickCenter('outside')} className={`px-3.5 py-[11px] text-[11.5px] whitespace-nowrap ${center === 'outside' ? 'text-amber-700 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'}`}>外から</button>
-          <button type="button" onClick={() => pickCenter('inside')} className={`px-3.5 py-[11px] text-[11.5px] whitespace-nowrap ${center === 'inside' ? 'text-amber-700 dark:text-amber-200' : 'text-slate-500 dark:text-slate-400'}`}>中心から</button>
-        </div>
-        {stage === 'near' && <button type="button" onClick={() => field.current?.backToMid()} className="rounded-full border border-slate-300/80 bg-white/85 text-slate-600 dark:border-slate-600/40 dark:bg-[rgba(12,20,30,.9)] dark:text-slate-300 px-4 py-[11px] text-[12px] tracking-[.08em] backdrop-blur">戻る</button>}
-        {shelf.length > 0 && <button type="button" onClick={reset} className="rounded-full border border-slate-300/80 bg-white/85 dark:border-slate-600/40 dark:bg-[rgba(12,20,30,.9)] px-5 py-[11px] text-[12.5px] tracking-[.08em] backdrop-blur">戻す</button>}
-      </div>
-      </div>
+      {runProgress && <QuizProgress current={runProgress.current} total={runProgress.total} />}
 
       {card && cardClaim && (
         <RecallCard key={card.claimId + card.mode} claim={cardClaim} mode={card.mode} kept={kept(cardClaim.claimId)} pending={saving}
-          onAnswer={(r) => void onAnswer(cardClaim.claimId, r)}
+          onAnswer={async (r) => {
+            // review は失敗すると reject する（RecallProvider）。ここで必ず受け止める。
+            setSaving(true)
+            try {
+              await data.review(cardClaim.claimId, r)
+            } catch {
+              setSaving(false)
+              say('保存に失敗しました。通信を確かめてもう一度')
+              return // 失敗ではカードを閉じない・列（run）もそのまま（onKeep と同じ扱い）
+            }
+            setSaving(false)
+
+            // run は残っていても、いま答えた主張が本当にその列の現在地（run.queue[run.index]）
+            // でなければ列を進めない。Esc で列の外に出た後、別の離れかけの行を直に1枚だけ
+            // 答えたときなどに、無関係な run.queue[run.index] を拾って別の主張のカードが
+            // 勝手に開く・関係ない分野へ飛ぶのを防ぐ（設計から外れた経路が増えても効く歯止め）。
+            const current = run
+            if (!current || current.queue[current.index] !== cardClaim.claimId) {
+              setCard(null)
+              // 列とずれた1枚を答えた時点で、その列は捨てる。残しておくと、あとで
+              // たまたま列の現在地の行を直にタップしたときに一致してしまい、
+              // 頼んでいない次のカードが開く（同じ種類の拾い直しの再発）。
+              setRun(null)
+              return // 行を直にタップした単発の quiz（列を持たない・または列の現在地とずれている）
+            }
+
+            const advanced = advance(current)
+            if (!isRunDone(advanced)) {
+              setRun(advanced)
+              setCard({ claimId: advanced.queue[advanced.index], mode: 'quiz' })
+              return
+            }
+
+            // 列の終わり（設計 §2.5 手順5）。
+            setCard(null)
+            setRun(null)
+            if (!advanced.sweep) {
+              say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
+              return
+            }
+            // 「離れかけを順に確かめる」の続き（手順6）。次の分野があれば移って続ける。
+            const nextSlot = nextSweepSlot(plates, advanced.slot)
+            if (nextSlot === null) {
+              setView({ kind: 'dex' })
+              say('今日の離れかけを確かめました')
+              return
+            }
+            say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
+            openPage(nextSlot)
+            startCheck(nextSlot, true)
+          }}
           onKeep={async (k) => {
             // keep も失敗すると reject する（RecallProvider）。ここで必ず受け止める。
             setSaving(true)
             try { await data.keep(cardClaim.claimId, k) } catch { say('保存に失敗しました。通信を確かめてもう一度') }
             setSaving(false)
           }}
-          onClose={() => setCard(null)} />
+          onClose={closeCard} />
       )}
-      {data.loading && <div className="absolute inset-0 grid place-items-center text-slate-500 dark:text-slate-400 text-sm pointer-events-none">読み込んでいます</div>}
-      {fatal && <div className="absolute inset-0 grid place-items-center text-rose-600 dark:text-rose-300 text-sm pointer-events-none">{fatal}</div>}
     </div>
   )
 }

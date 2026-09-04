@@ -2,7 +2,7 @@
 // 描画はテストできない（DOM を持たない）ので、判断はすべてここの純関数に出してある。
 import { describe, it, expect } from 'vitest'
 import {
-  ringRadius, placeOf, lookOf, isEscaping, planetRadius, planetSummary,
+  ringRadius, placeOf, lookOf, isEscaping, planetRadius, planetSummary, gainAlpha,
   R_SETTLED, R_RING_INNER, R_RING_OUTER, R_ESCAPE_MAX, R_TOUCHED, R_COLD,
   EDGE_LABELS, edgeLabelsVisible, EDGE_LABEL_MS, HALO_MAX,
   INK_HALO, INK_COOL, INK_WHITE,
@@ -156,5 +156,20 @@ describe('境目の名前', () => {
     expect(edgeLabelsVisible(t0, t0 + EDGE_LABEL_MS + 1, false)).toBe(false)
     // 時間内でもドラッグしたら消える
     expect(edgeLabelsVisible(t0, t0 + 100, true)).toBe(false)
+  })
+})
+
+describe('gainAlpha（D6・ライトの底上げ）', () => {
+  it('gain 1 なら素通し', () => {
+    expect(gainAlpha(0.4, 1)).toBe(0.4)
+  })
+
+  it('gain を掛けた値を返す（頭打ちに掛からない範囲）', () => {
+    expect(gainAlpha(0.4, 1.6)).toBeCloseTo(0.64, 6)
+  })
+
+  it('1 を超えたら 1 で頭打ち', () => {
+    expect(gainAlpha(0.95, 1.6)).toBe(1)
+    expect(gainAlpha(1, 1.6)).toBe(1)
   })
 })

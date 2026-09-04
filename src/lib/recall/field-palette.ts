@@ -23,15 +23,21 @@ export type FieldPalette = {
   outline: string     // 惑星の輪郭・空の惑星のモヤ
   labelBg: string     // 記事名の下敷き（線と重なっても読めるように）
   glow: number        // 点の後光（点の alpha に掛ける）。紙では光が滲みに見えるので薄くする
+  alphaGain: number    // 点・輪郭・モヤの alpha に掛ける倍率（field-layout.ts の gainAlpha で頭打ち）。
+                        // 紙は線が薄く沈みがちなので、ライトだけ底上げする（ダークは 1 で素通し）
   inks: Record<string, string>  // ダークの線の色 → この組での色
 }
 
+// bg は他のタブと同じ紺（アプリのダーク既定のグラデーションが透ける前提の色）。
+// 2026-09-05: D6（ブランド色の緑）は取り下げ。実画面で緑が紺のページの中に1本の帯として
+// 浮いたため、紺に戻した（詳細は設計書 §1 D6）。
 export const DARK_PALETTE: FieldPalette = {
   bg: '#0B1524',
   label: '#A9B8CC',
   outline: '#EBF2FB',
   labelBg: 'rgba(11,21,36,.75)',
   glow: 0.25,
+  alphaGain: 1,
   inks: {
     [INK_WHITE]: INK_WHITE,
     [INK_COOL]: INK_COOL,
@@ -50,6 +56,8 @@ export const LIGHT_PALETTE: FieldPalette = {
   outline: '#243650',
   labelBg: 'rgba(245,247,250,.82)',
   glow: 0.12,
+  // 紙の上では線が沈みがちなので、点・輪郭・モヤの alpha を 1.6 倍にして底上げする。
+  alphaGain: 1.6,
   inks: {
     [INK_WHITE]: '#152238',   // 深く残した。最も濃い
     [INK_COOL]: '#2C4566',    // 残した

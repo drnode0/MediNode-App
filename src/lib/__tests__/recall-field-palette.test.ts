@@ -36,6 +36,16 @@ describe('惑星の色の2組', () => {
     expect(lum(LIGHT_PALETTE.bg)).toBeGreaterThan(0.85)
   })
 
+  // D6 は 2026-09-05 に取り下げ。ダークの地は他のタブと同じ紺（実画面で緑が浮いたため）。
+  it('ダークの地は他のタブと同じ紺', () => {
+    expect(DARK_PALETTE.bg).toBe('#0B1524')
+  })
+
+  it('alphaGain はダーク 1（素通し）・ライト 1.6（紙で薄く沈む線を底上げ）', () => {
+    expect(DARK_PALETTE.alphaGain).toBe(1)
+    expect(LIGHT_PALETTE.alphaGain).toBe(1.6)
+  })
+
   it('ダークの線の色は全部、ライトで引き直せる（引き直し漏れがあると紙の上で白い線になる）', () => {
     for (const ink of ALL_INKS) {
       expect(LIGHT_PALETTE.inks[ink], `${ink} がライトの対応表に無い`).toBeDefined()

@@ -23,10 +23,8 @@ function hashOf(id: string): number {
   return (h >>> 0) / 4294967296
 }
 
-export type BandSeat = { slot: number; label: string; n: number; escaping: number }
-
 export function useFieldData() {
-  const { claims, progress, reads, loading, error, saveError, clearSaveError, keep, review } = useRecallStore()
+  const { claims, progress, reads, loading, error, saveError, keep, review } = useRecallStore()
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
@@ -103,17 +101,6 @@ export function useFieldData() {
     }
   }), [seats, bySlot, fans, stateById])
 
-  const escapingBySlot = useMemo(() => {
-    const m = new Map<number, number>()
-    for (const p of planets) m.set(p.seat.slot, p.summary.halos)
-    return m
-  }, [planets])
-
-  // 帯。主張のある席を先頭に席番号順、空の席は末尾（畳むのは画面側）。
-  const band: BandSeat[] = useMemo(() => seats.map((s) => ({
-    slot: s.slot, label: s.label, n: s.n, escaping: escapingBySlot.get(s.slot) ?? 0,
-  })), [seats, escapingBySlot])
-
   // 数えるのは「いま画面で開ける主張」だけ。同期でページが外れると記録だけが残り、
   // 「いま確かめる主張はありません」と「期限が来ている主張が N 件」が同時に出る。
   const claimIdSet = useMemo(() => new Set(claims.map((c) => c.claimId)), [claims])
@@ -132,8 +119,8 @@ export function useFieldData() {
   }, [stateById])
 
   return {
-    loading, error, saveError, clearSaveError, keep, review,
-    claims, claimById, seats, planets, band, counts,
+    loading, error, saveError, keep, review,
+    claims, claimById, planets, counts,
     progressById, candidatesOf, nextDueOf,
   }
 }
