@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SRS_INTERVAL_DAYS, newProgress, applyResult, remainingOf, stateOf, pickCandidates, nextDue } from '@/lib/recall/srs'
+import type { SeatFilter } from '@/lib/recall/srs'
 
 const d = (iso: string) => new Date(iso)
 const day = 86400000
@@ -162,5 +163,67 @@ describe('SRS', () => {
     const now = d('2026-09-20T00:00:00Z')
     const bad = { ...newProgress('bad', now), dueAt: 'not-a-date' }
     expect(nextDue([bad], now)).toBeNull()
+  })
+  // ── 惑星ごとに確かめる（決定2）。席で絞っても、既存の不変条件を壊さない ──
+  // 記録は claimId しか持たないので、席は呼び出し側が claimId → genreSlot の対応で渡す
+  // （srs.ts に主張コーパスを持ち込まない）。
+  const seatOf = (map: Record<string, number>): (id: string) => number | undefined => (id) => map[id]
+
+  it('席を指定すると、その席の主張の記録だけが候補になる', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    // どれも期限を大きく過ぎている＝全部が離れかけ
+    const old = (id: string) => ({ ...newProgress(id, d('2026-09-01T00:00:00Z')), intervalDays: 1 })
+    const progress = [old('a'), old('b'), old('c')]
+    const seat: SeatFilter = { slot: 4, slotOf: seatOf({ a: 4, b: 13, c: 4 }) }
+    expect(pickCandidates(progress, now, 5, seat).map((p) => p.claimId)).toEqual(['a', 'c'])
+  })
+
+  it('席を指定しても、並びは保持力の昇順・最大5のまま', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    // 経過が長いほど残りが小さい。b がいちばん薄れている
+    const at = (id: string, from: string) => ({ ...newProgress(id, d(from)), intervalDays: 10 })
+    const progress = [at('a', '2026-09-12T00:00:00Z'), at('b', '2026-09-05T00:00:00Z'), at('c', '2026-09-11T00:00:00Z')]
+    const seat: SeatFilter = { slot: 4, slotOf: seatOf({ a: 4, b: 4, c: 4 }) }
+    expect(pickCandidates(progress, now, 5, seat).map((p) => p.claimId)).toEqual(['b', 'c', 'a'])
+    expect(pickCandidates(progress, now, 2, seat).map((p) => p.claimId)).toEqual(['b', 'c'])
+  })
+
+  it('席を指定しないときは現行と同じ結果になる', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const old = (id: string) => ({ ...newProgress(id, d('2026-09-01T00:00:00Z')), intervalDays: 1 })
+    const progress = [old('a'), old('b')]
+    expect(pickCandidates(progress, now).map((p) => p.claimId)).toEqual(['a', 'b'])
+    expect(pickCandidates(progress, now, 5, undefined).map((p) => p.claimId)).toEqual(['a', 'b'])
+  })
+
+  it('席の対応が無い主張（同期で外れた等）は、席を指定したとき候補にしない', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const old = (id: string) => ({ ...newProgress(id, d('2026-09-01T00:00:00Z')), intervalDays: 1 })
+    const seat: SeatFilter = { slot: 4, slotOf: seatOf({ a: 4 }) }
+    expect(pickCandidates([old('a'), old('missing')], now, 5, seat).map((p) => p.claimId)).toEqual(['a'])
+  })
+
+  it('指定した席に離れかけが1件も無ければ空', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const old = (id: string) => ({ ...newProgress(id, d('2026-09-01T00:00:00Z')), intervalDays: 1 })
+    const seat: SeatFilter = { slot: 99, slotOf: seatOf({ a: 4 }) }
+    expect(pickCandidates([old('a')], now, 5, seat)).toEqual([])
+  })
+
+  it('nextDue も席で絞れる（惑星単位の「次は◯日後に◯件」が全席の数にならない）', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const due = (id: string, iso: string) => ({ ...newProgress(id, now), dueAt: iso })
+    const progress = [due('a', '2026-09-25T00:00:00.000Z'), due('b', '2026-09-25T05:00:00.000Z'), due('c', '2026-09-22T00:00:00.000Z')]
+    const seat: SeatFilter = { slot: 4, slotOf: seatOf({ a: 4, b: 4, c: 13 }) }
+    // 席なしなら最も早いのは c（22日）
+    expect(nextDue(progress, now)?.at).toEqual(d('2026-09-22T00:00:00Z'))
+    // 席4だけなら 25日で、同じ日本暦日の2件
+    expect(nextDue(progress, now, seat)).toEqual({ at: d('2026-09-25T00:00:00Z'), count: 2, overdue: false })
+  })
+
+  it('席に残した記録が1件も無ければ nextDue は null', () => {
+    const now = d('2026-09-20T00:00:00Z')
+    const seat: SeatFilter = { slot: 99, slotOf: seatOf({ a: 4 }) }
+    expect(nextDue([{ ...newProgress('a', now) }], now, seat)).toBeNull()
   })
 })
