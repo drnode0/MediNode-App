@@ -14,7 +14,7 @@
 // hidden（display:none）は document の高さを縮めるため、ブラウザが window.scrollY を
 // その場でクランプすることがある。そのため開く前の scrollY を控えておき、戻ったときに
 // 明示的に window.scrollTo で戻す（段5・隠しコマンドの確かめる（D7）は次のタスク）。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFieldData } from './useFieldData'
 import { useReader } from '@/components/reader/SubscriptionReader'
 import { RecallCard } from './RecallCard'
@@ -89,7 +89,7 @@ export function RecallScreen() {
   // view が dex に戻ったら控えておいた scrollY を、page に進んだら先頭を復元する
   // （hidden＝display:none による document 短縮でブラウザが scrollY をクランプするため、
   // 自前で戻す。上のファイル冒頭コメント参照）。
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (view.kind === 'dex') {
       window.scrollTo(0, dexScrollY.current)
     } else {
@@ -101,7 +101,6 @@ export function RecallScreen() {
     dexScrollY.current = window.scrollY
     setView({ kind: 'page', slot })
   }, [])
-  const onOpen = openPage
   const onBack = useCallback(() => setView({ kind: 'dex' }), [])
   const onSweep = useCallback(() => {
     const first = plates.find((p) => p.escaping > 0)
@@ -143,7 +142,7 @@ export function RecallScreen() {
           {/* 一覧はアンマウントしない。分野ページの間は hidden にするだけ（file 冒頭コメント参照）。 */}
           <div hidden={view.kind !== 'dex'}>
             <RecallDex plates={plates} empty={empty} today={today} counts={data.counts} total={data.claims.length}
-              onOpen={onOpen} onSweep={onSweep} />
+              onOpen={openPage} onSweep={onSweep} />
           </div>
           {view.kind === 'page' && pageModel && (
             <div className="p-4">
