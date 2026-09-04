@@ -43,6 +43,16 @@ export function remainingOf(p: RecallProgress, now: Date): number {
 
 const isKept = (p: RecallProgress | undefined): p is RecallProgress => !!p && !p.removedAt
 
+// 惑星ごとに確かめる（09-04 決定2）ための席の絞り込み。
+// 記録（recall_progress）は claimId しか持たないので、席は呼び出し側が対応を渡す。
+// ここに主張コーパスを持ち込むと srs.ts が純関数でなくなり、日付を進めるテストが書けなくなる。
+// slotOf が undefined を返す主張（同期で外れた等）は、席を指定したとき候補にしない
+//（どの惑星のものか決まらないものを、たまたま開いている惑星の輪から離すのは誤り）。
+export type SeatFilter = { slot: number; slotOf: (claimId: string) => number | undefined }
+
+const inSeat = (p: RecallProgress, seat?: SeatFilter): boolean =>
+  !seat || seat.slotOf(p.claimId) === seat.slot
+
 export function stateOf(_claimId: string, p: RecallProgress | undefined, isRead: boolean, now: Date): RecallState {
   if (isKept(p)) {
     return { kind: p.intervalDays >= SETTLED_MIN_DAYS ? 'settled' : 'kept', remaining: remainingOf(p, now) }
@@ -50,9 +60,12 @@ export function stateOf(_claimId: string, p: RecallProgress | undefined, isRead:
   return { kind: isRead ? 'touched' : 'cold', remaining: 0 }
 }
 
-export function pickCandidates(progress: RecallProgress[], now: Date, max = MAX_CANDIDATES): RecallProgress[] {
+// seat を渡すとその席の主張だけが候補になる。渡さなければ従来どおり全席から選ぶ
+//（球の画面がそのまま動き続ける）。並びと上限の決め方は席の有無で変えない。
+export function pickCandidates(progress: RecallProgress[], now: Date, max = MAX_CANDIDATES, seat?: SeatFilter): RecallProgress[] {
   return progress
     .filter(isKept)
+    .filter((p) => inSeat(p, seat))
     .map((p) => ({ p, r: remainingOf(p, now) }))
     .filter((x) => x.r < ESCAPE_THRESHOLD)
     .sort((a, b) => a.r - b.r || a.p.claimId.localeCompare(b.p.claimId))
@@ -66,8 +79,10 @@ export function pickCandidates(progress: RecallProgress[], now: Date, max = MAX_
 // 呼び出し側は overdue を見るだけで「今すぐ」と「◯日後」を出し分けられる。
 export type NextDue = { at: Date; count: number; overdue: boolean }
 
-export function nextDue(progress: RecallProgress[], now: Date): NextDue | null {
-  const kept = progress.filter(isKept)
+// seat を渡すとその席だけの答えになる。惑星単位の「次は◯日後に◯件」で全席の数を
+// 出さないために要る（件数が合わないと、開いている惑星と画面の言葉が食い違う）。
+export function nextDue(progress: RecallProgress[], now: Date, seat?: SeatFilter): NextDue | null {
+  const kept = progress.filter(isKept).filter((p) => inSeat(p, seat))
   if (!kept.length) return null
   const nowMs = now.getTime()
   // dueAt が日時として読めない記録は数に入れず飛ばす(jstDateKey は NaN で例外を投げるため、

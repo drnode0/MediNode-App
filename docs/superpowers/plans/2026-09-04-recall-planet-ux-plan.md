@@ -3,7 +3,7 @@
 > **実装する人へ:** このファイルは `superpowers:subagent-driven-development`（推奨）または `superpowers:executing-plans` で1タスクずつ進める前提で書いてあります。手順は `- [ ]` のチェックボックスです。
 
 日付: 2026-09-04
-状態: **着手前。段4a だけは着手条件なしで始められる**（後述）
+状態: **段4a 完了（2026-09-04）。段1・2・3・4b・5 は着手条件待ち**（後述）
 設計: [惑星の中の体験](../specs/2026-09-04-recall-planet-ux-design.md)（決定1〜13）
 先行資料: [七つの族の芯](../specs/2026-09-03-seven-cores-design.md)／[Recall 定着エンジン設計](../specs/2026-09-02-recall-engine-design.md)
 
@@ -97,12 +97,12 @@ push を待つ間に進めておくと、段4b が来たときに繋ぐだけで
 
 ---
 
-## Task 段4a: 席で絞る候補と、惑星単位の文言（着手条件なし・先に進められる）
+## Task 段4a: 席で絞る候補と、惑星単位の文言（**完了・2026-09-04**）
 
 `srs.ts` と `notice.ts` しか触らないので、惑星の実装が来る前に終わらせておける。
 決定2「惑星ごとに確かめる」の純関数側。
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
   - `src/lib/__tests__/recall-srs.test.ts` に足す
     - 席を指定すると、その席の主張の記録だけが候補になる
     - 席を指定しても、並びは保持力の昇順・最大5のまま（現行の不変条件を壊さない）
@@ -112,14 +112,26 @@ push を待つ間に進めておくと、段4b が来たときに繋ぐだけで
     - 候補0の惑星で「この惑星に、いま確かめる主張はありません。次は○日後に○件」
     - 期限切れがあるときは日数を出さない（現行の二重の歯止めを惑星単位でも守る）
     - 「落ちる」を使わない
-- [ ] **Step 2: 失敗を確認する** … `npx vitest run src/lib/__tests__/recall-srs.test.ts src/lib/__tests__/recall-notice.test.ts`
-- [ ] **Step 3: 実装する**
+- [x] **Step 2: 失敗を確認する** … 実装を外した状態で8件が落ちることを確認した。`./node_modules/.bin/vitest run src/lib/__tests__/recall-srs.test.ts src/lib/__tests__/recall-notice.test.ts`
+- [x] **Step 3: 実装する**
   - `pickCandidates(progress, now, max)` に第4引数で席の絞り込みを足す。
     記録は `claimId` しか持たないので、**席は呼び出し側が `claimId → genreSlot` の対応を渡す**
     （`srs.ts` に主張コーパスを持ち込まない。純関数のまま保つ）
   - `checkNotice` に席名を渡せるようにする。席を渡さないときは現行の文言のまま
-- [ ] **Step 4: テストを通す** … recall 関連19本すべてが緑
-- [ ] **Step 5: Commit** … `feat(recall): 席で絞った確かめる候補と、惑星単位の文言`
+
+**計画からの意図的な追加（2026-09-04）**: `nextDue` にも同じ `SeatFilter` を足した。
+計画は `pickCandidates` と `checkNotice` しか挙げていなかったが、`nextDue` を絞らないと
+惑星単位の「次は◯日後に◯件」が**全席の件数**になり、開いている惑星と画面の言葉が食い違う。
+
+**実装の記録**
+- `SeatFilter = { slot, slotOf }` を `srs.ts` に置いた。記録は `claimId` しか持たないので、
+  席の対応は呼び出し側が渡す（`srs.ts` に主張コーパスを持ち込まない）
+- `slotOf` が `undefined` を返す主張（同期で外れた等）は、席を指定したとき候補にしない。
+  どの惑星のものか決まらないものを、たまたま開いている惑星の輪から離すのは誤りのため
+- 惑星の文言では「球」を出さない（差し替え後に、いない物を指す言葉が残らないようにする）
+- 段4b は `claimId → genreSlot` の対応を作って渡すだけでよい。`claims` にある `genreSlot` をそのまま使える
+- [x] **Step 4: テストを通す** … recall 関連は 17ファイル・210件が緑
+- [x] **Step 5: Commit** … `feat(recall): 席で絞った確かめる候補と、惑星単位の文言`
 
 ---
 
