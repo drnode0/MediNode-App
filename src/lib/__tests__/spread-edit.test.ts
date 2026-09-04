@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { candidateLines, emptyPart, refForItem, sourceCandidates, swapMainWithFirstExtra, withRefs } from '../spread-edit'
+import { candidateLines, emptyPart, refForItem, sourceCandidates, swapMainWithFirstExtra, undecidedAnchors, withRefs } from '../spread-edit'
 import { makeVerbatimChecker, type SpreadOverlay, type SpreadPart } from '../reader-spread'
 import type { ReaderBlock, ReaderDoc } from '../reader-doc'
 
@@ -134,5 +134,18 @@ describe('sourceCandidates（表層に上げられる原本のブロック）', 
   it('ブロックIDを持たないブロックは候補にしない（指す先にできないため）', () => {
     const blocks: ReaderBlock[] = [{ kind: 'table', rows: [[t('A')]] }]
     expect(sourceCandidates(blocks)).toEqual([])
+  })
+})
+
+describe('undecidedAnchors（主役をまだ決めていない節）', () => {
+  it('parts に無い節だけを返す。表層なしを選んだ節は決定ずみ', () => {
+    const overlay: SpreadOverlay = {
+      parts: { 'sec-1': { kind: 'note', inlines: [{ text: 'x' }] }, 'sec-2': { kind: 'none' } },
+    }
+    expect(undecidedAnchors(['sec-1', 'sec-2', 'sec-3'], overlay)).toEqual(['sec-3'])
+  })
+
+  it('オーバレイが空なら全部が未決', () => {
+    expect(undecidedAnchors(['sec-1', 'sec-2'], {})).toEqual(['sec-1', 'sec-2'])
   })
 })

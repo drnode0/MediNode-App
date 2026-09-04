@@ -18,7 +18,7 @@ import { Spinner } from '@/components/Spinner'
 import { ReaderSpread } from '@/components/reader/spread/ReaderSpread'
 import { ReaderSearchCtx } from '@/components/reader/reader-search-context'
 import { applyOverlay, buildSpreadDraft, canonicalPageId, danglingSourceParts, makeVerbatimChecker, refItemsOf, refLinkage, sanitizeOverlay, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
-import { candidateLines } from '@/lib/spread-edit'
+import { candidateLines, undecidedAnchors } from '@/lib/spread-edit'
 import { OverlayBuilder } from './OverlayBuilder'
 import type { ReaderBlock, ReaderDoc } from '@/lib/reader-doc'
 
@@ -116,7 +116,9 @@ export function SpreadEditClient() {
     // 指す先を失った source 部品。原本のブロックが消えると何も描けないので、
     // 圧縮行と同じく当てにいかず止める。
     const sourcesMissing = danglingSourceParts(spread)
-    return { spread: shown, missing: check.missing, refsMissing, refsDangling, sourcesMissing }
+    // 未決の節数。間違いではないので blocked には入れず、数だけ出す。
+    const undecided = undecidedAnchors(spread.sections.map((s) => s.anchor), overlay)
+    return { spread: shown, missing: check.missing, refsMissing, refsDangling, sourcesMissing, undecided }
   }, [draft, base, overlay])
   // 保存できない理由の総数（逐語一致検査に落ちた文＋取りこぼした文献行＋指す先を失った圧縮行＋指す先を失った source）。
   const blocked = !built || built.missing.length > 0 || built.refsMissing.length > 0 || built.refsDangling.length > 0 || built.sourcesMissing.length > 0
@@ -211,6 +213,9 @@ export function SpreadEditClient() {
           )}
           {built && built.sourcesMissing.length > 0 && (
             <span className="text-xs text-red-600 dark:text-red-400">原本から消えたブロックを指す部品が {built.sourcesMissing.length} 件</span>
+          )}
+          {built && built.undecided.length > 0 && (
+            <span className="text-xs text-amber-700 dark:text-amber-400">未決 {built.undecided.length}節</span>
           )}
           {built && !blocked && draft && (
             <span className="text-xs text-brand-700 dark:text-brand-300">逐語一致検査を通っています</span>

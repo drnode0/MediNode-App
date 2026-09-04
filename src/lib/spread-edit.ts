@@ -131,3 +131,15 @@ export function sourceCandidates(deep: ReaderBlock[]): { blockId: string; label:
   }
   return out
 }
+
+/**
+ * 主役の部品をまだ決めていない節を返す。
+ *
+ * 「未決」は間違いではなく手つかず。逐語一致と文献の紐づけは間違いが読者に出るので
+ * 保存を止めるが、こちらは数を出すだけで止めない（既存の記事はほとんどの節が
+ * 自動判定のままなので、止めるとその場で保存できなくなる）。
+ * 「表層なしにする」を選んだ節（kind: 'none'）は決定ずみとして数えない。
+ */
+export function undecidedAnchors(anchors: string[], overlay: SpreadOverlay): string[] {
+  return anchors.filter((a) => !overlay.parts?.[a])
+}

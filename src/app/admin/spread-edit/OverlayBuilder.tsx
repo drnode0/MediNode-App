@@ -15,6 +15,7 @@ import type { ReaderBlock, ReaderInline } from '@/lib/reader-doc'
 import { displayTail, refItemIndex, refItemsOf, refLinkage, refSourceId, sanitizeRefs, sectionTitleText, splitTailBlocks, textOf, type SpreadDoc, type SpreadOverlay, type SpreadPart, type SpreadQuiz, type SpreadRef } from '@/lib/reader-spread'
 import { candidateLines, emptyPart, refForItem, SEGMENT_COLORS, swapMainWithFirstExtra, withRefs } from '@/lib/spread-edit'
 import { SourcePicker } from './SourcePicker'
+import { SurfaceChecklist } from './SurfaceChecklist'
 
 type Checker = (s: string) => boolean
 
@@ -316,7 +317,7 @@ function VerbatimInput({
 
 // ---------------------------------------------------------------- 部品ごとの編集フォーム
 
-const KIND_LABEL: Record<string, string> = {
+export const KIND_LABEL: Record<string, string> = {
   auto: '原本の表（自動）',
   none: '表層なし',
   flow: '判断フロー',
@@ -598,7 +599,7 @@ function SectionEditor({
   )
 
   return (
-    <div className="mb-4">
+    <div className="mb-4" id={`edit-${sec.anchor}`}>
       <div className="flex items-center gap-2 mb-1.5">
         <span className="w-5 h-5 rounded-full bg-brand-600 text-white text-[11px] font-bold inline-flex items-center justify-center">{sec.n ?? '-'}</span>
         <span className="text-xs font-bold text-gray-700 dark:text-gray-200 flex-1 min-w-0 truncate">{sectionTitleText(sec)}</span>
@@ -920,6 +921,15 @@ export function OverlayBuilder({
   }, [draft, refItems])
   return (
     <div>
+      <SurfaceChecklist
+        rows={sections.map((s) => ({ anchor: s.anchor, n: s.n, title: sectionTitleText(s), deep: s.deep, autoKind: s.autoKind }))}
+        overlay={overlay}
+        kindLabel={KIND_LABEL}
+        onPickSource={(anchor, blockId) =>
+          onChange({ ...overlay, parts: { ...(overlay.parts ?? {}), [anchor]: { kind: 'source', blockId } } })
+        }
+        onNone={(anchor) => onChange({ ...overlay, parts: { ...(overlay.parts ?? {}), [anchor]: { kind: 'none' } } })}
+      />
       {sections.map((sec) => (
         <SectionEditor key={sec.anchor} sec={sec} overlay={overlay} onChange={onChange} checker={checker} notes={noteLines} onAddToNotes={onAddToNotes} />
       ))}
