@@ -65,6 +65,11 @@ export function RecallScreen() {
   const [notice, setNotice] = useState<string | null>(null)
   // 隠しコマンド（D5）。開いている分野の紋章の中心（覆いの transform-origin）を持つ。
   const [lift, setLift] = useState<{ slot: number; origin: { x: number; y: number } } | null>(null)
+  // 「離れかけを順に確かめる」で1分野の列が終わったとき、次の分野を決めるのは次のレンダーの
+  // useEffect に任せる（下の sweepFrom の effect）。onAnswer の中で決めると、await の前の
+  // plates・startCheck（答える前の値）を読んでしまい、折り返しで同じ分野へ戻るときに
+  // いま答えた主張のカードがもう一度開く。
+  const [sweepFrom, setSweepFrom] = useState<number | null>(null)
   // 一覧を離れる直前の window.scrollY。戻ったときに読み戻す（上のコメント参照）。
   const dexScrollY = useRef(0)
 
@@ -189,6 +194,19 @@ export function RecallScreen() {
     startCheck(slot, true)
   }, [plates, say, openPage, startCheck])
 
+  useEffect(() => {
+    if (sweepFrom === null) return
+    setSweepFrom(null)
+    const nextSlot = nextSweepSlot(plates, sweepFrom)
+    if (nextSlot === null) {
+      setView({ kind: 'dex' })
+      say('今日の離れかけを確かめました')
+      return
+    }
+    openPage(nextSlot)
+    startCheck(nextSlot, true)
+  }, [sweepFrom, plates, openPage, startCheck, say])
+
   const onRow = useCallback((claimId: string, look: DotLook) => {
     setCard({ claimId, mode: look.kind === 'escaping' ? 'quiz' : 'view' })
   }, [])
@@ -305,16 +323,10 @@ export function RecallScreen() {
               say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
               return
             }
-            // 「離れかけを順に確かめる」の続き（手順6）。次の分野があれば移って続ける。
-            const nextSlot = nextSweepSlot(plates, advanced.slot)
-            if (nextSlot === null) {
-              setView({ kind: 'dex' })
-              say('今日の離れかけを確かめました')
-              return
-            }
+            // 「離れかけを順に確かめる」の続き（手順6）。次の分野は、保存が反映された後の
+            // レンダーで決める（上の sweepFrom の effect）。
             say(runSummary(advanced, data.nextDueOf(advanced.slot), new Date()))
-            openPage(nextSlot)
-            startCheck(nextSlot, true)
+            setSweepFrom(advanced.slot)
           }}
           onKeep={async (k) => {
             // keep も失敗すると reject する（RecallProvider）。ここで必ず受け止める。

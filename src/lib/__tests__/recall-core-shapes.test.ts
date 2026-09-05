@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import {
   coreLayers, knot, weave, tensegrity, tree, passages,
   invasionPhase, invasionDir, INVASION_TOUCH, INVASION_BREAK,
-  INK_WARM, INK_WHITE,
+  INK_WARM, INK_WHITE, FOREIGN_MAX_R,
 } from '@/lib/recall/core-shapes'
 import { INVASION_CYCLE_SEC, type CoreKind } from '@/lib/recall/cores'
 
@@ -127,6 +127,31 @@ describe('信号: 伝って分岐する', () => {
     const lines = tree(3)
     const len = (l: number[][]) => dist(l[0], l[l.length - 1])
     expect(len(lines[0])).toBeGreaterThan(len(lines[lines.length - 1]))
+  })
+})
+
+describe('侵入: 異物は紋章の円の中に収まる', () => {
+  it('どの時刻でも異物の点の半径は FOREIGN_MAX_R を超えない', () => {
+    for (let s = 0; s < 1; s += 0.02) {
+      const layers = coreLayers('invasion', s * INVASION_CYCLE_SEC)
+      const body = layers[1].lines[0]
+      for (const p of body) {
+        expect(Math.hypot(p[0], p[1], p[2])).toBeLessThanOrEqual(FOREIGN_MAX_R + 1e-9)
+      }
+    }
+  })
+})
+
+describe('信号: 幹は太い', () => {
+  it('枝の層と、幹3本の太い層の2層になる', () => {
+    const layers = coreLayers('signal', 1)
+    expect(layers.length).toBe(2)
+    expect(layers[0].bold ?? false).toBe(false)
+    expect(layers[1].bold).toBe(true)
+    // 幹＝根（下極 y=-0.86）から直に出る3本。tree の push は深さ優先なので
+    // 先頭3本ではなく、始点が根の線を拾う。
+    expect(layers[1].lines.length).toBe(3)
+    expect(layers[1].lines.every((l) => l[0][0] === 0 && l[0][1] === -0.86 && l[0][2] === 0)).toBe(true)
   })
 })
 

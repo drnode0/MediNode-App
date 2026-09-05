@@ -49,6 +49,10 @@ export const INVASION_TOUCH = 0.18
 export const INVASION_BREAK = 0.34
 const WEAVE_R = 0.92
 
+// 異物の外側の上限。紋章の輪郭の円は芯の半径の 1.31 倍（CoreEmblem: size×0.47 / size×0.36）なので、
+// それより内側に収める。ここを超えると異物が円い枠を突き破って見える（2026-09-05 実画面）。
+export const FOREIGN_MAX_R = 1.26
+
 const GOLDEN = 2.399963
 
 const norm = (v: Vec3): Vec3 => {
@@ -272,13 +276,13 @@ export function invasionDir(hit: number): Vec3 {
 // 異物。球の外から近づき、凹みの底に留まり、破れたあとは中へ抜ける。
 function foreignBody(dir: Vec3, t: number, s: number, amp: number): CoreLine {
   const line: CoreLine = []
-  const depth = s < INVASION_TOUCH
+  const depth = Math.min(FOREIGN_MAX_R, s < INVASION_TOUCH
     ? 1.95 - (1.95 - WEAVE_R) * Math.pow(s / INVASION_TOUCH, 1.6)
     : s < INVASION_BREAK
       ? WEAVE_R * (1 - amp * dentCurve(s))
-      : WEAVE_R * (1 - amp) - 1.4 * Math.min(1, ((s - INVASION_BREAK) / (1 - INVASION_BREAK)) * 2.2)
+      : WEAVE_R * (1 - amp) - 1.4 * Math.min(1, ((s - INVASION_BREAK) / (1 - INVASION_BREAK)) * 2.2))
   const broke = s < INVASION_BREAK ? 0 : Math.min(1, ((s - INVASION_BREAK) / (1 - INVASION_BREAK)) * 2)
-  const head = s < INVASION_BREAK ? depth + 0.78 : 1.74
+  const head = Math.min(FOREIGN_MAX_R, s < INVASION_BREAK ? depth + 0.78 : 1.74)
   const tail = broke ? 0.3 : depth
   for (let i = 0; i <= 14; i++) {
     const r = head + (tail - head) * (i / 14)
@@ -364,11 +368,18 @@ export function coreLayers(kind: CoreKind, t: number, opts: CoreLayerOptions = {
 
   if (kind === 'signal') {
     const fire = (t * 0.62) % 3.15
-    return [{
-      lines: cached(key('tree'), () => tree(density > 1.1 ? 5 : 4)),
-      ink: INK_COOL,
-      glow: glowOn && fire < 1.9 ? { pos: (fire / 1.9) * 1.45, w: 0.11, wrap: 0 } : null,
-    }]
+    const lines = cached(key('tree'), () => tree(density > 1.1 ? 5 : 4))
+    return [
+      {
+        lines,
+        ink: INK_COOL,
+        glow: glowOn && fire < 1.9 ? { pos: (fire / 1.9) * 1.45, w: 0.11, wrap: 0 } : null,
+      },
+      // 幹（根から直に出る3本）だけ太く重ねる。信号は7族で唯一 bold を持たず、
+      // ライトの紙の上で細く淡かった（2026-09-05 実画面）。枝の細さは信号らしさなので変えない。
+      // tree の push は深さ優先で、先頭3本は「根1・根1の子・その子」になる。幹は始点で拾う。
+      { lines: lines.filter((l) => l[0][0] === 0 && l[0][1] === -0.86 && l[0][2] === 0), ink: INK_COOL, bold: true },
+    ]
   }
 
   if (kind === 'invasion') {

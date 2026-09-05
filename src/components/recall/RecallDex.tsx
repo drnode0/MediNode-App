@@ -73,10 +73,12 @@ function Plate({ plate, onOpen }: { plate: PlateModel; onOpen: (slot: number) =>
   const kept = plate.kept + plate.settled
   return (
     <button type="button" onClick={() => onOpen(plate.slot)} aria-label={plate.label}
-      className="relative grid grid-cols-[72px_1fr] gap-x-3.5 gap-y-1.5 items-center border border-slate-300/70 dark:border-white/20 px-4 pt-3.5 pb-3 text-left text-slate-800 dark:text-[#F2F5F1] hover:border-slate-400 dark:hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900
+      className="relative grid grid-cols-[72px_1fr] gap-x-3.5 gap-y-1.5 items-start border border-slate-300/70 dark:border-white/20 px-4 pt-3.5 pb-3 text-left text-slate-800 dark:text-[#F2F5F1] hover:border-slate-400 dark:hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900
         before:content-[''] before:absolute before:left-[-1px] before:top-[-1px] before:w-2 before:h-2 before:border before:border-current before:border-r-0 before:border-b-0
         after:content-[''] after:absolute after:right-[-1px] after:bottom-[-1px] after:w-2 after:h-2 after:border after:border-current after:border-l-0 after:border-t-0">
-      <CoreEmblem slot={plate.slot} kind={plate.kind} size={72} className="row-span-2" />
+      {/* 紋章は名前の先頭に揃える（items-start）。和名・英名が折り返して名前ブロックが
+          4行になる分野（PC幅の2列時）でも、紋章が名前＋トレイの中央に浮かない。 */}
+      <CoreEmblem slot={plate.slot} kind={plate.kind} size={72} className="row-span-2 mt-0.5" />
       {/* 和名・英名・族は常に3行の縦積み（標本帳は並びが動かないことで場所を覚える。
           flex-wrap で横に流すと、名前の長さ次第で1〜3行と枚ごとに組み方が変わってしまう）。 */}
       <div className="min-w-0">
