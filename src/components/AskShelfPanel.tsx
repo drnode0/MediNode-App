@@ -23,22 +23,34 @@ function sectionNoFrom(text: string): number | undefined {
   return n > 0 ? n : undefined
 }
 
+// 1打鍵ごとに投げない。段0の1回は「主張の全件読み＋索引作り・Algolia・受付DBのNotion問い合わせ
+// ・票の集計・ask_shelf_queries への記録」を伴う。受付DBのトークンは /api/cq/board と
+// /api/cq/submit が共有しているので、打鍵ごとに叩くと他の利用者の投稿まで詰まらせうる。
+// 600ms は既存の検索（page.tsx の useNotionSearch）と同じ値。1文字では絞れないので2文字から。
+const SEARCH_DEBOUNCE_MS = 600
+const SEARCH_MIN_LENGTH = 2
+
 export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: (logId: number | null) => void }) {
   const [data, setData] = useState<AskShelfData | null>(null)
   const [open, setOpen] = useState(true)
   const enabled = isAskShelfEnabled()
 
   useEffect(() => {
-    if (!enabled || !query.trim()) { setData(null); return }
+    const q = query.trim()
+    if (!enabled || q.length < SEARCH_MIN_LENGTH) { setData(null); return }
     let alive = true
-    fetch('/api/ask-shelf/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (alive) setData(j) })
-      // 段0が落ちても既存の検索結果は出したままにする（機能の追加で既存動線を壊さない）。
-      .catch(() => { if (alive) setData(null) })
-    return () => { alive = false }
+    // 待っている間に問いが変われば、この timer ごと捨てる（＝投げない）。
+    // 既に飛んでいる分は alive で無視する（打ち終わる前の古い結果を出さない）。
+    const timer = setTimeout(() => {
+      fetch('/api/ask-shelf/search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (alive) setData(j) })
+        // 段0が落ちても既存の検索結果は出したままにする（機能の追加で既存動線を壊さない）。
+        .catch(() => { if (alive) setData(null) })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => { alive = false; clearTimeout(timer) }
   }, [query, enabled])
 
   if (!enabled) return null
