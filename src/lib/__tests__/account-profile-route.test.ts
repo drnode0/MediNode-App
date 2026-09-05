@@ -47,13 +47,13 @@ describe('GET /api/account/profile', () => {
     adminClientMock.mockReturnValue(settingsStub('看護師').stub)
     const res = await GET()
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ occupation: '看護師' })
+    expect(await res.json()).toEqual({ occupation: '看護師', experienceYears: null, doctorDepartments: [] })
   })
   it('未登録は null', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
     adminClientMock.mockReturnValue(settingsStub(null).stub)
     const res = await GET()
-    expect(await res.json()).toEqual({ occupation: null })
+    expect(await res.json()).toEqual({ occupation: null, experienceYears: null, doctorDepartments: [] })
   })
 })
 
