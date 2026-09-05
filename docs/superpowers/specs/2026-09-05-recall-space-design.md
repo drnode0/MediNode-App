@@ -72,9 +72,10 @@
 | `src/lib/recall/field-cluster.ts` | 新規。族の中心 7 点と `clusterPointOf(slot)` の純関数 |
 | `src/lib/recall/field.ts` | `FieldMode` に `'cluster'`、`ringPointOf` で `'cluster'` を `clusterPointOf` へ。`focusPointOf` は `'ring'` 以外で原点（既存のまま） |
 | `src/lib/recall/field-render.ts` | 遠景のときだけ星団の名前を描く（`mode` と `stage` を `FieldFrameArgs` に足す） |
-| `src/components/recall/RecallField.tsx` | `mode` prop（既定 `'ring'`）を `cameraFor`／`initialCamera` に通す。`initialStage?: 'far'` と `backToFar()` を `FieldHandle` に足す |
+| `src/components/recall/RecallField.tsx` | `mode` prop（既定 `'ring'`）を `cameraFor`／`initialCamera` に通す。`backToFar()` を `FieldHandle` に足す（球から宇宙へは近景→遠景の飛びで入るので、遠景で開く口は要らない） |
 | `src/components/recall/useFieldData.ts` | 星団配置の `planets` も返す（`fieldLayout(counts, 'cluster')`。counts が同じなら再計算しない） |
-| `src/components/recall/RecallLift.tsx` | 状態 `'near' \| 'space'`。「さらに宇宙へ」ボタン、宇宙の「戻る」、上の和名・英名の出し分け。宇宙から入った球の戻り先 |
+| `src/lib/recall/lift-phase.ts` | 新規。覆いの状態遷移（球／宇宙／宇宙から入った球）の純関数 |
+| `src/components/recall/RecallLift.tsx` | 状態は `lift-phase.ts` に委ねる。「さらに宇宙へ」ボタン、宇宙の「戻る」、上の和名・英名の出し分け。宇宙から入った球の戻り先 |
 | `src/components/recall/RecallScreen.tsx` | `RecallLift` に星団配置の `planets` を渡す |
 | `src/app/dev/recall-field/page.tsx` | 「配置: 輪／星団」の切り替え（段0のラフ） |
 
