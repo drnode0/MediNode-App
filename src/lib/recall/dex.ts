@@ -18,6 +18,22 @@ import { checkNotice } from './notice'
 export type DotKind = 'cold' | 'touched' | 'kept' | 'settled' | 'escaping'
 export type DotLook = { kind: DotKind; alpha: number }
 
+// 点の状態を画面に出すときの語（設計 §9 の用語）。分野ページの凡例・押した点の1行と、
+// 一覧の「Recall とは」の凡例の両方が読むので、語が2か所に散らないようここに置く。
+export const STATE_LABEL: Record<DotKind, string> = {
+  cold: '未着手',
+  touched: '読んだ',
+  kept: '残した',
+  settled: '深く残した',
+  escaping: '離れかけ',
+}
+
+// 凡例で見本の点を出すときの濃さ（dotLookOf は保持力を要るので、見本は決め打ちで出す）。
+export const legendAlpha = (kind: DotKind): number =>
+  kind === 'cold' ? 0.35 : kind === 'touched' ? 0.55 : 1
+
+export const LEGEND_KINDS: DotKind[] = ['cold', 'touched', 'kept', 'settled', 'escaping']
+
 export function dotLookOf(state: RecallState): DotLook {
   // 離れかけは「残した」系（kept/settled）から保持力で切り出す。kept より優先。
   if (isEscaping(state.kind, state.remaining)) {

@@ -15,7 +15,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { CoreEmblem } from './CoreEmblem'
 import { RecallDot } from './RecallDot'
-import type { DotKind, DotLook, PageModel } from '@/lib/recall/dex'
+import { STATE_LABEL, LEGEND_KINDS, legendAlpha } from '@/lib/recall/dex'
+import type { DotLook, PageModel } from '@/lib/recall/dex'
 
 type Props = {
   model: PageModel
@@ -28,17 +29,6 @@ type Props = {
   // 隠しコマンドが浮き出ているあいだ、元の紋章は薄くする（設計 §2.6「紋章そのものは浮き出ている間 opacity-30」）。
   liftOpen?: boolean
 }
-
-const STATE_LABEL: Record<DotKind, string> = {
-  cold: '未着手',
-  touched: '読んだ',
-  kept: '残した',
-  settled: '深く残した',
-  escaping: '離れかけ',
-}
-
-const LEGEND: DotKind[] = ['cold', 'touched', 'kept', 'settled', 'escaping']
-const legendAlpha = (k: DotKind) => (k === 'cold' ? 0.35 : k === 'touched' ? 0.55 : 1)
 
 const GOLD = 'text-[#A86B0C] dark:text-[#F0D68A]'
 
@@ -131,7 +121,7 @@ export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRea
 
       {/* 点の凡例（§2.1）。この先の点が何を指すかを、地図の前に一度だけ示す。 */}
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] text-slate-500 dark:text-slate-400">
-        {LEGEND.map((k) => (
+        {LEGEND_KINDS.map((k) => (
           <span key={k} className="inline-flex items-center gap-1">
             <RecallDot look={{ kind: k, alpha: legendAlpha(k) }} size={9} row />{STATE_LABEL[k]}
           </span>

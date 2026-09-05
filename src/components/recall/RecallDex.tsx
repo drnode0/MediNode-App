@@ -11,6 +11,7 @@ import type { PlateModel, TodayModel } from '@/lib/recall/dex'
 import { nextDueText, trayLayout } from '@/lib/recall/dex'
 import { CoreEmblem } from './CoreEmblem'
 import { RecallDot } from './RecallDot'
+import { RecallAbout } from './RecallAbout'
 
 // 一覧の記録カウント（useFieldData の counts と同じ形）。
 type DexCounts = { kept: number; touched: number; cold: number; settled: number }
@@ -109,13 +110,20 @@ export function RecallDex({ plates, empty, today, counts, total, onOpen, onSweep
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[21px] tracking-[.14em] font-semibold">Recall</h1>
-          <p className="mt-1.5 text-[11px] tracking-[.08em] text-slate-500 dark:text-slate-400">検証済みの主張 {total}　濃いほど、自分のもの</p>
         </div>
         <div className="text-right">
           <div className="text-[28px] font-light tabular-nums leading-none">{total}<small className="ml-1.5 text-[11px] tracking-widest text-slate-500 dark:text-slate-400">主張</small></div>
           <p className="mt-1.5 text-[10.5px] tracking-[.1em] text-slate-500 dark:text-slate-400">残した {counts.kept} ／ 深く残した {counts.settled} ／ 読んだ {counts.touched}</p>
         </div>
       </div>
+
+      {/* 説明（設計 2026-09-05 再計画 §3）。本文1文は常に見え、細かい話は折りたたみの中。
+          見出しの行（数字ブロックと横並び）の外に出す。中に入れると文の幅が数字ブロックに
+          押されて数文字ずつしか入らない。 */}
+      <p className="mt-2 text-[11px] tracking-[.08em] leading-relaxed text-slate-500 dark:text-slate-400">
+        今まで読んできた記事の主張をこの一覧で確認できます。色が濃くなるほど、自分の知識として深まっているものです。
+      </p>
+      <RecallAbout />
 
       {/* 今日の帯（設計 §2.1） */}
       <div className="mt-4 rounded-md border border-slate-300/70 dark:border-white/15 px-4 py-3">
