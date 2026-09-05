@@ -6,7 +6,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import {
-  getUserOccupation,
   getUserProfile,
   saveUserOccupation,
   saveUserProfile,
