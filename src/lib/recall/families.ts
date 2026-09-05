@@ -7,8 +7,16 @@ import { coreEnglishOf } from './genre-en'
 
 export const FAMILY_ORDER: CoreKind[] = ['flow', 'exchange', 'signal', 'invasion', 'structure', 'regulation', 'system']
 
+// 族が何をまとめているかを言い切る短い言葉（2026-09-05 オーナー決定）。
+// 族の動きの言葉（閉じて戻る 等）はここに書かない。動きは紋章が見せる。
 export const FAMILY_NOUN: Record<CoreKind, string> = {
-  flow: '', exchange: '', signal: '', invasion: '', structure: '', regulation: '', system: '',
+  flow: '血液と体液',
+  exchange: '物質の出入り',
+  signal: '情報の伝達',
+  invasion: '外因と生体反応',
+  structure: '身体の評価と介入',
+  regulation: '生体の恒常性',
+  system: '医療のしくみ',
 }
 
 export type FamilyRow = { kind: CoreKind; en: string; noun: string; members: string[] }
