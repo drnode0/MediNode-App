@@ -9,7 +9,11 @@
 import type { DotKind, DotLook } from '@/lib/recall/dex'
 
 const DOT_BASE =
-  'block shrink-0 rounded-full border border-current box-border transition-opacity duration-[600ms] motion-reduce:transition-none'
+  'relative block shrink-0 rounded-full border border-current box-border transition-opacity duration-[600ms] motion-reduce:transition-none'
+
+// 分野ページの点（14px）を指で押せるようにする当たり判定。14 + 6×2 = 26px。
+// 点そのものは aria-hidden の <i> なので、押す役目は親の <button> が持つ。
+const HIT_CLASS = "after:content-[''] after:absolute after:-inset-1.5 after:rounded-full"
 
 const KIND_CLASS: Record<DotKind, string> = {
   cold: 'bg-transparent',
@@ -30,15 +34,17 @@ type Props = {
   size: number
   // 分野ページの行（9px）で使うときに true。settled の外輪の太さだけ変わる。
   row?: boolean
+  // 分野ページの点（14px）で true。::after で 26px の当たり判定を広げる（指で押せる）。
+  hit?: boolean
   className?: string
 }
 
-export function RecallDot({ look, size, row, className }: Props) {
+export function RecallDot({ look, size, row, hit, className }: Props) {
   const cls = (row ? KIND_CLASS_ROW : KIND_CLASS)[look.kind]
   return (
     <i
       aria-hidden="true"
-      className={`${DOT_BASE} ${cls}${className ? ` ${className}` : ''}`}
+      className={`${DOT_BASE} ${cls}${hit ? ` ${HIT_CLASS}` : ''}${className ? ` ${className}` : ''}`}
       style={{ width: size, height: size, opacity: look.alpha }}
     />
   )

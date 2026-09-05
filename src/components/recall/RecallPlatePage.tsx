@@ -1,15 +1,18 @@
 'use client'
-// 分野ページ（標本帳の一枚を開いた先）。記事ごとに主張が行で並び、行を押すとカードが開く
-// （開くか・視聴か確かめるかの判断は呼び出し側。ここは onRow(claimId, look) を呼ぶだけ）。
-// 判断（点の見た目・記事→節→行のグループ化と順序）は src/lib/recall/dex.ts の純関数が持つ。
-// ここは受け取ったモデルを画面に写すだけ（DOM を持たないテストが判断側でカバーする）。
+// 分野ページ（標本帳の一枚を開いた先）。記事ごとに主張が「点の地図」で並び、点を押すとその1件の
+// 本文が1行だけ出る。同じ点をもう一度押すとカードが開く（開くか・確かめるかの判断は呼び出し側。
+// ここは onRow(claimId, look) を呼ぶだけ）。
+// 判断（点の見た目・記事→節→行のグループ化と順序・記事ごとの離れかけの数）は
+// src/lib/recall/dex.ts の純関数が持つ。ここは受け取ったモデルを画面に写すだけ。
 //
-// 見た目の正本: オーナーのラフ（.pg・.pg .hd・.row・buildPage）。点の見た目は RecallDot に揃えている
+// 見た目の正本: 2026-09-05「見せ方の再計画」の設計書 §2（試作の案3）。
+// 主張を1行ずつ縦に積む形は、178件の分野で画面が7,000px を超えて読めなくなったのでやめた。
+// 点は 14px・間隔 6px・当たり判定 26px（RecallDot の hit）。点の見た目は RecallDot に揃える
 // （RecallDex のトレイと同じ部品。見た目が2か所に散らないように）。
-// 設計: 2026-09-04「標本帳（図鑑）の設計書」§2.4「分野ページ」・§3.3「分野ページの行の点」・§9（用語）。
 //
 // 改訂の旗（D10）はオーナー決定により今回は作らない（PageModel に revised フィールドが無いので、
 // ここでも「改訂あり」の表示は出さない）。
+import { useEffect, useRef, useState } from 'react'
 import { CoreEmblem } from './CoreEmblem'
 import { RecallDot } from './RecallDot'
 import type { DotKind, DotLook, PageModel } from '@/lib/recall/dex'
@@ -34,11 +37,63 @@ const STATE_LABEL: Record<DotKind, string> = {
   escaping: '離れかけ',
 }
 
+const LEGEND: DotKind[] = ['cold', 'touched', 'kept', 'settled', 'escaping']
+const legendAlpha = (k: DotKind) => (k === 'cold' ? 0.35 : k === 'touched' ? 0.55 : 1)
+
 const GOLD = 'text-[#A86B0C] dark:text-[#F0D68A]'
+
+const chipLabel = (title: string) => (title.length > 16 ? `${title.slice(0, 14)}…` : title)
 
 export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRead, liftOpen = false }: Props) {
   const { plate, pages } = model
   const kept = plate.kept + plate.settled
+  // 押した点（本文1行を出す）。分野ページ全体で同時に1つ。
+  const [selected, setSelected] = useState<string | null>(null)
+  // いま画面にある記事（目次の濃いチップ）。
+  const [current, setCurrent] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const navRef = useRef<HTMLElement | null>(null)
+  // 貼り付く位置は実測で決める。アプリのヘッダー（page.tsx の data-app-header）は sticky top-0 だが
+  // 高さは画面と端末（safe-area）で変わるので、定数で書くと隙間が空いて中身がその帯を通り抜ける
+  // （98px の実測に対して 120px と書いて 22px の隙間が出た）。目次の高さも同じ理由で測る。
+  const [headerH, setHeaderH] = useState(0)
+  const [navH, setNavH] = useState(0)
+
+  useEffect(() => {
+    const header = document.querySelector('[data-app-header]')
+    const update = () => {
+      setHeaderH(header ? Math.round(header.getBoundingClientRect().height) : 0)
+      setNavH(navRef.current ? Math.round(navRef.current.getBoundingClientRect().height) : 0)
+    }
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(update)
+    if (header) ro.observe(header)
+    if (navRef.current) ro.observe(navRef.current)
+    return () => ro.disconnect()
+  }, [pages])
+
+  // 記事の見出しが画面に入ったら、その記事のチップを濃くする。
+  useEffect(() => {
+    const root = listRef.current
+    if (!root || typeof IntersectionObserver === 'undefined') return
+    const els = root.querySelectorAll<HTMLElement>('[data-recall-article]')
+    if (!els.length) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) setCurrent(e.target.getAttribute('data-recall-article'))
+      },
+      { rootMargin: `-${headerH + navH + 8}px 0px -55% 0px` },
+    )
+    els.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [pages, headerH, navH])
+
+  // 1回目＝本文1行を出す。2回目（同じ点）＝カードを開く。
+  const onDot = (row: { claimId: string; look: DotLook }) => {
+    if (selected === row.claimId) { onRow(row.claimId, row.look); return }
+    setSelected(row.claimId)
+  }
 
   return (
     <div className="max-w-[760px] mx-auto text-slate-800 dark:text-[#F2F5F1]">
@@ -74,40 +129,84 @@ export function RecallPlatePage({ model, onBack, onCheck, onRow, onEmblem, onRea
         </div>
       </div>
 
-      {/* 記事ごとの節・行（設計 §2.4） */}
-      {pages.map((page) => (
-        <section key={page.pageId} className="mt-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-[13px] tracking-[.12em] text-slate-500 dark:text-slate-400">
-              {page.title}
-              <small className="ml-2 font-normal tracking-[.06em] tabular-nums">{page.n}</small>
-            </h3>
-            <button type="button" onClick={() => onRead(page.pageId, page.title)}
-              className="shrink-0 text-[12px] tracking-[.04em] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
-              記事を読む ›
-            </button>
-          </div>
+      {/* 点の凡例（§2.1）。この先の点が何を指すかを、地図の前に一度だけ示す。 */}
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] text-slate-500 dark:text-slate-400">
+        {LEGEND.map((k) => (
+          <span key={k} className="inline-flex items-center gap-1">
+            <RecallDot look={{ kind: k, alpha: legendAlpha(k) }} size={9} row />{STATE_LABEL[k]}
+          </span>
+        ))}
+      </div>
 
-          {page.sections.map((section) => (
-            <div key={section.sectionKey}>
-              {section.heading && (
-                <h4 className="mt-3 mb-0.5 text-[12px] tracking-[.1em] text-slate-400 dark:text-slate-500">{section.heading}</h4>
-              )}
-              {section.rows.map((row) => (
-                <button type="button" key={row.claimId} onClick={() => onRow(row.claimId, row.look)}
-                  className="grid w-full min-h-11 grid-cols-[18px_1fr_auto] items-baseline gap-3 border-b border-slate-200/70 dark:border-white/10 py-2.5 text-left text-[13.5px] leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
-                  <RecallDot look={row.look} size={9} row className="translate-y-[1px]" />
-                  <span className={`line-clamp-2 ${row.look.kind === 'cold' ? 'text-slate-400 dark:text-slate-500' : ''}`}>{row.body}</span>
-                  <span
-                    className={`hidden min-[560px]:inline shrink-0 text-[11px] tracking-[.04em] ${row.look.kind === 'escaping' ? GOLD : 'text-slate-400 dark:text-slate-500'}`}>
-                    {STATE_LABEL[row.look.kind]}
-                  </span>
-                </button>
-              ))}
+      <div ref={listRef}>
+        {/* 記事の目次（§2.1）。数字は離れかけの数。 */}
+        {pages.length > 1 && (
+          <nav aria-label="記事" ref={navRef} style={{ top: headerH }}
+            className="sticky z-[4] -mx-4 flex gap-1.5 overflow-x-auto border-b border-slate-300/60 dark:border-white/15 bg-[#F5F7FA]/95 dark:bg-gray-900/95 backdrop-blur-sm px-4 py-2 [scrollbar-width:none]">
+            {pages.map((page) => (
+              <a key={page.pageId} href={`#recall-article-${page.pageId}`}
+                onClick={(e) => {
+                  e.preventDefault()
+                  document.getElementById(`recall-article-${page.pageId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                }}
+                className={`shrink-0 max-w-[190px] truncate rounded-full border px-2.5 py-1 text-[11px] tracking-[.03em] tabular-nums ${current === page.pageId ? 'border-slate-700 text-slate-800 dark:border-white/70 dark:text-[#F2F5F1]' : 'border-slate-300/70 text-slate-500 dark:border-white/20 dark:text-slate-400'}`}>
+                {chipLabel(page.title)}
+                {page.escaping > 0 && <em className={`ml-1 not-italic ${GOLD}`}>{page.escaping}</em>}
+              </a>
+            ))}
+          </nav>
+        )}
+
+        {pages.map((page) => (
+          <section key={page.pageId} id={`recall-article-${page.pageId}`} data-recall-article={page.pageId}
+            className="mt-4" style={{ scrollMarginTop: headerH + navH }}>
+            {/* 記事の見出し（R3）。本文と同じ色・15px・帯つきで、節の見出しと一目で区別できるようにする。 */}
+            <div style={{ top: headerH + navH }}
+              className="sticky z-[3] -mx-4 flex items-baseline justify-between gap-3 border-l-[3px] border-slate-800 dark:border-[#F2F5F1] bg-[color-mix(in_srgb,#1e293b_6%,#F5F7FA)] dark:bg-[color-mix(in_srgb,#F2F5F1_6%,#111827)] px-4 py-2">
+              <h3 className="min-w-0 text-[15px] font-medium leading-snug tracking-[.02em]">
+                {page.title}
+                <small className="ml-1.5 text-[11.5px] font-normal text-slate-500 dark:text-slate-400 tabular-nums">{page.n}</small>
+              </h3>
+              <button type="button" onClick={() => onRead(page.pageId, page.title)}
+                className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                記事を読む ›
+              </button>
             </div>
-          ))}
-        </section>
-      ))}
+
+            {page.sections.map((section) => {
+              const picked = section.rows.find((r) => r.claimId === selected) ?? null
+              return (
+                <div key={section.sectionKey} className="mt-3">
+                  {section.heading && (
+                    <p className="mb-1.5 text-[11px] tracking-[.06em] text-slate-500 dark:text-slate-400">{section.heading}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {section.rows.map((row) => (
+                      <button type="button" key={row.claimId} onClick={() => onDot(row)}
+                        aria-label={row.body} aria-pressed={selected === row.claimId}
+                        className={`relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${selected === row.claimId ? 'outline outline-2 outline-offset-2 outline-cyan-600 dark:outline-cyan-400' : ''}`}>
+                        <RecallDot look={row.look} size={14} hit />
+                      </button>
+                    ))}
+                  </div>
+                  {picked && (
+                    <button type="button" onClick={() => onRow(picked.claimId, picked.look)}
+                      className="mt-2 grid w-full grid-cols-[1fr_auto] items-center gap-2.5 border-l-2 border-cyan-600 dark:border-cyan-400 py-1 pl-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[12.5px] leading-snug">{picked.body}</span>
+                        <span className={`block text-[10.5px] ${picked.look.kind === 'escaping' ? GOLD : 'text-slate-500 dark:text-slate-400'}`}>
+                          {STATE_LABEL[picked.look.kind]}{picked.look.kind === 'escaping' ? '　もう一度押すと確かめる' : ''}
+                        </span>
+                      </span>
+                      <span className="text-[11px] text-cyan-700 dark:text-cyan-300">開く ›</span>
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </section>
+        ))}
+      </div>
     </div>
   )
 }
