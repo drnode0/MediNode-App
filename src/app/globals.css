@@ -49,6 +49,11 @@ button:active, a:active, [role='button']:active {
    （prefers-reduced-motion）が duration を潰すので追加の分岐は要らない。 */
 @keyframes recall-card-veil { from { opacity: 0 } to { opacity: 1 } }
 
+/* Recall（隠しコマンドの宇宙）: 中央に寄せた惑星の名前が、惑星の下にふわっと出る
+   （設計 2026-09-05 再計画 §4.3）。上の全体規則（prefers-reduced-motion）が
+   duration を潰すので、ここに追加の分岐は要らない。 */
+@keyframes recall-lift-name { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
+
 /* 未解決の問いの画面（/cq）で泡が漂う動き。
    泡は left/top の % 指定を translate(-50%,-50%) で中心合わせしているため、
    キーフレーム側にもその -50% を含める（含めないと再生開始で位置が飛ぶ）。

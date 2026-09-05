@@ -45,7 +45,8 @@ type Props = {
   center: FieldCenter
   reduced: boolean
   initialNear?: number         // 渡されたら、中景を経由せずこの席の近景で開く（隠しコマンド用）
-  initialStage?: FieldStage    // 'far' で開く（宇宙）
+  initialStage?: FieldStage    // 'far' で開く（宇宙）。'mid' は initialMid と組で使う
+  initialMid?: number          // 'mid' で開くときに中央へ寄せる席（球から宇宙へ戻ったとき）
   mode?: FieldMode             // 'cluster' で族ごとの星団（宇宙）
   free?: boolean               // 近景の縦回しの頭打ちを外す（球・R5）
   lockNear?: boolean           // 近景から出ない（球から勝手に抜けない）
@@ -161,6 +162,16 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
       stage.current = 'near'
       nearSlot.current = nearSeat.slot
       enteredAt.current = performance.now()
+      return
+    }
+    // 球から宇宙へ戻ったときは、その惑星を中央に寄せた中景で開き直す。
+    const midSeat = props.initialStage === 'mid' && props.initialMid !== undefined
+      ? seats.find((s) => s.slot === props.initialMid) ?? null
+      : null
+    if (midSeat) {
+      cam.current = cameraFor(initial, props.center, 'mid', midSeat, mode)
+      stage.current = 'mid'
+      midSlot.current = midSeat.slot
       return
     }
     if (props.initialStage === 'far') {
