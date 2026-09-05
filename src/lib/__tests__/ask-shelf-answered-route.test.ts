@@ -19,6 +19,10 @@ function makeQueryBuilder(rows: Record<string, unknown>[]) {
       filtered = filtered.filter((r) => r[col] === val)
       return builder
     },
+    in(col: string, vals: unknown[]) {
+      filtered = filtered.filter((r) => vals.includes(r[col]))
+      return builder
+    },
     limit(n: number) {
       return Promise.resolve({ data: filtered.slice(0, n), error: null })
     },
@@ -86,5 +90,19 @@ describe('GET /api/ask-shelf/answered/[id]', () => {
     state.claims = [{ ...state.claims[0], active: false }]
     const json = await (await call('i1')).json()
     expect(json.answer).toBeNull()
+  })
+
+  // 通知 cron は正本主張IDを全件 resolveAnswerTarget に渡して「最初に生きているもの」を指す。
+  // ここで1件目だけを見ていると、メールのリンクを開いた先で「回答はまだ準備中です」になる。
+  it('正本主張IDが2件で1件目が取り下げ済みなら、生きている2件目を出す', async () => {
+    state.claims = [
+      { ...state.claims[0], claim_id: 'c9', active: false },
+      { claim_id: 'c10', page_id: 'p2', page_title: '💡 乳酸値の問い', section_key: 'sec2', section_heading: '2. 乳酸値', body: '乳酸値は組織低灌流の指標である', source: 'ESICM 2014', confidence: 'ok', active: true },
+    ]
+    ;(state.page!.properties as Record<string, unknown>)['正本主張ID'] = rich('c9,c10')
+    const json = await (await call('i1')).json()
+    expect(json.answer.claimId).toBe('c10')
+    expect(json.answer.body).toBe('乳酸値は組織低灌流の指標である')
+    expect(json.target).toEqual({ kind: 'claim', claimId: 'c10', pageId: 'p2', sectionKey: 'sec2' })
   })
 })
