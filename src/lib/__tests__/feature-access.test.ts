@@ -68,8 +68,8 @@ describe('hasFeature', () => {
     delete process.env.EASY_CONNECT_EMAILS
   }
 
-  it('機能キーは5つ', () => {
-    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall'])
+  it('機能キーは6つ', () => {
+    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall', 'ask_shelf'])
   })
 
   it('機能ごとのGA envが立っていればその機能だけ true', () => {
@@ -140,6 +140,21 @@ describe('resolveEarlyAccess（既存APIの維持）', () => {
     delete process.env.EARLY_ACCESS_EMAILS
     expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: true })).toBe(true)
     expect(resolveEarlyAccess({ email: null, ledgerEarlyAccess: false })).toBe(false)
+  })
+})
+
+describe('ask_shelf', () => {
+  it('ASK_SHELF_EMAILS に載っていれば開く', () => {
+    process.env.ASK_SHELF_EMAILS = 'owner@example.com'
+    expect(hasFeature('ask_shelf', { email: 'owner@example.com' })).toBe(true)
+  })
+  it('EARLY_ACCESS_EMAILS には落ちない（フォールバック無し）', () => {
+    process.env.ASK_SHELF_EMAILS = ''
+    process.env.EARLY_ACCESS_EMAILS = 'monitor@example.com'
+    expect(hasFeature('ask_shelf', { email: 'monitor@example.com' })).toBe(false)
+  })
+  it('レガシーの early_access(boolean) では開かない', () => {
+    expect(hasFeature('ask_shelf', { email: 'x@example.com', ledgerEarlyAccess: true })).toBe(false)
   })
 })
 
