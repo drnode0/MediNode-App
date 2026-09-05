@@ -38,8 +38,15 @@ type ClaimCandidate = {
   body: string
 }
 
+// 完了条件の2つの数（数で見る2つ）。点数・順位・赤い表示は作らない、プレーンな文字だけ。
+type AskShelfMetrics = {
+  notSentRate: { shown: number; notSent: number; rate: number }
+  resubmitAfterDecline: number
+}
+
 export function AskShelfAdminPanel() {
   const [items, setItems] = useState<AskShelfIntakeItem[]>([])
+  const [metrics, setMetrics] = useState<AskShelfMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -55,8 +62,9 @@ export function AskShelfAdminPanel() {
         setMsg('一覧を読めませんでした。読み込み直してください。')
         return
       }
-      const data = (await res.json()) as { items?: AskShelfIntakeItem[] }
+      const data = (await res.json()) as { items?: AskShelfIntakeItem[]; metrics?: AskShelfMetrics }
       setItems(data.items ?? [])
+      setMetrics(data.metrics ?? null)
     } catch {
       setItems([])
       setMsg('通信に失敗しました。')
@@ -108,6 +116,15 @@ export function AskShelfAdminPanel() {
         caption="未対応の依頼の一覧。空白候補（段0で該当なしだった依頼）から記事化を検討し、記事の正本化後はここで主張を1件選んで結ぶ。"
         help="書き込み先はNotionの受付DBだけ（Supabaseに別の真実は作らない）。正本の主張を選ぶと「対応状態＝対応済み」と「正本主張ID」が同時に書かれ、これが回答通知の合図になる。24文字の鍵を手で入力する欄は無い（語で検索して選ぶ）。"
       />
+      {metrics && (
+        <div className="text-xs text-gray-600 dark:text-gray-300 mb-3 space-y-0.5">
+          <p>
+            段0を見せた回 {metrics.notSentRate.shown} 件のうち、送らずに済んだのは {metrics.notSentRate.notSent} 件
+            （{Math.round(metrics.notSentRate.rate * 100)}%）
+          </p>
+          <p>記事化しないのあと30日以内の再投稿 {metrics.resubmitAfterDecline} 件</p>
+        </div>
+      )}
       {msg && <p className="text-xs mb-2 text-gray-600 dark:text-gray-300">{msg}</p>}
       <div className="flex items-center gap-2 mb-3 text-xs">
         <button

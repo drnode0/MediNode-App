@@ -25,16 +25,22 @@ vi.mock('@/lib/notion-intake', () => ({
       },
     },
   ],
+  // GET は完了条件の数を出すために全件も読む（Task 17）。この4テストでは中身は見ないので空でよい。
+  listAllIntakePages: async () => [],
   updateIntakePage: async (id: string, props: Record<string, unknown>) => {
     state.patched.push({ id, props })
   },
 }))
 
-// GET は canonicalClaimIds が1件も無ければ Supabase を呼ばない実装のため、この4テストでは
-// createAdminClient は未使用のはず。呼ばれても壊れないよう最小のスタブだけ用意しておく。
+// GET は canonicalClaimIds が1件も無ければ recall_claims を引かない実装のため、この4テストでは
+// そちらは未使用のはず。ask_shelf_queries は完了条件の数のために毎回読む（Task 17）。
+// どちらのテーブルでも呼ばれて壊れないよう最小のスタブを用意しておく。
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
-    from: () => ({ select: () => ({ in: async () => ({ data: [], error: null }) }) }),
+    from: (table: string) =>
+      table === 'ask_shelf_queries'
+        ? { select: async () => ({ data: [], error: null }) }
+        : { select: () => ({ in: async () => ({ data: [], error: null }) }) },
   }),
 }))
 
@@ -60,6 +66,15 @@ describe('/api/admin/ask-shelf/intake', () => {
     const json = (await res.json()) as { items: Array<{ question: string; shelfResult: string }> }
     expect(json.items[0].question).toBe('ショックの見分け方は？')
     expect(json.items[0].shelfResult).toBe('該当なし')
+  })
+
+  it('完了条件の2つの数も一緒に返す（データが空でも0で返す）', async () => {
+    const res = await route.GET()
+    const json = (await res.json()) as {
+      metrics: { notSentRate: { shown: number; notSent: number; rate: number }; resubmitAfterDecline: number }
+    }
+    expect(json.metrics.notSentRate).toEqual({ shown: 0, notSent: 0, rate: 0 })
+    expect(json.metrics.resubmitAfterDecline).toBe(0)
   })
 
   it('正本の主張を書き戻すときは対応済みも一緒に書く', async () => {

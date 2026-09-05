@@ -8,10 +8,11 @@
 // 確認するためだけに読む（recall_claims.active）。別の真実を作らない。
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-guard'
-import { listIntakePages, updateIntakePage } from '@/lib/notion-intake'
+import { listIntakePages, listAllIntakePages, updateIntakePage } from '@/lib/notion-intake'
 import { readIntakeColumns, DECLINE_REASONS } from '@/lib/ask-shelf/intake-columns'
 import { stageOf } from '@/lib/cq-mine'
 import { createAdminClient } from '@/lib/supabase/server'
+import { notSentRate, resubmitAfterDecline } from '@/lib/ask-shelf/metrics'
 import type { NotionIntakePage } from '@/lib/cq-board'
 
 export const dynamic = 'force-dynamic'
@@ -84,7 +85,26 @@ export async function GET() {
         i.canonicalClaimIds.length === 0 ? null : i.canonicalClaimIds.every((id) => activeById.get(id) === true),
     }))
 
-    return NextResponse.json({ items })
+    // 完了条件の2つの数（数で見る2つ）。両方とも /admin にだけ出す。片方が読めなくても
+    // 一覧自体は止めない（0件扱いで返す）。
+    let notSent = { shown: 0, notSent: 0, rate: 0 }
+    try {
+      const admin = createAdminClient()
+      const { data } = await admin.from('ask_shelf_queries').select('submitted')
+      notSent = notSentRate((data ?? []) as Array<{ submitted: boolean }>)
+    } catch {
+      // 計測できなくても一覧は出す。
+    }
+
+    let resubmit = 0
+    try {
+      const allPages = await listAllIntakePages()
+      resubmit = resubmitAfterDecline(allPages, new Date())
+    } catch {
+      // 計測できなくても一覧は出す。
+    }
+
+    return NextResponse.json({ items, metrics: { notSentRate: notSent, resubmitAfterDecline: resubmit } })
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラー'
     return NextResponse.json({ error: message }, { status: 500 })
