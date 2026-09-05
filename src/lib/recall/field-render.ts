@@ -211,6 +211,8 @@ export const FONT_JP = '300 10.5px "Noto Sans JP", sans-serif'
 // 族名の字間と、族名を押したときの表示（3.2秒・最後の 600ms で薄れる）。
 const FAMILY_TRACKING = '0.32em'
 const FADE_MS = 600
+// 族名を星団の上端からどれだけ離すか（px）。
+const FAMILY_LABEL_GAP = 12
 
 const hash = (a: number, b: number) => {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) >>> 0
@@ -495,6 +497,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
   }
 
   // 族の名前（宇宙の遠景だけ。R6・R7）。細い幾何学書体・広い字間・大文字。
+  // 置き場所は星団の投影範囲の上端の少し上（族の中心の真上に置くと惑星に重なる。設計 §4.3）。
   // 族の名詞は押したときだけ下に出す（R7・R12）。
   if (a.familyLabels?.length) {
     const c = ctx as unknown as { letterSpacing: string }
@@ -503,6 +506,13 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     for (const f of a.familyLabels) {
       const q = project(f.at)
       if (!q) continue
+      // その族の惑星（ガスを含む）の、画面での上端。
+      let top = q.Y
+      for (const s of shown) {
+        if (s.planet.seat.kind !== f.kind) continue
+        top = Math.min(top, s.Y - s.S * (s.planet.summary.haze ? 2.0 : R_COLD))
+      }
+      q.Y = top - FAMILY_LABEL_GAP
       const d = 0.45 + 0.55 * ((1 - q.Z) / 2)
       const text = f.text.toUpperCase()
       ctx.font = FONT_LATIN
