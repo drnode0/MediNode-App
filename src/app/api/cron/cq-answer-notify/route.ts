@@ -68,7 +68,13 @@ async function queryAnsweredPages(token: string, dbId: string): Promise<NotionIn
 async function sendNoticeEmail(to: string, questions: string[]): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.RESEND_FROM
-  if (!apiKey || !from) return false
+  if (!apiKey || !from) {
+    console.error('cq-answer-notify: RESEND の設定が無いため送らない', {
+      apiKey: Boolean(apiKey),
+      from: Boolean(from),
+    })
+    return false
+  }
   const { subject, text } = answerNoticeEmail(questions)
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -116,6 +122,8 @@ export async function GET(req: NextRequest) {
     const admin = createAdminClient()
     let mailed = 0
     let skipped = 0
+    let alreadyNotified = 0
+    let sendFailed = 0
     for (const [userId, items] of byUser) {
       // 認証レコード（メール＋user_metadata＝重複記録）。取得失敗はスキップ（誤送信防止優先）。
       const { data: u, error: userErr } = await admin.auth.admin.getUserById(userId)
@@ -131,10 +139,18 @@ export async function GET(req: NextRequest) {
       }
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>
       const fresh = filterUnnotified(items, meta)
-      if (fresh.length === 0) continue
+      if (fresh.length === 0) {
+        // 送らなかった理由を数字と別に残す。mailed が 0 のとき、
+        // 「もう送ってある」のか「送れなかった」のかを後から見分けるため。
+        alreadyNotified++
+        continue
+      }
 
       const ok = await sendNoticeEmail(user.email!, fresh.map((f) => f.question))
-      if (!ok) continue
+      if (!ok) {
+        sendFailed++
+        continue
+      }
 
       mailed++
       const { error: flagErr } = await admin.auth.admin.updateUserById(userId, {
@@ -151,6 +167,8 @@ export async function GET(req: NextRequest) {
       users: byUser.size,
       mailed,
       skipped,
+      alreadyNotified,
+      sendFailed,
     }
     console.log('cq-answer-notify: 完了', JSON.stringify(summary))
 
