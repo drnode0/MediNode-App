@@ -1,6 +1,6 @@
 // 惑星の色の2組（ダーク／ライト）。描画はテストできないので、色の対応表だけを固定する。
 import { describe, it, expect } from 'vitest'
-import { DARK_PALETTE, LIGHT_PALETTE, paletteOf, inkOf } from '@/lib/recall/field-palette'
+import { DARK_PALETTE, LIGHT_PALETTE, paletteOf, inkOf, GOLD_DARK, GOLD_LIGHT } from '@/lib/recall/field-palette'
 import { INK_WARM, INK_COOL, INK_WHITE, INK_HALO } from '@/lib/recall/core-shapes'
 import { INK_TOUCHED, INK_DIM, lookOf } from '@/lib/recall/field-layout'
 import { coreLayers } from '@/lib/recall/core-shapes'
@@ -50,8 +50,15 @@ describe('惑星の色の2組', () => {
     for (const ink of ALL_INKS) {
       expect(LIGHT_PALETTE.inks[ink], `${ink} がライトの対応表に無い`).toBeDefined()
       expect(inkOf(LIGHT_PALETTE, ink)).not.toBe(ink)
+    }
+  })
+
+  it('ダークは INK_HALO だけ引き直す（DOM の点と同じ金にするため。他は素通し）', () => {
+    for (const ink of ALL_INKS) {
+      if (ink === INK_HALO) continue
       expect(inkOf(DARK_PALETTE, ink)).toBe(ink)
     }
+    expect(inkOf(DARK_PALETTE, INK_HALO)).not.toBe(INK_HALO)
   })
 
   it('芯の線と主張の点が使う色は、対応表の中に収まっている', () => {
@@ -91,5 +98,16 @@ describe('惑星の色の2組', () => {
         expect(cr - cb, `${ink} が暖色に寄っている`).toBeLessThan(0)
       }
     }
+  })
+})
+
+describe('離れかけの金は DOM と canvas で同じ色', () => {
+  it('ダークは #F0D68A（RecallDot・RecallDex・RecallPlatePage の text-[#F0D68A] と同じ）', () => {
+    expect(GOLD_DARK).toBe('#F0D68A')
+    expect(inkOf(DARK_PALETTE, INK_HALO)).toBe(GOLD_DARK)
+  })
+  it('ライトは #A86B0C（text-[#A86B0C] と同じ）', () => {
+    expect(GOLD_LIGHT).toBe('#A86B0C')
+    expect(inkOf(LIGHT_PALETTE, INK_HALO)).toBe(GOLD_LIGHT)
   })
 })
