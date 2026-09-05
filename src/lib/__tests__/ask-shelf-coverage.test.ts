@@ -3,7 +3,7 @@ import { normalizeForMatch, bigrams, buildCoverageIndex, coverage, CLAIM_COVERAG
 
 describe('normalizeForMatch', () => {
   it('全角と半角・大小文字・記号の違いを消す', () => {
-    expect(normalizeForMatch('ＭＡＰ６５ mmHg（未満）')).toBe(normalizeForMatch('map65mmhg未満'))
+    expect(normalizeForMatch('ＭＡＰ６５ mmHg（未満）')).toBe('map65mmhg未満')
   })
   it('null 相当でも落ちない', () => {
     expect(normalizeForMatch('')).toBe('')

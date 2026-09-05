@@ -31,6 +31,9 @@ export type CoverageIndex = {
   unknownWeight: number
 }
 
+// 注意: coverage() は、buildCoverageIndex に渡さなかった文書を採点すると、
+// 覆い率が系統的に高く出る（コーパスに無い語を最大の重みで数え、かつヒットとしても数えるため）。
+// 採点するすべてのテキスト（主張・節見出し・板の疑問など）を索引作成のコーパスに含めること。
 export function buildCoverageIndex(docs: string[]): CoverageIndex {
   const df = new Map<string, number>()
   for (const d of docs) {
