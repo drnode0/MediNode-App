@@ -175,6 +175,7 @@ Esc・タブを離れる・カードとの譲り合いは今の `RecallLift` の
 - カメラ: 遠景＝倍率 `CLUSTER_ZOOM 2.4`・見下ろし `CLUSTER_PITCH −0.55`・焦点は原点。中景＝倍率 `CLUSTER_MID_ZOOM 5`・焦点は寄せた惑星。自転 `IDLE_SPIN` は遠景・中景で今のまま
 - 空の席: **ガス**（R8）。`drawNebula`: 1席2枚、中心から `S×(0.3〜1.1)` ずらした半径 `S×(1.3〜2.0)` の放射状グラデーション（`pal.outline` → 透明）、不透明度 `0.07 × alphaGain × depth`、毎秒 0.04 rad で漂う。`reduced` では止める。粒（`drawHaze`）は輪の配置に残す（球では使われない）
 - 族名: 遠景だけ。族の中心の上（世界座標で y＋0.2。**実装では星団の投影範囲の上端＋12px にする**。試作の置き方だと INVASION が惑星に重なった）。Jost 300・11px・字間 0.32em・大文字・不透明度 0.55×奥行き
+  - **実装（2026-09-05）**: 横は族の中心の投影 X、縦はその族の惑星（ガスを含む）の画面上の上端 −12px（`FAMILY_LABEL_GAP`）。自分の星団は避けられたが、**別の族の星団と画面上で前後に重なるぶんは残る**（PC幅では7つ中5つが抜けた。スマホ幅で STRUCTURE と SYSTEM が重なる）
 - 族名を押す: 星団の中心へ焦点を移し倍率 3.4（遠景のまま）。族の短い名詞（R12）を族名の下に、属する惑星（主張あり）の名前を惑星の下に、**3.2 秒**（最後の 600ms で薄れる）。空を押すと原点・2.4倍へ戻る
 - 惑星を押す（主張あり）: 中景へ（その惑星が中央）。もう一度押すと球（宇宙から）。空の席は押せない（`pickPlanet` の結果を `seat.n > 0` で弾く）
 - 惑星名（R6）: canvas には出さない。中景で焦点の惑星の和名（22px・字間 0.22em・Noto Sans JP 300）と英名（11px・字間 0.34em・Jost 300・大文字）を **DOM で画面の高さ 61% の位置**に、0.5 秒でふわっと出す。遠景へ戻ると消える
@@ -183,7 +184,9 @@ Esc・タブを離れる・カードとの譲り合いは今の `RecallLift` の
 ### 4.4 書体（R10）
 
 - `layout.tsx` に Jost（300）を `next/font/google` で足す（Noto Sans JP と同じ方法）。CSS 変数で canvas からも引けるようにし、`document.fonts.load` を待ってから初回を描く
-- canvas: 英字 `300 11px Jost`、日本語 `300 10.5px "Noto Sans JP"`。`ctx.letterSpacing` を使う（**未確認: iOS Safari の対応版。非対応なら1字ずつ描く**）
+- canvas: 英字 `300 11px Jost`、日本語 `300 10.5px "Noto Sans JP"`。`ctx.letterSpacing` を使う
+  - **実装（2026-09-05）**: `'letterSpacing' in CanvasRenderingContext2D.prototype` で対応を見て、非対応なら族名を1字ずつ置く（`spacedText`・字間 11px×0.32）。Chromium では対応が真になることを実測。`--font-jost` は `"Jost", "Jost Fallback"` として canvas まで届いている
+  - **未確認: iOS Safari の実機**。対応版なら字間つき、古い版なら1字ずつの経路に落ちる。どちらで出ているかは Task 9 の実機確認で見る
 - `field-render.ts` の `"Zen Kaku Gothic New"` 指定は読み込まれていないので、この機に全部 Noto Sans JP へ
 
 ### 4.5 実装の当て（変更するファイル）
