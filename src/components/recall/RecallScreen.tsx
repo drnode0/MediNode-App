@@ -275,7 +275,7 @@ export function RecallScreen() {
 
       {/* 隠しコマンド（D5）。カード（z-30）の下・アプリのヘッダー（z-10）より上に覆う。 */}
       {lift && (
-        <RecallLift slot={lift.slot} planets={data.planets} origin={lift.origin} cardOpen={card !== null}
+        <RecallLift slot={lift.slot} planets={data.clusterPlanets} origin={lift.origin} cardOpen={card !== null}
           onClose={closeLift} onCloseCard={closeCard} onDotTap={onLiftDotTap} />
       )}
 

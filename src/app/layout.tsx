@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Noto_Sans_JP } from 'next/font/google'
+import { Noto_Sans_JP, Jost } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 import { MaintenanceGate } from '@/components/MaintenanceGate'
@@ -23,9 +23,19 @@ import { FreePreviewBanner } from '@/components/FreePreviewBanner'
 // フォールバック表示→到着後に差し替えるので、先読みを外しても文字は即出る。
 const notoSansJP = Noto_Sans_JP({
   subsets: ['latin'],
-  weight: ['400', '500', '700'],
+  weight: ['300', '400', '500', '700'],
   display: 'swap',
   preload: false,
+})
+
+// Recall の隠しコマンド（球・宇宙）の英字（設計 2026-09-05 再計画 §4.4）。
+// CSS 変数で持たせ、canvas 側（field-render.ts の fontLatin）からも同じ書体を引く。
+const jost = Jost({
+  subsets: ['latin'],
+  weight: ['300'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-jost',
 })
 
 // PWAの仕上げ: ノッチ/ホームバーまで描画（viewport-fit）＋ブランド色のテーマカラー。
@@ -59,7 +69,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ja" suppressHydrationWarning>
+    <html lang="ja" className={jost.variable} suppressHydrationWarning>
       <head>
         {/* テーマ初期化（ちらつき防止）: 何よりも先に <html> の .dark を確定させる。
             保存値 'system'（既定）はOS設定に従い、従来の 'media' と同じ見た目になる。

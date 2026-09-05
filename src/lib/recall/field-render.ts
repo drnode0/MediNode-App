@@ -8,6 +8,7 @@
 //   ・空の惑星はモヤだけを描く。輪郭も芯も描かない（決定10・11）
 //   ・動きを減らす設定では、芯の動き・明滅・弧・輪の自転を止める
 import type { RecallState } from './types'
+import type { Vec3 } from './layout'
 import { coreLayers, DEPTH_STEPS, MIN_ALPHA, type CoreLayer } from './core-shapes'
 import { CORE_SPIN, CORE_TILT, coreIndividual, type CoreKind } from './cores'
 import {
@@ -159,6 +160,16 @@ export type FieldFrameArgs = {
   edgeAlpha: number          // 境目の名前の濃さ（field-camera が決める）
   palette: FieldPalette      // 地と線の色（ダーク／ライト）
   shelfBottom?: number       // 棚の、画面の下端からの高さ（px）。下の帯・ボタンより上に置く
+  // 何を描くか（設計 2026-09-05 再計画 §4.2・§4.3）。省略した項目は今までどおり描く。
+  show?: {
+    edgeLabels?: boolean; edgeCircles?: boolean; fans?: boolean; pageLabels?: boolean
+    planetLabels?: boolean; labelMinR?: number; nebula?: boolean; fanAlpha?: number
+  }
+  // 族の名前（宇宙の遠景だけ）。呼び出し側が遠景のときだけ渡す。
+  familyLabels?: Array<{ text: string; sub: string; kind: CoreKind; at: Vec3 }>
+  // 族名を押したあと、その族の惑星の名前と族の名詞を出す（until まで。最後の 600ms で薄れる）。
+  // until は performance.now() の ms。a.t は秒なので a.t * 1000 と比べる。
+  familyFocus?: { kind: CoreKind; until: number } | null
 }
 
 export type FieldHits = {
@@ -167,6 +178,7 @@ export type FieldHits = {
   pages: Array<{ pageId: string; x: number; y: number; w: number; h: number }>
   shelf: Array<{ claimId: string; X: number; Y: number }>
   dotPos: Map<string, { X: number; Y: number }>
+  families: Array<{ kind: CoreKind; x: number; y: number; w: number; h: number }>
 }
 
 // 惑星の名前・件数を出す下限の大きさ。これより小さいと文字が惑星に重なる。
@@ -191,6 +203,49 @@ const HAZE_STROKES = 12
 // 惑星が大きく見えるときは「長く」ではなく「数を増やして」濃さを保つ。
 const HAZE_STROKES_MAX = 72
 const HAZE_LEN_MAX = 3.5
+
+// 書体（R10）。英字は幾何学の細字・字間広め、日本語は同じ細さのゴシック。
+// これまで指定していた "Zen Kaku Gothic New" は読み込まれておらず、端末のゴシックで出ていた。
+export const FONT_LATIN = '300 11px Jost, "Helvetica Neue", sans-serif'
+export const FONT_JP = '300 10.5px "Noto Sans JP", sans-serif'
+
+// next/font は書体名を生成するので、実際の family 名は CSS 変数 --font-jost から読む
+// （読めない環境＝テストや古い端末では FONT_LATIN のまま）。1回だけ読んで覚える。
+let latinFamily: string | null = null
+export function fontLatin(): string {
+  if (latinFamily === null) {
+    const v = typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--font-jost').trim()
+      : ''
+    latinFamily = v ? `${v}, "Helvetica Neue", sans-serif` : 'Jost, "Helvetica Neue", sans-serif'
+  }
+  return `300 11px ${latinFamily}`
+}
+// 族名の字間と、族名を押したときの表示（3.2秒・最後の 600ms で薄れる）。
+const FAMILY_TRACKING = '0.32em'
+const FADE_MS = 600
+// 族名を星団の上端からどれだけ離すか（px）。
+const FAMILY_LABEL_GAP = 12
+// 字間の px（FONT_LATIN の 11px × 0.32）。ctx.letterSpacing に対応しない端末で使う。
+const FAMILY_TRACKING_PX = 11 * 0.32
+// ctx.letterSpacing に対応しているか（Chrome 99+・Safari 17.4+。古い iOS では未対応）。
+const SPACED = typeof CanvasRenderingContext2D !== 'undefined'
+  && 'letterSpacing' in CanvasRenderingContext2D.prototype
+
+// 1字ずつ字間を空けて置き、置いた幅を返す（中央そろえ）。
+function spacedText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, gap: number): number {
+  const widths = [...text].map((ch) => ctx.measureText(ch).width)
+  const total = widths.reduce((s, w) => s + w, 0) + gap * Math.max(0, text.length - 1)
+  const prev = ctx.textAlign
+  ctx.textAlign = 'left'
+  let x = cx - total / 2
+  for (let i = 0; i < widths.length; i++) {
+    ctx.fillText([...text][i], x, y)
+    x += widths[i] + gap
+  }
+  ctx.textAlign = prev
+  return total
+}
 
 const hash = (a: number, b: number) => {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) >>> 0
@@ -226,6 +281,33 @@ function drawHaze(ctx: CanvasRenderingContext2D, pal: FieldPalette, slot: number
   ctx.globalAlpha = 1
 }
 
+// 宇宙で、まだ何も残っていない席をガスで覆う（R8）。淡い光の霧を2枚重ねてゆっくり漂わせる。
+// 面を塗る唯一の例外。動きを減らす設定では t が 0 で渡るので止まる。
+function drawNebula(
+  ctx: CanvasRenderingContext2D, pal: FieldPalette, slot: number,
+  X: number, Y: number, S: number, depth: number, t: number,
+) {
+  for (let i = 0; i < 2; i++) {
+    const a = hash(slot, i * 5 + 1) * Math.PI * 2 + t * 0.04 * (i ? 1 : -1)
+    const rr = S * (0.3 + hash(slot, i * 5 + 2) * 0.8)
+    const cx = X + Math.cos(a) * rr, cy = Y + Math.sin(a) * rr * 0.7
+    const rad = S * (1.3 + hash(slot, i * 5 + 3) * 0.7)
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad)
+    g.addColorStop(0, pal.outline)
+    g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.globalAlpha = gainAlpha(0.07, pal.alphaGain) * depth
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.globalAlpha = 1
+}
+
+// 族名を押してからの残り時間を 0..1 で。最後の 600ms で薄れる。
+const focusFade = (focus: FieldFrameArgs['familyFocus'], kind: CoreKind, tSec: number): number =>
+  focus && focus.kind === kind ? Math.max(0, Math.min(1, (focus.until - tSec * 1000) / FADE_MS)) : 0
+
 // 1コマ描く。返り値はタップ判定の位置（描いた場所と選ばれる場所を二度と食い違わせない）。
 export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): FieldHits {
   const { W, H, cam, center, t, reduced, palette: pal } = a
@@ -235,11 +317,16 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
 
   const project: Projector = makeProjector(cam, center, W, H)
   const inside = center === 'inside'
-  const hits: FieldHits = { planets: [], dots: [], pages: [], shelf: [], dotPos: new Map() }
+  const hits: FieldHits = { planets: [], dots: [], pages: [], shelf: [], dotPos: new Map(), families: [] }
   const T = reduced ? 0 : t
   // 輪の自転。内側ほど速い（深く残した主張が最も速く回る）。
   const spin = reduced ? 0 : T * 0.05
   const flyingIds = new Set(a.flying.map((f) => f.claimId))
+  const show = {
+    edgeLabels: true, edgeCircles: true, fans: true, pageLabels: true,
+    planetLabels: true, labelMinR: LABEL_MIN_R, nebula: false, fanAlpha: 1,
+    ...(a.show ?? {}),
+  }
 
   type Shown = { planet: Planet; X: number; Y: number; Z: number; S: number }
   const shown: Shown[] = []
@@ -269,7 +356,8 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
 
     // 空の惑星はモヤだけ。輪郭も芯も描かない（決定10・11）。
     if (sum.haze) {
-      drawHaze(ctx, pal, seat.slot, X, Y, S, depth)
+      if (show.nebula) drawNebula(ctx, pal, seat.slot, X, Y, S, depth, T)
+      else drawHaze(ctx, pal, seat.slot, X, Y, S, depth)
     }
     if (sum.core) {
       // 奥行きの薄さは dim で渡す。外側で globalAlpha を掛けても、
@@ -349,7 +437,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     if (isNear && a.edgeAlpha > 0) {
       ctx.strokeStyle = pal.label
       ctx.lineWidth = 0.7
-      for (const r of EDGE_CIRCLES) {
+      for (const r of show.edgeCircles ? EDGE_CIRCLES : []) {
         ctx.globalAlpha = 0.16 * a.edgeAlpha
         ctx.beginPath()
         let started = false
@@ -361,11 +449,11 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
         }
         if (started) ctx.stroke()
       }
-      ctx.font = '400 10.5px "Zen Kaku Gothic New",sans-serif'
+      ctx.font = FONT_JP
       ctx.textAlign = 'right'
       ctx.textBaseline = 'middle'
       ctx.fillStyle = pal.label
-      for (const [r, text] of EDGE_LABELS) {
+      for (const [r, text] of show.edgeLabels ? EDGE_LABELS : []) {
         // 名前は輪の左端に添える（設計 決定7）。輪の上の固定の角度に置くと、
         // どの席を見ているかで名前が画面のあちこちへ動く（輪の角度は世界の側で決まるため）。
         // 描くのに使うのと同じ点を辿って、いちばん左に来た点を選ぶ。
@@ -382,13 +470,13 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
     }
 
     // 記事の扇形と記事名（段3）。
-    if (isNear && planet.pages?.length) {
-      ctx.font = '400 11px "Zen Kaku Gothic New",sans-serif'
+    if (isNear && planet.pages?.length && show.fans && show.fanAlpha > 0) {
+      ctx.font = FONT_JP
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       for (const page of planet.pages) {
         const lit = !a.lensPageId || a.lensPageId === page.pageId
-        ctx.globalAlpha = (lit ? 0.22 : 0.08) * depth
+        ctx.globalAlpha = (lit ? 0.22 : 0.08) * depth * show.fanAlpha
         ctx.strokeStyle = pal.label
         ctx.lineWidth = 1
         ctx.beginPath()
@@ -400,7 +488,7 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
           else { ctx.moveTo(q.X, q.Y); started = true }
         }
         if (started) ctx.stroke()
-        const label = onRing((page.a0 + page.a1) / 2, ARC_LABEL_R)
+        const label = show.pageLabels ? onRing((page.a0 + page.a1) / 2, ARC_LABEL_R) : null
         if (!label) continue
         const text = `${page.title}  ${page.n}`
         const w = ctx.measureText(text).width + 14
@@ -414,19 +502,76 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       ctx.textBaseline = 'alphabetic'
     }
 
-    // 惑星の名前と件数（中景）。近景では上の見出しが担うので出さない。
-    if (!isNear && S > LABEL_MIN_R) {
-      ctx.globalAlpha = 0.6 * depth
-      ctx.fillStyle = pal.label
+    // 惑星の名前（中景）。近景では上の見出しが担うので出さない。
+    // 輪の配置（show 省略）は今までどおり件数と離れかけを添える。
+    // 宇宙（show.planetLabels=false）は文字を族名だけに絞り（R6）、族名を押した族の惑星だけ
+    // 名前が一時的に浮かぶ。
+    const nameFade = focusFade(a.familyFocus, seat.kind, a.t)
+    if (!isNear && (show.planetLabels ? S > show.labelMinR : nameFade > 0) && seat.n > 0) {
       ctx.textAlign = 'center'
-      ctx.font = '400 10px "Zen Kaku Gothic New",sans-serif'
-      ctx.fillText(seat.n ? `${seat.label}　${seat.n}` : seat.label, X, Y + S * 3.5 + 14)
-      if (sum.halos > 0) {
-        ctx.fillStyle = inkOf(pal, INK_HALO)
-        ctx.fillText(`離れかけ ${sum.halos}`, X, Y + S * 3.5 + 28)
+      ctx.fillStyle = pal.label
+      ctx.font = FONT_JP
+      if (show.planetLabels) {
+        ctx.globalAlpha = 0.6 * depth
+        ctx.fillText(`${seat.label}　${seat.n}`, X, Y + S * 3.5 + 14)
+        if (sum.halos > 0) {
+          ctx.fillStyle = inkOf(pal, INK_HALO)
+          ctx.fillText(`離れかけ ${sum.halos}`, X, Y + S * 3.5 + 28)
+        }
+      } else {
+        ctx.globalAlpha = 0.9 * nameFade * depth
+        const c = ctx as unknown as { letterSpacing: string }
+        c.letterSpacing = '0.12em'
+        ctx.fillText(seat.label, X, Y + Math.min(S * 2.1, 64) + 12)
+        c.letterSpacing = '0px'
       }
     }
     hits.planets.push({ slot: seat.slot, X, Y, S, Z: s.Z })
+  }
+
+  // 族の名前（宇宙の遠景だけ。R6・R7）。細い幾何学書体・広い字間・大文字。
+  // 置き場所は星団の投影範囲の上端の少し上（族の中心の真上に置くと惑星に重なる。設計 §4.3）。
+  // 族の名詞は押したときだけ下に出す（R7・R12）。
+  if (a.familyLabels?.length) {
+    const c = ctx as unknown as { letterSpacing: string }
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const f of a.familyLabels) {
+      const q = project(f.at)
+      if (!q) continue
+      // その族の惑星（ガスを含む）の、画面での上端。
+      let top = q.Y
+      for (const s of shown) {
+        if (s.planet.seat.kind !== f.kind) continue
+        top = Math.min(top, s.Y - s.S * (s.planet.summary.haze ? 2.0 : R_COLD))
+      }
+      q.Y = top - FAMILY_LABEL_GAP
+      const d = 0.45 + 0.55 * ((1 - q.Z) / 2)
+      const text = f.text.toUpperCase()
+      ctx.font = fontLatin()
+      ctx.fillStyle = pal.label
+      ctx.globalAlpha = 0.55 * d
+      let w: number
+      if (SPACED) {
+        c.letterSpacing = FAMILY_TRACKING
+        ctx.fillText(text, q.X + 2, q.Y)
+        w = ctx.measureText(text).width + 24
+      } else {
+        // ctx.letterSpacing に対応していない端末（古い iOS Safari 等）では1字ずつ置く。
+        w = spacedText(ctx, text, q.X + 2, q.Y, FAMILY_TRACKING_PX) + 24
+      }
+      const subAlpha = 0.7 * focusFade(a.familyFocus, f.kind, a.t)
+      if (f.sub && subAlpha > 0) {
+        ctx.font = FONT_JP
+        c.letterSpacing = '0.1em'
+        ctx.globalAlpha = subAlpha * d
+        ctx.fillText(f.sub, q.X, q.Y + 15)
+      }
+      hits.families.push({ kind: f.kind, x: q.X - w / 2, y: q.Y - 12, w, h: 34 })
+    }
+    c.letterSpacing = '0px'
+    ctx.textBaseline = 'alphabetic'
+    ctx.globalAlpha = 1
   }
 
   // 棚。輪の位置から画面の下へ、手前で大きくなりながら浅い弧で移る。

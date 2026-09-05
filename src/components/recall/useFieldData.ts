@@ -50,11 +50,15 @@ export function useFieldData() {
     return m
   }, [claims])
 
-  const seats: FieldSeat[] = useMemo(() => {
+  const counts0 = useMemo(() => {
     const counts = new Array(GENRE_SEATS.length).fill(0)
     for (const [slot, list] of bySlot) if (slot < counts.length) counts[slot] = list.length
-    return fieldLayout(counts)
+    return counts
   }, [bySlot])
+
+  const seats: FieldSeat[] = useMemo(() => fieldLayout(counts0), [counts0])
+  // 隠しコマンドの宇宙（族ごとの星団）。席の位置だけが違い、中身は同じ。
+  const clusterSeats: FieldSeat[] = useMemo(() => fieldLayout(counts0, 'cluster'), [counts0])
 
   // 記事の扇形は主張の並びだけで決まる。now では作り直さない。
   const fans = useMemo(() => {
@@ -74,7 +78,7 @@ export function useFieldData() {
     return m
   }, [claims, progressById, readSet, now])
 
-  const planets: Planet[] = useMemo(() => seats.map((seat) => {
+  const planetOf = (seat: FieldSeat): Planet => {
     const list = bySlot.get(seat.slot) ?? []
     const fan = fans.get(seat.slot)
     const keptRemainings: number[] = []
@@ -99,7 +103,10 @@ export function useFieldData() {
       dots,
       pages: fan?.pages,
     }
-  }), [seats, bySlot, fans, stateById])
+  }
+
+  const planets: Planet[] = useMemo(() => seats.map(planetOf), [seats, bySlot, fans, stateById]) // eslint-disable-line react-hooks/exhaustive-deps
+  const clusterPlanets: Planet[] = useMemo(() => clusterSeats.map(planetOf), [clusterSeats, bySlot, fans, stateById]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 数えるのは「いま画面で開ける主張」だけ。同期でページが外れると記録だけが残り、
   // 「いま確かめる主張はありません」と「期限が来ている主張が N 件」が同時に出る。
@@ -120,7 +127,7 @@ export function useFieldData() {
 
   return {
     loading, error, saveError, keep, review,
-    claims, claimById, planets, counts,
+    claims, claimById, planets, clusterPlanets, counts,
     progressById, candidatesOf, nextDueOf,
   }
 }

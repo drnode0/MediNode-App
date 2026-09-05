@@ -11,6 +11,7 @@ import { seatCenter } from './layout'
 import { GENRE_SEATS, genreLabel, isRetiredSeat } from './genres'
 import { coreKindOf, type CoreKind } from './cores'
 import { planetRadius, R_RING_OUTER } from './field-layout'
+import { clusterPointOf, CLUSTER_ZOOM, CLUSTER_PITCH, CLUSTER_MID_ZOOM } from './field-cluster'
 import {
   OUTSIDE_STAGE, INSIDE_STAGE, PROJECT_SCALE, RING_PITCH,
   zoomForPlanet, eyeDistanceOf, wrapNear, lerp, lerpZoom,
@@ -21,7 +22,8 @@ export type { FieldStage, FieldCenter }
 
 // 並べ方。ring が既定（09-03 決定）。sphere は球の配置をそのまま使う逃げ道で、
 // 環状で行きたいジャンルに辿り着けなかったときの戻り先として残す。
-export type FieldMode = 'ring' | 'sphere'
+// cluster は隠しコマンドの宇宙（族ごとの星団。設計 2026-09-05 再計画 §4.3）。
+export type FieldMode = 'ring' | 'sphere' | 'cluster'
 
 export type FieldSeat = {
   slot: number
@@ -52,6 +54,7 @@ export type Projector = (v: Vec3) => Projected | null
 // 席番号から環状の位置。廃番の席のぶんは詰めない（穴が空くが、席番号と位置の対応が動かない）。
 export function ringPointOf(slot: number, total: number, mode: FieldMode = 'ring'): Vec3 {
   if (mode === 'sphere') return seatCenter(slot)
+  if (mode === 'cluster') return clusterPointOf(slot)
   const a = (slot / total) * Math.PI * 2
   return [Math.cos(a), 0, Math.sin(a)]
 }
@@ -88,7 +91,8 @@ export function fieldLayout(counts: number[], mode: FieldMode = 'ring'): FieldSe
       n,
     })
   }
-  const k = fitScale(seats)
+  // 星団では一律縮小を掛けない（掛けると惑星が 5px になる。設計 §4.3）。
+  const k = mode === 'cluster' ? 1 : fitScale(seats)
   return k >= 1 ? seats : seats.map((s) => ({ ...s, r: s.r * k }))
 }
 
@@ -209,7 +213,12 @@ export function cameraFor(
     }
   }
   if (stage === 'far') {
+    if (mode === 'cluster') return { ...next, rotX: CLUSTER_PITCH, zoom: CLUSTER_ZOOM, focus: [0, 0, 0] }
     return { ...next, rotX: OUTSIDE_STAGE.far.rotX, zoom: OUTSIDE_STAGE.far.zoom, focus: [0, 0, 0] }
+  }
+  // 星団の中景は、寄せた惑星そのものを見る（輪のように手前側の一点ではない）。
+  if (mode === 'cluster') {
+    return { ...next, rotX: CLUSTER_PITCH, zoom: CLUSTER_MID_ZOOM, focus: seat ? [...seat.at] as Vec3 : [0, 0, 0] }
   }
   return {
     ...next,

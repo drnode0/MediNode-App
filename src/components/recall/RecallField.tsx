@@ -5,12 +5,12 @@
 // タブ非表示のあいだは RAF を止める。
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
-  drawField, pickPlanet, pickNearest, pickPage,
-  type FieldHits, type FlyingDot, type Planet,
+  drawField, pickPlanet, pickNearest, pickPage, fontLatin, FONT_JP,
+  type FieldHits, type FlyingDot, type Planet, type FieldFrameArgs,
 } from '@/lib/recall/field-render'
 import {
   cameraFor, frontSlotOf, focusPointOf, initialCamera, lerpCamera, eyeFor, angleOf,
-  type FieldCamera, type FieldCenter,
+  type FieldCamera, type FieldCenter, type FieldMode,
 } from '@/lib/recall/field'
 import {
   stageOfZoom, stageOfFov, zoomStep, fovStep, clampZoom, clampFov,
@@ -20,13 +20,21 @@ import {
   RING_PITCH, INSIDE_STAGE,
   type FieldStage,
 } from '@/lib/recall/field-camera'
+import { CLUSTER_PITCH, CLUSTER_ZOOM, FAMILY_FOCUS_ZOOM } from '@/lib/recall/field-cluster'
 import { paletteOf } from '@/lib/recall/field-palette'
 import { isDarkNow } from './useIsDark'
+import type { CoreKind } from '@/lib/recall/cores'
+
+// 族名を押したときに、族の名詞と惑星の名前を出しておく長さ（設計 §4.3）。
+const FAMILY_FOCUS_MS = 3200
+// 触れてから扇形の弧が消えるまで（案4・設計 §4.2）。
+const FAN_MS = 2600
 
 export type FieldHandle = {
   // 惑星へ寄る。空の惑星（主張0件）には入れないので false を返す。
   enterNear: (slot?: number) => boolean
   backToMid: () => void
+  backToFar: () => void
   jumpTo: (slot: number) => void
   frontSlot: () => number | null
   stage: () => FieldStage
@@ -37,6 +45,16 @@ type Props = {
   center: FieldCenter
   reduced: boolean
   initialNear?: number         // 渡されたら、中景を経由せずこの席の近景で開く（隠しコマンド用）
+  initialStage?: FieldStage    // 'far' で開く（宇宙）。'mid' は initialMid と組で使う
+  initialMid?: number          // 'mid' で開くときに中央へ寄せる席（球から宇宙へ戻ったとき）
+  mode?: FieldMode             // 'cluster' で族ごとの星団（宇宙）
+  free?: boolean               // 近景の縦回しの頭打ちを外す（球・R5）
+  lockNear?: boolean           // 近景から出ない（球から勝手に抜けない）
+  fanOnTouch?: boolean         // 触れたときだけ記事の扇形を出す（案4）
+  show?: FieldFrameArgs['show']
+  familyLabels?: FieldFrameArgs['familyLabels']
+  onPlanetTap?: (slot: number) => void
+  onFamilyTap?: (kind: CoreKind) => void
   shelf: string[]              // 棚に並ぶ主張（並び順のまま）
   shelfBottom?: number         // 棚の高さ（画面の下端から px）。下の UI に重ねない
   again: Set<string>           // 「まだ」と答えたもの
@@ -68,8 +86,12 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
   const pinch = useRef<{ d: number; zoom: number; fov: number } | null>(null)
   const fly = useRef<{ from: FieldCamera; to: FieldCamera; t0: number; dur: number } | null>(null)
   const enteredAt = useRef(0)
+  const touchedAt = useRef(0)                                             // 最後に触れた時刻（扇形の弧）
+  const midSlot = useRef<number | null>(null)                             // 星団で中央に寄せた惑星
+  const farFocus = useRef<{ at: [number, number, number] } | null>(null)  // 族名を押したときの焦点
+  const familyFocus = useRef<{ kind: CoreKind; until: number } | null>(null)
   const dragged = useRef(false)
-  const hits = useRef<FieldHits>({ planets: [], dots: [], pages: [], shelf: [], dotPos: new Map() })
+  const hits = useRef<FieldHits>({ planets: [], dots: [], pages: [], shelf: [], dotPos: new Map(), families: [] })
   const anims = useRef<Anim[]>([])
   const size = useRef({ W: 0, H: 0 })
 
@@ -83,6 +105,8 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
 
   const goStage = (next: FieldStage, slot: number | null) => {
     const P = latest.current
+    // 球の段では近景に留まる（背景タップ・ホイール・ピンチで抜けない）。
+    if (P.lockNear && stage.current === 'near' && next !== 'near') return false
     if (next === 'near') {
       const seat = seatOf(slot)
       if (!seat || seat.n === 0) return false
@@ -94,17 +118,20 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     } else {
       nearSlot.current = null
       handYaw.current = 0
+      midSlot.current = next === 'mid' ? slot : null
     }
     vel.current = 0
-    startFly(cameraFor(cam.current, P.center, next, seatOf(nearSlot.current)), FLY_MS)
+    const target = next === 'near' ? nearSlot.current : midSlot.current
+    startFly(cameraFor(cam.current, P.center, next, seatOf(target), P.mode ?? 'ring'), FLY_MS)
     stage.current = next
-    P.onStage(next, nearSlot.current)
+    P.onStage(next, target)
     return true
   }
 
   useImperativeHandle(ref, () => ({
     enterNear: (slot?: number) => goStage('near', slot ?? nearSlot.current ?? frontSlotOf(latest.current.planets.map((p) => p.seat), cam.current.rotY)),
     backToMid: () => { goStage('mid', null) },
+    backToFar: () => { goStage('far', null) },
     jumpTo: (slot: number) => {
       const seat = seatOf(slot)
       if (!seat) return
@@ -125,15 +152,31 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     if (inited.current || !props.planets.length) return
     inited.current = true
     const seats = props.planets.map((p) => p.seat)
-    const initial = initialCamera(seats)
+    const mode = props.mode ?? 'ring'
+    const initial = initialCamera(seats, mode)
     const nearSeat = props.initialNear !== undefined
       ? seats.find((s) => s.slot === props.initialNear && s.n > 0) ?? null
       : null
     if (nearSeat) {
-      cam.current = cameraFor(initial, props.center, 'near', nearSeat)
+      cam.current = cameraFor(initial, props.center, 'near', nearSeat, mode)
       stage.current = 'near'
       nearSlot.current = nearSeat.slot
       enteredAt.current = performance.now()
+      return
+    }
+    // 球から宇宙へ戻ったときは、その惑星を中央に寄せた中景で開き直す。
+    const midSeat = props.initialStage === 'mid' && props.initialMid !== undefined
+      ? seats.find((s) => s.slot === props.initialMid) ?? null
+      : null
+    if (midSeat) {
+      cam.current = cameraFor(initial, props.center, 'mid', midSeat, mode)
+      stage.current = 'mid'
+      midSlot.current = midSeat.slot
+      return
+    }
+    if (props.initialStage === 'far') {
+      cam.current = cameraFor(initial, props.center, 'far', null, mode)
+      stage.current = 'far'
       return
     }
     cam.current = initial
@@ -165,6 +208,14 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     resize()
     const ro = new ResizeObserver(resize)
     ro.observe(el)
+
+    // 書体が届く前に描くと、族名と和名が端末の既定書体で1コマ出る。
+    // 届いたら次のコマから差し替わるだけなので、待てない環境ではそのまま描き続ける。
+    try {
+      const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+      void fonts?.load(fontLatin())
+      void fonts?.load(FONT_JP)
+    } catch { /* 対応していない環境では何もしない */ }
 
     let raf = 0
     let last = performance.now()
@@ -225,11 +276,14 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
             }
           }
         } else if (stage.current === 'mid') {
-          c.rotX = RING_PITCH
-          c.focus = focusPointOf('ring', c.rotY)
+          c.rotX = P.mode === 'cluster' ? CLUSTER_PITCH : RING_PITCH
+          const ms = seatOf(midSlot.current)
+          // 星団の中景は、寄せた惑星そのものを見る。
+          c.focus = P.mode === 'cluster' && ms ? [...ms.at] : focusPointOf(P.mode ?? 'ring', c.rotY)
         } else {
-          c.rotX = RING_PITCH
-          c.focus = [0, 0, 0]
+          c.rotX = P.mode === 'cluster' ? CLUSTER_PITCH : RING_PITCH
+          // 族名を押しているあいだは、その星団を見る。
+          c.focus = farFocus.current ? [...farFocus.current.at] : [0, 0, 0]
         }
       }
 
@@ -250,6 +304,12 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
         // 切り替えた瞬間から次のコマで紙⇄紺が入れ替わる。
         palette: paletteOf(isDarkNow()),
         shelfBottom: P.shelfBottom,
+        // 案4: 触れたときだけ扇形の弧を出し、2.6 秒で消す（最後の 600ms で薄れる）。
+        show: P.fanOnTouch
+          ? { ...(P.show ?? {}), fans: true, fanAlpha: Math.max(0, Math.min(1, (FAN_MS - (now - touchedAt.current)) / 600)) }
+          : P.show,
+        familyLabels: stage.current === 'far' ? P.familyLabels : undefined,
+        familyFocus: familyFocus.current,
       })
 
       const front = stage.current === 'near' ? nearSlot.current : frontSlotOf(seats, cam.current.rotY)
@@ -282,7 +342,11 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
       }
       c.zoom = zoomStep(c.zoom, e.deltaY)
       const next = stageOfZoom(c.zoom)
-      if (next !== stage.current) { stage.current = next; P.onStage(next, null) }
+      if (next !== stage.current) {
+        stage.current = next
+        if (next === 'far') midSlot.current = null
+        P.onStage(next, null)
+      }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
 
@@ -309,6 +373,7 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     ptrs.current.set(e.pointerId, [e.clientX, e.clientY])
     if (ptrs.current.size >= 2) { drag.current = null; syncPinch(); return }
     vel.current = 0
+    touchedAt.current = performance.now()
     drag.current = { x: e.clientX, y: e.clientY, moved: false, t: performance.now() }
   }
 
@@ -331,7 +396,11 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
       }
       cam.current.zoom = clampZoom(pinch.current.zoom * ratio)
       const next = stageOfZoom(cam.current.zoom)
-      if (next !== stage.current) { stage.current = next; P.onStage(next, null) }
+      if (next !== stage.current) {
+        stage.current = next
+        if (next === 'far') midSlot.current = null
+        P.onStage(next, null)
+      }
       return
     }
     if (ptrs.current.size > 2) return // 3本以上のあいだは回さない
@@ -348,7 +417,8 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     if (stage.current === 'near') {
       handYaw.current += yaw
       if (P.center === 'inside') cam.current.pitch = clampPitchInside(cam.current.pitch - dragPitch(dy))
-      else cam.current.rotX = clampPitchOutside(cam.current.rotX + dragPitch(dy))
+      // 球の段（free）は縦横斜めに頭打ちなし（R5）。輪が裏返るのは眺める段なので許容する。
+      else cam.current.rotX = P.free ? cam.current.rotX + dragPitch(dy) : clampPitchOutside(cam.current.rotX + dragPitch(dy))
     } else {
       cam.current.rotY += yaw
     }
@@ -386,8 +456,39 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
       goStage('mid', null)
       return
     }
+    // 宇宙の遠景。族名を押すとその星団へ寄り、族の名詞と惑星の名前が 3.2 秒出る（R7）。
+    if (stage.current === 'far') {
+      const fam = h.families.find((f) => mx >= f.x && mx <= f.x + f.w && my >= f.y && my <= f.y + f.h)
+      const fl = fam ? P.familyLabels?.find((f) => f.kind === fam.kind) : undefined
+      if (fam && fl) {
+        farFocus.current = { at: [fl.at[0], fl.at[1] - 0.2, fl.at[2]] }
+        familyFocus.current = { kind: fam.kind, until: performance.now() + FAMILY_FOCUS_MS }
+        fly.current = null
+        startFly({ ...cam.current, focus: [...farFocus.current.at], zoom: FAMILY_FOCUS_ZOOM }, FLY_MS)
+        P.onFamilyTap?.(fam.kind)
+        return
+      }
+    }
     const slot = pickPlanet(h, mx, my)
-    if (slot !== null) goStage('near', slot)
+    // 空を押したら族の寄りを解いて、宇宙の全体へ戻る。
+    if (slot === null && stage.current === 'far' && farFocus.current) {
+      farFocus.current = null
+      startFly({ ...cam.current, focus: [0, 0, 0], zoom: CLUSTER_ZOOM }, FLY_MS)
+      return
+    }
+    if (slot === null) return
+    // 空の席は押せない（R9）。
+    if ((seatOf(slot)?.n ?? 0) === 0) return
+    if (P.mode === 'cluster') {
+      // 中央に寄せた惑星をもう一度押すと球へ。ほかは中景へ寄せる。
+      if (stage.current === 'mid' && midSlot.current === slot) {
+        if (P.onPlanetTap) P.onPlanetTap(slot)
+        else goStage('near', slot)
+      } else goStage('mid', slot)
+      return
+    }
+    if (P.onPlanetTap) P.onPlanetTap(slot)
+    else goStage('near', slot)
   }
 
   return (
