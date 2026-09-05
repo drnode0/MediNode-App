@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/trial-lifecycle",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/cq-answer-notify",
+      "schedule": "0 10 * * *"
     }
   ]
 }

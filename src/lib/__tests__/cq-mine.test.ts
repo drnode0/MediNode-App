@@ -28,12 +28,19 @@ describe('stageOf', () => {
     expect(stageOf('', true)).toBe('onBoard')
   })
 
-  it('「解決」を含む値だけを answered にする', () => {
+  it('受付DBの実選択肢「対応済み」を answered にする（admin-daily の RESOLVED_STATES と同じ語彙）', () => {
+    expect(stageOf('対応済み', false)).toBe('answered')
+    expect(stageOf('対応済み', true)).toBe('answered')
+    expect(stageOf(' 対応済み ', false)).toBe('answered') // 前後空白を吸収
+  })
+
+  it('「解決」を含む値も answered にする', () => {
     expect(stageOf('解決済み', false)).toBe('answered')
     expect(stageOf('解決', true)).toBe('answered')
   })
 
-  it('解決以外の対応状態は closed（取り下げを「答えが出た」と言わない）', () => {
+  it('答えが出た以外の対応状態は closed（対応不要・取り下げを「答えが出た」と言わない）', () => {
+    expect(stageOf('対応不要', false)).toBe('closed')
     expect(stageOf('取り下げ', false)).toBe('closed')
     expect(stageOf('対象外', true)).toBe('closed')
   })

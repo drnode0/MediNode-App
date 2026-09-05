@@ -44,11 +44,12 @@ function selectName(p: Prop): string {
   return sel?.name ? String(sel.name) : ''
 }
 
-// 対応状態から段を決める。「解決」を含む値だけを答えが出たものとして扱う。
-// 取り下げ等を「答えが出た」と言ってしまう方が、何も言わないより悪い。
+// 対応状態から段を決める。受付DBの実選択肢は「対応済み」「対応不要」の2つで、
+// 答えが出たことを表すのは「対応済み」（admin-daily の RESOLVED_STATES と同じ語彙）。
+// 「対応不要」や取り下げを「答えが出た」と言ってしまう方が、何も言わないより悪い。
 export function stageOf(status: string, onBoard: boolean): MyStage {
   const trimmed = status.trim()
-  if (trimmed.includes('解決')) return 'answered'
+  if (trimmed === '対応済み' || trimmed.includes('解決')) return 'answered'
   if (trimmed) return 'closed'
   return onBoard ? 'onBoard' : 'received'
 }
