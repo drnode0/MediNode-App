@@ -2384,8 +2384,8 @@ git commit -m "feat(ask-shelf): 完了条件の2つの数を /admin に出し、
 |---|---|
 | Task 10 の前 | 受付DBに列を4つ足す（段0結果 select／段0主張ID rich_text／正本主張ID rich_text／見送りの理由 select・選択肢5つ） |
 | デプロイの前 | migration 0030 を Supabase の SQL Editor で流し、README の表に印を付ける |
-| デプロイの前 | `ASK_SHELF_EMAILS` に自分のメールを入れる（`.env.local` と Vercel） |
-| 任意 | Supabase の Extensions で pgroonga を有効にし、0031 を流す（無くても動く） |
+| デプロイの前 | `ASK_SHELF_EMAILS` に自分のメールを入れる（`.env.local` と Vercel）。**/admin の正本候補の検索も読者と同じ `/api/ask-shelf/search` を使うので、作者のアカウントがこの一覧に入っていないと候補検索だけが本文なしの404で黙って失敗する**（管理者かどうかとは別の判定） |
+| 当面やらない | Supabase の Extensions で pgroonga を有効にし、0031 を流す。**この機能を動かすのに要らない**——`search_text` と索引を読むコードは今は無く、流すと有料の本文を複製した生成列と誰も引かない索引が全行に増える。着手は全件読みが重くなってから（再検討ライン＝主張が 2,000 を超えたとき） |
 | 実装後 | 完了条件の6つを本番で1周する |
 
 ## 完了条件（設計書と同じ。実装が終わっただけでは閉じない）

@@ -50,7 +50,7 @@
 | 0028 | question_interest | `question_interest` | ✅ ※5 |
 | 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ✅ ※6 |
 | 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ⬜ 未適用 |
-| 0031 | ask_shelf_pgroonga（任意） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用 ※8 |
+| 0031 | ask_shelf_pgroonga（いまは流さない） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用（意図的）※8 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -96,5 +96,9 @@ OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_a
 
 ※7 2026-09-05 に本番DBで実測。`/rest/v1/user_settings?select=occupation&limit=1` が 200 を返し、
 `occupation` 列が存在することを確認した。以前の「未確認」は記録漏れ。
-※8 0031 は無くても段0は動く（候補絞り込みが全件読みになるだけ）。
-Supabase の Extensions で pgroonga を有効にしてから流す。
+※8 0031 は**いま流す必要が無い**。2026-09-05 時点で `search_text` と PGroonga 索引を読むコードは
+1か所も無く（段0の検索は active な主張を毎回すべて読み、順位と足切りは TypeScript の覆い率が決める）、
+流すと有料の主張の本文を複製した生成列と、誰も引かない索引が全行に増えるだけになる。
+流すのは全件読みが実際の負担になってから（設計書の再検討ライン＝主張が 2,000 を超えたとき）で、
+そのとき `src/app/api/ask-shelf/search/route.ts` に候補の絞り込みを足す。
+流すときは Supabase の Extensions で pgroonga を有効にしてから。
