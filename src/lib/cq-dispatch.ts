@@ -118,6 +118,9 @@ export function buildDispatchStates(
 export function dispatchLabel(state: DispatchState | undefined): string {
   if (!state) return ''
   if (state.stage === 'answered') return '答えが出ました'
+  // 「対応不要」を「届いています」のまま置かない。待っている人に終わりが見えないのが
+  // いちばんの負債だった（提案005 の「先に知っておくべき3つのこと」の3番）。
+  if (state.stage === 'closed') return '今回は記事化しません'
   if (state.voteCount && state.voteCount > 0) {
     return `${state.voteCount}人が同じことを気にしています`
   }

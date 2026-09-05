@@ -101,4 +101,9 @@ describe('dispatchLabel', () => {
   it('送った記録が無ければ何も出さない', () => {
     expect(dispatchLabel(undefined)).toBe('')
   })
+
+  it('対応不要は「今回は記事化しません」と理由を出す', () => {
+    expect(dispatchLabel({ sentAt: '2026-09-01', voteCount: null, stage: 'closed' }))
+      .toBe('今回は記事化しません')
+  })
 })
