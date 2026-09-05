@@ -54,6 +54,13 @@ export function RecallCard({ claim, mode, kept, pending = false, onAnswer, onKee
   }
 
   return (
+    <>
+      {/* カードの後ろの覆い。カードの外側を押したら閉じる（記録は書かない）。
+          覆いが無いと、カードの上に覗いている行を押せてしまい、カードを閉じたつもりがなく
+          中身だけ別の主張に差し替わる（2026-09-05 実画面で確認）。
+          隠しコマンドの覆い（z-20）より上・カード（z-30）より下。 */}
+      <div role="presentation" onClick={onClose}
+        className="fixed inset-0 z-[29] bg-slate-900/[.12] dark:bg-black/[.35] motion-safe:animate-[recall-card-veil_.3s_ease-out]" />
     <div className="fixed left-1/2 -translate-x-1/2 bottom-[22px] z-30 w-[min(520px,calc(100vw-32px))] rounded-2xl border border-slate-200 border-t-cyan-600/60 bg-white/[.97] p-6 text-slate-800 shadow-[0_-10px_50px_rgba(14,116,144,.08),0_20px_60px_rgba(15,23,42,.18)] dark:border-slate-600/40 dark:border-t-cyan-400/50 dark:bg-[rgba(10,16,24,.96)] dark:text-slate-100 dark:shadow-[0_-10px_60px_rgba(111,215,232,.10),0_20px_60px_rgba(0,0,0,.6)]"
       style={{ transformOrigin: '50% 0%', animation: 'recall-card-rise .62s cubic-bezier(.16,.9,.3,1)' }} role="dialog" aria-label="主張のカード">
       <div className="text-[10.5px] tracking-widest text-cyan-700 dark:text-cyan-300 mb-1">{claim.pageTitle}</div>
@@ -86,5 +93,6 @@ export function RecallCard({ claim, mode, kept, pending = false, onAnswer, onKee
         )}
       </div>
     </div>
+    </>
   )
 }

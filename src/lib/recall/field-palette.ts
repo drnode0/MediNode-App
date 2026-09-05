@@ -17,6 +17,12 @@
 import { INK_WARM, INK_COOL, INK_WHITE, INK_HALO } from './core-shapes'
 import { INK_TOUCHED, INK_DIM } from './field-layout'
 
+// 離れかけの金。DOM 側（RecallDot・RecallDex・RecallPlatePage の text-[#…]）と canvas 側
+//（芯の INK_HALO の引き直し先）を同じ値にする。Tailwind の class は文字列を走査して作られるので
+// ここから差し込めない。DOM 側を変えるときはこの2つも一緒に変える（テストで固定）。
+export const GOLD_DARK = '#F0D68A'
+export const GOLD_LIGHT = '#A86B0C'
+
 export type FieldPalette = {
   bg: string          // 地
   label: string       // 惑星の名前・境目の名前・記事名
@@ -42,7 +48,7 @@ export const DARK_PALETTE: FieldPalette = {
     [INK_WHITE]: INK_WHITE,
     [INK_COOL]: INK_COOL,
     [INK_WARM]: INK_WARM,
-    [INK_HALO]: INK_HALO,
+    [INK_HALO]: GOLD_DARK,
     [INK_TOUCHED]: INK_TOUCHED,
     [INK_DIM]: INK_DIM,
   },
@@ -62,7 +68,7 @@ export const LIGHT_PALETTE: FieldPalette = {
     [INK_WHITE]: '#152238',   // 深く残した。最も濃い
     [INK_COOL]: '#2C4566',    // 残した
     [INK_WARM]: '#6B4F35',    // 芯の暖色の線（異物・侵入）
-    [INK_HALO]: '#A86B0C',    // 離れかけ。10px の文字でも読める深さの金（紙との比率 4 以上）
+    [INK_HALO]: GOLD_LIGHT,  // 離れかけ。10px の文字でも読める深さの金（紙との比率 4 以上）
     [INK_TOUCHED]: '#6F849E', // 読んだ
     [INK_DIM]: '#5A6C85',     // 未着手（alpha 0.2 で使うので、紙では少し濃い色にしておく）
   },
