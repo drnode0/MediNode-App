@@ -14,7 +14,8 @@ import {
   fieldLayout, frontSlotOf, angleOf, depthAt, focusPointOf, cameraFor,
   makeProjector, initialCamera, eyeFor, insideBasis,
 } from '@/lib/recall/field'
-import { EDGE_LABEL_MS, R_COLD } from '@/lib/recall/field-layout'
+import { CLUSTER_ZOOM, CLUSTER_PITCH, CLUSTER_MID_ZOOM, clusterPointOf } from '@/lib/recall/field-cluster'
+import { EDGE_LABEL_MS, R_COLD, planetRadius } from '@/lib/recall/field-layout'
 import { GENRE_SEATS, isRetiredSeat } from '@/lib/recall/genres'
 import { pickPlanet, pickNearest, pickPage } from '@/lib/recall/field-render'
 
@@ -290,5 +291,34 @@ describe('タップ判定', () => {
   it('記事名は札の四角で拾う', () => {
     expect(pickPage(hits, 40, 28)).toBe('p1')
     expect(pickPage(hits, 40, 50)).toBeNull()
+  })
+})
+
+// ── 星団（再計画 §4.3） ────────────────────────
+describe('星団の配置とカメラ（再計画 §4.3）', () => {
+  it('席の位置が clusterPointOf と一致し、半径は planetRadius のまま（fitScale を掛けない）', () => {
+    const c = counts()
+    const max = Math.max(...c)
+    const seats = fieldLayout(c, 'cluster')
+    for (const s of seats) {
+      expect(s.at).toEqual(clusterPointOf(s.slot))
+      near(s.r, planetRadius(s.n, max))
+    }
+  })
+  it('遠景は原点を見て倍率 2.4・見下ろし −0.55', () => {
+    const seats = fieldLayout(counts(), 'cluster')
+    const cam = cameraFor(initialCamera(seats, 'cluster'), 'outside', 'far', null, 'cluster')
+    expect(cam.zoom).toBe(CLUSTER_ZOOM); expect(cam.rotX).toBe(CLUSTER_PITCH); expect(cam.focus).toEqual([0, 0, 0])
+  })
+  it('中景は寄せた惑星を見て倍率 5', () => {
+    const seats = fieldLayout(counts(), 'cluster')
+    const seat = seats.find((s) => s.slot === 3)!
+    const cam = cameraFor(initialCamera(seats, 'cluster'), 'outside', 'mid', seat, 'cluster')
+    expect(cam.zoom).toBe(CLUSTER_MID_ZOOM); expect(cam.focus).toEqual(seat.at)
+  })
+  it('輪の配置は今までどおり（fitScale が効く・カメラも既存値）', () => {
+    const seats = fieldLayout(counts())
+    const cam = cameraFor(initialCamera(seats), 'outside', 'far', null)
+    expect(cam.zoom).toBe(FAR_ZOOM); expect(cam.rotX).toBe(RING_PITCH)
   })
 })
