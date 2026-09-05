@@ -1,5 +1,7 @@
 # Recall「さらに宇宙へ」（隠しコマンド第2段）実装計画
 
+> **この計画は走らせない（2026-09-05 夕）。** 前提（球＝その惑星だけ）が実装と食い違っていた。置き換え: `2026-09-05-recall-lift-stages-plan.md`（設計 `../specs/2026-09-05-recall-replan-design.md`）。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 分野ページの紋章で浮き出る球（隠しコマンド D5）の下に「さらに宇宙へ」を置き、押すと 7 族ごとの星団に散らばった惑星が自転しながら浮く宇宙（遠景）へ引く。宇宙で惑星を押すとその球へ飛べる。
