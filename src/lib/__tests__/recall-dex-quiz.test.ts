@@ -84,9 +84,9 @@ describe('nextSweepSlot', () => {
     expect(nextSweepSlot(plates, 3)).toBe(5)
   })
 
-  it('末尾の次は null', () => {
+  it('末尾の次は先頭へ折り返す', () => {
     const plates = [plate(1, 1), plate(5, 1)]
-    expect(nextSweepSlot(plates, 5)).toBeNull()
+    expect(nextSweepSlot(plates, 5)).toBe(1)
   })
 
   it('離れかけの無い分野は飛ばす', () => {
@@ -98,6 +98,22 @@ describe('nextSweepSlot', () => {
     // 直前のカードで離れかけが尽きて escaping が 0 に落ちた分野。次の巡回先はそのまま先へ。
     const plates = [plate(1, 0), plate(2, 1)]
     expect(nextSweepSlot(plates, 1)).toBe(2)
+  })
+})
+
+describe('nextSweepSlot の折り返し', () => {
+  it('末尾の分野の次は、先頭の離れかけのある分野へ戻る', () => {
+    const plates = [plate(2, 3), plate(5, 0), plate(9, 1)]
+    expect(nextSweepSlot(plates, 9)).toBe(2)
+  })
+
+  it('current にまだ離れかけが残っていて他に無ければ current を返す（5件ずつ同じ分野を回る）', () => {
+    const plates = [plate(2, 0), plate(9, 12)]
+    expect(nextSweepSlot(plates, 9)).toBe(9)
+  })
+
+  it('離れかけのある分野が1つも無ければ null', () => {
+    expect(nextSweepSlot([plate(2, 0), plate(9, 0)], 9)).toBeNull()
   })
 })
 

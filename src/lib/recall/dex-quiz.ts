@@ -27,7 +27,13 @@ export function isRunDone(run: QuizRun): boolean {
 }
 
 // 「離れかけを順に確かめる」で次に開く分野の席番号。離れかけ（escaping > 0）のある分野だけを
-// 対象に、席番号順で current の次を返す。current が null なら先頭、末尾の次は null。
+// 対象に、席番号順で current の次を返す。current が null なら先頭。
+//
+// 末尾まで来たら先頭へ折り返す。1分野1回の列は最大5件（srs.ts の MAX_CANDIDATES）なので、
+// 6件以上ある分野は1周では終わらない。折り返せば、離れかけのある分野が1つも
+// 無くなるまで回り続ける（current 自身にまだ残っていれば current を返す）。
+// 折り返さない作りでは、実データで「今日の離れかけを確かめました」が途中で出た
+//（2026-09-05 実測: 46件のうち32件で終了）。
 //
 // plates は platesOf が席番号順に返す実装だが、その前提には頼らず自分で並べ替える
 // （ここは巡回の核であり、呼び出し側の並びが変わっても壊れない方を選ぶ）。
@@ -39,7 +45,7 @@ export function nextSweepSlot(plates: PlateModel[], current: number | null): num
   if (slots.length === 0) return null
   if (current === null) return slots[0]
   const next = slots.find((s) => s > current)
-  return next ?? null
+  return next ?? slots[0]
 }
 
 // 「n件を確かめました。次は○日後に○件」（設計 §2.5 手順5）。
