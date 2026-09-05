@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const sessionHasFeature = vi.fn()
 const getUser = vi.fn()
 let existing: Record<string, unknown> | null = null
+// keep:true が recall_claims の存在確認（2026-09-05 提案006の裁定5）で使う service_role
+// クライアント。既定は「実在して active」にしておき、この確認自体を狙うテストは
+// 個別に上書きする（他の書き込みルートのテストはここに触れないので影響しない）。
+let claimRow: Record<string, unknown> | null = { claim_id: 'a', active: true }
 
 // どのテーブルに・何が（upsert/insert）・どんな行で書かれたか、どのテーブルをどの eq で
 // 読んだかを記録する。table 引数を捨てて全テーブルへ同じスパイを渡すモックだと、
@@ -39,6 +43,16 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: { getUser },
     from: (table: string) => makeFrom(table),
   }),
+  // recall_claims は RLS ポリシー無し（service_role のみ）。keep:true の存在確認はこちらで読む。
+  createAdminClient: () => ({
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: table === 'recall_claims' ? claimRow : null, error: null }),
+        }),
+      }),
+    }),
+  }),
 }))
 const { POST: keepPOST } = await import('../../app/api/recall/keep/route')
 const { POST: readPOST } = await import('../../app/api/recall/read/route')
@@ -52,6 +66,7 @@ beforeEach(() => {
   sessionHasFeature.mockReset().mockResolvedValue(true)
   getUser.mockReset().mockResolvedValue({ data: { user: { id: 'u1' } } })
   writes = []; reads = []; existing = null
+  claimRow = { claim_id: 'a', active: true }
 })
 
 describe('Recall 書き込みルート', () => {

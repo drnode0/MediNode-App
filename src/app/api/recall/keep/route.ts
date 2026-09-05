@@ -26,6 +26,22 @@ export async function POST(req: Request) {
   if (!claimId || typeof body?.keep !== 'boolean') {
     return NextResponse.json({ error: 'claimId と keep が必要です' }, { status: 400 })
   }
+  if (body.keep) {
+    // 残す（新規に始める・外した記録を復活させる、どちらの経路も含む）は、実在して
+    // active な主張にしか適用しない。呼び手が段0の「残す」ボタン・着地画面と増えるため、
+    // ここで締めておかないと、無い・取り下げ済みの主張を出題母集団へ静かに戻してしまう。
+    // recall_claims は RLS ポリシー無し（service_role のみ）なので g.admin() で読む。
+    const { data: claim, error: claimError } = await g
+      .admin()
+      .from('recall_claims')
+      .select('claim_id, active')
+      .eq('claim_id', claimId)
+      .maybeSingle()
+    if (claimError) return serverError('keep: 主張の存在確認に失敗', claimError)
+    if (!claim || (claim as { active?: unknown }).active !== true) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+  }
   // 読み取り→JSで計算→書き戻しの間に、別リクエスト（外す／残す）が割り込むと後勝ちで
   // 上書きされうる（DB側の条件付き更新でないと閉じ切れないため対象外）。
   const { data, error } = await g.supabase.from('recall_progress').select(COLS).eq('user_id', g.userId).eq('claim_id', claimId).maybeSingle()
