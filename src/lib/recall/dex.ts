@@ -138,6 +138,7 @@ export type PageModel = {
     pageId: string
     title: string
     n: number
+    escaping: number // 目次のチップに出す、その記事の離れかけの数（§2.1）
     sections: Array<{
       sectionKey: string
       heading: string
@@ -184,7 +185,8 @@ export function pageModelOf(planet: Planet, claimById: Map<string, RecallClaim>)
         return { sectionKey, heading, rows }
       })
       .sort((a, b) => sectionOrderOf(a.sectionKey) - sectionOrderOf(b.sectionKey))
-    return { pageId: page.pageId, title: page.title, n: page.n, sections }
+    const escaping = sections.reduce((sum, s) => sum + s.rows.filter((r) => r.look.kind === 'escaping').length, 0)
+    return { pageId: page.pageId, title: page.title, n: page.n, escaping, sections }
   })
 
   return { plate: plateOf(planet), pages }

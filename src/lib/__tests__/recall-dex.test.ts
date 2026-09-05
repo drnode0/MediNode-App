@@ -248,6 +248,21 @@ describe('分野ページ pageModelOf', () => {
     expect(m.plate.cold).toBe(3) // a3・b1・gone
     expect(m.plate.escaping).toBe(1) // a2
   })
+
+  it('記事ごとに、離れかけ（保持力が閾値未満の「残した」）の数を持つ', () => {
+    // 記事A は a2（settled・保持力0）だけが離れかけ。記事B は0件。
+    const m = pageModelOf(planet, claims)
+    expect(m.pages.map((p) => p.escaping)).toEqual([1, 0])
+  })
+
+  it('同じ記事に離れかけが複数あれば、その数を数える', () => {
+    const two = planetOf({
+      seat: seatOf(),
+      dots: [dotOf('a1', 'A', 0.1, 'kept', 0), dotOf('a2', 'A', 0.2, 'settled'), dotOf('a4', 'A', 0.4, 'touched')],
+      pages: [{ pageId: 'A', title: '記事A', n: 3, a0: 0, a1: 1 }],
+    })
+    expect(pageModelOf(two, claims).pages[0].escaping).toBe(2)
+  })
 })
 
 describe('今日の帯 todayOf', () => {
