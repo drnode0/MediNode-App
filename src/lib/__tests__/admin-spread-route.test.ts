@@ -31,6 +31,11 @@ vi.mock('@/lib/supabase/server', () => ({
     }),
   }),
 }))
+// サブスク用DB（棚）と、制作用DB（下書き置き場）のID。原本がどちらにあるかで
+// 読者に届くかどうかが決まる。
+const SUB_DB = '11111111111111111111111111111111'
+const DRAFT_DB = '22222222222222222222222222222222'
+
 // 原本のブロック。既定は最小構成で、参考文献の関門を見るテストだけが差し替える。
 const BASE_BLOCKS: unknown[] = [
   { id: 'b1', type: 'heading_2', heading_2: { rich_text: [{ plain_text: '1. 見出し' }] } },
@@ -53,8 +58,14 @@ const patchReq = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks()
   process.env.SUBSCRIPTION_NOTION_TOKEN = 'tok'
+  process.env.SUBSCRIPTION_MEDICAL_DB_ID = SUB_DB
   requireAdmin.mockResolvedValue({ ok: true, email: 'owner@example.com' })
-  notionRetrieve.mockResolvedValue({ last_edited_time: '2026-08-20T00:00:00.000Z', properties: {} })
+  // 既定の原本はサブスク用DBのページ（＝読者に届く棚の上にある記事）。
+  notionRetrieve.mockResolvedValue({
+    last_edited_time: '2026-08-20T00:00:00.000Z',
+    parent: { type: 'database_id', database_id: SUB_DB },
+    properties: {},
+  })
   upsert.mockResolvedValue({ error: null })
   selectRows = []
   lastSelectArg = undefined
@@ -515,5 +526,100 @@ describe('GET /api/admin/spread', () => {
     const res = await GET(getReq('?check=1'))
     expect(res.status).toBe(200)
     expect(notionRetrieve).not.toHaveBeenCalled()
+  })
+})
+
+// 原本が制作用DBのままのページでスプレッドを組んでも、同期はサブスク用DBしか読まないので
+// 記事はAlgoliaに入らず、読者はその記事に一切たどり着けない。それでも一覧は「公開中」と
+// 出るため、オーナーからは出ているようにしか見えない（2026-09-05に実際に起きた）。
+// 棚に無い原本は投入の時点で止め、既にある行にはその印を出す。
+describe('原本がサブスク用DBにあることの関門', () => {
+  it('制作用DBのページは投入させない（保存しない）', async () => {
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'database_id', database_id: DRAFT_DB },
+      properties: {},
+    })
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('not_subscription_db')
+    expect(upsert).not.toHaveBeenCalled()
+  })
+
+  it('公開（publish）でも同じく止める', async () => {
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'database_id', database_id: DRAFT_DB },
+      properties: {},
+    })
+    const res = await PUT(req({ pageId: 'p1', publish: true }))
+    expect(res.status).toBe(400)
+    expect(upsert).not.toHaveBeenCalled()
+  })
+
+  it('DBの下にないページ（別ページの子）も止める', async () => {
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'page_id', page_id: 'somepage' },
+      properties: {},
+    })
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(400)
+    expect(upsert).not.toHaveBeenCalled()
+  })
+
+  it('ハイフンの有無が違うだけなら同じDBとみなして通す', async () => {
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'database_id', database_id: '11111111-1111-1111-1111-111111111111' },
+      properties: {},
+    })
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(200)
+    expect(upsert).toHaveBeenCalled()
+  })
+
+  it('サブスク用DBのIDが未設定の環境では判定しない（従来どおり保存する）', async () => {
+    delete process.env.SUBSCRIPTION_MEDICAL_DB_ID
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'database_id', database_id: DRAFT_DB },
+      properties: {},
+    })
+    const res = await PUT(req({ pageId: 'p1' }))
+    expect(res.status).toBe(200)
+  })
+
+  it('?check=1 は原本が棚に無い行に offShelf: true を返す', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z', verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: '💡 気管挿管の際に何を準備すれば良い？' },
+    ]
+    notionRetrieve.mockResolvedValue({
+      last_edited_time: '2026-08-20T00:00:00.000Z',
+      parent: { type: 'database_id', database_id: DRAFT_DB },
+      properties: {},
+    })
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.spreads[0].offShelf).toBe(true)
+  })
+
+  it('?check=1 で原本が棚にある行は offShelf: false', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z', verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: '💡 酸素療法はどのように使い分ける？' },
+    ]
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.spreads[0].offShelf).toBe(false)
+  })
+
+  it('?check=1 で原本が引けなければ offShelf: false（誤検知させない）', async () => {
+    selectRows = [
+      { page_id: 'p1', status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z', verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: 'x' },
+    ]
+    notionRetrieve.mockRejectedValue(new Error('not found'))
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.spreads[0].offShelf).toBe(false)
   })
 })

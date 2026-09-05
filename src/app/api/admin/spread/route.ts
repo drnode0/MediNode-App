@@ -8,6 +8,7 @@ import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 import { applyOverlay, buildSpreadDraft, canonicalPageId, danglingSourceParts, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
 import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
+import { isSubscriptionSourcePage } from '@/lib/subscription-source-db'
 
 /**
  * スプレッド（SpreadDoc）の投入。オーナー専用。
@@ -39,9 +40,14 @@ export async function PUT(req: Request) {
   let doc
   let notes
   let lastEdited: string | null = null
+  let offShelf = false
   try {
     const notion = new Client({ auth: token })
     const page = await notion.pages.retrieve({ page_id: pageId })
+    // 原本が制作用DBのままだと、同期はサブスク用DBしか読まないので記事はAlgoliaに入らず、
+    // 読者はその記事にたどり着けない。それでも一覧は「公開中」と出るため、出ているように
+    // しか見えない。組む前に止める（本文の取得より前で落とす）。
+    if (isSubscriptionSourcePage(page) === false) offShelf = true
     const blocks = await fetchPageBlocks(notion, pageId)
     doc = mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
     // スプレッドノート（非公開DB）。無ければ null＝照合先は原本だけ。
@@ -49,6 +55,16 @@ export async function PUT(req: Request) {
     lastEdited = (page as { last_edited_time?: string }).last_edited_time ?? null
   } catch {
     return NextResponse.json({ error: 'notion_fetch_failed' }, { status: 502 })
+  }
+  if (offShelf) {
+    return NextResponse.json(
+      {
+        error: 'not_subscription_db',
+        message:
+          'この原本はサブスク用DBにありません。制作用DBのページで組んだスプレッドは、同期しても記事が読者に出ません。先にサブスク用DBへ移してから、移行先のページIDで投入してください。',
+      },
+      { status: 400 },
+    )
   }
 
   // overlay を指定しない PUT（/admin の「再生成」はこれだけを送る）は、保存済みの overlay を
@@ -295,10 +311,12 @@ export async function GET(req: Request) {
         const last = (page as { last_edited_time?: string }).last_edited_time ?? null
         // 原本の最終更新が、このスプレッドを組んだ時点の原本更新より新しければ再生成が要る。
         const stale = !!last && !!r.source_last_edited && new Date(last) > new Date(r.source_last_edited)
-        return { ...r, stale }
+        // 原本が棚（サブスク用DB）に無い行。公開中でも読者はその記事に届いていない。
+        const offShelf = isSubscriptionSourcePage(page) === false
+        return { ...r, stale, offShelf }
       } catch {
         // 原本が引けない（削除・権限変更等）ときは判定しない。誤って「更新あり」と出さない。
-        return { ...r, stale: false }
+        return { ...r, stale: false, offShelf: false }
       }
     }),
   )

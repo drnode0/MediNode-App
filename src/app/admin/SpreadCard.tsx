@@ -16,9 +16,14 @@ import { canonicalPageId, quizFeedback, type SpreadOverlay, type SpreadQuiz } fr
 // 文言はスプレッドの編集画面（spread-edit/SpreadEditClient）と揃える。片方だけに文言があると、
 // この画面から押した人だけが「失敗しました: refs_incomplete」を見ることになる。
 function failureMessage(
-  d: { error?: string; missing?: string[]; dangling?: string[]; sections?: { anchor: string; blockId: string }[] },
+  d: { error?: string; message?: string; missing?: string[]; dangling?: string[]; sections?: { anchor: string; blockId: string }[] },
   status: number,
 ): string {
+  // not_subscription_db＝原本が制作用DBのまま。同期はサブスク用DBしか読まないので、
+  // 組んで公開しても記事は読者に出ない。何をすればよいかはサーバーの文言をそのまま出す。
+  if (d.error === 'not_subscription_db') {
+    return d.message ?? 'この原本はサブスク用DBにありません。先にサブスク用DBへ移してください。'
+  }
   // verbatim_mismatch＝生成側が本文を書き換えた、または原本が変わった。
   // どちらにせよ投入はさせず、何が食い違ったかを示す。
   if (d.error === 'verbatim_mismatch') {
@@ -47,6 +52,8 @@ type Row = {
   // 保存済みスプレッドの記事名（spread_doc.title）。行を人が見分ける唯一の手がかり。
   title: string | null
   stale?: boolean
+  // 原本がサブスク用DB（読者に届く棚）に無い行。公開中でも読者はこの記事に届かない。
+  offShelf?: boolean
   quizzes: SpreadQuiz[]
 }
 
@@ -303,6 +310,7 @@ export function SpreadCard() {
           {rows.map((r) => {
             const published = r.status === 'published'
             const stale = r.stale === true
+            const offShelf = r.offShelf === true
             const unreviewed = r.quizzes.filter((q) => !q.reviewed)
             const quizOpen = openQuiz.has(r.page_id)
             return (
@@ -330,6 +338,12 @@ export function SpreadCard() {
                   {published ? <CheckCircle2 className="w-3 h-3" aria-hidden /> : null}
                   {published ? '公開中' : '未公開'}
                 </span>
+                {offShelf && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/60">
+                    <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden />
+                    サブスク用DBに無い（読者に出ていません）
+                  </span>
+                )}
                 {stale && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60">
                     <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden />
