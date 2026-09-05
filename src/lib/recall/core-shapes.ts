@@ -364,11 +364,18 @@ export function coreLayers(kind: CoreKind, t: number, opts: CoreLayerOptions = {
 
   if (kind === 'signal') {
     const fire = (t * 0.62) % 3.15
-    return [{
-      lines: cached(key('tree'), () => tree(density > 1.1 ? 5 : 4)),
-      ink: INK_COOL,
-      glow: glowOn && fire < 1.9 ? { pos: (fire / 1.9) * 1.45, w: 0.11, wrap: 0 } : null,
-    }]
+    const lines = cached(key('tree'), () => tree(density > 1.1 ? 5 : 4))
+    return [
+      {
+        lines,
+        ink: INK_COOL,
+        glow: glowOn && fire < 1.9 ? { pos: (fire / 1.9) * 1.45, w: 0.11, wrap: 0 } : null,
+      },
+      // 幹（根から直に出る3本）だけ太く重ねる。信号は7族で唯一 bold を持たず、
+      // ライトの紙の上で細く淡かった（2026-09-05 実画面）。枝の細さは信号らしさなので変えない。
+      // tree の push は深さ優先で、先頭3本は「根1・根1の子・その子」になる。幹は始点で拾う。
+      { lines: lines.filter((l) => l[0][0] === 0 && l[0][1] === -0.86 && l[0][2] === 0), ink: INK_COOL, bold: true },
+    ]
   }
 
   if (kind === 'invasion') {

@@ -130,6 +130,19 @@ describe('信号: 伝って分岐する', () => {
   })
 })
 
+describe('信号: 幹は太い', () => {
+  it('枝の層と、幹3本の太い層の2層になる', () => {
+    const layers = coreLayers('signal', 1)
+    expect(layers.length).toBe(2)
+    expect(layers[0].bold ?? false).toBe(false)
+    expect(layers[1].bold).toBe(true)
+    // 幹＝根（下極 y=-0.86）から直に出る3本。tree の push は深さ優先なので
+    // 先頭3本ではなく、始点が根の線を拾う。
+    expect(layers[1].lines.length).toBe(3)
+    expect(layers[1].lines.every((l) => l[0][0] === 0 && l[0][1] === -0.86 && l[0][2] === 0)).toBe(true)
+  })
+})
+
 describe('構造: 撓んで耐える（直線は構造の専売）', () => {
   it('棒はどこでも接触しない', () => {
     const { struts } = tensegrity(6, (Math.PI / 6) * 1.15, 0.52)
