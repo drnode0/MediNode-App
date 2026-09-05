@@ -78,6 +78,7 @@ import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
 import { SpreadCard } from './SpreadCard'
 import { RecallCardsPanel } from './RecallCardsPanel'
+import { AskShelfAdminPanel } from './AskShelfAdminPanel'
 import { EssentialsCard } from './EssentialsCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
 import { eventStartMs, formatEventStamp } from '@/lib/event-time'
@@ -1071,6 +1072,9 @@ ${label}`,
             {/* Recall（知の球）の伏せ字承認。専用タブはまだ無いので、コンテンツ制作系の操作が
                 並ぶスプレッドタブに間借りする（台帳データに依存しない自己完結パネルという点も揃う）。 */}
             <RecallCardsPanel />
+            {/* 聞ける棚（ask_shelf）の受付トリアージ。こちらも専用タブが無いので同じ理由で間借りする
+                （台帳データに依存しない自己完結パネル。書き込み先はNotionの受付DBのみ）。 */}
+            <AskShelfAdminPanel />
           </div>
         )}
         {/* Essentials タブ（台帳データ非依存・自己完結）。制作の進捗と出典の取得状況を Notion から読む。
