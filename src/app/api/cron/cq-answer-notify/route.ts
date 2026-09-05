@@ -143,13 +143,20 @@ export async function GET(req: NextRequest) {
       if (flagErr) console.error('cq-answer-notify: 記録更新失敗', flagErr.message)
     }
 
-    return NextResponse.json({
-      ok: true,
+    // 応答の JSON は呼び出し元にしか見えないので、件数はログにも残す。
+    // Vercel Cron の自動実行は応答を誰も読まないため、これが唯一の記録になる。
+    const summary = {
       scanned: pages.length,
       answered: candidates.length,
       users: byUser.size,
       mailed,
       skipped,
+    }
+    console.log('cq-answer-notify: 完了', JSON.stringify(summary))
+
+    return NextResponse.json({
+      ok: true,
+      ...summary,
     })
   } catch (err) {
     console.error('Cron cq-answer-notify error:', err)
