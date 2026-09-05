@@ -4,8 +4,8 @@
 // 「検索したけど無かった」「ふと疑問が湧いた」その場で疑問文を書き、届け先を選んで送る
 // 浮きボタン＋モーダル。届け先は2つ:
 //   ・自分のメモ …… 自分のNotion（Medical DB）に「❓ CQ」として保存（従来の動作）
-//   ・専門医に訊く …… 作者（救急・集中治療専門医）の受付DBに届く（プレミアム）。
-//     選定のうえナレッジ化され、アプリで配信される。
+//   ・MediNodeに足してほしい疑問 …… 作者（救急・集中治療医）の受付DBに届く（プレミアム）。
+//     選定のうえナレッジ化され、アプリで配信される。個別の回答を約束するものではない。
 // 疑問文は1回書くだけで、両方に同時に送ることもできる。
 // 知識ライフサイクル（❓CQ → 調べて💡ナレッジ → クイズ）の起点をアプリ内で閉じる。
 //
@@ -31,6 +31,13 @@ import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { recordSentCq } from '@/lib/cq-dispatch'
 import { isValidOccupation } from '@/lib/account-profile'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, CQ_PROFILE_KEY, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
+import {
+  ASK_SHELF_REQUEST_LABEL,
+  ASK_SHELF_MODAL_TITLE,
+  ASK_SHELF_NOTICES,
+  ASK_SHELF_DONE_MESSAGE,
+  ASK_SHELF_BACKGROUND_PLACEHOLDER,
+} from '@/lib/ask-shelf/copy'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
 // cqObjectID は /cq（未解決の問い）から投げたときだけ入る。投稿が通ったら
@@ -219,8 +226,8 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
           </p>
           <div className="space-y-2">
             <div className="rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/60 dark:bg-purple-900/20 px-3.5 py-3">
-              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1"><Star className="w-3.5 h-3.5" />専門医に訊く（プレミアム）</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">疑問が作者（救急・集中治療の専門医）に届き、選定のうえナレッジとして配信されます。Notionの設定は不要です。</p>
+              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1"><Star className="w-3.5 h-3.5" />{ASK_SHELF_MODAL_TITLE}（プレミアム）</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">疑問が作者（救急・集中治療医）に届き、選定のうえナレッジとして配信されます。Notionの設定は不要です。</p>
             </div>
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-3.5 py-3">
               <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">自分のメモに残す（個人Notion接続）</p>
@@ -293,7 +300,7 @@ function CqCaptureModal({
     defaultDestinations({ personal: personalAvail, premium: premiumAvail, intent }),
   )
   const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', departments: [] })
-  // 背景・状況。専門医に訊くときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
+  // 背景・状況。MediNodeに足してほしい疑問として送るときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
   const [background, setBackground] = useState('')
   const [notify, setNotify] = useState(true)
   const [expertReady, setExpertReady] = useState<ExpertReady>(premiumAvail ? 'checking' : 'unavailable')
@@ -327,7 +334,7 @@ function CqCaptureModal({
   const userEditedOccupationRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
-  // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
+  // Supabase設定済み環境で未ログインなら、MediNodeに足してほしい疑問の投稿にはログインが要る。
   // 判定中（loading）はログイン案内を出さない（開いた瞬間のチラつき防止）。
   const needsLogin = auth.configured && !auth.loading && !auth.user
 
@@ -583,12 +590,12 @@ function CqCaptureModal({
     willSendMine && willSendExpert
       ? '送信する'
       : willSendExpert
-        ? '専門医に送る'
+        ? ASK_SHELF_REQUEST_LABEL
         : 'CQとして保存する'
 
   const descText = (() => {
-    if (dest.expert && dest.mine) return '疑問を作者（救急・集中治療の専門医）に届け、あなたのNotionにも「❓ CQ」として保存します。'
-    if (dest.expert) return '疑問はそのまま作者（救急・集中治療の専門医）に届きます。選定のうえ調べて、ナレッジとしてアプリで配信されます。'
+    if (dest.expert && dest.mine) return '疑問を作者（救急・集中治療医）に届け、あなたのNotionにも「❓ CQ」として保存します。'
+    if (dest.expert) return '疑問はそのまま作者（救急・集中治療医）に届きます。選定のうえ調べて、ナレッジとしてアプリで配信されます。'
     if (dest.mine) return 'あとで調べる疑問を、NotionのMedical DBに「❓ CQ」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。'
     return '疑問の届け先を選んでください。'
   })()
@@ -697,7 +704,7 @@ function CqCaptureModal({
                     }`}
                   >
                     <Star className="w-3.5 h-3.5" />
-                    専門医に訊く
+                    {ASK_SHELF_MODAL_TITLE}
                   </button>
                 ) : (
                   openSettings && (
@@ -711,19 +718,19 @@ function CqCaptureModal({
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <Star className="w-3.5 h-3.5" />
-                      専門医に訊く（プレミアム）
+                      {ASK_SHELF_MODAL_TITLE}（プレミアム）
                     </button>
                   )
                 )}
               </div>
 
-              {/* 専門医に訊く: 詳細（職種・ペンネーム・通知）。選択時だけ静かに展開する。 */}
+              {/* MediNodeに足してほしい疑問: 詳細（職種・ペンネーム・通知）。選択時だけ静かに展開する。 */}
               {dest.expert && premiumAvail && expertReady !== 'unavailable' && (
                 <div className="mt-3 rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-900/10 px-3.5 py-3 space-y-2.5">
                   {needsLogin ? (
                     <>
                       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                        専門医への投稿にはログインが必要です（解決のお知らせと会員確認のためだけに使います）。
+                        MediNodeへの投稿にはログインが必要です（解決のお知らせと会員確認のためだけに使います）。
                       </p>
                       <button
                         type="button"
@@ -735,12 +742,10 @@ function CqCaptureModal({
                     </>
                   ) : (
                     <>
-                      {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
+                      {/* 背景・状況。答えられる疑問になるかどうかは、ほぼここで決まる。
                           ソフト必須（空でも送れるが、送信時に一度だけ確認を挟む）。
-                          「何を書けばよいか」を例で示して書きやすくする。
-                          例文は上の疑問文の例と同じ症例（敗血症性ショック）で揃える。
-                          患者背景・場面・試したこと（数値）・迷っている点の4つを1文ずつ含め、
-                          これを読めば書き方が分かるようにする。片方だけ直さない。 */}
+                          例文・ヒント文とも、患者さんが特定できる書き方は求めない
+                          （注意3と矛盾しないよう、場面・経過・試したことに寄せる）。 */}
                       <div className="space-y-1">
                         <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
                           背景・状況
@@ -755,14 +760,14 @@ function CqCaptureModal({
                           }}
                           maxLength={BACKGROUND_MAX}
                           rows={3}
-                          placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
+                          placeholder={ASK_SHELF_BACKGROUND_PLACEHOLDER}
                           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         />
                         {/* ここは常時のヒント文。実際のソフト必須（送信を一度止めて確認する）は
                             handleSend 側のゲートが担い、その結果が下の確認バー（bgPrompt）に出る。 */}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                           空でも送れますが、あると回答の精度が変わります。
-                          患者背景・場面・これまでの対応など。
+                          場面・これまでの対応・迷っている点など（患者さんが特定できることは書かないでください）。
                         </p>
                         {bgPrompt && (
                           <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
@@ -952,7 +957,7 @@ function CqCaptureModal({
               {expertDone && (mineError || expertError) && (
                 <p className="mt-2 text-xs text-green-600 dark:text-green-500">
                   <CheckCircle2 className="inline-block w-3.5 h-3.5 align-text-bottom mr-1" />
-                  専門医には届いています
+                  MediNodeには届いています
                 </p>
               )}
               {mineError && (
@@ -962,7 +967,20 @@ function CqCaptureModal({
               )}
               {expertError && (
                 <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
-                  {personalAvail && premiumAvail ? `専門医への投稿: ${expertError}` : expertError}
+                  {personalAvail && premiumAvail ? `MediNodeへの投稿: ${expertError}` : expertError}
+                </div>
+              )}
+
+              {/* 送信ボタンの上に、畳まずに常時出す注意5点。MediNodeに足してほしい疑問
+                  として送る届け先を選んでいるときだけ出す（自分のメモだけなら対象外）。 */}
+              {dest.expert && (
+                <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 px-3.5 py-3">
+                  <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 mb-1.5">送る前に</p>
+                  <ul className="space-y-1 text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed list-disc list-inside">
+                    {ASK_SHELF_NOTICES.map((notice) => (
+                      <li key={notice}>{notice}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
@@ -986,7 +1004,7 @@ function CqCaptureModal({
                 <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-900/50 rounded-xl p-4 animate-pop">
                   <p className="font-bold text-purple-700 dark:text-purple-300 text-sm">
                     <Star className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />
-                    専門医に届きました
+                    {ASK_SHELF_DONE_MESSAGE}
                   </p>
                   <p className="text-xs text-purple-600/90 dark:text-purple-400 mt-1 leading-relaxed">
                     選定のうえ、調べてナレッジとして配信されます。
@@ -1058,7 +1076,7 @@ function CqCaptureModal({
                   続けて残す
                 </button>
               </div>
-              {/* 会員だが今回は専門医に送らなかった人への、そっとした1行（押し付けない）。 */}
+              {/* 会員だが今回はMediNodeに送らなかった人への、そっとした1行（押し付けない）。 */}
               {mineDone && !expertDone && premiumAvail && (
                 <button
                   onClick={() => {
@@ -1068,7 +1086,7 @@ function CqCaptureModal({
                   className="w-full flex items-center justify-center gap-1.5 text-xs text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
                 >
                   <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-                  解決の糸口が見つからない疑問は、専門医に訊けます
+                  解決の糸口が見つからない疑問は、{ASK_SHELF_MODAL_TITLE}として送れます
                 </button>
               )}
               {mineDone && !expertDone && !premiumAvail && openSettings && (
@@ -1080,7 +1098,7 @@ function CqCaptureModal({
                   className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
                 >
                   <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-                  答えが出ない疑問は、専門医に訊けます（プレミアム）
+                  答えが出ない疑問は、{ASK_SHELF_MODAL_TITLE}として送れます（プレミアム）
                 </button>
               )}
               <button

@@ -9,6 +9,7 @@
 import type { NotionIntakePage } from './cq-board'
 import { toMySubmissions } from './cq-mine'
 import { readIntakeColumns } from './ask-shelf/intake-columns'
+import { ASK_SHELF_MAIL_SUBJECT } from './ask-shelf/copy'
 
 // user_metadata 内の記録キー。値は { [受付DBページID]: 通知日時ISO } の map。
 export const CQ_ANSWER_NOTIFIED_META_KEY = 'cq_answer_notified'
@@ -82,7 +83,7 @@ export function answerNoticeEmail(questions: string[], url: string): { subject: 
       ? `「${questions[0]}」に回答がつきました。アプリからご確認いただけます。`
       : ['以下の疑問に回答がつきました。アプリからご確認いただけます。', ...questions.map((q) => `・「${q}」`)].join('\n')
   return {
-    subject: 'MediNodeへご投稿いただいた臨床疑問に回答がつきました',
+    subject: ASK_SHELF_MAIL_SUBJECT,
     text: [
       'MediNodeへ臨床疑問をご投稿いただき、ありがとうございました。',
       '',

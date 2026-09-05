@@ -2,6 +2,7 @@
 import { Search, Send, ExternalLink, X, Sparkles } from 'lucide-react'
 import { formatCqAge, type CqSeed } from '@/lib/floating-cq'
 import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
+import { ASK_SHELF_MODAL_TITLE } from '@/lib/ask-shelf/copy'
 
 // 浮かんでいる問いを触ったときに出るパネル。一手を3つだけ並べる。
 // アプリからNotionのページは書き換えないので、片づけもNotionへ渡す。
@@ -95,7 +96,7 @@ export function CqActionSheet({
             onAsk && (
               <SheetButton
                 Icon={Send}
-                label="専門医に訊く"
+                label={`${ASK_SHELF_MODAL_TITLE}として送る`}
                 note="みんなの臨床疑問に並び、答えが出たら通知が届く"
                 onClick={onAsk}
               />

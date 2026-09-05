@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Send } from 'lucide-react'
 import { getSettings } from '@/lib/settings'
+import { ASK_SHELF_MODAL_TITLE } from '@/lib/ask-shelf/copy'
 import {
   createSearchClient,
   getIndexName,
@@ -278,7 +279,7 @@ export function UnresolvedCqScreen({
                 （2回目でも「これは何だったか」を思い出せる方がよい）。 */}
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               Notionに ❓ CQ として残したまま、まだ答えの出ていない問いです。
-              問いをタップすると、探す・専門医に訊く・Notionで書く、が選べます。
+              問いをタップすると、探す・{ASK_SHELF_MODAL_TITLE}として送る・Notionで書く、が選べます。
             </p>
             <div className="relative mt-1" style={{ height: skyHeight(floating.length, grid) }}>
               <DriftingLeaves paused={paused} />

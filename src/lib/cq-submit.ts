@@ -246,9 +246,9 @@ export type CqIntent = 'capture' | 'zero' | 'settings'
 
 // 届け先チップの初期値。
 // - 自分のメモ: 個人Notionがあれば基本ON（従来の主動作を変えない）
-// - 専門医に訊く: 「訊く」意図で開いた入口（検索0件・設定の投稿ボタン）だけON。
-//   FABやreaderからは自分で選ぶ（送るつもりのない疑問まで専門医に飛ばさない）。
-// - 設定の投稿ボタンは「専門医に訊く」専用の入口なので、メモ側はOFFで開く。
+// - MediNodeに足してほしい疑問: 「送る」意図で開いた入口（検索0件・設定の投稿ボタン）だけON。
+//   FABやreaderからは自分で選ぶ（送るつもりのない疑問までMediNodeに飛ばさない）。
+// - 設定の投稿ボタンは「MediNodeに足してほしい疑問」専用の入口なので、メモ側はOFFで開く。
 export function defaultDestinations(opts: {
   personal: boolean
   premium: boolean

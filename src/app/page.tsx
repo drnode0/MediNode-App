@@ -107,6 +107,7 @@ import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type 
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { AskShelfPanel } from '@/components/AskShelfPanel'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { ASK_SHELF_REQUEST_LABEL } from '@/lib/ask-shelf/copy'
 import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
 import { takePendingQuery } from '@/lib/pending-query'
 import { ReaderProvider } from '@/components/reader/SubscriptionReader'
@@ -1159,7 +1160,7 @@ function SubscriptionPromoPanel() {
 
 // 検索ゼロ件のとき、その疑問をそのままCQとして残す静かな導線。
 // 「検索したのに無かった」＝疑問が生まれた瞬間なので、ここが最短の入口になる。
-// プレミアム会員には「専門医に訊く」と案内する（検索に無ければ、人に訊ける）。
+// プレミアム会員には「MediNodeに足してほしい疑問」と案内する（検索に無ければ、棚に足せる）。
 function CqCaptureSuggestion({ query }: { query: string }) {
   const openCq = useCqCapture()
   if (!openCq || !query.trim()) return null
@@ -1174,7 +1175,7 @@ function CqCaptureSuggestion({ query }: { query: string }) {
           : 'border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50'
       }`}
     >
-      {premium ? 'この疑問、専門医に訊いてみる' : 'この疑問をCQとして残す'}
+      {premium ? ASK_SHELF_REQUEST_LABEL : 'この疑問をCQとして残す'}
     </button>
   )
 }
@@ -3154,7 +3155,7 @@ export default function Home() {
   )
 
   // はじめてガイド（機能ツアー）。CQステップは実際にボタンが機能する場合のみ
-  // （個人Notion接続、またはプレミアム＝専門医に訊ける）。
+  // （個人Notion接続、またはプレミアム＝MediNodeに疑問を足せる）。
   const tourModal = showTour && (
     <FeatureTour
       searchMode={searchMode === 'notion' ? 'notion' : 'algolia'}
