@@ -105,6 +105,7 @@ import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
 import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, type AuthorAdditions } from '@/lib/author-additions'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
+import { AskShelfPanel } from '@/components/AskShelfPanel'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
 import { takePendingQuery } from '@/lib/pending-query'
@@ -1263,6 +1264,7 @@ function ExampleKeywords({ onPick }: { onPick: (kw: string) => void }) {
 
 function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { refine, query } = useSearchBox()
+  const openCq = useCqCapture()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [hasSearched, setHasSearched] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
@@ -1323,6 +1325,17 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           hasSubscription={hasSubscription}
         />
       </div>
+      <AskShelfPanel
+        query={query}
+        onRequest={(logId) => {
+          openCq?.(query, undefined, 'zero')
+          if (logId != null) {
+            fetch('/api/ask-shelf/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }),
+            }).catch(() => {})
+          }
+        }}
+      />
       {!query && !hasSearched ? (
         <>
           <SearchHistoryList
@@ -1661,6 +1674,7 @@ function useTeamNotionHits(mode: Tab, enabled: boolean) {
 // Notionモード：検索タブ
 function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, refreshing, error, search } = useNotionSearch('search')
+  const openCq = useCqCapture()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
@@ -1740,6 +1754,17 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         </div>
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
+      <AskShelfPanel
+        query={query}
+        onRequest={(logId) => {
+          openCq?.(query, undefined, 'zero')
+          if (logId != null) {
+            fetch('/api/ask-shelf/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }),
+            }).catch(() => {})
+          }
+        }}
+      />
       {loading && <SkeletonCards label="Notionを検索中..." />}
       {/* キャッシュ結果を表示中に裏で最新取得しているときの控えめな表示（一覧は消さない） */}
       {refreshing && !loading && (
