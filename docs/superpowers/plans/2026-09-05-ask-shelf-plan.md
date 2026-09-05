@@ -14,7 +14,7 @@
 - **機能フラグは `ask_shelf`。専用の許可メール `ASK_SHELF_EMAILS` のみ。フォールバック無し。GA env は公開判断まで置かない**（`recall` と同型）
 - **判定の正はサーバー。** 段0・依頼の各 API は処理を始める前に `hasFeature('ask_shelf', …)` を通す。UI を隠すだけにしない
 - **主張の鍵は `claimIdOf(pageId, body)` の1つだけ**（`src/lib/recall/extract-claims.ts`。sha1 先頭24文字）。新しい ID を作らない
-- **「残した」の記録は `recall_progress` の1本だけ。** 段0からも通知からも同じ表に書く
+- **「残した」の記録は `recall_progress` の1本だけ。** 段0からも着地画面からも同じ `/api/recall/keep` で書く。**通知 cron は書かない**（2026-09-05 提案006の裁定1）
 - **受付DBに足す列は4つだけ**（段0結果／段0主張ID／正本主張ID／見送りの理由）。既存の列は変えない。**列が無い受付DBでも既存動線が壊れないこと**（`buildIntakeProperties` は無い列を積まない）
 - **「残す」に一括操作を置かない**
 - **検索窓とタブ構成は変えない。** 主張の段は窓の下、既存のページ結果の上に、あるときだけ開く
@@ -1516,6 +1516,8 @@ git commit -m "feat(ask-shelf): 利用者に見える状態を4つにし、見�
 - 一覧は受付DBの未対応を新しい順。**段0結果＝該当なし で絞れるフィルタを1つ置く**（これが「空白候補ビュー」。独立した保管場所は作らない）
 - 各行で、ボード公開の切替／対応状態（対応済み・対応不要）／見送りの理由（5つの選択）／正本の主張の選択
 - **正本の主張の選択は語で検索して選ぶ。**24文字の鍵を手で入力させない（写し間違いは誰にも気づかれず、通知が飛ばないだけになる）。候補は `/api/ask-shelf/search` を流用する
+- **選ぶのは1件だけ**（2026-09-05 裁定3。`readIntakeColumns` は配列を返すが、書き手は1件だけ積む。複数選択の UI は作らない）
+- 主張が `active=false` になっている行には「主張が取り下げ・改訂されています」の印を出す（本文を直したあとに通知の飛び先が外れる事故を、ここで見えるようにする）
 - 書き込み先は Notion の受付DB。Supabase に別の真実を作らない
 - **制作工程との受け渡しは、このパネルの2か所だけで完結させる**（`medinode-cq-note` スキルの中身は変えない）。
   入口＝空白候補の行から疑問文と背景をコピーできるボタン。出口＝正本の主張を選ぶと
@@ -1716,7 +1718,10 @@ git commit -m "feat(ask-shelf): 回答通知の飛び先を決める純関数を
 
 ---
 
-## Task 12: 通知 cron に飛び先・プッシュ・「残した」を足す
+## Task 12: 通知 cron に飛び先・プッシュを足す（`recall_progress` には書かない）
+
+> 2026-09-05 提案006の裁定1で書き換え。旧版の `keepRowsFor`（cron が依頼者の `recall_progress` に `due_at` null で「残した」を書く）は**作らない**。
+> 「残した」になるのは依頼者が着地画面（Task 13）の「残す」を押したときだけで、既存の `/api/recall/keep` が通常どおり始める。
 
 **Files:**
 - Modify: `src/lib/cq-answer-notify.ts`
@@ -1725,13 +1730,12 @@ git commit -m "feat(ask-shelf): 回答通知の飛び先を決める純関数を
 
 **Interfaces:**
 - Consumes: Task 9 の `readIntakeColumns`、Task 11 の `resolveAnswerTarget`・`answerLandingUrl`、既存の `sendToUsers`（`src/lib/push-send.ts`。種別 `resolved_cq`）
-- Produces: `AnswerNotification` に `canonicalClaimIds: string[]` を足す / `answerNoticeEmail(questions, url)` が飛び先を受ける / `keepRowsFor(userId, claimIds, answeredAt)` … `recall_progress` に書く行を作る純関数
+- Produces: `AnswerNotification` に `canonicalClaimIds: string[]` を足す（通知が使うのは先頭の1件。裁定3） / `answerNoticeEmail(questions, url)` が飛び先を受ける
 
 **継ぎ目5でやること**
 
 - 正本化の合図は「対応済み」かつ「正本主張ID が空でない」。空ならメールだけ（従来の振る舞い）
-- 依頼者の `recall_progress` に「残した」を書く。`kept_at` は正本化の時刻、**`due_at` は null**（初見をクイズにしない）
-- フラグが閉じている依頼者にも書いてよい。画面には出ないだけ
+- **`recall_progress` には書かない**（裁定1）
 - **メール文面に Recall の名前を出さない**
 - プッシュは1件につき1回。重複防止はメールと同じ `user_metadata.cq_answer_notified`
 
@@ -1739,17 +1743,7 @@ git commit -m "feat(ask-shelf): 回答通知の飛び先を決める純関数を
 
 ```ts
 // src/lib/__tests__/cq-answer-notify.test.ts の末尾に追記
-import { keepRowsFor, answerNoticeEmail } from '@/lib/cq-answer-notify'
-
-describe('keepRowsFor（継ぎ目5）', () => {
-  it('due_at を null にして「残したが未開封」にする', () => {
-    const rows = keepRowsFor('u1', ['c9'], '2026-09-10T00:00:00.000Z')
-    expect(rows).toEqual([{ user_id: 'u1', claim_id: 'c9', kept_at: '2026-09-10T00:00:00.000Z', due_at: null }])
-  })
-  it('正本主張IDが無ければ1行も作らない（従来どおりメールだけ）', () => {
-    expect(keepRowsFor('u1', [], '2026-09-10T00:00:00.000Z')).toEqual([])
-  })
-})
+import { answerNoticeEmail, answeredNotifications } from '@/lib/cq-answer-notify'
 
 describe('answerNoticeEmail', () => {
   it('飛び先を本文に入れる', () => {
@@ -1762,47 +1756,48 @@ describe('answerNoticeEmail', () => {
     expect(m.subject).not.toMatch(/Recall|知の球/)
   })
 })
+
+describe('answeredNotifications（正本主張ID）', () => {
+  const rich = (s: string) => ({ rich_text: [{ plain_text: s }] })
+  const page = (ids: string) => ({
+    id: 'i1',
+    properties: {
+      疑問: { title: [{ plain_text: 'ショックの見分け方は？' }] },
+      通知先ユーザーID: rich('u1'),
+      対応状態: { select: { name: '対応済み' } },
+      正本主張ID: rich(ids),
+    },
+  })
+  it('正本主張IDを配列で持つ（読む側は複数に備える。裁定3）', () => {
+    expect(answeredNotifications([page('c9')])[0].canonicalClaimIds).toEqual(['c9'])
+    expect(answeredNotifications([page('c9, c10')])[0].canonicalClaimIds).toEqual(['c9', 'c10'])
+  })
+  it('正本主張IDが空でも通知対象からは落とさない（従来どおりメールだけ）', () => {
+    expect(answeredNotifications([page('')])[0].canonicalClaimIds).toEqual([])
+  })
+})
 ```
 
 - [ ] **Step 2: 落ちることを確かめる**
 
 Run: `npx vitest run src/lib/__tests__/cq-answer-notify.test.ts`
-Expected: FAIL（`keepRowsFor` が無い／`answerNoticeEmail` が引数を取らない）
+Expected: FAIL（`canonicalClaimIds` が無い／`answerNoticeEmail` が引数を取らない）
 
-- [ ] **Step 3: 純関数を足す**
+- [ ] **Step 3: 純関数を直す**
 
-```ts
-// src/lib/cq-answer-notify.ts に追記
-import { readIntakeColumns } from './ask-shelf/intake-columns'
-
-// 継ぎ目5。正本になった主張を、依頼者の手元に「残した」状態で入れる行を作る。
-// due_at は null。依頼者がその主張か節を初めて開いた時点で「間隔1日・期限翌日」に
-// 設定する（初見をいきなり伏せ字のクイズにしない）。
-// フラグが閉じている依頼者にも書いてよい。画面に出ないだけで、開いたときに最初から灯る。
-export function keepRowsFor(
-  userId: string,
-  claimIds: string[],
-  answeredAt: string,
-): Array<{ user_id: string; claim_id: string; kept_at: string; due_at: null }> {
-  return claimIds.map((claim_id) => ({ user_id: userId, claim_id, kept_at: answeredAt, due_at: null }))
-}
-```
-
-`answeredNotifications` の戻り値に `canonicalClaimIds: readIntakeColumns(page).canonicalClaimIds` を足す。
+`answeredNotifications` の戻り値に `canonicalClaimIds: readIntakeColumns(page).canonicalClaimIds` を足す（`import { readIntakeColumns } from './ask-shelf/intake-columns'`）。
 `answerNoticeEmail(questions: string[], url: string)` に引数を1つ足し、本文の `APP_URL` を `url` に差し替える。既存の呼び出しは `answerNoticeEmail(qs, APP_URL)` にして振る舞いを保つ。
 
 - [ ] **Step 4: cron を書き換える**
 
-`src/app/api/cron/cq-answer-notify/route.ts` の流れに3つ足す。
+`src/app/api/cron/cq-answer-notify/route.ts` の流れに2つ足す。
 
-1. `recall_claims` から `claim_id, page_id, section_key` を読み、`claimsById` の Map を作る（1回だけ）
-2. 依頼ごとに `resolveAnswerTarget` → `answerLandingUrl` を求め、メール本文に入れる
-3. メールを送ったのと同じ分岐で、
-   - `recall_progress` に `keepRowsFor(...)` を upsert（`onConflict: 'user_id,claim_id'`。**既にある行は上書きしない**。自分で残していた主張の段や期限を、通知が巻き戻してはいけない → `ignoreDuplicates: true`）
-   - `sendToUsers(admin, [userId], 'resolved_cq', { title: 'MediNode', body: '投稿された臨床疑問に回答がつきました', url })` を呼ぶ
-   - プッシュの失敗でメールの成否を変えない（`try/catch` で握り、ログに残す）
+1. `recall_claims` から `claim_id, page_id, section_key, active` を読み、`claimsById` の Map を作る（1回だけ）
+2. 依頼ごとに `resolveAnswerTarget`（`canonicalClaimIds[0]` を渡す） → `answerLandingUrl` を求め、メール本文に入れる
+3. メールを送ったのと同じ分岐で `sendToUsers(admin, [userId], 'resolved_cq', { title: 'MediNode', body: '投稿された臨床疑問に回答がつきました', url })` を呼ぶ。
+   プッシュの失敗でメールの成否を変えない（`try/catch` で握り、ログに残す）
 
-応答 JSON に `pushed` と `kept` を足す（オーナーが手動実行で見る数）。
+`recall_progress` には触らない。応答 JSON に `pushed` を足す（オーナーが手動実行で見る数）。
 
 - [ ] **Step 5: 通ることを確かめてコミット**
 
@@ -1811,10 +1806,39 @@ Expected: PASS、型エラー0、ビルド成功
 
 ```bash
 git add src/lib/cq-answer-notify.ts src/app/api/cron/cq-answer-notify src/lib/__tests__/cq-answer-notify.test.ts
-git commit -m "feat(ask-shelf): 回答通知に飛び先・プッシュ・「残した」の書き込みを足す
+git commit -m "feat(ask-shelf): 回答通知に飛び先とプッシュを足す
 
-recall_progress は ignoreDuplicates で入れる。自分で残していた主張の段や期限を
-通知が巻き戻さないため。"
+recall_progress には書かない（2026-09-05 提案006の裁定1）。「残した」は
+依頼者が着地画面の「残す」を押したときだけ、既存の keep API が始める。"
+```
+
+---
+
+## Task 12b: `/api/recall/keep` の `keep:true` に存在確認を足す
+
+> 2026-09-05 提案006の裁定5。部品3で段0（Task 8）・着地画面（Task 13）からも keep を呼ぶようになり呼び手が増えるので、入口で締める。
+> Task 13 より前に行う。
+
+**Files:**
+- Modify: `src/app/api/recall/keep/route.ts`
+- Test: `src/lib/__tests__/recall-keep-route.test.ts`（既存があれば追記。無ければ `recall-read-routes.test.ts` の mock の流儀で新設）
+
+**守ること**
+- `keep:true` のとき、`g.admin()` で `recall_claims` を `claim_id` で1行読み、**無い・`active=false` なら 404**（本文 `{ error: 'not_found' }`。`requireRecall()` を通った後なので理由を書いてよい）
+- `keep:false`（外す）は今のまま。記録があれば外せる（主張が inactive になっていても、外す操作は通す）
+- 既存の記録を復活させる経路（`data` があって `removedAt` を外すだけ）も、主張が inactive なら 404 にする（見えない主張を出題母集団に戻さない）
+- 応答形・ヘッダ（`Cache-Control: private, no-store`）は変えない
+
+- [ ] **Step 1: 失敗するテストを書く**（`recall_claims` の mock が `[]` を返すとき 404、`active:false` の1行のとき 404、`active:true` のとき従来どおり 200）
+- [ ] **Step 2: 落ちることを確かめる** `npx vitest run src/lib/__tests__/recall-keep-route.test.ts` → FAIL
+- [ ] **Step 3: 実装** 読み取りは `select('claim_id, active').eq('claim_id', claimId).maybeSingle()` の1本。`recall_claims` は RLS 有効・ポリシー無しなので必ず `g.admin()` で読む（ユーザースコープでは常に空になり、全部 404 になる）
+- [ ] **Step 4: 通ることを確かめてコミット** `npx vitest run src/lib/__tests__/recall-keep-route.test.ts src/lib/__tests__/recall-read-routes.test.ts && npx tsc --noEmit` → PASS
+
+```bash
+git add src/app/api/recall/keep/route.ts src/lib/__tests__/recall-keep-route.test.ts
+git commit -m "fix(recall): keep:true に主張の存在確認を足す（無い・inactive は 404）
+
+2026-09-05 提案006の裁定5。部品3で keep の呼び手が増えるため入口で締める。"
 ```
 
 ---
@@ -1835,7 +1859,8 @@ recall_progress は ignoreDuplicates で入れる。自分で残していた主�
 **必ず守ること**
 
 - **本人だけが開ける。** 受付DBの `通知先ユーザーID` とログイン中の利用者が一致しなければ 404。他人の疑問は1文字も返さない
-- 「この節を読む」を押した時点で、`due_at` が null の `recall_progress` を「間隔1日・期限翌日」にする（継ぎ目5）。既存の `/api/recall/read` か新しい1本のどちらでもよいが、**期限の計算式は Recall 設計の `srs.ts` を使う**（式を二重に持たない）
+- 「残す」は既存の `/api/recall/keep` を呼ぶだけ（新規なら間隔1日・期限翌日。Task 12b の存在確認を通る）。**cron は事前に `recall_progress` を書いていない**ので、`kept` は本人がここか他の画面で押したかどうかそのもの（2026-09-05 裁定1）。「この節を読む」は既存のリーダーを該当節で開く。期限の計算式は `srs.ts` のまま（式を二重に持たない）
+- 回答は `canonicalClaimIds[0]` の1件を出す（裁定3。配列の2件目以降は今は使わない）
 - `ask_shelf` が閉じていても、この画面は開ける必要がある（通知はフラグの外にも飛びうる）。ただし「残す」の操作は `recall` の内側でだけ描く
 
 - [ ] **Step 1: 失敗するテストを書く**
@@ -2369,7 +2394,7 @@ git commit -m "feat(ask-shelf): 完了条件の2つの数を /admin に出し、
 2. 依頼を送る（注意5点が見えている・掲載名の希望が板に反映される）
 3. 制作工程で正本化し、/admin で正本の主張を結ぶ
 4. サブスク同期のあと、メールとプッシュが届き、着地画面から該当節へ飛べる
-5. 球に「残した」で灯り、期限は初回閲覧から始まる
+5. 着地画面で「残す」を押すと球に「残した」で灯り、期限は翌日になる（押さなければ灯らない）
 6. 「対応不要＋理由」にした依頼が、依頼者の画面で「今回は記事化しません」＋理由になる
 
 数で見る2つ: 段0を見せた後に送らずに済んだ割合（`ask_shelf_queries` の `submitted=false` の割合）／「記事化しない」を見た依頼者が30日以内に再投稿した件数
