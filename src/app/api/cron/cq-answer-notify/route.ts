@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { Client } from '@notionhq/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isAdminEmail } from '@/lib/trial-lifecycle'
+import { APP_URL } from '@/lib/trial-end-content'
 import {
   answeredNotifications,
   filterUnnotified,
@@ -10,6 +12,8 @@ import {
   answerNoticeEmail,
   type AnswerNotification,
 } from '@/lib/cq-answer-notify'
+import { resolveAnswerTarget, answerLandingUrl } from '@/lib/ask-shelf/landing'
+import { sendToUsers } from '@/lib/push-send'
 import type { NotionIntakePage } from '@/lib/cq-board'
 
 /**
@@ -64,8 +68,29 @@ async function queryAnsweredPages(token: string, dbId: string): Promise<NotionIn
   }
 }
 
+// recall_claims から飛び先解決に要る3列だけを1回で読む（依頼ごとにクエリしない）。
+// active=false の主張は着地先として使わない（取り下げた主張を出題母集団に戻さないのと
+// 同じ理由。search/route.ts の絞り込みと揃える）。
+async function buildClaimsById(
+  admin: SupabaseClient,
+): Promise<Map<string, { pageId: string; sectionKey: string }>> {
+  const claimsById = new Map<string, { pageId: string; sectionKey: string }>()
+  const { data, error } = await admin
+    .from('recall_claims')
+    .select('claim_id, page_id, section_key, active')
+    .eq('active', true)
+  if (error) {
+    console.error('cq-answer-notify: recall_claims の読み取り失敗', error.message)
+    return claimsById
+  }
+  for (const r of data ?? []) {
+    claimsById.set(String(r.claim_id), { pageId: String(r.page_id), sectionKey: String(r.section_key ?? '') })
+  }
+  return claimsById
+}
+
 // Resend で1通送る（trial-lifecycle の sendEndedEmail と同じ流儀）。未設定なら送らず false。
-async function sendNoticeEmail(to: string, questions: string[]): Promise<boolean> {
+async function sendNoticeEmail(to: string, questions: string[], url: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.RESEND_FROM
   if (!apiKey || !from) {
@@ -75,7 +100,7 @@ async function sendNoticeEmail(to: string, questions: string[]): Promise<boolean
     })
     return false
   }
-  const { subject, text } = answerNoticeEmail(questions)
+  const { subject, text } = answerNoticeEmail(questions, url)
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -120,10 +145,13 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = createAdminClient()
+    // 依頼ごとに問い合わせず、1回だけ読んで使い回す。
+    const claimsById = await buildClaimsById(admin)
     let mailed = 0
     let skipped = 0
     let alreadyNotified = 0
     let sendFailed = 0
+    let pushed = 0
     for (const [userId, items] of byUser) {
       // 認証レコード（メール＋user_metadata＝重複記録）。取得失敗はスキップ（誤送信防止優先）。
       const { data: u, error: userErr } = await admin.auth.admin.getUserById(userId)
@@ -146,7 +174,18 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      const ok = await sendNoticeEmail(user.email!, fresh.map((f) => f.question))
+      // 飛び先URL: 1件なら主張／記事の着地画面、複数件をまとめる本文は箇条書きに
+      // URLを差し込む場所が無いので汎用のアプリURLに留める（メール本文レイアウトの
+      // 作り直しはこのタスクの範囲外。都度URLを求める配線だけを足す）。
+      const url =
+        fresh.length === 1
+          ? answerLandingUrl(
+              fresh[0].pageId,
+              resolveAnswerTarget({ canonicalClaimIds: fresh[0].canonicalClaimIds, claimsById }),
+            )
+          : APP_URL
+
+      const ok = await sendNoticeEmail(user.email!, fresh.map((f) => f.question), url)
       if (!ok) {
         sendFailed++
         continue
@@ -157,6 +196,19 @@ export async function GET(req: NextRequest) {
         user_metadata: markNotified(meta, fresh.map((f) => f.pageId), new Date().toISOString()),
       })
       if (flagErr) console.error('cq-answer-notify: 記録更新失敗', flagErr.message)
+
+      // プッシュはメールと同じ分岐（送信成功後）で送る。失敗してもメールの成否・
+      // 記録更新には影響させない（重複防止は同じ user_metadata.cq_answer_notified が担う）。
+      try {
+        const { sent } = await sendToUsers(admin, [userId], 'resolved_cq', {
+          title: 'MediNode',
+          body: '投稿された臨床疑問に回答がつきました',
+          url,
+        })
+        pushed += sent
+      } catch (err) {
+        console.error('cq-answer-notify: プッシュ送信エラー', err instanceof Error ? err.message : err)
+      }
     }
 
     // 応答の JSON は呼び出し元にしか見えないので、件数はログにも残す。
@@ -169,6 +221,7 @@ export async function GET(req: NextRequest) {
       skipped,
       alreadyNotified,
       sendFailed,
+      pushed,
     }
     console.log('cq-answer-notify: 完了', JSON.stringify(summary))
 

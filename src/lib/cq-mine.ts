@@ -10,6 +10,7 @@
 //
 // このファイルは fetch も Notion クライアントも含まない純関数群（vitest対象）。
 import type { NotionIntakePage } from './cq-board'
+import { readIntakeColumns, type DeclineReason } from './ask-shelf/intake-columns'
 
 // received  … 届いている（板には出ていない）
 // onBoard   … 作者が板に出した。票が付きうる
@@ -22,6 +23,8 @@ export type MySubmission = {
   question: string
   stage: MyStage
   createdAt: string
+  // closed のとき、見送りの理由（無ければ空文字）。利用者向けの文言は declineMessage が作る。
+  declineReason: DeclineReason | ''
 }
 
 type Prop = Record<string, unknown> | undefined
@@ -67,6 +70,7 @@ export function toMySubmissions(pages: NotionIntakePage[], userId: string): MySu
       question,
       stage: stageOf(selectName(propOf(page, '対応状態')), propOf(page, 'ボード公開')?.checkbox === true),
       createdAt: page.created_time || '',
+      declineReason: readIntakeColumns(page).declineReason,
     })
   }
   return out

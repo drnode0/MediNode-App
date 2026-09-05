@@ -76,6 +76,7 @@ type Row = Record<string, unknown>
 export function claimFromRow(r: Row): RecallClaim {
   return {
     claimId: String(r.claim_id), pageId: String(r.page_id), pageTitle: String(r.page_title ?? ''), pageKind: String(r.page_kind ?? ''),
+    keywords: String(r.keywords ?? ''),
     sectionKey: String(r.section_key ?? ''), sectionHeading: String(r.section_heading ?? ''), body: String(r.body), source: String(r.source ?? ''),
     confidence: r.confidence as RecallClaim['confidence'], genres: (r.genres as string[]) ?? [], primaryGenre: String(r.primary_genre ?? ''),
     genreSlot: Number(r.genre_slot ?? 63), holes: (r.holes as [number, number][]) ?? [], clozeStatus: (r.cloze_status as RecallClaim['clozeStatus']) ?? 'pending',

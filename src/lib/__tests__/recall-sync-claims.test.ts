@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { RecallClaimsSaveError, saveRecallClaims } from '@/lib/recall/sync-claims'
 import type { RecallClaim } from '@/lib/recall/types'
 
-const claim = (id: string): RecallClaim => ({
+const claim = (id: string, keywords = ''): RecallClaim => ({
   claimId: id, pageId: 'p', pageTitle: 't', pageKind: '💡', sectionKey: 'sec1', sectionHeading: '1. x',
   body: 'b', source: 's', confidence: 'ok', genres: ['05.循環'], primaryGenre: '05.循環', genreSlot: 4,
-  holes: [[3, 5]], clozeStatus: 'pending', active: true,
+  holes: [[3, 5]], clozeStatus: 'pending', active: true, keywords,
 })
 
 type FakeOptions = {
@@ -79,13 +79,17 @@ const CAN = { canDeactivate: true }
 describe('saveRecallClaims', () => {
   it('主張を claim_id で upsert し、cloze_status は上書きしない。見つからなかった主張を inactive にする', async () => {
     const { admin, upsert, update, eq, lt, tables } = fakeAdmin({ count: 2 })
-    const res = await saveRecallClaims(admin as never, [claim('a'), claim('b')], CAN)
+    const res = await saveRecallClaims(
+      admin as never,
+      [claim('a', 'sepsis, 敗血症'), claim('b')],
+      CAN,
+    )
     // 既存 holes の読み取り（select）→ upsert →非活性化（update）。すべて recall_claims。
     expect(tables).toEqual(['recall_claims', 'recall_claims', 'recall_claims'])
     expect(upsert).toHaveBeenCalledTimes(1)
     const [rows, opts] = upsert.mock.calls[0] as unknown as [Array<Record<string, unknown>>, Record<string, unknown>]
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({ claim_id: 'a', genre_slot: 4, active: true })
+    expect(rows[0]).toMatchObject({ claim_id: 'a', genre_slot: 4, active: true, keywords: 'sepsis, 敗血症' })
     expect(rows[0]).not.toHaveProperty('cloze_status')
     // まだ誰も判断していない主張には、いまの検出結果を書く（検出規則の改善を届かせる）
     expect(rows[0].holes).toEqual([[3, 5]])

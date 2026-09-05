@@ -2,6 +2,8 @@
 import { Search, Send, ExternalLink, X, Sparkles } from 'lucide-react'
 import { formatCqAge, type CqSeed } from '@/lib/floating-cq'
 import { dispatchLabel, type DispatchState } from '@/lib/cq-dispatch'
+import { declineMessage } from '@/lib/ask-shelf/intake-columns'
+import { ASK_SHELF_MODAL_TITLE } from '@/lib/ask-shelf/copy'
 
 // 浮かんでいる問いを触ったときに出るパネル。一手を3つだけ並べる。
 // アプリからNotionのページは書き換えないので、片づけもNotionへ渡す。
@@ -25,6 +27,11 @@ export function CqActionSheet({
   const lit = cq.newAnswerCount > 0
   // 「今日」の判定はレンダーごとに取り直す（開きっぱなしで日付が変わるほどの画面ではない）。
   const age = formatCqAge(cq.createdAt, new Date())
+  // 見送りは理由まで出す（完了条件6）。「今回は記事化しません」だけで終わると、
+  // 依頼者には何が起きたのか分からない。理由が無い（旧い行・固定リスト外）ときは
+  // これまでどおり dispatchLabel の1行だけになる。
+  const declined =
+    dispatch?.stage === 'closed' && dispatch.declineReason ? declineMessage(dispatch.declineReason) : ''
   return (
     <div
       className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
@@ -80,22 +87,24 @@ export function CqActionSheet({
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-teal-800 dark:text-teal-200">
-                  {dispatchLabel(dispatch)}
+                  {declined || dispatchLabel(dispatch)}
                 </span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400">
-                  {dispatch.stage === 'answered'
-                    ? '上の「この文言で探す」から読めます'
-                    : dispatch.voteCount && dispatch.voteCount > 0
-                      ? '票が多い疑問から答えが書かれます'
-                      : '答えが出たらお知らせが届きます'}
-                </span>
+                {dispatch.stage !== 'closed' && (
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                    {dispatch.stage === 'answered'
+                      ? '上の「この文言で探す」から読めます'
+                      : dispatch.voteCount && dispatch.voteCount > 0
+                        ? '票が多い疑問から答えが書かれます'
+                        : '答えが出たらお知らせが届きます'}
+                  </span>
+                )}
               </span>
             </div>
           ) : (
             onAsk && (
               <SheetButton
                 Icon={Send}
-                label="専門医に訊く"
+                label={`${ASK_SHELF_MODAL_TITLE}として送る`}
                 note="みんなの臨床疑問に並び、答えが出たら通知が届く"
                 onClick={onAsk}
               />

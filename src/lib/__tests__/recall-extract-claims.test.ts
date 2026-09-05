@@ -83,6 +83,20 @@ describe('extractClaims', () => {
     ] })
     expect(out.map((c) => c.body)).toEqual(['親の主張。', '子の主張。', '孫の主張。'])
   })
+  it('ページのキーワード欄を主張に写す（段0の照合で使う）', () => {
+    const claims = extractClaims({ ...base, keywords: 'ショック, shock, 組織低灌流', blocks: [
+      h2('1. 定義'),
+      li('低血圧はショックの要件ではない。✅ ESICM 合意 2014'),
+    ] })
+    expect(claims.length).toBeGreaterThan(0)
+    expect(claims[0].keywords).toBe('ショック, shock, 組織低灌流')
+  })
+  it('キーワードを渡さなくても空文字で通る（既存の呼び出しを壊さない）', () => {
+    const claims = extractClaims({ ...base, blocks: [
+      li('低血圧はショックの要件ではない。✅ ESICM 合意 2014'),
+    ] })
+    expect(claims[0].keywords).toBe('')
+  })
 })
 
 // 実データ（gitignore 済み）。無ければ skip。

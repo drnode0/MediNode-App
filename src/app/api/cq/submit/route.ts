@@ -6,6 +6,8 @@ import { validateCqSubmission, buildIntakeProperties, type IntakePropSchema } fr
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { isAdminEmail } from '@/lib/maintenance'
 import { logCqSubmission } from '@/lib/cq-submission-log'
+import { listAllIntakePages } from '@/lib/notion-intake'
+import { countRecentSubmissions, monthlyLimitState, noticeAfterSubmission } from '@/lib/ask-shelf/monthly-limit'
 
 // プレミアムへの臨床疑問投稿（アプリ内フォーム → 作者の受付DB）。
 //
@@ -79,6 +81,25 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // 月5件の上限（裁定6）。1日5件・1IP20件のUpstashレート制限とは別に、受付DBそのものを
+  // 数えて判定する（Upstashが本番未設定でメモリ版に落ちると30日の窓を保てないため）。
+  // これはスパム防止のための緩い上限であって認証境界ではない。listAllIntakePagesの
+  // 取得に失敗しても、他のNotion呼び出し（下のtry/catch）と同じ姿勢で投稿全体は止めず、
+  // 上限チェックだけを素通しする（fail open）。件数が分からない = ブロックしない。
+  let monthlyCountBeforeThis: number | null = null
+  try {
+    const allPages = await listAllIntakePages()
+    monthlyCountBeforeThis = countRecentSubmissions(allPages, userId, new Date())
+  } catch (err) {
+    console.error('[cq/submit] 月次上限チェック用の受付DB取得に失敗。上限判定を素通しする:', err)
+  }
+  if (monthlyCountBeforeThis !== null) {
+    const monthly = monthlyLimitState(monthlyCountBeforeThis)
+    if (monthly.blocked) {
+      return NextResponse.json({ error: monthly.notice }, { status: 429 })
+    }
+  }
+
   let body: unknown
   try {
     body = await req.json()
@@ -133,7 +154,11 @@ export async function POST(req: NextRequest) {
       // 記録できなくても投稿は成立している。
     }
 
-    return NextResponse.json({ ok: true })
+    // 月上限の「あと1件」案内（裁定6）。monthlyCountBeforeThisはこの投稿がまだ受付DBに
+    // 書かれる前の件数なので、この投稿ぶんを含めた後の残数で判定する
+    // （noticeAfterSubmissionのコメント参照。取得に失敗していた場合はnullのまま＝案内なし）。
+    const notice = monthlyCountBeforeThis !== null ? noticeAfterSubmission(monthlyCountBeforeThis) : null
+    return NextResponse.json({ ok: true, notice: notice ?? undefined })
   } catch {
     // 作者側の設定・Notion障害はユーザーに対処のしようがない。生エラーは出さず、
     // 外部フォームという逃げ道がある旨だけ返す。

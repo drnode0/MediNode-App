@@ -4,8 +4,8 @@
 // 「検索したけど無かった」「ふと疑問が湧いた」その場で疑問文を書き、届け先を選んで送る
 // 浮きボタン＋モーダル。届け先は2つ:
 //   ・自分のメモ …… 自分のNotion（Medical DB）に「❓ CQ」として保存（従来の動作）
-//   ・専門医に訊く …… 作者（救急・集中治療専門医）の受付DBに届く（プレミアム）。
-//     選定のうえナレッジ化され、アプリで配信される。
+//   ・MediNodeに足してほしい疑問 …… 作者（救急・集中治療医）の受付DBに届く（プレミアム）。
+//     選定のうえナレッジ化され、アプリで配信される。個別の回答を約束するものではない。
 // 疑問文は1回書くだけで、両方に同時に送ることもできる。
 // 知識ライフサイクル（❓CQ → 調べて💡ナレッジ → クイズ）の起点をアプリ内で閉じる。
 //
@@ -29,8 +29,15 @@ import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
 import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { recordSentCq } from '@/lib/cq-dispatch'
-import { isValidOccupation } from '@/lib/account-profile'
+import { isValidOccupation, isValidExperienceYears } from '@/lib/account-profile'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, CQ_PROFILE_KEY, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
+import {
+  ASK_SHELF_REQUEST_LABEL,
+  ASK_SHELF_MODAL_TITLE,
+  ASK_SHELF_NOTICES,
+  ASK_SHELF_DONE_MESSAGE,
+  ASK_SHELF_BACKGROUND_PLACEHOLDER,
+} from '@/lib/ask-shelf/copy'
 
 // 開く関数の任意第2引数。reader等から「どの記事を読んでいたか」を文脈として渡す（表示＋出典）。
 // cqObjectID は /cq（未解決の問い）から投げたときだけ入る。投稿が通ったら
@@ -39,7 +46,13 @@ export type CqSource = { title?: string; url?: string; cqObjectID?: string }
 
 // 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
 // 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
-type CqProfile = { occupation: string; experience: string; penName: string; departments: string[] }
+type CqProfile = {
+  occupation: string
+  experience: string
+  penName: string
+  penNameVisible: boolean // true = 板にペンネームを出す。penName が空なら常に false 扱いにする
+  departments: string[]
+}
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
@@ -53,14 +66,16 @@ function loadCqProfile(): CqProfile {
           .map((d) => String(d || ''))
           .filter((d) => (CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(d))
       : []
+    const penName = String(raw.penName || '')
     return {
       occupation,
       experience: String(raw.experience || ''),
-      penName: String(raw.penName || ''),
+      penName,
+      penNameVisible: raw.penNameVisible === true && penName.length > 0,
       departments: occupation === CQ_DEPARTMENT_OCCUPATION ? departments : [],
     }
   } catch {
-    return { occupation: '', experience: '', penName: '', departments: [] }
+    return { occupation: '', experience: '', penName: '', penNameVisible: false, departments: [] }
   }
 }
 function saveCqProfile(p: CqProfile) {
@@ -219,8 +234,8 @@ function CqSetupGuideModal({ onClose, onHide }: { onClose: () => void; onHide: (
           </p>
           <div className="space-y-2">
             <div className="rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/60 dark:bg-purple-900/20 px-3.5 py-3">
-              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1"><Star className="w-3.5 h-3.5" />専門医に訊く（プレミアム）</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">疑問が作者（救急・集中治療の専門医）に届き、選定のうえナレッジとして配信されます。Notionの設定は不要です。</p>
+              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1"><Star className="w-3.5 h-3.5" />{ASK_SHELF_MODAL_TITLE}（プレミアム）</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">疑問が作者（救急・集中治療医）に届き、選定のうえナレッジとして配信されます。Notionの設定は不要です。</p>
             </div>
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-3.5 py-3">
               <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">自分のメモに残す（個人Notion接続）</p>
@@ -292,8 +307,8 @@ function CqCaptureModal({
   const [dest, setDest] = useState(() =>
     defaultDestinations({ personal: personalAvail, premium: premiumAvail, intent }),
   )
-  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', departments: [] })
-  // 背景・状況。専門医に訊くときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
+  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', penNameVisible: false, departments: [] })
+  // 背景・状況。MediNodeに足してほしい疑問として送るときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
   const [background, setBackground] = useState('')
   const [notify, setNotify] = useState(true)
   const [expertReady, setExpertReady] = useState<ExpertReady>(premiumAvail ? 'checking' : 'unavailable')
@@ -303,6 +318,8 @@ function CqCaptureModal({
   // 送信結果は届け先ごとに持つ（片方の失敗がもう片方を巻き込まない）。
   const [mineDone, setMineDone] = useState<{ url: string } | null>(null)
   const [expertDone, setExpertDone] = useState(false)
+  // 月上限の「あと1件」案内（裁定6）。投稿成功レスポンスに notice が乗っているときだけ持つ。
+  const [expertNotice, setExpertNotice] = useState('')
   const [mineError, setMineError] = useState('')
   const [expertError, setExpertError] = useState('')
   const [phase, setPhase] = useState<'input' | 'done'>('input')
@@ -320,43 +337,58 @@ function CqCaptureModal({
   // 再レンダリングを起こす必要が無く、handleSend が同じ呼び出しの中で同期的に
   // 読むだけなので useState ではなく useRef で持つ（モーダルの再マウントで自然に戻る）。
   const bgConfirmedRef = useRef(false)
-  // アカウントに保存済みの職種（null=未登録）。投稿成功時の穴埋め判定に使う。
+  // アカウントに保存済みの職種・経験年数・診療科（null/[]=未登録）。投稿成功時の
+  // 穴埋め判定（フィールドごと独立）に使う。
   const accountOccupationRef = useRef<string | null>(null)
-  // 職種フェッチが解決する前に、本人が職種セレクトを手で変えたか。
+  const accountExperienceRef = useRef<string | null>(null)
+  const accountDepartmentsRef = useRef<string[]>([])
+  // 各フェッチが解決する前に、本人が該当欄を手で変えたか。
   // trueなら、あとから届くアカウント値で上書きしない（レース防止）。
   const userEditedOccupationRef = useRef(false)
+  const userEditedExperienceRef = useRef(false)
+  const userEditedDepartmentsRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
-  // Supabase設定済み環境で未ログインなら、専門医への投稿にはログインが要る。
+  // Supabase設定済み環境で未ログインなら、MediNodeに足してほしい疑問の投稿にはログインが要る。
   // 判定中（loading）はログイン案内を出さない（開いた瞬間のチラつき防止）。
   const needsLogin = auth.configured && !auth.loading && !auth.user
 
-  // アカウントの職種を取得して accountOccupationRef／profile に反映する。
+  // アカウントの職種・経験年数・診療科を取得して accountXxxRef／profile に反映する。
   // マウント時と、モーダル内ログインを閉じた直後の両方から呼ぶため関数として切り出す
   // （cancelled ガードは呼び出しごとに独立させ、古い応答が新しい状態を上書きしないようにする）。
-  const refreshAccountOccupation = useCallback(() => {
+  // 端末の記憶（loadCqProfile）よりアカウントの値を優先して初期値にする（アカウント値が
+  // 有効なときだけ上書き。無ければ端末記憶のまま）。
+  const refreshAccountProfile = useCallback(() => {
     let cancelled = false
     // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
     fetch('/api/account/profile', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { occupation?: string | null } | null) => {
+      .then((d: { occupation?: string | null; experienceYears?: string | null; doctorDepartments?: string[] } | null) => {
         if (cancelled) return
-        const raw = d?.occupation
         // 固定リスト外の値（旧データ等）は使わない。
-        if (!isValidOccupation(raw)) return
-        const occ = raw
+        const occ = isValidOccupation(d?.occupation) ? d!.occupation : null
+        const exp = isValidExperienceYears(d?.experienceYears) ? d!.experienceYears : null
+        const deps = Array.isArray(d?.doctorDepartments)
+          ? d!.doctorDepartments.filter(
+              (x): x is string => typeof x === 'string' && (CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(x),
+            )
+          : []
         // 穴埋め判定（投稿成功時にアカウントへ書き戻すか）は、表示への反映有無に
         // かかわらず正しく保つ。
-        accountOccupationRef.current = occ
-        // フェッチ解決前に本人がセレクトを手で変えていたら、その選択を尊重する
+        if (occ) accountOccupationRef.current = occ
+        if (exp) accountExperienceRef.current = exp
+        if (deps.length > 0) accountDepartmentsRef.current = deps
+        // フェッチ解決前に本人が該当欄を手で変えていたら、その選択を尊重する
         // （レース：あとから届くアカウント値で上書きしない）。
-        if (userEditedOccupationRef.current) return
-        setProfile((p) => ({
-          ...p,
-          occupation: occ,
+        setProfile((p) => {
+          const occupation = !userEditedOccupationRef.current && occ ? occ : p.occupation
+          const experience = !userEditedExperienceRef.current && exp ? exp : p.experience
           // 医師以外に確定したら診療科・立場は捨てる（既存の職種変更ハンドラと同じ判断）。
-          departments: occ === CQ_DEPARTMENT_OCCUPATION ? p.departments : [],
-        }))
+          const useAccountDeps = !userEditedDepartmentsRef.current && deps.length > 0
+          const departments =
+            occupation !== CQ_DEPARTMENT_OCCUPATION ? [] : useAccountDeps ? deps : p.departments
+          return { ...p, occupation, experience, departments }
+        })
       })
       .catch(() => {})
     return () => {
@@ -369,24 +401,24 @@ function CqCaptureModal({
   useEffect(() => {
     setMounted(true)
     setProfile(loadCqProfile())
-    // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
-    return refreshAccountOccupation()
-  }, [refreshAccountOccupation])
+    // アカウントに職種・経験年数・診療科があれば自動入力（アカウント優先。端末記憶より確かな属性）。
+    return refreshAccountProfile()
+  }, [refreshAccountProfile])
 
-  // モーダル内ログイン（LoginModal）を閉じた直後に、アカウントの職種を取り直す。
-  // マウント時のフェッチは未ログインなら401でaccountOccupationRefがnullのまま残る。
-  // その状態でモーダル内ログイン＋職種登録（profileフェーズ）を済ませて投稿すると、
+  // モーダル内ログイン（LoginModal）を閉じた直後に、アカウントの職種・経験年数・診療科を
+  // 取り直す。マウント時のフェッチは未ログインなら401でaccountXxxRefがnull/[]のまま残る。
+  // その状態でモーダル内ログイン＋登録（profileフェーズ）を済ませて投稿すると、
   // 古いnull判定のまま「未登録なら穴埋め保存」が走り、既にアカウントへ保存済みの
-  // 職種を投稿時の選択で上書きしてしまいうる。ログインモーダルが閉じたタイミングで
-  // 再取得し、ref を最新化する（userEditedOccupationRef による手動選択の尊重はそのまま）。
+  // 値を投稿時の選択で上書きしてしまいうる。ログインモーダルが閉じたタイミングで
+  // 再取得し、ref を最新化する（userEditedXxxRef による手動選択の尊重はそのまま）。
   const prevShowLoginRef = useRef(showLogin)
   useEffect(() => {
     const wasShown = prevShowLoginRef.current
     prevShowLoginRef.current = showLogin
     if (wasShown && !showLogin) {
-      return refreshAccountOccupation()
+      return refreshAccountProfile()
     }
-  }, [showLogin, refreshAccountOccupation])
+  }, [showLogin, refreshAccountProfile])
   // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
   // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
   // 閉じてしまい、body-scroll-lockが非LIFOで解除されて画面が固まりうる。
@@ -523,6 +555,7 @@ function CqCaptureModal({
                 experience: profile.experience,
                 departments: profile.departments,
                 penName: profile.penName,
+                penNameVisible: profile.penNameVisible && !!profile.penName.trim(),
                 notify,
                 sourceTitle: source?.title || '',
                 sourceUrl: source?.url || '',
@@ -539,18 +572,31 @@ function CqCaptureModal({
               return
             }
             setExpertDone(true)
+            if (data?.notice) setExpertNotice(String(data.notice))
             // /cq から投げた分は「どの泡を送ったか」を控える。板の票をその泡に返すため。
             if (source?.cqObjectID) {
               recordSentCq(source.cqObjectID, trimmed, new Date().toISOString())
             }
             saveCqProfile(profile)
-            // アカウントに職種が未登録なら、この投稿の職種で埋める（登録フロー導入前の
-            // ユーザーの穴埋め。失敗しても投稿は成功扱いのまま静かに握る）。
-            if (!accountOccupationRef.current && profile.occupation) {
+            // アカウントに職種・経験年数・診療科が未登録なら、この投稿の値で埋める
+            // （登録フロー導入前のユーザーの穴埋め。フィールドごとに独立して判定する
+            // ＝経験年数だけ空、というアカウントでも経験年数だけ埋める。失敗しても
+            // 投稿は成功扱いのまま静かに握る）。
+            const needOccupation = !accountOccupationRef.current && !!profile.occupation
+            const needExperience = !accountExperienceRef.current && !!profile.experience
+            const needDepartments = accountDepartmentsRef.current.length === 0 && profile.departments.length > 0
+            if (needOccupation || needExperience || needDepartments) {
+              // occupation は API の必須項目。すでにアカウントにある値はそのまま送り直す
+              // だけにして、今回の選択で上書きしない（needOccupation のときだけ今回の選択を使う）。
+              const payload: Record<string, unknown> = {
+                occupation: accountOccupationRef.current || profile.occupation,
+              }
+              if (needExperience) payload.experienceYears = profile.experience
+              if (needDepartments) payload.doctorDepartments = profile.departments
               void fetch('/api/account/profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ occupation: profile.occupation }),
+                body: JSON.stringify(payload),
               }).catch(() => {})
             }
             track('cq_expert_submitted', { occupation: profile.occupation || 'none' })
@@ -583,12 +629,12 @@ function CqCaptureModal({
     willSendMine && willSendExpert
       ? '送信する'
       : willSendExpert
-        ? '専門医に送る'
+        ? ASK_SHELF_REQUEST_LABEL
         : 'CQとして保存する'
 
   const descText = (() => {
-    if (dest.expert && dest.mine) return '疑問を作者（救急・集中治療の専門医）に届け、あなたのNotionにも「❓ CQ」として保存します。'
-    if (dest.expert) return '疑問はそのまま作者（救急・集中治療の専門医）に届きます。選定のうえ調べて、ナレッジとしてアプリで配信されます。'
+    if (dest.expert && dest.mine) return '疑問を作者（救急・集中治療医）に届け、あなたのNotionにも「❓ CQ」として保存します。'
+    if (dest.expert) return '疑問はそのまま作者（救急・集中治療医）に届きます。選定のうえ調べて、ナレッジとしてアプリで配信されます。'
     if (dest.mine) return 'あとで調べる疑問を、NotionのMedical DBに「❓ CQ」として保存します。答えが出たら、Notionで「💡 ナレッジ」に変えるとクイズに加わります。'
     return '疑問の届け先を選んでください。'
   })()
@@ -697,7 +743,7 @@ function CqCaptureModal({
                     }`}
                   >
                     <Star className="w-3.5 h-3.5" />
-                    専門医に訊く
+                    {ASK_SHELF_MODAL_TITLE}
                   </button>
                 ) : (
                   openSettings && (
@@ -711,19 +757,19 @@ function CqCaptureModal({
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <Star className="w-3.5 h-3.5" />
-                      専門医に訊く（プレミアム）
+                      {ASK_SHELF_MODAL_TITLE}（プレミアム）
                     </button>
                   )
                 )}
               </div>
 
-              {/* 専門医に訊く: 詳細（職種・ペンネーム・通知）。選択時だけ静かに展開する。 */}
+              {/* MediNodeに足してほしい疑問: 詳細（職種・ペンネーム・通知）。選択時だけ静かに展開する。 */}
               {dest.expert && premiumAvail && expertReady !== 'unavailable' && (
                 <div className="mt-3 rounded-xl border border-purple-100 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-900/10 px-3.5 py-3 space-y-2.5">
                   {needsLogin ? (
                     <>
                       <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                        専門医への投稿にはログインが必要です（解決のお知らせと会員確認のためだけに使います）。
+                        MediNodeへの投稿にはログインが必要です（解決のお知らせと会員確認のためだけに使います）。
                       </p>
                       <button
                         type="button"
@@ -735,12 +781,10 @@ function CqCaptureModal({
                     </>
                   ) : (
                     <>
-                      {/* 背景・状況。専門医が答えられるかどうかは、ほぼここで決まる。
+                      {/* 背景・状況。答えられる疑問になるかどうかは、ほぼここで決まる。
                           ソフト必須（空でも送れるが、送信時に一度だけ確認を挟む）。
-                          「何を書けばよいか」を例で示して書きやすくする。
-                          例文は上の疑問文の例と同じ症例（敗血症性ショック）で揃える。
-                          患者背景・場面・試したこと（数値）・迷っている点の4つを1文ずつ含め、
-                          これを読めば書き方が分かるようにする。片方だけ直さない。 */}
+                          例文・ヒント文とも、患者さんが特定できる書き方は求めない
+                          （注意3と矛盾しないよう、場面・経過・試したことに寄せる）。 */}
                       <div className="space-y-1">
                         <label htmlFor="cq-background" className="block text-xs font-semibold text-gray-700 dark:text-gray-200">
                           背景・状況
@@ -755,14 +799,14 @@ function CqCaptureModal({
                           }}
                           maxLength={BACKGROUND_MAX}
                           rows={3}
-                          placeholder="例：70代・敗血症性ショック。ノルアドレナリンを0.3γまで増量しても平均血圧が65に届きません。併用に踏み切る目安に迷っています。"
+                          placeholder={ASK_SHELF_BACKGROUND_PLACEHOLDER}
                           className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-purple-300 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         />
                         {/* ここは常時のヒント文。実際のソフト必須（送信を一度止めて確認する）は
                             handleSend 側のゲートが担い、その結果が下の確認バー（bgPrompt）に出る。 */}
                         <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
                           空でも送れますが、あると回答の精度が変わります。
-                          患者背景・場面・これまでの対応など。
+                          場面・これまでの対応・迷っている点など（患者さんが特定できることは書かないでください）。
                         </p>
                         {bgPrompt && (
                           <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 space-y-2">
@@ -838,6 +882,8 @@ function CqCaptureModal({
                             ref={experienceRef}
                             value={profile.experience}
                             onChange={(e) => {
+                              // 本人が手で選んだ。以後、遅れて届くアカウント値の自動入力で上書きしない。
+                              userEditedExperienceRef.current = true
                               setProfile((p) => ({ ...p, experience: e.target.value }))
                               setExpertError('')
                             }}
@@ -872,6 +918,8 @@ function CqCaptureModal({
                                   ref={i === 0 ? departmentsRef : undefined}
                                   aria-pressed={on}
                                   onClick={() => {
+                                    // 本人が手で選んだ。以後、遅れて届くアカウント値の自動入力で上書きしない。
+                                    userEditedDepartmentsRef.current = true
                                     setProfile((p) => ({
                                       ...p,
                                       departments: p.departments.includes(d)
@@ -896,11 +944,47 @@ function CqCaptureModal({
                       <input
                         type="text"
                         value={profile.penName}
-                        onChange={(e) => setProfile((p) => ({ ...p, penName: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((p) => ({
+                            ...p,
+                            penName: e.target.value,
+                            // ペンネームを消したら「板で掲載」の選択も一緒に外す（無い名前を掲載扱いにしない）。
+                            penNameVisible: e.target.value.trim() ? p.penNameVisible : false,
+                          }))
+                        }
                         maxLength={30}
                         placeholder="ペンネーム（空欄なら匿名）"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
                       />
+                      {/* 板（/cq）に出すときの名前の選択。ペンネームが無いうちは選べない
+                          （掲載する名前が無いため）。既定は匿名（安全側）。 */}
+                      <div className="flex flex-wrap gap-1.5" role="group" aria-label="板に出すときの名前">
+                        {([
+                          { key: false, label: '匿名' },
+                          { key: true, label: 'ペンネームで掲載' },
+                        ] as const).map((opt) => {
+                          const on = profile.penNameVisible === opt.key
+                          const disabled = opt.key === true && !profile.penName.trim()
+                          return (
+                            <button
+                              key={String(opt.key)}
+                              type="button"
+                              disabled={disabled}
+                              aria-pressed={on}
+                              onClick={() => setProfile((p) => ({ ...p, penNameVisible: opt.key }))}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                                on
+                                  ? 'bg-purple-600 border-purple-600 text-white'
+                                  : disabled
+                                    ? 'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                                    : 'border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:border-purple-400'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                       <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
                         <input
                           type="checkbox"
@@ -952,7 +1036,7 @@ function CqCaptureModal({
               {expertDone && (mineError || expertError) && (
                 <p className="mt-2 text-xs text-green-600 dark:text-green-500">
                   <CheckCircle2 className="inline-block w-3.5 h-3.5 align-text-bottom mr-1" />
-                  専門医には届いています
+                  MediNodeには届いています
                 </p>
               )}
               {mineError && (
@@ -962,7 +1046,20 @@ function CqCaptureModal({
               )}
               {expertError && (
                 <div role="alert" className="mt-2 bg-red-50 dark:bg-red-900/30 rounded-lg p-3 text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
-                  {personalAvail && premiumAvail ? `専門医への投稿: ${expertError}` : expertError}
+                  {personalAvail && premiumAvail ? `MediNodeへの投稿: ${expertError}` : expertError}
+                </div>
+              )}
+
+              {/* 送信ボタンの上に、畳まずに常時出す注意5点。MediNodeに足してほしい疑問
+                  として送る届け先を選んでいるときだけ出す（自分のメモだけなら対象外）。 */}
+              {dest.expert && (
+                <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 px-3.5 py-3">
+                  <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 mb-1.5">送る前に</p>
+                  <ul className="space-y-1 text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed list-disc list-inside">
+                    {ASK_SHELF_NOTICES.map((notice) => (
+                      <li key={notice}>{notice}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
@@ -986,12 +1083,18 @@ function CqCaptureModal({
                 <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-900/50 rounded-xl p-4 animate-pop">
                   <p className="font-bold text-purple-700 dark:text-purple-300 text-sm">
                     <Star className="inline-block h-3.5 w-3.5 align-text-bottom mr-1" />
-                    専門医に届きました
+                    {ASK_SHELF_DONE_MESSAGE}
                   </p>
                   <p className="text-xs text-purple-600/90 dark:text-purple-400 mt-1 leading-relaxed">
                     選定のうえ、調べてナレッジとして配信されます。
                     {notify && !needsLogin ? '解決したら、アプリでお知らせが届きます。' : ''}
                   </p>
+                  {/* 月上限に近づいたときだけの案内（裁定6）。ふだんは出ない。 */}
+                  {expertNotice && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5 font-semibold">
+                      {expertNotice}
+                    </p>
+                  )}
                 </div>
               )}
               {mineDone && (
@@ -1045,6 +1148,7 @@ function CqCaptureModal({
                     setPhase('input')
                     setMineDone(null)
                     setExpertDone(false)
+                    setExpertNotice('')
                     setMineError('')
                     setExpertError('')
                     setTitle('')
@@ -1058,7 +1162,7 @@ function CqCaptureModal({
                   続けて残す
                 </button>
               </div>
-              {/* 会員だが今回は専門医に送らなかった人への、そっとした1行（押し付けない）。 */}
+              {/* 会員だが今回はMediNodeに送らなかった人への、そっとした1行（押し付けない）。 */}
               {mineDone && !expertDone && premiumAvail && (
                 <button
                   onClick={() => {
@@ -1068,7 +1172,7 @@ function CqCaptureModal({
                   className="w-full flex items-center justify-center gap-1.5 text-xs text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
                 >
                   <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-                  解決の糸口が見つからない疑問は、専門医に訊けます
+                  解決の糸口が見つからない疑問は、{ASK_SHELF_MODAL_TITLE}として送れます
                 </button>
               )}
               {mineDone && !expertDone && !premiumAvail && openSettings && (
@@ -1080,7 +1184,7 @@ function CqCaptureModal({
                   className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 py-1.5 border-t border-gray-100 dark:border-gray-800 mt-1"
                 >
                   <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-                  答えが出ない疑問は、専門医に訊けます（プレミアム）
+                  答えが出ない疑問は、{ASK_SHELF_MODAL_TITLE}として送れます（プレミアム）
                 </button>
               )}
               <button

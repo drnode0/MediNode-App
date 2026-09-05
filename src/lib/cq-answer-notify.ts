@@ -8,7 +8,8 @@
 // このファイルは fetch も Notion クライアントも含まない純関数群（vitest対象）。
 import type { NotionIntakePage } from './cq-board'
 import { toMySubmissions } from './cq-mine'
-import { APP_URL } from './trial-end-content'
+import { readIntakeColumns } from './ask-shelf/intake-columns'
+import { ASK_SHELF_MAIL_SUBJECT } from './ask-shelf/copy'
 
 // user_metadata 内の記録キー。値は { [受付DBページID]: 通知日時ISO } の map。
 export const CQ_ANSWER_NOTIFIED_META_KEY = 'cq_answer_notified'
@@ -17,6 +18,9 @@ export type AnswerNotification = {
   pageId: string
   userId: string
   question: string
+  // 正本主張ID（複数に備える。通知が使うのは先頭の1件、裁定3）。空のこともある
+  // （正本化前でもメールだけは従来どおり送るため）。
+  canonicalClaimIds: string[]
 }
 
 function plainText(prop: Record<string, unknown> | undefined, key: 'rich_text' | 'title'): string {
@@ -37,7 +41,12 @@ export function answeredNotifications(pages: NotionIntakePage[]): AnswerNotifica
     // stage 判定は cq-mine と同じ実装を通す（answered の定義を二重に持たない）。
     const [mine] = toMySubmissions([page], userId)
     if (!mine || mine.stage !== 'answered') continue
-    out.push({ pageId: page.id, userId, question: mine.question })
+    out.push({
+      pageId: page.id,
+      userId,
+      question: mine.question,
+      canonicalClaimIds: readIntakeColumns(page).canonicalClaimIds,
+    })
   }
   return out
 }
@@ -65,19 +74,21 @@ export function markNotified(
 }
 
 // 通知メールの件名と本文。文面は 2026-08-14 の手動フォローメールと同じ調子に揃える。
-export function answerNoticeEmail(questions: string[]): { subject: string; text: string } {
+// url は呼び出し側が求めた飛び先（主張／記事の着地画面、または汎用のアプリURL）。
+// このファイルは fetch を持たない純関数群なので、どの URL を使うかは呼び出し側の責務。
+export function answerNoticeEmail(questions: string[], url: string): { subject: string; text: string } {
   if (questions.length === 0) throw new Error('通知する疑問がありません')
   const body =
     questions.length === 1
       ? `「${questions[0]}」に回答がつきました。アプリからご確認いただけます。`
       : ['以下の疑問に回答がつきました。アプリからご確認いただけます。', ...questions.map((q) => `・「${q}」`)].join('\n')
   return {
-    subject: 'MediNodeへご投稿いただいた臨床疑問に回答がつきました',
+    subject: ASK_SHELF_MAIL_SUBJECT,
     text: [
       'MediNodeへ臨床疑問をご投稿いただき、ありがとうございました。',
       '',
       body,
-      APP_URL,
+      url,
       '',
       '---',
       'MediNode　Dr.ノード',

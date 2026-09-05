@@ -105,7 +105,9 @@ import { AuthorAdditionsBanner } from '@/components/AuthorAdditionsBanner'
 import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, type AuthorAdditions } from '@/lib/author-additions'
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
+import { AskShelfPanel } from '@/components/AskShelfPanel'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
+import { ASK_SHELF_REQUEST_LABEL } from '@/lib/ask-shelf/copy'
 import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
 import { takePendingQuery } from '@/lib/pending-query'
 import { ReaderProvider } from '@/components/reader/SubscriptionReader'
@@ -1158,7 +1160,7 @@ function SubscriptionPromoPanel() {
 
 // 検索ゼロ件のとき、その疑問をそのままCQとして残す静かな導線。
 // 「検索したのに無かった」＝疑問が生まれた瞬間なので、ここが最短の入口になる。
-// プレミアム会員には「専門医に訊く」と案内する（検索に無ければ、人に訊ける）。
+// プレミアム会員には「MediNodeに足してほしい疑問」と案内する（検索に無ければ、棚に足せる）。
 function CqCaptureSuggestion({ query }: { query: string }) {
   const openCq = useCqCapture()
   if (!openCq || !query.trim()) return null
@@ -1173,7 +1175,7 @@ function CqCaptureSuggestion({ query }: { query: string }) {
           : 'border-brand-200 dark:border-brand-700 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-900/50'
       }`}
     >
-      {premium ? 'この疑問、専門医に訊いてみる' : 'この疑問をCQとして残す'}
+      {premium ? ASK_SHELF_REQUEST_LABEL : 'この疑問をCQとして残す'}
     </button>
   )
 }
@@ -1263,6 +1265,7 @@ function ExampleKeywords({ onPick }: { onPick: (kw: string) => void }) {
 
 function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { refine, query } = useSearchBox()
+  const openCq = useCqCapture()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [hasSearched, setHasSearched] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
@@ -1323,6 +1326,17 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           hasSubscription={hasSubscription}
         />
       </div>
+      <AskShelfPanel
+        query={query}
+        onRequest={(logId) => {
+          openCq?.(query, undefined, 'zero')
+          if (logId != null) {
+            fetch('/api/ask-shelf/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }),
+            }).catch(() => {})
+          }
+        }}
+      />
       {!query && !hasSearched ? (
         <>
           <SearchHistoryList
@@ -1661,6 +1675,7 @@ function useTeamNotionHits(mode: Tab, enabled: boolean) {
 // Notionモード：検索タブ
 function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, refreshing, error, search } = useNotionSearch('search')
+  const openCq = useCqCapture()
   const { history, addHistory, clearHistory } = useSearchHistory()
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
@@ -1740,6 +1755,17 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         </div>
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
+      <AskShelfPanel
+        query={query}
+        onRequest={(logId) => {
+          openCq?.(query, undefined, 'zero')
+          if (logId != null) {
+            fetch('/api/ask-shelf/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }),
+            }).catch(() => {})
+          }
+        }}
+      />
       {loading && <SkeletonCards label="Notionを検索中..." />}
       {/* キャッシュ結果を表示中に裏で最新取得しているときの控えめな表示（一覧は消さない） */}
       {refreshing && !loading && (
@@ -3129,7 +3155,7 @@ export default function Home() {
   )
 
   // はじめてガイド（機能ツアー）。CQステップは実際にボタンが機能する場合のみ
-  // （個人Notion接続、またはプレミアム＝専門医に訊ける）。
+  // （個人Notion接続、またはプレミアム＝MediNodeに疑問を足せる）。
   const tourModal = showTour && (
     <FeatureTour
       searchMode={searchMode === 'notion' ? 'notion' : 'algolia'}

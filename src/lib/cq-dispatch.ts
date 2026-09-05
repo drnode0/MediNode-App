@@ -15,6 +15,7 @@
 // 個人の行動履歴なので PERSONAL_DEVICE_KEYS の対象（アカウント切替で持ち越さない）。
 
 import type { MyStage } from './cq-mine'
+import type { DeclineReason } from './ask-shelf/intake-columns'
 
 const SENT_KEY = 'medinode_cq_sent_v1'
 
@@ -27,7 +28,14 @@ export type SentCq = {
 }
 
 // 板に載っていれば票数、載っていなければ null。
-export type DispatchState = { sentAt: string; voteCount: number | null; stage: MyStage }
+// declineReason は stage が closed のときだけ入りうる（サーバー側から来た分のみ。
+// 端末の記録しか無い投稿には理由が無い）。利用者向けの文は declineMessage が作る。
+export type DispatchState = {
+  sentAt: string
+  voteCount: number | null
+  stage: MyStage
+  declineReason?: DeclineReason | ''
+}
 
 // 突き合わせ用の正規化。前後の空白と連続する空白だけを潰す。
 // 全角・半角の寄せまではやらない（送った文字列と板の題は同じ1本の入力から出るため）。
@@ -84,9 +92,18 @@ export function forgetSentCq(objectID: string): void {
 export function buildDispatchStates(
   cqs: Array<{ objectID: string; title: string }>,
   sent: SentCq[],
-  submissions: Array<{ question: string; stage: MyStage; voteCount: number; createdAt: string }>,
+  submissions: Array<{
+    question: string
+    stage: MyStage
+    voteCount: number
+    createdAt: string
+    declineReason?: DeclineReason | ''
+  }>,
 ): Record<string, DispatchState> {
-  const byQuestion = new Map<string, { stage: MyStage; voteCount: number; createdAt: string }>()
+  const byQuestion = new Map<
+    string,
+    { stage: MyStage; voteCount: number; createdAt: string; declineReason?: DeclineReason | '' }
+  >()
   for (const s of submissions) byQuestion.set(normalizeQuestion(s.question), s)
 
   const sentByObjectID = new Map<string, SentCq>()
@@ -106,6 +123,8 @@ export function buildDispatchStates(
         // 板に出ていない段では票を出さない（0票と「まだ出ていない」は別のこと）。
         voteCount: found.stage === 'onBoard' ? found.voteCount : null,
         stage: found.stage,
+        // 理由は closed のときだけ持つ（他の段では意味がなく、持たせると画面が迷う）。
+        ...(found.stage === 'closed' && found.declineReason ? { declineReason: found.declineReason } : {}),
       }
     } else if (record) {
       states[cq.objectID] = { sentAt: record.sentAt, voteCount: null, stage: 'received' }
@@ -118,6 +137,9 @@ export function buildDispatchStates(
 export function dispatchLabel(state: DispatchState | undefined): string {
   if (!state) return ''
   if (state.stage === 'answered') return '答えが出ました'
+  // 「対応不要」を「届いています」のまま置かない。待っている人に終わりが見えないのが
+  // いちばんの負債だった（提案005 の「先に知っておくべき3つのこと」の3番）。
+  if (state.stage === 'closed') return '今回は記事化しません'
   if (state.voteCount && state.voteCount > 0) {
     return `${state.voteCount}人が同じことを気にしています`
   }

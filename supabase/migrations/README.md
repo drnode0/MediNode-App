@@ -43,12 +43,14 @@
 | 0021 | early_access_features | `user_settings.early_access_features` | ✅ |
 | 0022 | oauth_states | `oauth_states` | ✅ |
 | 0023 | oauth_states_purge_indexes | `oauth_states_created_at_idx`, `oauth_states_status_completed_at_idx` | ✅ |
-| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ❓ 未確認 ※3 |
+| 0024 | user_occupation（トップレベル migrations/） | `user_settings.occupation` | ✅ ※7 |
 | 0025 | personal_reader_metrics | `block_type_stats`, `record_block_type_counts()`, `notion_escape_taps`, `increment_notion_escape()` | ✅ ※2 |
 | 0026 | reader_spreads | `reader_spreads` | ✅ ※2 |
 | 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
 | 0028 | question_interest | `question_interest` | ✅ ※5 |
 | 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ✅ ※6 |
+| 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ⬜ 未適用 |
+| 0031 | ask_shelf_pgroonga（いまは流さない） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用（意図的）※8 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -91,3 +93,12 @@ OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_a
 ※6 2026-09-03 に本番DBへ読み取り専用で実測。4表とも存在し、`recall_claims` は687行
 （active 687・cloze_status 承認0）。`recall_section_reads`・`recall_progress`・`recall_review_log`
 はいずれも0行。以前の「未適用」は記録漏れ（実際には適用済みだった）。
+
+※7 2026-09-05 に本番DBで実測。`/rest/v1/user_settings?select=occupation&limit=1` が 200 を返し、
+`occupation` 列が存在することを確認した。以前の「未確認」は記録漏れ。
+※8 0031 は**いま流す必要が無い**。2026-09-05 時点で `search_text` と PGroonga 索引を読むコードは
+1か所も無く（段0の検索は active な主張を毎回すべて読み、順位と足切りは TypeScript の覆い率が決める）、
+流すと有料の主張の本文を複製した生成列と、誰も引かない索引が全行に増えるだけになる。
+流すのは全件読みが実際の負担になってから（設計書の再検討ライン＝主張が 2,000 を超えたとき）で、
+そのとき `src/app/api/ask-shelf/search/route.ts` に候補の絞り込みを足す。
+流すときは Supabase の Extensions で pgroonga を有効にしてから。

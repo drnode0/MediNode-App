@@ -109,7 +109,7 @@ const claim = (claimId: string): RecallClaim => ({
   claimId, pageId: 'p1', pageTitle: '💡 テスト', pageKind: 'knowledge',
   sectionKey: 's1', sectionHeading: 'まとめ', body: '目標は 65 mmHg 以上', source: '出典',
   confidence: 'ok', genres: ['05.循環'], primaryGenre: '05.循環', genreSlot: 4,
-  holes: [[4, 11]], clozeStatus: 'approved', active: true,
+  holes: [[4, 11]], clozeStatus: 'approved', active: true, keywords: '',
 })
 
 function makeStore(over: Partial<RecallStore> = {}): RecallStore {

@@ -21,6 +21,7 @@ const submission = (over: Partial<{
   stage: 'received' | 'onBoard' | 'answered' | 'closed'
   voteCount: number
   createdAt: string
+  declineReason: '根拠を確認できない' | ''
 }> = {}) => ({
   question: QUESTION,
   stage: 'received' as const,
@@ -69,6 +70,22 @@ describe('buildDispatchStates', () => {
     })
   })
 
+  it('見送りの理由は closed のときだけ持ち越す（画面が理由まで出せる）', () => {
+    const closed = buildDispatchStates(
+      [cq('personal_a')],
+      [],
+      [submission({ stage: 'closed', declineReason: '根拠を確認できない' })],
+    )
+    expect(closed.personal_a.declineReason).toBe('根拠を確認できない')
+
+    const onBoard = buildDispatchStates(
+      [cq('personal_a')],
+      [],
+      [submission({ stage: 'onBoard', voteCount: 2, declineReason: '根拠を確認できない' })],
+    )
+    expect(onBoard.personal_a.declineReason).toBeUndefined()
+  })
+
   it('送っていない泡は状態を持たない', () => {
     const states = buildDispatchStates([cq('personal_a'), cq('personal_b', 'ほかの疑問')], [], [submission()])
     expect(states.personal_b).toBeUndefined()
@@ -100,5 +117,10 @@ describe('dispatchLabel', () => {
 
   it('送った記録が無ければ何も出さない', () => {
     expect(dispatchLabel(undefined)).toBe('')
+  })
+
+  it('対応不要は「今回は記事化しません」と理由を出す', () => {
+    expect(dispatchLabel({ sentAt: '2026-09-01', voteCount: null, stage: 'closed' }))
+      .toBe('今回は記事化しません')
   })
 })

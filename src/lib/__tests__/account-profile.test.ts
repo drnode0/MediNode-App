@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { isValidOccupation, saveUserOccupation } from '../account-profile'
+import { isValidOccupation, saveUserOccupation, saveUserProfile } from '../account-profile'
 
 describe('isValidOccupation', () => {
   it('リスト内の職種を受け入れる', () => {
@@ -40,5 +40,26 @@ describe('saveUserOccupation', () => {
   it('それ以外のエラーはthrowする', async () => {
     const admin = stubAdmin({ message: 'boom' })
     await expect(saveUserOccupation(admin, 'user-1', '医師')).rejects.toThrow('boom')
+  })
+})
+
+describe('経験年数・診療科', () => {
+  it('固定リストの値だけを受ける', async () => {
+    const calls: Record<string, unknown>[] = []
+    const admin = { from: () => ({ upsert: async (v: Record<string, unknown>) => { calls.push(v); return { error: null } } }) }
+    await saveUserProfile(admin as never, 'u1', { occupation: '医師', experienceYears: '4〜6年目', doctorDepartments: ['救急科'] })
+    expect(calls[0]).toMatchObject({ occupation: '医師', experience_years: '4〜6年目', doctor_departments: ['救急科'] })
+  })
+
+  it('固定リストに無い値は落として保存する', async () => {
+    const calls: Record<string, unknown>[] = []
+    const admin = { from: () => ({ upsert: async (v: Record<string, unknown>) => { calls.push(v); return { error: null } } }) }
+    await saveUserProfile(admin as never, 'u1', { occupation: '医師', experienceYears: '謎', doctorDepartments: ['謎科'] })
+    expect(calls[0]).toMatchObject({ experience_years: null, doctor_departments: [] })
+  })
+
+  it('列が無い環境（0030 未適用）でも例外にしない', async () => {
+    const admin = { from: () => ({ upsert: async () => ({ error: { code: 'PGRST204', message: "column 'experience_years' does not exist" } }) }) }
+    await expect(saveUserProfile(admin as never, 'u1', { occupation: '医師', experienceYears: '1年目', doctorDepartments: [] })).resolves.toBeUndefined()
   })
 })

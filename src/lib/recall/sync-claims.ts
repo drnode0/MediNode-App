@@ -104,6 +104,7 @@ export async function saveRecallClaims(
       const prev = stored.get(c.claimId)
       return {
         claim_id: c.claimId, page_id: c.pageId, page_title: c.pageTitle, page_kind: c.pageKind,
+        keywords: c.keywords ?? '',
         section_key: c.sectionKey, section_heading: c.sectionHeading, body: c.body, source: c.source,
         confidence: c.confidence, genres: c.genres, primary_genre: c.primaryGenre, genre_slot: c.genreSlot,
         // 判断済みならオーナーが直した穴を書き戻す。未判断ならいまの検出結果を書く。

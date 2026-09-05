@@ -9,6 +9,8 @@
 // - buildIntakeProperties: 受付DBのスキーマを見て、存在するプロパティにだけ値を積む
 // - defaultDestinations: モーダルを開いた入口ごとの届け先チップ初期値
 
+import { PEN_NAME_ALLOWED } from './cq-board'
+
 export const QUESTION_MIN = 5
 export const QUESTION_MAX = 1000
 export const PEN_NAME_MAX = 30
@@ -76,6 +78,7 @@ export type CqSubmission = {
   experience: string // '' = 選択なし
   departments: string[] // 職種が「医師」のときだけ入る。それ以外は必ず []
   penName: string // '' = 匿名
+  penNameVisible: boolean // true のときだけ板にペンネームを出す（penName が空なら常に false）
   notify: boolean
   sourceTitle: string
   sourceUrl: string
@@ -88,6 +91,7 @@ export type CqSubmissionInput = {
   experience?: unknown
   departments?: unknown
   penName?: unknown
+  penNameVisible?: unknown
   notify?: unknown
   sourceTitle?: unknown
   sourceUrl?: unknown
@@ -142,6 +146,9 @@ export function validateCqSubmission(
   }
 
   const penName = str(input.penName).slice(0, PEN_NAME_MAX)
+  // 「ペンネームで掲載」は、実際にペンネームが無ければ意味を持たない（掲載する名前が無い）。
+  // クライアントの選択肢とは無関係に、ここで強制的に false へ落とす（防御的二重化）。
+  const penNameVisible = input.penNameVisible === true && penName.length > 0
 
   const sourceTitle = str(input.sourceTitle).slice(0, SOURCE_TITLE_MAX)
   let sourceUrl = str(input.sourceUrl).slice(0, SOURCE_URL_MAX)
@@ -156,6 +163,7 @@ export function validateCqSubmission(
       experience,
       departments,
       penName,
+      penNameVisible,
       notify: input.notify === true,
       sourceTitle,
       sourceUrl,
@@ -224,6 +232,11 @@ export function buildIntakeProperties(
   if (value.penName && schema['ペンネーム']?.type === 'rich_text') {
     properties['ペンネーム'] = rich(value.penName)
   }
+  // 「掲載名の希望」は cq-board.ts が既に読んでおり、未選択なら匿名（安全側）のまま。
+  // アプリからの投稿がこれを書いていなかったため、板では常に匿名になっていた。
+  if (value.penNameVisible && schema['掲載名の希望']?.type === 'select') {
+    properties['掲載名の希望'] = { select: { name: PEN_NAME_ALLOWED } }
+  }
   // Notion受付DB側の通知先IDは、本人の同意（notify）があるときだけ残す（解決通知の宛先）。
   // 投稿者の管理用記録は同意と無関係に Supabase cq_submissions が持つ（2026-07-31方針変更・
   // /admin 専用で公開面には出さない。cq-submission-log.ts 参照）。
@@ -246,9 +259,9 @@ export type CqIntent = 'capture' | 'zero' | 'settings'
 
 // 届け先チップの初期値。
 // - 自分のメモ: 個人Notionがあれば基本ON（従来の主動作を変えない）
-// - 専門医に訊く: 「訊く」意図で開いた入口（検索0件・設定の投稿ボタン）だけON。
-//   FABやreaderからは自分で選ぶ（送るつもりのない疑問まで専門医に飛ばさない）。
-// - 設定の投稿ボタンは「専門医に訊く」専用の入口なので、メモ側はOFFで開く。
+// - MediNodeに足してほしい疑問: 「送る」意図で開いた入口（検索0件・設定の投稿ボタン）だけON。
+//   FABやreaderからは自分で選ぶ（送るつもりのない疑問までMediNodeに飛ばさない）。
+// - 設定の投稿ボタンは「MediNodeに足してほしい疑問」専用の入口なので、メモ側はOFFで開く。
 export function defaultDestinations(opts: {
   personal: boolean
   premium: boolean

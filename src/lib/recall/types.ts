@@ -17,6 +17,8 @@ export type RecallClaim = {
   holes: [number, number][]
   clozeStatus: ClozeStatus
   active: boolean
+  /** ページの「キーワード」欄。段0の照合にだけ使う（画面には出さない） */
+  keywords: string
   // DB の行にだけある作成時刻。配置の並びの基準に使う（後から増えた主張ほど後ろに置くので、
   // 既存の主張の位置が動かない）。抽出しただけの主張には無い。
   createdAt?: string

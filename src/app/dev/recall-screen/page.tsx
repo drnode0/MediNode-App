@@ -55,6 +55,7 @@ function fakeData(now: number) {
         source: 'Surviving Sepsis Campaign 2021', confidence: 'ok',
         genres: [genreLabel(slot)], primaryGenre: genreLabel(slot), genreSlot: slot,
         holes: [[body.indexOf('30 mL/kg'), body.indexOf('30 mL/kg') + 8]], clozeStatus: 'approved', active: true,
+        keywords: '',
         createdAt: new Date(now - (n - i) * 60_000).toISOString(),
       })
       const v = g()

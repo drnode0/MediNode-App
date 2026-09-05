@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, MessageCircleQuestion, Sparkles, ChevronDown, Send } from 'lucide-react'
 import { getSettings } from '@/lib/settings'
+import { ASK_SHELF_MODAL_TITLE } from '@/lib/ask-shelf/copy'
 import {
   createSearchClient,
   getIndexName,
@@ -33,6 +34,7 @@ import {
   type DispatchState,
 } from '@/lib/cq-dispatch'
 import type { MyStage } from '@/lib/cq-mine'
+import type { DeclineReason } from '@/lib/ask-shelf/intake-columns'
 import { CommunitySky } from '@/components/CommunityCqs'
 import type { CommunityCqWithVote } from '@/lib/community-cqs'
 import { setPendingQuery } from '@/lib/pending-query'
@@ -188,13 +190,20 @@ export function UnresolvedCqScreen({
     const sent = readSentCqs()
     fetch('/api/cq/mine')
       .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d: { items?: Array<{ question?: string; stage?: string; voteCount?: number; createdAt?: string }> }) => {
+      .then((d: {
+        items?: Array<{
+          question?: string; stage?: string; voteCount?: number; createdAt?: string
+          declineReason?: string
+        }>
+      }) => {
         if (cancelled) return
         const submissions = (d.items || []).map((i) => ({
           question: String(i.question || ''),
           stage: (i.stage as MyStage) || 'received',
           voteCount: Number(i.voteCount || 0),
           createdAt: String(i.createdAt || ''),
+          // 「今回は記事化しません」の理由。固定リストの外はサーバー側で空にしてある。
+          declineReason: (i.declineReason || '') as DeclineReason | '',
         }))
         setDispatch(buildDispatchStates(cqs, sent, submissions))
       })
@@ -278,7 +287,7 @@ export function UnresolvedCqScreen({
                 （2回目でも「これは何だったか」を思い出せる方がよい）。 */}
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               Notionに ❓ CQ として残したまま、まだ答えの出ていない問いです。
-              問いをタップすると、探す・専門医に訊く・Notionで書く、が選べます。
+              問いをタップすると、探す・{ASK_SHELF_MODAL_TITLE}として送る・Notionで書く、が選べます。
             </p>
             <div className="relative mt-1" style={{ height: skyHeight(floating.length, grid) }}>
               <DriftingLeaves paused={paused} />
