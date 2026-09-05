@@ -208,11 +208,44 @@ const HAZE_LEN_MAX = 3.5
 // これまで指定していた "Zen Kaku Gothic New" は読み込まれておらず、端末のゴシックで出ていた。
 export const FONT_LATIN = '300 11px Jost, "Helvetica Neue", sans-serif'
 export const FONT_JP = '300 10.5px "Noto Sans JP", sans-serif'
+
+// next/font は書体名を生成するので、実際の family 名は CSS 変数 --font-jost から読む
+// （読めない環境＝テストや古い端末では FONT_LATIN のまま）。1回だけ読んで覚える。
+let latinFamily: string | null = null
+export function fontLatin(): string {
+  if (latinFamily === null) {
+    const v = typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--font-jost').trim()
+      : ''
+    latinFamily = v ? `${v}, "Helvetica Neue", sans-serif` : 'Jost, "Helvetica Neue", sans-serif'
+  }
+  return `300 11px ${latinFamily}`
+}
 // 族名の字間と、族名を押したときの表示（3.2秒・最後の 600ms で薄れる）。
 const FAMILY_TRACKING = '0.32em'
 const FADE_MS = 600
 // 族名を星団の上端からどれだけ離すか（px）。
 const FAMILY_LABEL_GAP = 12
+// 字間の px（FONT_LATIN の 11px × 0.32）。ctx.letterSpacing に対応しない端末で使う。
+const FAMILY_TRACKING_PX = 11 * 0.32
+// ctx.letterSpacing に対応しているか（Chrome 99+・Safari 17.4+。古い iOS では未対応）。
+const SPACED = typeof CanvasRenderingContext2D !== 'undefined'
+  && 'letterSpacing' in CanvasRenderingContext2D.prototype
+
+// 1字ずつ字間を空けて置き、置いた幅を返す（中央そろえ）。
+function spacedText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, gap: number): number {
+  const widths = [...text].map((ch) => ctx.measureText(ch).width)
+  const total = widths.reduce((s, w) => s + w, 0) + gap * Math.max(0, text.length - 1)
+  const prev = ctx.textAlign
+  ctx.textAlign = 'left'
+  let x = cx - total / 2
+  for (let i = 0; i < widths.length; i++) {
+    ctx.fillText([...text][i], x, y)
+    x += widths[i] + gap
+  }
+  ctx.textAlign = prev
+  return total
+}
 
 const hash = (a: number, b: number) => {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) >>> 0
@@ -515,12 +548,18 @@ export function drawField(ctx: CanvasRenderingContext2D, a: FieldFrameArgs): Fie
       q.Y = top - FAMILY_LABEL_GAP
       const d = 0.45 + 0.55 * ((1 - q.Z) / 2)
       const text = f.text.toUpperCase()
-      ctx.font = FONT_LATIN
-      c.letterSpacing = FAMILY_TRACKING
+      ctx.font = fontLatin()
       ctx.fillStyle = pal.label
       ctx.globalAlpha = 0.55 * d
-      ctx.fillText(text, q.X + 2, q.Y)
-      const w = ctx.measureText(text).width + 24
+      let w: number
+      if (SPACED) {
+        c.letterSpacing = FAMILY_TRACKING
+        ctx.fillText(text, q.X + 2, q.Y)
+        w = ctx.measureText(text).width + 24
+      } else {
+        // ctx.letterSpacing に対応していない端末（古い iOS Safari 等）では1字ずつ置く。
+        w = spacedText(ctx, text, q.X + 2, q.Y, FAMILY_TRACKING_PX) + 24
+      }
       const subAlpha = 0.7 * focusFade(a.familyFocus, f.kind, a.t)
       if (f.sub && subAlpha > 0) {
         ctx.font = FONT_JP

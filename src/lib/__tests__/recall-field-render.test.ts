@@ -130,8 +130,11 @@ describe('描く物の出し分け（再計画 §4.2・§4.3）', () => {
       ...frameOf(planetWithDots([]), DARK_PALETTE), t: 1,
       familyLabels: [{ text: 'Flow', sub: '名詞', kind: 'flow', at: [0, 0.2, 0] }],
     }
+    // DOM が無いので ctx.letterSpacing 非対応と判定され、族名は1字ずつ置かれる（§4.4 の代替）。
     const r1 = recorder(); drawField(r1.ctx, a)
-    expect(r1.texts).toContain('FLOW'); expect(r1.texts).not.toContain('名詞')
+    expect(r1.texts.join('')).toContain('FLOW')
+    expect(r1.texts.filter((t) => 'FLOW'.includes(t)).length).toBe(4)
+    expect(r1.texts).not.toContain('名詞')
     const r2 = recorder(); drawField(r2.ctx, { ...a, familyFocus: { kind: 'flow', until: 3000 } })
     expect(r2.texts).toContain('名詞')
   })

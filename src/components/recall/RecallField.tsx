@@ -5,7 +5,7 @@
 // タブ非表示のあいだは RAF を止める。
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
-  drawField, pickPlanet, pickNearest, pickPage,
+  drawField, pickPlanet, pickNearest, pickPage, fontLatin, FONT_JP,
   type FieldHits, type FlyingDot, type Planet, type FieldFrameArgs,
 } from '@/lib/recall/field-render'
 import {
@@ -208,6 +208,14 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
     resize()
     const ro = new ResizeObserver(resize)
     ro.observe(el)
+
+    // 書体が届く前に描くと、族名と和名が端末の既定書体で1コマ出る。
+    // 届いたら次のコマから差し替わるだけなので、待てない環境ではそのまま描き続ける。
+    try {
+      const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+      void fonts?.load(fontLatin())
+      void fonts?.load(FONT_JP)
+    } catch { /* 対応していない環境では何もしない */ }
 
     let raf = 0
     let last = performance.now()
