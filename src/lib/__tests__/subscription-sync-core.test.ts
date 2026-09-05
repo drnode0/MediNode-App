@@ -66,6 +66,7 @@ function page(opts: {
   genres?: string[]
   knowledgeLevel?: string
   status?: string
+  keywords?: string
 }) {
   return {
     object: 'page',
@@ -81,6 +82,7 @@ function page(opts: {
       },
       知識レベル: { type: 'select', select: opts.knowledgeLevel ? { name: opts.knowledgeLevel } : null },
       制作ステータス: { type: 'select', select: opts.status ? { name: opts.status } : null },
+      キーワード: { type: 'rich_text', rich_text: opts.keywords ? [{ plain_text: opts.keywords }] : [] },
     },
   }
 }
@@ -275,6 +277,19 @@ describe('runSubscriptionSync: pageKind', () => {
 
     const kinds = savedArgs().claims.map((c) => c.pageKind)
     expect(kinds).toEqual(['❓', '💡', '📚'])
+  })
+})
+
+describe('runSubscriptionSync: keywords（Notionの「キーワード」欄→主張への配線）', () => {
+  it('ページの「キーワード」欄の値が、そのページの主張の keywords にそのまま渡る', async () => {
+    setup(
+      [page({ id: 'p1', title: '💡 敗血症の初期対応', keywords: 'sepsis, 敗血症, SIRS' })],
+      { p1: [heading, claimItem('li1', '死亡率は10%低下する ✅ Smith 2020')] },
+    )
+
+    await runSubscriptionSync()
+
+    expect(savedArgs().claims[0].keywords).toBe('sepsis, 敗血症, SIRS')
   })
 })
 
