@@ -6,6 +6,8 @@ import { validateCqSubmission, buildIntakeProperties, type IntakePropSchema } fr
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { isAdminEmail } from '@/lib/maintenance'
 import { logCqSubmission } from '@/lib/cq-submission-log'
+import { listAllIntakePages } from '@/lib/notion-intake'
+import { countRecentSubmissions, monthlyLimitState } from '@/lib/ask-shelf/monthly-limit'
 
 // プレミアムへの臨床疑問投稿（アプリ内フォーム → 作者の受付DB）。
 //
@@ -77,6 +79,14 @@ export async function POST(req: NextRequest) {
       { error: '短時間に投稿が集中しています。少し待ってから再度お試しください。' },
       { status: 429 },
     )
+  }
+
+  // 月5件の上限（裁定6）。1日5件・1IP20件のUpstashレート制限とは別に、受付DBそのものを
+  // 数えて判定する（Upstashが本番未設定でメモリ版に落ちると30日の窓を保てないため）。
+  const allPages = await listAllIntakePages()
+  const monthly = monthlyLimitState(countRecentSubmissions(allPages, userId, new Date()))
+  if (monthly.blocked) {
+    return NextResponse.json({ error: monthly.notice }, { status: 429 })
   }
 
   let body: unknown

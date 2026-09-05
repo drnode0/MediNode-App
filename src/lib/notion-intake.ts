@@ -3,6 +3,7 @@
 // Notion クライアントの作り方は既存の cq/board・cq/submit と同じ
 // （CQ_INTAKE_NOTION_TOKEN・CQ_INTAKE_DB_ID）。ここではこの2つだけを切り出す。
 //   listIntakePages()      … 未対応（対応状態が空）の依頼を新しい順で返す
+//   listAllIntakePages()   … 対応状態を問わず全件を新しい順で返す（月5件の上限を数えるため）
 //   getIntakePage(id)      … 受付DBの1ページを1件だけ読む（着地画面用）
 //   updateIntakePage(id, props) … 受付DBの1ページへプロパティを書き戻す
 //
@@ -30,6 +31,22 @@ export async function listIntakePages(): Promise<NotionIntakePage[]> {
   const res = await notion.databases.query({
     database_id: env.dbId,
     filter: { property: '対応状態', select: { is_empty: true } },
+    sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+    page_size: 100,
+  })
+  return res.results as unknown as NotionIntakePage[]
+}
+
+// 対応状態を問わず全件を新しい順で返す（月5件の上限は「まだ未対応か」ではなく
+// 「今月ぶん送ったか」を数えるため、対応済み・見送り済みも含めて全部見る必要がある）。
+// page_size は既存の QUERY_LIMIT（cq/board・cron）と同じ100件に揃える。
+// このアプリの現在の投稿量では十分で、ページングは組まない。
+export async function listAllIntakePages(): Promise<NotionIntakePage[]> {
+  const env = intakeEnv()
+  if (!env) return []
+  const notion = new Client({ auth: env.token })
+  const res = await notion.databases.query({
+    database_id: env.dbId,
     sorts: [{ timestamp: 'created_time', direction: 'descending' }],
     page_size: 100,
   })

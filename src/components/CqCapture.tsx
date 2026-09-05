@@ -46,7 +46,13 @@ export type CqSource = { title?: string; url?: string; cqObjectID?: string }
 
 // 職種・経験年数・ペンネームは端末に覚えて次回から入力不要にする（機微でないため軽量に）。
 // 毎回同じことを書かせない＝背景の記入に手を回してもらうための余白づくりでもある。
-type CqProfile = { occupation: string; experience: string; penName: string; departments: string[] }
+type CqProfile = {
+  occupation: string
+  experience: string
+  penName: string
+  penNameVisible: boolean // true = 板にペンネームを出す。penName が空なら常に false 扱いにする
+  departments: string[]
+}
 function loadCqProfile(): CqProfile {
   try {
     const raw = JSON.parse(localStorage.getItem(CQ_PROFILE_KEY) || '{}')
@@ -60,14 +66,16 @@ function loadCqProfile(): CqProfile {
           .map((d) => String(d || ''))
           .filter((d) => (CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(d))
       : []
+    const penName = String(raw.penName || '')
     return {
       occupation,
       experience: String(raw.experience || ''),
-      penName: String(raw.penName || ''),
+      penName,
+      penNameVisible: raw.penNameVisible === true && penName.length > 0,
       departments: occupation === CQ_DEPARTMENT_OCCUPATION ? departments : [],
     }
   } catch {
-    return { occupation: '', experience: '', penName: '', departments: [] }
+    return { occupation: '', experience: '', penName: '', penNameVisible: false, departments: [] }
   }
 }
 function saveCqProfile(p: CqProfile) {
@@ -299,7 +307,7 @@ function CqCaptureModal({
   const [dest, setDest] = useState(() =>
     defaultDestinations({ personal: personalAvail, premium: premiumAvail, intent }),
   )
-  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', departments: [] })
+  const [profile, setProfile] = useState<CqProfile>({ occupation: '', experience: '', penName: '', penNameVisible: false, departments: [] })
   // 背景・状況。MediNodeに足してほしい疑問として送るときだけ使う（自分のメモには疑問文だけを残す従来動作を変えない）。
   const [background, setBackground] = useState('')
   const [notify, setNotify] = useState(true)
@@ -530,6 +538,7 @@ function CqCaptureModal({
                 experience: profile.experience,
                 departments: profile.departments,
                 penName: profile.penName,
+                penNameVisible: profile.penNameVisible && !!profile.penName.trim(),
                 notify,
                 sourceTitle: source?.title || '',
                 sourceUrl: source?.url || '',
@@ -901,11 +910,47 @@ function CqCaptureModal({
                       <input
                         type="text"
                         value={profile.penName}
-                        onChange={(e) => setProfile((p) => ({ ...p, penName: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((p) => ({
+                            ...p,
+                            penName: e.target.value,
+                            // ペンネームを消したら「板で掲載」の選択も一緒に外す（無い名前を掲載扱いにしない）。
+                            penNameVisible: e.target.value.trim() ? p.penNameVisible : false,
+                          }))
+                        }
                         maxLength={30}
                         placeholder="ペンネーム（空欄なら匿名）"
                         className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
                       />
+                      {/* 板（/cq）に出すときの名前の選択。ペンネームが無いうちは選べない
+                          （掲載する名前が無いため）。既定は匿名（安全側）。 */}
+                      <div className="flex flex-wrap gap-1.5" role="group" aria-label="板に出すときの名前">
+                        {([
+                          { key: false, label: '匿名' },
+                          { key: true, label: 'ペンネームで掲載' },
+                        ] as const).map((opt) => {
+                          const on = profile.penNameVisible === opt.key
+                          const disabled = opt.key === true && !profile.penName.trim()
+                          return (
+                            <button
+                              key={String(opt.key)}
+                              type="button"
+                              disabled={disabled}
+                              aria-pressed={on}
+                              onClick={() => setProfile((p) => ({ ...p, penNameVisible: opt.key }))}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                                on
+                                  ? 'bg-purple-600 border-purple-600 text-white'
+                                  : disabled
+                                    ? 'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                                    : 'border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:border-purple-400'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                       <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
                         <input
                           type="checkbox"

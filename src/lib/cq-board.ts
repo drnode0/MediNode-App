@@ -16,7 +16,7 @@
 export const BOARD_MAX = 5
 
 // 「掲載名の希望」がこの値のときだけペンネームを表示する。
-const PEN_NAME_ALLOWED = 'ペンネーム使用可'
+export const PEN_NAME_ALLOWED = 'ペンネーム使用可'
 
 export type BoardCq = {
   id: string

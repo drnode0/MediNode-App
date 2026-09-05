@@ -121,6 +121,25 @@ describe('validateCqSubmission', () => {
     const ok = validateCqSubmission({ ...valid, sourceUrl: 'https://notion.so/x' })
     expect(ok.ok && ok.value.sourceUrl).toBe('https://notion.so/x')
   })
+
+  // 「ペンネームで掲載」はペンネームが実在するときだけ意味を持つ。クライアントの
+  // チェックだけに頼らず、サーバー側でも penName が空なら強制的に false へ落とす。
+  it('penNameVisible はペンネームがあり true を送ったときだけ true になる', () => {
+    const r = validateCqSubmission({ ...valid, penName: 'みどり', penNameVisible: true })
+    expect(r.ok && r.value.penNameVisible).toBe(true)
+  })
+
+  it('penNameVisible はペンネームが空なら true を送っても false のまま', () => {
+    const r = validateCqSubmission({ ...valid, penName: '', penNameVisible: true })
+    expect(r.ok && r.value.penNameVisible).toBe(false)
+  })
+
+  it('penNameVisible は未指定・型が違えば false（型汚染を通さない）', () => {
+    const r1 = validateCqSubmission({ ...valid, penName: 'みどり' })
+    const r2 = validateCqSubmission({ ...valid, penName: 'みどり', penNameVisible: 'yes' })
+    expect(r1.ok && r1.value.penNameVisible).toBe(false)
+    expect(r2.ok && r2.value.penNameVisible).toBe(false)
+  })
 })
 
 describe('buildIntakeProperties', () => {
@@ -131,6 +150,7 @@ describe('buildIntakeProperties', () => {
     experience: '',
     departments: [],
     penName: 'みどり',
+    penNameVisible: false,
     notify: true,
     sourceTitle: '人工呼吸器の開始',
     sourceUrl: 'https://notion.so/page',
@@ -243,6 +263,22 @@ describe('buildIntakeProperties', () => {
     expect(Object.keys(r.properties)).toEqual(['疑問'])
   })
 
+  it('掲載名の希望はpenNameVisibleがtrueかつ列がselectのときだけ書く', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' }, '掲載名の希望': { type: 'select' } }
+    const visible = buildIntakeProperties(schema, { ...value, penNameVisible: true }, null)
+    const hidden = buildIntakeProperties(schema, { ...value, penNameVisible: false }, null)
+    if ('error' in visible || 'error' in hidden) throw new Error('unexpected')
+    expect(visible.properties['掲載名の希望']).toEqual({ select: { name: 'ペンネーム使用可' } })
+    expect(hidden.properties['掲載名の希望']).toBeUndefined()
+  })
+
+  it('掲載名の希望の列が無ければ黙って飛ばす（投稿は成立させる）', () => {
+    const schema: IntakePropSchema = { 疑問: { type: 'title' } }
+    const r = buildIntakeProperties(schema, { ...value, penNameVisible: true }, null)
+    if ('error' in r) throw new Error('unexpected')
+    expect(Object.keys(r.properties)).toEqual(['疑問'])
+  })
+
   it('型が合わないプロパティには書かない（select列にrich_textを積まない等）', () => {
     const schema: IntakePropSchema = {
       疑問: { type: 'title' },
@@ -313,6 +349,7 @@ describe('buildIntakeProperties（背景・経験年数）', () => {
     question: 'SBTの合格基準は？',
     occupation: '',
     penName: '',
+    penNameVisible: false,
     notify: false,
     sourceTitle: '',
     sourceUrl: '',
