@@ -9,6 +9,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getIntakePage } from '@/lib/notion-intake'
 import { readIntakeColumns } from '@/lib/ask-shelf/intake-columns'
 import { resolveAnswerTarget, type AnswerTarget } from '@/lib/ask-shelf/landing'
+import { resolveRequestPremium } from '@/lib/premium-access'
 import type { NotionIntakePage } from '@/lib/cq-board'
 
 export const dynamic = 'force-dynamic'
@@ -46,6 +47,9 @@ export type AnsweredResponse = {
   } | null
   target: AnswerTarget
   kept: boolean
+  /** 主張の本文・出典・確信度を出してよいか。無料の利用者には false（題名・節名までにする）。
+   *  false のとき answer.body / source / confidence は空文字で返る（画面で隠すのではなく値を落とす）。 */
+  bodyVisible: boolean
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -66,7 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (canonicalClaimIds.length === 0) {
     // 対応済みでも正本化前（メールだけ先行）のことがある。回答なしは異常ではない。
-    return NextResponse.json({ question, answer: null, target: { kind: 'none' }, kept: false } satisfies AnsweredResponse)
+    return NextResponse.json({ question, answer: null, target: { kind: 'none' }, kept: false, bodyVisible: false } satisfies AnsweredResponse)
   }
 
   const admin = createAdminClient()
@@ -101,7 +105,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (!claimId || !row) {
     // 正本主張IDはあるが、どれも主張コーパスから消えている（取り下げ等）か非活性化されている。回答なし扱いにする。
-    return NextResponse.json({ question, answer: null, target: { kind: 'none' }, kept: false } satisfies AnsweredResponse)
+    return NextResponse.json({ question, answer: null, target: { kind: 'none' }, kept: false, bodyVisible: false } satisfies AnsweredResponse)
   }
 
   const pageId = String(row.page_id ?? '')
@@ -118,13 +122,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const progressRow = (progressRows ?? [])[0] as { removed_at?: string | null } | undefined
   const kept = progressRow != null && progressRow.removed_at == null
 
+  // 有料の主張の本文をここから漏らさない（継ぎ目9）。いま使えるのが作者だけで全員が
+  // プレミアムだとしても、後から足す配線にはしない。rank.ts の redact と同じ考え方で、
+  // 画面で隠すのではなくサーバー側で値を落とす（画面の実装を1つ忘れただけで本文が出る形にしない）。
+  // 無料の利用者に残すのは題名・節名まで（計画の「題名・節名・件数と『棚に無い』の1行まで」）。
+  const { premium } = await resolveRequestPremium()
+
   return NextResponse.json({
     question,
     answer: {
       claimId,
-      body: String(row.body ?? ''),
-      source: String(row.source ?? ''),
-      confidence: String(row.confidence ?? ''),
+      body: premium ? String(row.body ?? '') : '',
+      source: premium ? String(row.source ?? '') : '',
+      confidence: premium ? String(row.confidence ?? '') : '',
       pageId,
       pageTitle: String(row.page_title ?? ''),
       sectionKey,
@@ -132,5 +142,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
     target,
     kept,
+    bodyVisible: premium,
   } satisfies AnsweredResponse)
 }

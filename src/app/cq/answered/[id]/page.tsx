@@ -118,6 +118,9 @@ function AnsweredBody({ data }: { data: AnsweredResponse }) {
   }
 
   const mark = answer?.confidence ? (CONFIDENCE_MARK[answer.confidence] ?? '') : ''
+  // 本文・出典はサーバー側で既に落ちている（bodyVisible=false のとき空文字）。
+  // ここは「空の枠が残る」のを避けるための描き分けで、隠す役ではない。
+  const bodyVisible = data.bodyVisible
 
   return (
     <div className="min-h-screen px-4 py-8 max-w-xl mx-auto space-y-6">
@@ -133,10 +136,18 @@ function AnsweredBody({ data }: { data: AnsweredResponse }) {
           <p className="text-xs font-medium text-brand-700 dark:text-brand-300 mb-1.5">
             {answer.sectionHeading || answer.pageTitle}
           </p>
-          <p className="text-sm text-gray-800 dark:text-gray-100 leading-relaxed whitespace-pre-wrap mb-2">{answer.body}</p>
-          {answer.source && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {mark ? `${mark} ` : ''}{answer.source}
+          {bodyVisible ? (
+            <>
+              <p className="text-sm text-gray-800 dark:text-gray-100 leading-relaxed whitespace-pre-wrap mb-2">{answer.body}</p>
+              {answer.source && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {mark ? `${mark} ` : ''}{answer.source}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              この主張の本文はプレミアムの記事にあります。上の節から続きをお読みいただけます。
             </p>
           )}
 

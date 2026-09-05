@@ -5,6 +5,7 @@ const state = {
   page: null as Record<string, unknown> | null,
   claims: [] as Record<string, unknown>[],
   progress: [] as Record<string, unknown>[],
+  premium: true,
 }
 
 // recall_claims と recall_progress で必要なチェーンの形が違う
@@ -44,6 +45,9 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 vi.mock('@/lib/notion-intake', () => ({ getIntakePage: async () => state.page }))
+vi.mock('@/lib/premium-access', () => ({
+  resolveRequestPremium: async () => ({ premium: state.premium, userId: state.user?.id ?? null, email: null }),
+}))
 
 const { GET } = await import('@/app/api/ask-shelf/answered/[id]/route')
 const call = (id: string) => GET(new Request('http://x'), { params: Promise.resolve({ id }) })
@@ -51,6 +55,7 @@ const call = (id: string) => GET(new Request('http://x'), { params: Promise.reso
 const rich = (s: string) => ({ rich_text: [{ plain_text: s }] })
 beforeEach(() => {
   state.user = { id: 'u1' }
+  state.premium = true
   state.claims = [{ claim_id: 'c9', page_id: 'p1', page_title: '💡 ショックの問い', section_key: 'sec3', section_heading: '3. 判定', body: '乳酸値2 mmol/L超を目安にする', source: 'ESICM 2014', confidence: 'ok', active: true }]
   state.progress = []
   state.page = {
@@ -70,6 +75,21 @@ describe('GET /api/ask-shelf/answered/[id]', () => {
     expect(json.question).toBe('ショックの見分け方は？')
     expect(json.answer.claimId).toBe('c9')
     expect(json.answer.source).toBe('ESICM 2014')
+    expect(json.bodyVisible).toBe(true)
+  })
+
+  // 継ぎ目9。いま使えるのが作者だけでも、有料の本文を返す経路は最初から塞いでおく。
+  it('プレミアムでない本人には本文・出典・確信度を返さない（題名・節名は残す）', async () => {
+    state.premium = false
+    const json = await (await call('i1')).json()
+    expect(json.bodyVisible).toBe(false)
+    expect(json.answer.body).toBe('')
+    expect(json.answer.source).toBe('')
+    expect(json.answer.confidence).toBe('')
+    // 「どの記事のどの節に答えがあるか」までは無料でも見せる。
+    expect(json.answer.pageTitle).toBe('💡 ショックの問い')
+    expect(json.answer.sectionHeading).toBe('3. 判定')
+    expect(json.target).toEqual({ kind: 'claim', claimId: 'c9', pageId: 'p1', sectionKey: 'sec3' })
   })
   it('他人には404（1文字も返さない）', async () => {
     state.user = { id: 'u2' }
