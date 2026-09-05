@@ -2,7 +2,7 @@
 //
 // GET /api/cq/mine
 //   - 認証: ログイン必須（返すのは requester 自身の投稿だけ）
-//   - 戻り: { items: [{ question, stage, voteCount, createdAt }] }
+//   - 戻り: { items: [{ question, stage, voteCount, createdAt, declineReason }] }
 //   - env未設定・障害時は { items: [] }（/cq の泡が状態を出さないだけ）
 //
 // 端末ローカルの記録だけだと端末を変えた時点で「送った」が消えるため、
@@ -76,6 +76,10 @@ export async function GET() {
         stage: m.stage,
         voteCount: votes[m.id] ?? 0,
         createdAt: m.createdAt,
+        // 「今回は記事化しません」だけを返して理由を落とすと、依頼者には終わりの理由が
+        // 分からないまま終わる（完了条件6）。固定リストに無い理由は readIntakeColumns が
+        // 空にしているので、ここから作者の内部の言葉が出ることはない。
+        declineReason: m.declineReason,
       })),
     })
   } catch {

@@ -21,6 +21,7 @@ const submission = (over: Partial<{
   stage: 'received' | 'onBoard' | 'answered' | 'closed'
   voteCount: number
   createdAt: string
+  declineReason: '根拠を確認できない' | ''
 }> = {}) => ({
   question: QUESTION,
   stage: 'received' as const,
@@ -67,6 +68,22 @@ describe('buildDispatchStates', () => {
       voteCount: null,
       stage: 'received',
     })
+  })
+
+  it('見送りの理由は closed のときだけ持ち越す（画面が理由まで出せる）', () => {
+    const closed = buildDispatchStates(
+      [cq('personal_a')],
+      [],
+      [submission({ stage: 'closed', declineReason: '根拠を確認できない' })],
+    )
+    expect(closed.personal_a.declineReason).toBe('根拠を確認できない')
+
+    const onBoard = buildDispatchStates(
+      [cq('personal_a')],
+      [],
+      [submission({ stage: 'onBoard', voteCount: 2, declineReason: '根拠を確認できない' })],
+    )
+    expect(onBoard.personal_a.declineReason).toBeUndefined()
   })
 
   it('送っていない泡は状態を持たない', () => {

@@ -34,6 +34,7 @@ import {
   type DispatchState,
 } from '@/lib/cq-dispatch'
 import type { MyStage } from '@/lib/cq-mine'
+import type { DeclineReason } from '@/lib/ask-shelf/intake-columns'
 import { CommunitySky } from '@/components/CommunityCqs'
 import type { CommunityCqWithVote } from '@/lib/community-cqs'
 import { setPendingQuery } from '@/lib/pending-query'
@@ -189,13 +190,20 @@ export function UnresolvedCqScreen({
     const sent = readSentCqs()
     fetch('/api/cq/mine')
       .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d: { items?: Array<{ question?: string; stage?: string; voteCount?: number; createdAt?: string }> }) => {
+      .then((d: {
+        items?: Array<{
+          question?: string; stage?: string; voteCount?: number; createdAt?: string
+          declineReason?: string
+        }>
+      }) => {
         if (cancelled) return
         const submissions = (d.items || []).map((i) => ({
           question: String(i.question || ''),
           stage: (i.stage as MyStage) || 'received',
           voteCount: Number(i.voteCount || 0),
           createdAt: String(i.createdAt || ''),
+          // 「今回は記事化しません」の理由。固定リストの外はサーバー側で空にしてある。
+          declineReason: (i.declineReason || '') as DeclineReason | '',
         }))
         setDispatch(buildDispatchStates(cqs, sent, submissions))
       })
