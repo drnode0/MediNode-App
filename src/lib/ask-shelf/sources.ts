@@ -30,13 +30,12 @@ export async function fetchSections(query: string): Promise<ShelfSection[]> {
       hitsPerPage: 8,
     })
     return hits.map((h) => {
-      const sectionNo = h.sectionNo != null ? String(h.sectionNo) : ''
       const sectionTitle = String(h.sectionTitle ?? '')
       return {
         objectID: String(h.objectID ?? ''),
         pageId: String(h.parentId ?? '').replace(/^subscription_/, '').replace(/-/g, '').toLowerCase(),
         pageTitle: String(h.title ?? ''),
-        sectionHeading: sectionNo ? `${sectionNo}. ${sectionTitle}` : sectionTitle,
+        sectionHeading: h.sectionNo ? `${h.sectionNo}. ${sectionTitle}` : sectionTitle,
       }
     })
   } catch (err) {
