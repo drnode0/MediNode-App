@@ -69,7 +69,7 @@ export const RecallField = forwardRef<FieldHandle, Props>(function RecallField(p
   const fly = useRef<{ from: FieldCamera; to: FieldCamera; t0: number; dur: number } | null>(null)
   const enteredAt = useRef(0)
   const dragged = useRef(false)
-  const hits = useRef<FieldHits>({ planets: [], dots: [], pages: [], shelf: [], dotPos: new Map() })
+  const hits = useRef<FieldHits>({ planets: [], dots: [], pages: [], shelf: [], dotPos: new Map(), families: [] })
   const anims = useRef<Anim[]>([])
   const size = useRef({ W: 0, H: 0 })
 

@@ -272,6 +272,7 @@ describe('タップ判定', () => {
     pages: [{ pageId: 'p1', x: 10, y: 20, w: 60, h: 18 }],
     shelf: [],
     dotPos: new Map<string, { X: number; Y: number }>(),
+    families: [],
   }
 
   it('惑星が重なったら手前を取る（画面に見えているのは手前）', () => {
