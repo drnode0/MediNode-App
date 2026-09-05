@@ -4,11 +4,39 @@ const state = {
   user: { id: 'u1' } as { id: string } | null,
   page: null as Record<string, unknown> | null,
   claims: [] as Record<string, unknown>[],
+  progress: [] as Record<string, unknown>[],
+}
+
+// recall_claims と recall_progress で必要なチェーンの形が違う
+// （recall_claims は .eq().eq().limit()、recall_progress は .eq().eq() で終端）ため、
+// テーブル名で参照する配列を切り替え、.eq() 呼び出しを実際にフィルタとして適用する。
+// これにより「active=true を絞り込むコードを消すと、このテストが落ちる」形になる
+// （固定フィクスチャを返すだけの旧モックだと、絞り込みを外しても検知できなかった）。
+function makeQueryBuilder(rows: Record<string, unknown>[]) {
+  let filtered = rows
+  const builder = {
+    eq(col: string, val: unknown) {
+      filtered = filtered.filter((r) => r[col] === val)
+      return builder
+    },
+    limit(n: number) {
+      return Promise.resolve({ data: filtered.slice(0, n), error: null })
+    },
+    then(
+      resolve: (v: { data: Record<string, unknown>[]; error: null }) => unknown,
+      reject?: (e: unknown) => unknown,
+    ) {
+      return Promise.resolve({ data: filtered, error: null }).then(resolve, reject)
+    },
+  }
+  return builder
 }
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.user } }) } }),
   createAdminClient: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ eq: async () => ({ data: state.claims, error: null }), limit: async () => ({ data: state.claims, error: null }) }) }) }),
+    from: (table: string) => ({
+      select: () => makeQueryBuilder(table === 'recall_claims' ? state.claims : state.progress),
+    }),
   }),
 }))
 vi.mock('@/lib/notion-intake', () => ({ getIntakePage: async () => state.page }))
@@ -19,7 +47,8 @@ const call = (id: string) => GET(new Request('http://x'), { params: Promise.reso
 const rich = (s: string) => ({ rich_text: [{ plain_text: s }] })
 beforeEach(() => {
   state.user = { id: 'u1' }
-  state.claims = [{ claim_id: 'c9', page_id: 'p1', page_title: '💡 ショックの問い', section_key: 'sec3', section_heading: '3. 判定', body: '乳酸値2 mmol/L超を目安にする', source: 'ESICM 2014', confidence: 'ok' }]
+  state.claims = [{ claim_id: 'c9', page_id: 'p1', page_title: '💡 ショックの問い', section_key: 'sec3', section_heading: '3. 判定', body: '乳酸値2 mmol/L超を目安にする', source: 'ESICM 2014', confidence: 'ok', active: true }]
+  state.progress = []
   state.page = {
     id: 'i1',
     properties: {
@@ -50,6 +79,11 @@ describe('GET /api/ask-shelf/answered/[id]', () => {
   })
   it('正本主張IDが無ければ answer は null（画面は疑問と状態だけ出す）', async () => {
     ;(state.page!.properties as Record<string, unknown>)['正本主張ID'] = rich('')
+    const json = await (await call('i1')).json()
+    expect(json.answer).toBeNull()
+  })
+  it('正本主張IDはあるが取り下げ済み（active:false）なら answer は null（本文を出さない）', async () => {
+    state.claims = [{ ...state.claims[0], active: false }]
     const json = await (await call('i1')).json()
     expect(json.answer).toBeNull()
   })

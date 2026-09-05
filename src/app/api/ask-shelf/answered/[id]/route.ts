@@ -77,12 +77,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .from('recall_claims')
     .select('claim_id, page_id, page_title, section_key, section_heading, body, source, confidence')
     .eq('claim_id', claimId)
+    // active の絞り込みはポリシーが無い今、このコード1行だけが担っている
+    // （消すと取り下げ・訂正済みの主張まで着地画面に出てしまう。recall/claims と同じ理由）。
+    .eq('active', true)
     .limit(1)
   if (claimErr) return serverError('answered: claim の読み取りに失敗', claimErr)
   const row = (claimRows ?? [])[0] as Record<string, unknown> | undefined
 
   if (!row) {
-    // 正本主張IDはあるが、主張コーパスから既に消えている（取り下げ等）。回答なし扱いにする。
+    // 正本主張IDはあるが、主張コーパスから既に消えている（取り下げ等）か非活性化されている。回答なし扱いにする。
     return NextResponse.json({ question, answer: null, target: { kind: 'none' }, kept: false } satisfies AnsweredResponse)
   }
 
