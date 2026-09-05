@@ -25,6 +25,8 @@ export type ShelfResult = {
   claims: RankedClaim[]
   sections: ShelfSection[]
   board: ShelfBoardItem[]
+  /** 足切り前を含む全主張の最高覆い率。閾値 0.25 を後から引き直すための記録なので、
+   *  返さなかった（閾値未満の）主張の点も含める。返す claims の側は閾値を通したものだけ。 */
   topCoverage: number
   /** 層1が空のときだけ入る決まった1行。空でないときは null */
   emptyMessage: string | null
@@ -62,8 +64,10 @@ export function rankAskShelf(input: RankInput): ShelfResult {
   // 候補に多い語が「珍しくない」と誤って軽く扱われる。
   const index = buildCoverageIndex(input.claims.map(claimText))
 
-  const scored = input.claims
+  const allScored = input.claims
     .map((c) => ({ claim: c, coverage: coverage(q, claimText(c), index), kept: input.keptClaimIds.has(c.claimId) }))
+
+  const scored = allScored
     // 残した主張は閾値を通さない（本人が既に手元に置いたものなので、出さない理由がない）。
     .filter((x) => x.kept || x.coverage >= CLAIM_COVERAGE_MIN)
     // 残した主張が最上位（継ぎ目7b）。その中と、その下は覆い率の降順。
@@ -84,8 +88,13 @@ export function rankAskShelf(input: RankInput): ShelfResult {
     .filter((s) => !shown.has(`${s.pageId} ${s.sectionHeading}`))
     .slice(0, SECTION_RESULT_MAX)
 
+  // 板の疑問は板の疑問だけで作った索引で採点する。主張の索引を流用すると、
+  // 主張のコーパスに無い語が最大の重み（未知語）で当たり扱いになり、板の覆い率だけが
+  // 系統的に高く出る（coverage.ts の注意書きのとおり）。主張の索引に板の題を混ぜないのは、
+  // 混ぜると主張側の重みが動き、実測で引いた 0.25 の余裕（0.061）を崩すため。
+  const boardIndex = buildCoverageIndex(input.boardItems.map((b) => b.title))
   const board = input.boardItems
-    .map((b) => ({ item: b, c: coverage(q, b.title, index) }))
+    .map((b) => ({ item: b, c: coverage(q, b.title, boardIndex) }))
     .filter((x) => x.c >= BOARD_COVERAGE_MIN)
     .sort((a, b) => b.c - a.c)
     .slice(0, BOARD_RESULT_MAX)
@@ -95,7 +104,9 @@ export function rankAskShelf(input: RankInput): ShelfResult {
     claims,
     sections,
     board,
-    topCoverage: scored.length ? Math.max(...scored.map((x) => x.coverage)) : 0,
+    // 足切り前の全主張の最高値。閾値を通ったものだけで測ると、棚に無い問い（＝閾値を
+    // 引き直すために記録している当のもの）が必ず 0 になり、記録が使えなくなる。
+    topCoverage: allScored.length ? Math.max(...allScored.map((x) => x.coverage)) : 0,
     emptyMessage: claims.length === 0 ? SHELF_EMPTY_MESSAGE : null,
   }
 }
