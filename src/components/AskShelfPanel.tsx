@@ -2,11 +2,12 @@
 // 検索タブの「主張の段」（段0）。窓の下・既存のページ結果の上にだけ出す。
 // isAskShelfEnabled() が偽なら何も描かない（既存のゼロ件表示のまま）。
 // 主張（層1）→ 節・記事（層2）→ 板の近い疑問（層3）→ 依頼ボタンの順に描く。
-// 3層とも空でも emptyMessage が入っている限りは描く（＝決まった1行を出す）。
+// 各層は独立して空になりうる。主張が空のときは決まった1行（emptyMessage）に
+// 差し替わるが、それは層1の枠内だけの話で、層2・層3は自分の中身の有無だけで出す。
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, BookOpen, MessageCircleQuestion } from 'lucide-react'
 import { isAskShelfEnabled } from '@/lib/ask-shelf-flag'
-import type { RankedClaim, ShelfResult, ShelfSection } from '@/lib/ask-shelf/rank'
+import type { RankedClaim, ShelfBoardItem, ShelfResult, ShelfSection } from '@/lib/ask-shelf/rank'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { leafDestination, notionUrlFor } from '@/lib/vine-open'
 import { useReader } from '@/components/reader/SubscriptionReader'
@@ -60,42 +61,38 @@ export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: 
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-4">
-          {data.emptyMessage ? (
-            // 主張が無いときは決まった1行だけを出す（層2・層3も出さない）。
+          {/* 主張（層1）が空のときだけ決まった1行に差し替える。層2・層3はここに縛られず、
+              それぞれの中身の有無だけで独立して出す（3層とも空のときだけ依頼だけが残る）。 */}
+          {data.claims.length > 0 ? (
+            <div className="space-y-3">
+              {data.claims.map((rc) => (
+                <ClaimCard key={rc.claim.claimId} rc={rc} />
+              ))}
+            </div>
+          ) : data.emptyMessage ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">{data.emptyMessage}</p>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {data.claims.map((rc) => (
-                  <ClaimCard key={rc.claim.claimId} rc={rc} />
+          ) : null}
+
+          {data.sections.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5">関連する記事</p>
+              <div className="space-y-1.5">
+                {data.sections.map((s) => (
+                  <SectionRow key={s.objectID} section={s} />
                 ))}
               </div>
+            </div>
+          )}
 
-              {data.sections.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5">関連する記事</p>
-                  <div className="space-y-1.5">
-                    {data.sections.map((s) => (
-                      <SectionRow key={s.objectID} section={s} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {data.board.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5">板に近い疑問</p>
-                  <ul className="space-y-1">
-                    {data.board.map((b) => (
-                      <li key={b.id} className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-2">
-                        <span className="truncate">{b.title}</span>
-                        <span className="shrink-0 text-gray-400 dark:text-gray-500">{b.voteCount}票</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
+          {data.board.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5">板に近い疑問</p>
+              <ul className="space-y-1.5">
+                {data.board.map((b) => (
+                  <BoardItemRow key={b.id} item={b} />
+                ))}
+              </ul>
+            </div>
           )}
 
           <button
@@ -136,6 +133,53 @@ function SectionRow({ section }: { section: ShelfSection }) {
     >
       {section.pageTitle}{section.sectionHeading ? ` — ${section.sectionHeading}` : ''}
     </button>
+  )
+}
+
+// 板の近い疑問1件＋「私も気になる」。既存の投票API（/api/cq/vote）をそのまま使う。
+// ShelfBoardItem は { id, title, voteCount } だけで自分が既に入れたかは持たないため、
+// 一方向のボタン（何度でも押せるが、入れたかどうかの見た目は「済み」で固定する）にする。
+// 上限（1日60回）はサーバー側のレート制限に任せ、ここでは変えない。
+function BoardItemRow({ item }: { item: ShelfBoardItem }) {
+  const [voteState, setVoteState] = useState<'idle' | 'saving' | 'voted' | 'failed'>('idle')
+  const [voteCount, setVoteCount] = useState(item.voteCount)
+
+  const handleVote = async () => {
+    if (voteState === 'saving' || voteState === 'voted') return
+    setVoteState('saving')
+    try {
+      const res = await fetch('/api/cq/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cqId: item.id, voted: true }),
+      })
+      if (!res.ok) { setVoteState('failed'); return }
+      const d = (await res.json()) as { voteCount?: number }
+      setVoteCount(typeof d.voteCount === 'number' ? d.voteCount : (c) => c + 1)
+      setVoteState('voted')
+    } catch {
+      setVoteState('failed')
+    }
+  }
+
+  return (
+    <li className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-2">
+      <span className="truncate">{item.title}</span>
+      <span className="shrink-0 flex items-center gap-1.5">
+        <span className="text-gray-400 dark:text-gray-500">{voteCount}票</span>
+        <button
+          type="button"
+          onClick={handleVote}
+          disabled={voteState === 'saving' || voteState === 'voted'}
+          className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-600 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 disabled:opacity-60"
+        >
+          {voteState === 'voted' ? '気になる済み' : voteState === 'saving' ? '送信中…' : '私も気になる'}
+        </button>
+        {voteState === 'failed' && (
+          <span className="text-[11px] text-red-500 dark:text-red-400">反映できませんでした</span>
+        )}
+      </span>
+    </li>
   )
 }
 
