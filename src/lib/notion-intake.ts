@@ -3,6 +3,7 @@
 // Notion クライアントの作り方は既存の cq/board・cq/submit と同じ
 // （CQ_INTAKE_NOTION_TOKEN・CQ_INTAKE_DB_ID）。ここではこの2つだけを切り出す。
 //   listIntakePages()      … 未対応（対応状態が空）の依頼を新しい順で返す
+//   getIntakePage(id)      … 受付DBの1ページを1件だけ読む（着地画面用）
 //   updateIntakePage(id, props) … 受付DBの1ページへプロパティを書き戻す
 //
 // 書き込みは buildIntakeShelfProperties（src/lib/ask-shelf/intake-columns.ts）と同じ約束を守る:
@@ -33,6 +34,22 @@ export async function listIntakePages(): Promise<NotionIntakePage[]> {
     page_size: 100,
   })
   return res.results as unknown as NotionIntakePage[]
+}
+
+// 受付DBの1ページを1件だけ読む（回答の着地画面 /cq/answered/[id] 用）。
+// 「本人だけが開ける」の判定はこの関数の外（呼び出し側）が担う。ここは単なる取得。
+// 存在しない・アーカイブ済みページは Notion SDK が例外を投げるので null に落とす。
+// 本人以外にも1文字も返さない、という慎重な扱いに合わせ、失敗は「見つからない」と同じに扱う。
+export async function getIntakePage(id: string): Promise<NotionIntakePage | null> {
+  const env = intakeEnv()
+  if (!env) return null
+  const notion = new Client({ auth: env.token })
+  try {
+    const page = await notion.pages.retrieve({ page_id: id })
+    return page as unknown as NotionIntakePage
+  } catch {
+    return null
+  }
 }
 
 type NotionPropSchema = Record<string, { type?: string } | undefined>
