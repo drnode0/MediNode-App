@@ -81,4 +81,14 @@ describe('POST /api/ask-shelf/search', () => {
     expect(state.inserted.length).toBe(1)
     expect(state.inserted[0].submitted).toBe(false)
   })
+
+  // /admin の候補検索は同じこのAPIを流用している。記録まで同じにすると、
+  // 同じ画面に出している「送らずに済んだ割合」を作者のトリアージが膨らませる。
+  it('log:false の呼び出しは記録しない（/admin の候補検索が割合を濁さない）', async () => {
+    const json = await (await call({ query: '低血圧はショックの定義の要件ではない', log: false })).json()
+    expect(state.inserted).toEqual([])
+    expect(json.logId).toBeNull()
+    // 記録しないだけで、結果そのものは読者側と同じものを返す。
+    expect(json.claims[0].claim.claimId).toBe('c1')
+  })
 })

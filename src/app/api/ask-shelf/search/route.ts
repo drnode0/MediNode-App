@@ -15,9 +15,13 @@ export async function POST(req: Request) {
   if (!g.ok) return g.response
 
   let query = ''
+  // 記録するかどうか。既定は記録する（読者側の呼び出しは何も渡さない）。
+  // /admin の候補検索だけが false を渡す（下の insert のコメント参照）。
+  let log = true
   try {
-    const body = (await req.json()) as { query?: unknown }
+    const body = (await req.json()) as { query?: unknown; log?: unknown }
     query = typeof body.query === 'string' ? body.query.trim() : ''
+    if (body.log === false) log = false
   } catch {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }
@@ -60,11 +64,17 @@ export async function POST(req: Request) {
   })
 
   // 完了条件「段0を見せた後に送らずに済んだ割合」のための記録。
-  const { data: logRow } = await admin.from('ask_shelf_queries').insert({
-    user_id: g.userId, query, claim_count: result.claims.length,
-    section_count: result.sections.length, board_count: result.board.length,
-    top_coverage: result.topCoverage, submitted: false,
-  }).select().single()
+  // 作者が /admin で正本の主張を探した回は数えない（log:false）。同じ表を母数にした割合を
+  // その検索窓のすぐ横に出しているので、トリアージの検索が分母も分子も膨らませてしまう。
+  let logId: number | null = null
+  if (log) {
+    const { data: logRow } = await admin.from('ask_shelf_queries').insert({
+      user_id: g.userId, query, claim_count: result.claims.length,
+      section_count: result.sections.length, board_count: result.board.length,
+      top_coverage: result.topCoverage, submitted: false,
+    }).select().single()
+    logId = logRow?.id ?? null
+  }
 
-  return NextResponse.json({ ...result, logId: logRow?.id ?? null })
+  return NextResponse.json({ ...result, logId })
 }

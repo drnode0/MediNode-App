@@ -197,7 +197,10 @@ function IntakeRow({
       const res = await fetch('/api/ask-shelf/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q }),
+        // log:false ＝ この検索を ask_shelf_queries に記録しない。この画面の上に出している
+        // 「送らずに済んだ割合」は同じ表から作っているので、作者のトリアージの検索を
+        // 混ぜると読者の数字が濁る。
+        body: JSON.stringify({ query: q, log: false }),
       })
       if (!res.ok) {
         setCandidates([])
