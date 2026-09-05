@@ -87,7 +87,8 @@ export default function DevRecallFieldPage() {
 
   // 隠しコマンドの段（再計画 §4）。段0の承認用: 球（案4）と宇宙（星団）を切り替える。
   const [lift, setLift] = useState<'off' | 'sphere' | 'space'>('off')
-  const [liftSlot, setLiftSlot] = useState(3)
+  // 前の版（initialNear の近景）と同じ惑星で見比べられるよう、既定を揃えておく
+  const [liftSlot, setLiftSlot] = useState(2)
   const [midName, setMidName] = useState<number | null>(null)
   const [tappedFamily, setTappedFamily] = useState<string | null>(null)  // 撮影用: 族名に当たったか
 
