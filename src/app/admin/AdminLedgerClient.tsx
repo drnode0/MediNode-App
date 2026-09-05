@@ -78,6 +78,7 @@ import { KnowledgeRankingCard } from './KnowledgeRankingCard'
 import { PersonalReaderMetricsCard } from './PersonalReaderMetricsCard'
 import { SpreadCard } from './SpreadCard'
 import { RecallCardsPanel } from './RecallCardsPanel'
+import { CqSubmitterBreakdownPanel } from './CqSubmitterBreakdownPanel'
 import { AskShelfAdminPanel } from './AskShelfAdminPanel'
 import { EssentialsCard } from './EssentialsCard'
 import { maskEmail, detectLocalContractIssues, detectAnomalySignals } from '@/lib/ledger-safety'
@@ -1186,6 +1187,7 @@ ${label}`,
             {tab === 'analytics' && <OperatingCostCard mrrJpy={revenue.mrr} />}
             {tab === 'analytics' && <EngagementSection />}
             {tab === 'analytics' && <KnowledgeRankingCard />}
+            {tab === 'analytics' && <CqSubmitterBreakdownPanel />}
             {tab === 'analytics' && <PersonalReaderMetricsCard />}
 
             {tab === 'analytics' && (

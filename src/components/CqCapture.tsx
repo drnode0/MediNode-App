@@ -29,7 +29,7 @@ import { LoginModal } from './auth/LoginModal'
 import { fetchResolvedCqs } from '@/lib/resolved-cqs'
 import { clearUnresolvedCount } from '@/lib/unresolved-cqs'
 import { recordSentCq } from '@/lib/cq-dispatch'
-import { isValidOccupation } from '@/lib/account-profile'
+import { isValidOccupation, isValidExperienceYears } from '@/lib/account-profile'
 import { CQ_OCCUPATIONS, CQ_EXPERIENCE_YEARS, CQ_DOCTOR_DEPARTMENTS, CQ_DEPARTMENT_OCCUPATION, CQ_PROFILE_KEY, QUESTION_MIN, BACKGROUND_MAX, defaultDestinations, type CqIntent } from '@/lib/cq-submit'
 import {
   ASK_SHELF_REQUEST_LABEL,
@@ -337,43 +337,58 @@ function CqCaptureModal({
   // 再レンダリングを起こす必要が無く、handleSend が同じ呼び出しの中で同期的に
   // 読むだけなので useState ではなく useRef で持つ（モーダルの再マウントで自然に戻る）。
   const bgConfirmedRef = useRef(false)
-  // アカウントに保存済みの職種（null=未登録）。投稿成功時の穴埋め判定に使う。
+  // アカウントに保存済みの職種・経験年数・診療科（null/[]=未登録）。投稿成功時の
+  // 穴埋め判定（フィールドごと独立）に使う。
   const accountOccupationRef = useRef<string | null>(null)
-  // 職種フェッチが解決する前に、本人が職種セレクトを手で変えたか。
+  const accountExperienceRef = useRef<string | null>(null)
+  const accountDepartmentsRef = useRef<string[]>([])
+  // 各フェッチが解決する前に、本人が該当欄を手で変えたか。
   // trueなら、あとから届くアカウント値で上書きしない（レース防止）。
   const userEditedOccupationRef = useRef(false)
+  const userEditedExperienceRef = useRef(false)
+  const userEditedDepartmentsRef = useRef(false)
   const openSettings = useContext(OpenSettingsContext)
   const auth = useAuth()
   // Supabase設定済み環境で未ログインなら、MediNodeに足してほしい疑問の投稿にはログインが要る。
   // 判定中（loading）はログイン案内を出さない（開いた瞬間のチラつき防止）。
   const needsLogin = auth.configured && !auth.loading && !auth.user
 
-  // アカウントの職種を取得して accountOccupationRef／profile に反映する。
+  // アカウントの職種・経験年数・診療科を取得して accountXxxRef／profile に反映する。
   // マウント時と、モーダル内ログインを閉じた直後の両方から呼ぶため関数として切り出す
   // （cancelled ガードは呼び出しごとに独立させ、古い応答が新しい状態を上書きしないようにする）。
-  const refreshAccountOccupation = useCallback(() => {
+  // 端末の記憶（loadCqProfile）よりアカウントの値を優先して初期値にする（アカウント値が
+  // 有効なときだけ上書き。無ければ端末記憶のまま）。
+  const refreshAccountProfile = useCallback(() => {
     let cancelled = false
     // 未ログイン（401）や失敗は静かに握って端末記憶のまま。
     fetch('/api/account/profile', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { occupation?: string | null } | null) => {
+      .then((d: { occupation?: string | null; experienceYears?: string | null; doctorDepartments?: string[] } | null) => {
         if (cancelled) return
-        const raw = d?.occupation
         // 固定リスト外の値（旧データ等）は使わない。
-        if (!isValidOccupation(raw)) return
-        const occ = raw
+        const occ = isValidOccupation(d?.occupation) ? d!.occupation : null
+        const exp = isValidExperienceYears(d?.experienceYears) ? d!.experienceYears : null
+        const deps = Array.isArray(d?.doctorDepartments)
+          ? d!.doctorDepartments.filter(
+              (x): x is string => typeof x === 'string' && (CQ_DOCTOR_DEPARTMENTS as readonly string[]).includes(x),
+            )
+          : []
         // 穴埋め判定（投稿成功時にアカウントへ書き戻すか）は、表示への反映有無に
         // かかわらず正しく保つ。
-        accountOccupationRef.current = occ
-        // フェッチ解決前に本人がセレクトを手で変えていたら、その選択を尊重する
+        if (occ) accountOccupationRef.current = occ
+        if (exp) accountExperienceRef.current = exp
+        if (deps.length > 0) accountDepartmentsRef.current = deps
+        // フェッチ解決前に本人が該当欄を手で変えていたら、その選択を尊重する
         // （レース：あとから届くアカウント値で上書きしない）。
-        if (userEditedOccupationRef.current) return
-        setProfile((p) => ({
-          ...p,
-          occupation: occ,
+        setProfile((p) => {
+          const occupation = !userEditedOccupationRef.current && occ ? occ : p.occupation
+          const experience = !userEditedExperienceRef.current && exp ? exp : p.experience
           // 医師以外に確定したら診療科・立場は捨てる（既存の職種変更ハンドラと同じ判断）。
-          departments: occ === CQ_DEPARTMENT_OCCUPATION ? p.departments : [],
-        }))
+          const useAccountDeps = !userEditedDepartmentsRef.current && deps.length > 0
+          const departments =
+            occupation !== CQ_DEPARTMENT_OCCUPATION ? [] : useAccountDeps ? deps : p.departments
+          return { ...p, occupation, experience, departments }
+        })
       })
       .catch(() => {})
     return () => {
@@ -386,24 +401,24 @@ function CqCaptureModal({
   useEffect(() => {
     setMounted(true)
     setProfile(loadCqProfile())
-    // アカウントに職種があれば自動入力（アカウント優先。端末記憶より確かな属性）。
-    return refreshAccountOccupation()
-  }, [refreshAccountOccupation])
+    // アカウントに職種・経験年数・診療科があれば自動入力（アカウント優先。端末記憶より確かな属性）。
+    return refreshAccountProfile()
+  }, [refreshAccountProfile])
 
-  // モーダル内ログイン（LoginModal）を閉じた直後に、アカウントの職種を取り直す。
-  // マウント時のフェッチは未ログインなら401でaccountOccupationRefがnullのまま残る。
-  // その状態でモーダル内ログイン＋職種登録（profileフェーズ）を済ませて投稿すると、
+  // モーダル内ログイン（LoginModal）を閉じた直後に、アカウントの職種・経験年数・診療科を
+  // 取り直す。マウント時のフェッチは未ログインなら401でaccountXxxRefがnull/[]のまま残る。
+  // その状態でモーダル内ログイン＋登録（profileフェーズ）を済ませて投稿すると、
   // 古いnull判定のまま「未登録なら穴埋め保存」が走り、既にアカウントへ保存済みの
-  // 職種を投稿時の選択で上書きしてしまいうる。ログインモーダルが閉じたタイミングで
-  // 再取得し、ref を最新化する（userEditedOccupationRef による手動選択の尊重はそのまま）。
+  // 値を投稿時の選択で上書きしてしまいうる。ログインモーダルが閉じたタイミングで
+  // 再取得し、ref を最新化する（userEditedXxxRef による手動選択の尊重はそのまま）。
   const prevShowLoginRef = useRef(showLogin)
   useEffect(() => {
     const wasShown = prevShowLoginRef.current
     prevShowLoginRef.current = showLogin
     if (wasShown && !showLogin) {
-      return refreshAccountOccupation()
+      return refreshAccountProfile()
     }
-  }, [showLogin, refreshAccountOccupation])
+  }, [showLogin, refreshAccountProfile])
   // Escapeで自身を閉じる。reader上に重なって開くとき、reader側の window(bubble) Escape
   // ハンドラより先に capture phase で握って伝播を止める。そうしないとEscapeが背面のreaderを
   // 閉じてしまい、body-scroll-lockが非LIFOで解除されて画面が固まりうる。
@@ -563,13 +578,25 @@ function CqCaptureModal({
               recordSentCq(source.cqObjectID, trimmed, new Date().toISOString())
             }
             saveCqProfile(profile)
-            // アカウントに職種が未登録なら、この投稿の職種で埋める（登録フロー導入前の
-            // ユーザーの穴埋め。失敗しても投稿は成功扱いのまま静かに握る）。
-            if (!accountOccupationRef.current && profile.occupation) {
+            // アカウントに職種・経験年数・診療科が未登録なら、この投稿の値で埋める
+            // （登録フロー導入前のユーザーの穴埋め。フィールドごとに独立して判定する
+            // ＝経験年数だけ空、というアカウントでも経験年数だけ埋める。失敗しても
+            // 投稿は成功扱いのまま静かに握る）。
+            const needOccupation = !accountOccupationRef.current && !!profile.occupation
+            const needExperience = !accountExperienceRef.current && !!profile.experience
+            const needDepartments = accountDepartmentsRef.current.length === 0 && profile.departments.length > 0
+            if (needOccupation || needExperience || needDepartments) {
+              // occupation は API の必須項目。すでにアカウントにある値はそのまま送り直す
+              // だけにして、今回の選択で上書きしない（needOccupation のときだけ今回の選択を使う）。
+              const payload: Record<string, unknown> = {
+                occupation: accountOccupationRef.current || profile.occupation,
+              }
+              if (needExperience) payload.experienceYears = profile.experience
+              if (needDepartments) payload.doctorDepartments = profile.departments
               void fetch('/api/account/profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ occupation: profile.occupation }),
+                body: JSON.stringify(payload),
               }).catch(() => {})
             }
             track('cq_expert_submitted', { occupation: profile.occupation || 'none' })
@@ -855,6 +882,8 @@ function CqCaptureModal({
                             ref={experienceRef}
                             value={profile.experience}
                             onChange={(e) => {
+                              // 本人が手で選んだ。以後、遅れて届くアカウント値の自動入力で上書きしない。
+                              userEditedExperienceRef.current = true
                               setProfile((p) => ({ ...p, experience: e.target.value }))
                               setExpertError('')
                             }}
@@ -889,6 +918,8 @@ function CqCaptureModal({
                                   ref={i === 0 ? departmentsRef : undefined}
                                   aria-pressed={on}
                                   onClick={() => {
+                                    // 本人が手で選んだ。以後、遅れて届くアカウント値の自動入力で上書きしない。
+                                    userEditedDepartmentsRef.current = true
                                     setProfile((p) => ({
                                       ...p,
                                       departments: p.departments.includes(d)
