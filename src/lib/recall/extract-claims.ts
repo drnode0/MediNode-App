@@ -14,7 +14,9 @@ import type { RecallClaim } from './types'
 // からも読めるようにするため。このファイルは crypto に依存するのでクライアントでは読めない）。
 export { normalizeBody, normalizePageId, splitClaim } from './claim-text'
 
-export type ClaimSource = { pageId: string; pageTitle: string; pageKind: string; genres: string[]; blocks: NotionBlockLite[] }
+// keywords はページの「キーワード」欄（同義語・英語表記が並ぶ）。段0の照合に効くので主張へ写す。
+// 省略可にしてあるのは、既存の呼び出し（テストを含む）を一斉に書き換えないため。
+export type ClaimSource = { pageId: string; pageTitle: string; pageKind: string; genres: string[]; keywords?: string; blocks: NotionBlockLite[] }
 
 export function claimIdOf(pageId: string, body: string): string {
   return createHash('sha1').update(`${normalizePageId(pageId)}\n${normalizeBody(body)}`).digest('hex').slice(0, 24)
@@ -48,7 +50,7 @@ export function extractClaims(src: ClaimSource): RecallClaim[] {
               sectionKey: cur.sectionKey, sectionHeading: cur.sectionHeading,
               body: sp.body, source: sp.source, confidence: sp.confidence,
               genres: src.genres, primaryGenre: primary.genre, genreSlot: primary.slot,
-              holes: detectHoles(sp.body), clozeStatus: 'pending', active: true,
+              holes: detectHoles(sp.body), clozeStatus: 'pending', active: true, keywords: src.keywords ?? '',
             })
           }
         }

@@ -251,6 +251,8 @@ async function syncMedicalDb(
             // 切ると "❓CQ名" が "❓C" になる）。
             pageKind: Array.from(title.trim())[0] ?? '',
             genres: extractList(props['ジャンル'] || {}),
+            // 段0の照合に使う。record.aiKeywords と同じ値（同じ props から取る）。
+            keywords: extractText(props['キーワード'] || {}),
             blocks,
           }))
         } catch (err) {

@@ -18,7 +18,7 @@ function toClaim(g: Grain): RecallClaim {
     claimId: claimIdOf(PAGE, g.b), pageId: PAGE, pageTitle: g.p, pageKind: '💡',
     sectionKey: 'sec1', sectionHeading: g.h, body: g.b, source: g.s,
     confidence: 'ok', genres: [g.g], primaryGenre: g.g, genreSlot: 5,
-    holes: g.k, clozeStatus: 'pending', active: true,
+    holes: g.k, clozeStatus: 'pending', active: true, keywords: '',
   }
 }
 

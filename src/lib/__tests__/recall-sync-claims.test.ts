@@ -5,7 +5,7 @@ import type { RecallClaim } from '@/lib/recall/types'
 const claim = (id: string): RecallClaim => ({
   claimId: id, pageId: 'p', pageTitle: 't', pageKind: '💡', sectionKey: 'sec1', sectionHeading: '1. x',
   body: 'b', source: 's', confidence: 'ok', genres: ['05.循環'], primaryGenre: '05.循環', genreSlot: 4,
-  holes: [[3, 5]], clozeStatus: 'pending', active: true,
+  holes: [[3, 5]], clozeStatus: 'pending', active: true, keywords: '',
 })
 
 type FakeOptions = {

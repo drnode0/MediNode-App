@@ -112,7 +112,7 @@ const dotOf = (
 const claimOf = (over: Partial<RecallClaim> & { claimId: string }): RecallClaim => ({
   pageId: 'p1', pageTitle: '記事1', pageKind: '💡', sectionKey: 'sec1', sectionHeading: '1. 見出し',
   body: '本文', source: 's', confidence: 'ok', genres: ['05.循環'], primaryGenre: '05.循環', genreSlot: 4,
-  holes: [[0, 1]], clozeStatus: 'pending', active: true, ...over,
+  holes: [[0, 1]], clozeStatus: 'pending', active: true, keywords: '', ...over,
 })
 
 describe('一枚 plateOf', () => {
