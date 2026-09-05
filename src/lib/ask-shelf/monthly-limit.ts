@@ -33,3 +33,18 @@ export function monthlyLimitState(count: number): { blocked: boolean; remaining:
   // 案内は上限に近づいたときだけ（裁定6）。ふだんは数を見せない。
   return { blocked: false, remaining, notice: remaining === 1 ? '今月お送りいただけるのは、あと1件です。' : null }
 }
+
+// 成功レスポンスに乗せる「あと1件」案内。countRecentSubmissions はこの投稿がまだ
+// 受付DBに書かれる前の件数を返す。素の monthlyLimitState(count).notice を投稿成功時に
+// そのまま使うと、remaining===1（＝この投稿自体が上限に達する最後の1件）のときに
+// 「あと1件です」と案内してしまい、実際にはこの投稿でちょうど0件になっているのに
+// 「まだ送れる」と誤って伝える一つずれた文言になる。この投稿ぶんを+1してから
+// 判定することで、「この投稿の後に1件残っている」ときだけ知らせる、という
+// 設計書の意図（裁定6）どおりの前向きな案内にする。
+export function noticeAfterSubmission(countBeforeThisSubmission: number): string | null {
+  const after = monthlyLimitState(countBeforeThisSubmission + 1)
+  // ちょうど上限に達した（残り0）ときの notice は「来月またお待ちしています」という
+  // ブロック文言であって、「あと1件」の前向きな案内ではない。成功レスポンスに
+  // 混ぜて出すものではないので、blocked のときは常に案内なしとする。
+  return after.blocked ? null : after.notice
+}

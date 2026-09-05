@@ -318,6 +318,8 @@ function CqCaptureModal({
   // 送信結果は届け先ごとに持つ（片方の失敗がもう片方を巻き込まない）。
   const [mineDone, setMineDone] = useState<{ url: string } | null>(null)
   const [expertDone, setExpertDone] = useState(false)
+  // 月上限の「あと1件」案内（裁定6）。投稿成功レスポンスに notice が乗っているときだけ持つ。
+  const [expertNotice, setExpertNotice] = useState('')
   const [mineError, setMineError] = useState('')
   const [expertError, setExpertError] = useState('')
   const [phase, setPhase] = useState<'input' | 'done'>('input')
@@ -555,6 +557,7 @@ function CqCaptureModal({
               return
             }
             setExpertDone(true)
+            if (data?.notice) setExpertNotice(String(data.notice))
             // /cq から投げた分は「どの泡を送ったか」を控える。板の票をその泡に返すため。
             if (source?.cqObjectID) {
               recordSentCq(source.cqObjectID, trimmed, new Date().toISOString())
@@ -1055,6 +1058,12 @@ function CqCaptureModal({
                     選定のうえ、調べてナレッジとして配信されます。
                     {notify && !needsLogin ? '解決したら、アプリでお知らせが届きます。' : ''}
                   </p>
+                  {/* 月上限に近づいたときだけの案内（裁定6）。ふだんは出ない。 */}
+                  {expertNotice && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5 font-semibold">
+                      {expertNotice}
+                    </p>
+                  )}
                 </div>
               )}
               {mineDone && (
@@ -1108,6 +1117,7 @@ function CqCaptureModal({
                     setPhase('input')
                     setMineDone(null)
                     setExpertDone(false)
+                    setExpertNotice('')
                     setMineError('')
                     setExpertError('')
                     setTitle('')

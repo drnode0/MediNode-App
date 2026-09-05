@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { countRecentSubmissions, monthlyLimitState, MONTHLY_LIMIT } from '@/lib/ask-shelf/monthly-limit'
+import { countRecentSubmissions, monthlyLimitState, noticeAfterSubmission, MONTHLY_LIMIT } from '@/lib/ask-shelf/monthly-limit'
 
 const NOW = new Date('2026-09-30T00:00:00.000Z')
 const page = (userId: string, created: string) => ({
@@ -27,5 +27,22 @@ describe('monthlyLimitState', () => {
   it('残り1件のときだけ案内を出す（ふだんは黙っている）', () => {
     expect(monthlyLimitState(MONTHLY_LIMIT - 1).notice).toContain('あと1件')
     expect(monthlyLimitState(0).notice).toBeNull()
+  })
+})
+
+describe('noticeAfterSubmission（投稿成功レスポンス用・この投稿を含めた後の残数で判定）', () => {
+  // countRecentSubmissions はこの投稿がまだ書かれる前の件数。この投稿自体が
+  // 上限に達する最後の1件（count = MONTHLY_LIMIT - 1、素の monthlyLimitState なら
+  // remaining===1で notice が出てしまう）のときは、投稿後の残数は0なので
+  // 「あと1件です」は出してはいけない（一つずれの回帰防止）。
+  it('この投稿で上限ちょうどになるときは案内しない（一つずれの回帰防止）', () => {
+    expect(noticeAfterSubmission(MONTHLY_LIMIT - 1)).toBeNull()
+  })
+  it('この投稿の後に1件残るときだけ案内する', () => {
+    expect(noticeAfterSubmission(MONTHLY_LIMIT - 2)).toContain('あと1件')
+  })
+  it('まだ上限に近づいていなければ黙っている', () => {
+    expect(noticeAfterSubmission(0)).toBeNull()
+    expect(noticeAfterSubmission(MONTHLY_LIMIT - 3)).toBeNull()
   })
 })
