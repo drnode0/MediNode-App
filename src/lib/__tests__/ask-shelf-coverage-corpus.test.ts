@@ -25,7 +25,14 @@ describe.skipIf(!has)('段0の覆い率（本番の主張の写しで回帰）',
   it('棚にある問いは、9割以上が閾値を超える', () => {
     const scored = d.inShelf.map((q: { pageId: string; question: string }) => ({ question: q.question, score: bestFor(q.question) }))
     const missed = scored.filter((s: { score: number }) => s.score < CLAIM_COVERAGE_MIN)
-    expect(missed.length / d.inShelf.length).toBeLessThanOrEqual(0.1)
+    const rate = missed.length / d.inShelf.length
+    // 合格（rate <= 0.1）なら空配列、不合格なら落ちた問いの一覧になる式にする。
+    // toBeLessThanOrEqual は数値1個しか失敗メッセージに出さないため、
+    // 落ちた問いが実際に見える形（Vitestの配列差分）に変形している。
+    const failures = rate <= 0.1
+      ? []
+      : missed.map((m: { question: string; score: number }) => `${m.question} (score=${m.score.toFixed(3)})`)
+    expect(failures).toEqual([])
   })
 
   it('棚にある問いの9割以上で、1位が正解ページの主張になる', () => {
