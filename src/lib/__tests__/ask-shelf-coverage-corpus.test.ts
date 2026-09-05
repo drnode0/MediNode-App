@@ -7,7 +7,9 @@ import { buildCoverageIndex, coverage, CLAIM_COVERAGE_MIN } from '@/lib/ask-shel
 
 const PATH = '.preview/ask-shelf-fixture.json'
 const has = fs.existsSync(PATH)
-const d = has ? JSON.parse(fs.readFileSync(PATH, 'utf8')) : null
+// has=false でも describe 本体（factory）は実行される。skipIf は中の it をスキップするだけなので、
+// null のままだと d.claims で落ちてスキップではなくスイート全体の実行エラーになる。フォールバックで防ぐ。
+const d = has ? JSON.parse(fs.readFileSync(PATH, 'utf8')) : { claims: [], inShelf: [], outOfShelf: [] }
 
 describe.skipIf(!has)('段0の覆い率（本番の主張の写しで回帰）', () => {
   const docText = (c: { body: string; sectionHeading: string; keywords: string }) =>
@@ -21,8 +23,9 @@ describe.skipIf(!has)('段0の覆い率（本番の主張の写しで回帰）',
   })
 
   it('棚にある問いは、9割以上が閾値を超える', () => {
-    const hit = d.inShelf.filter((q: { question: string }) => bestFor(q.question) >= CLAIM_COVERAGE_MIN)
-    expect(hit.length / d.inShelf.length).toBeGreaterThanOrEqual(0.9)
+    const scored = d.inShelf.map((q: { pageId: string; question: string }) => ({ question: q.question, score: bestFor(q.question) }))
+    const missed = scored.filter((s: { score: number }) => s.score < CLAIM_COVERAGE_MIN)
+    expect(missed.length / d.inShelf.length).toBeLessThanOrEqual(0.1)
   })
 
   it('棚にある問いの9割以上で、1位が正解ページの主張になる', () => {

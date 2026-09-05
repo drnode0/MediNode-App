@@ -24,6 +24,8 @@ if (fs.existsSync(corpusPath)) {
   for (const p of JSON.parse(fs.readFileSync(corpusPath, 'utf8'))) {
     kw.set(p.id.replace(/-/g, ''), p.props?.['キーワード'] ?? '')
   }
+} else {
+  console.warn(`[ask-shelf-fixture] ${corpusPath} が無いため、全claimのキーワード欄を空文字で作ります（スコアが全体的に下がります）`)
 }
 
 const board = (await (await fetch('https://medical-search-public.vercel.app/api/cq/board')).json()).items ?? []
