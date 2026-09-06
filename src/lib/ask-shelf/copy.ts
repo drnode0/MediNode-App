@@ -25,3 +25,25 @@ export const ASK_SHELF_EXTERNAL_FORM_TEXT = [
   'MediNodeに足してほしい疑問を送るフォームです。',
   ...ASK_SHELF_NOTICES.map((n) => `・${n}`),
 ].join('\n')
+
+// --- 段1（AIに整理させる）。提案003・008 の文言が決まったら、差し替えるのはここだけ。 ---
+
+export const STAGE1_BUTTON_LABEL = 'AIに整理させる'
+export const STAGE1_RUNNING_LABEL = '整理しています…'
+export const STAGE1_RESET_LABEL = '元の順に戻す'
+
+// 「並べ替えました」と言い切れるのは、AI が実際にしたのがそれだけだから（方式B）。
+// ヘルプFAQの「AIが答えを作るのではなく…ナレッジだけが返ってきます」と割れない書き方にする。
+export const STAGE1_ROLE_TEXT =
+  'MediNodeの検証済み主張を、AIが質問に合わせて並べ替えました。主張の文章はAIが書いたものではなく、記事の原文です。'
+
+export const STAGE1_NOT_COVERED_HEADING = 'この問いのうち、MediNodeの棚にまだ無いこと'
+
+export const STAGE1_URGENT_NOTICE =
+  '急いでいる判断には間に合いません。目の前の患者さんの対応は、院内の手順と指導医・専門医の判断に従ってください。'
+
+export const STAGE1_FAILED_MESSAGE = 'うまく整理できませんでした。上の並びのままご覧ください。'
+
+// 残り回数は上限に近づいたときだけ出す（月5件の案内と同じ姿勢。ふだんは数を見せない）。
+export const STAGE1_LAST_ONE_NOTICE = '本日お使いいただける整理は、あと1回です。'
+export const STAGE1_LIMIT_REACHED = '本日の整理は上限に達しました。'
