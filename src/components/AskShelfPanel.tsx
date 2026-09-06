@@ -5,14 +5,19 @@
 // 各層は独立して空になりうる。主張が空のときは決まった1行（emptyMessage）に
 // 差し替わるが、それは層1の枠内だけの話で、層2・層3は自分の中身の有無だけで出す。
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, BookOpen, MessageCircleQuestion } from 'lucide-react'
+import { ChevronDown, ChevronUp, BookOpen, MessageCircleQuestion, Sparkles } from 'lucide-react'
 import { isAskShelfEnabled } from '@/lib/ask-shelf-flag'
 import type { RankedClaim, ShelfBoardItem, ShelfResult, ShelfSection } from '@/lib/ask-shelf/rank'
 import { hasSubscriptionConfig } from '@/lib/algolia'
 import { leafDestination, notionUrlFor } from '@/lib/vine-open'
 import { useReader } from '@/components/reader/SubscriptionReader'
+import {
+  STAGE1_BUTTON_LABEL, STAGE1_RUNNING_LABEL, STAGE1_RESET_LABEL, STAGE1_ROLE_TEXT,
+  STAGE1_NOT_COVERED_HEADING, STAGE1_URGENT_NOTICE, STAGE1_FAILED_MESSAGE,
+} from '@/lib/ask-shelf/copy'
 
 type AskShelfData = ShelfResult & { logId: number | null }
+type Stage1View = { groups: Array<{ heading: string; claimIds: string[] }>; notCovered: string[]; notice: string | null }
 
 // sectionKey は `sec0`/`sec3` のような形。sec0 は「節無し」の意味なので undefined にする
 // （ResultCard の sectionNo 扱いと合わせる）。
@@ -33,6 +38,8 @@ const SEARCH_MIN_LENGTH = 2
 export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: (logId: number | null) => void }) {
   const [data, setData] = useState<AskShelfData | null>(null)
   const [open, setOpen] = useState(true)
+  const [stage1, setStage1] = useState<Stage1View | null>(null)
+  const [stage1State, setStage1State] = useState<'idle' | 'running' | 'failed'>('idle')
   const enabled = isAskShelfEnabled()
 
   useEffect(() => {
@@ -52,6 +59,38 @@ export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: 
     }, SEARCH_DEBOUNCE_MS)
     return () => { alive = false; clearTimeout(timer) }
   }, [query, enabled])
+
+  // 問いが変われば前の並べ替えは意味を持たない。新しい段0の結果に古い並びを重ねない。
+  useEffect(() => {
+    setStage1(null)
+    setStage1State('idle')
+  }, [query])
+
+  const runStage1 = async () => {
+    if (!data?.logId || stage1State === 'running') return
+    setStage1State('running')
+    const ctrl = new AbortController()
+    // サーバー側の締め切りは25秒。少し長く待ってから諦める。
+    const timer = setTimeout(() => ctrl.abort(), 30_000)
+    try {
+      const res = await fetch('/api/ask-shelf/stage1', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId: data.logId }), signal: ctrl.signal,
+      })
+      const j = (await res.json()) as { ok?: boolean; groups?: Stage1View['groups']; notCovered?: string[]; notice?: string | null }
+      if (res.ok && j.ok && j.groups) {
+        setStage1({ groups: j.groups, notCovered: j.notCovered ?? [], notice: j.notice ?? null })
+        setStage1State('idle')
+      } else {
+        // 上限も検証落ちも同じ扱いにする。段0の表示は変えない。
+        setStage1State('failed')
+      }
+    } catch {
+      setStage1State('failed')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
   if (!enabled) return null
   if (!data) return null
@@ -77,9 +116,64 @@ export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: 
               それぞれの中身の有無だけで独立して出す（3層とも空のときだけ依頼だけが残る）。 */}
           {data.claims.length > 0 ? (
             <div className="space-y-3">
-              {data.claims.map((rc) => (
-                <ClaimCard key={rc.claim.claimId} rc={rc} />
-              ))}
+              {stage1 ? (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{STAGE1_ROLE_TEXT}</p>
+                    <button
+                      type="button"
+                      onClick={() => { setStage1(null); setStage1State('idle') }}
+                      className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-300 hover:underline"
+                    >
+                      {STAGE1_RESET_LABEL}
+                    </button>
+                  </div>
+                  {/* AI が触るのは順序とグループ分けだけ。カードは段0のまま描く。 */}
+                  {stage1.groups.map((grp, i) => {
+                    const byId = new Map(data.claims.map((rc) => [rc.claim.claimId, rc]))
+                    const inGroup = grp.claimIds.map((id) => byId.get(id)).filter((rc): rc is RankedClaim => !!rc)
+                    if (inGroup.length === 0) return null
+                    return (
+                      <div key={`${i}-${grp.heading}`} className="space-y-3">
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">{grp.heading}</p>
+                        {inGroup.map((rc) => <ClaimCard key={rc.claim.claimId} rc={rc} />)}
+                      </div>
+                    )
+                  })}
+                  {stage1.notCovered.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{STAGE1_NOT_COVERED_HEADING}</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        {stage1.notCovered.map((line, i) => (
+                          <li key={i} className="text-xs text-gray-600 dark:text-gray-300">{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {stage1.notice && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{stage1.notice}</p>
+                  )}
+                </>
+              ) : (
+                data.claims.map((rc) => <ClaimCard key={rc.claim.claimId} rc={rc} />)
+              )}
+
+              {/* ボタンは主張が2件以上・記録があり・本文が見える利用者のときだけ。
+                  サーバーも同じ判定を独立に持つので、ここは見た目の話にとどまる。 */}
+              {!stage1 && data.claims.length >= 2 && data.logId != null && data.claims[0].bodyVisible && (
+                <button
+                  type="button"
+                  onClick={runStage1}
+                  disabled={stage1State === 'running'}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 disabled:opacity-60"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {stage1State === 'running' ? STAGE1_RUNNING_LABEL : STAGE1_BUTTON_LABEL}
+                </button>
+              )}
+              {stage1State === 'failed' && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">{STAGE1_FAILED_MESSAGE}</p>
+              )}
             </div>
           ) : data.emptyMessage ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">{data.emptyMessage}</p>
@@ -115,6 +209,9 @@ export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: 
             <MessageCircleQuestion className="w-4 h-4" />
             MediNodeに足してほしい疑問を送る
           </button>
+          {stage1 && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">{STAGE1_URGENT_NOTICE}</p>
+          )}
         </div>
       )}
     </div>
