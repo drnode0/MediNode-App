@@ -30,7 +30,7 @@ const claim = (id: string, body: string): ShelfClaim => ({
 })
 const CLAIMS = [claim('c1', '低血圧は要件ではない'), claim('c2', '乳酸値は灌流の指標')]
 const reply = (parsed: unknown, i = 100, o = 50) => ({ parsed_output: parsed, usage: { input_tokens: i, output_tokens: o } })
-const good = { groups: [{ heading: 'まず読む', claimIds: ['c1', 'c2'] }], notCovered: [] }
+const good = { groups: [{ heading: '対象と条件', claimIds: ['c1', 'c2'] }], notCovered: [] }
 const far = () => Date.now() + 60_000
 
 beforeEach(() => { state.calls = 0; state.replies = []; state.delayMs = 0 })

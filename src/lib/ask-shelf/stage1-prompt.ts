@@ -6,9 +6,17 @@
 import { z } from 'zod'
 import type { ShelfClaim } from './rank'
 
+// 見出しは固定の選択肢7つ(2026-09-07 裁定2・同日夕に7つへ)。自由文にすると、
+// 「推奨される処置」のような結論を含む見出しの下に反対の主張が入り、画面として矛盾しうる。
+export const STAGE1_RELATED_HEADING = '関連する話題' as const
+export const STAGE1_HEADINGS = [
+  '対象と条件', '検査と評価', '治療と介入', '経過と合併症', '日本での運用', '注意点', STAGE1_RELATED_HEADING,
+] as const
+export type Stage1Heading = typeof STAGE1_HEADINGS[number]
+
 export const Stage1Schema = z.object({
   groups: z.array(z.object({
-    heading: z.string(),
+    heading: z.enum(STAGE1_HEADINGS),
     claimIds: z.array(z.string()),
   })),
   notCovered: z.array(z.string()),
@@ -20,7 +28,9 @@ export const STAGE1_SYSTEM = `あなたは MediNode の「聞ける棚」の整�
 
 してよいこと(これ以外はしない):
 1. 主張を、問いに答える筋道の順に並べ替える
-2. 並びを1〜3のグループに分け、各グループに20字以内の見出しを付ける
+2. 並びを1〜4のグループに分け、各グループの見出しは次の選択肢から選ぶ:
+   対象と条件・検査と評価・治療と介入・経過と合併症・日本での運用・注意点・関連する話題。
+   同じ話題なら1グループのままでよい(分けることを目的にしない)
 3. 問いのうち、渡された主張のどれも触れていない側面を、40字以内の短文で最大4つ挙げる
 
 してはいけないこと:

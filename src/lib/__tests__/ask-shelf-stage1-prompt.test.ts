@@ -10,8 +10,12 @@ const claim = (over: Partial<ShelfClaim> = {}): ShelfClaim => ({
 
 describe('Stage1Schema', () => {
   it('正しい形を通す', () => {
-    const r = Stage1Schema.safeParse({ groups: [{ heading: 'あ', claimIds: ['c1'] }], notCovered: ['い'] })
+    const r = Stage1Schema.safeParse({ groups: [{ heading: '対象と条件', claimIds: ['c1'] }], notCovered: ['い'] })
     expect(r.success).toBe(true)
+  })
+
+  it('見出しが選択肢の外なら落ちる（自由文にしない）', () => {
+    expect(Stage1Schema.safeParse({ groups: [{ heading: 'あ', claimIds: ['c1'] }], notCovered: [] }).success).toBe(false)
   })
 
   it('groups が無ければ落ちる', () => {
@@ -19,7 +23,7 @@ describe('Stage1Schema', () => {
   })
 
   it('claimIds が文字列の配列でなければ落ちる', () => {
-    expect(Stage1Schema.safeParse({ groups: [{ heading: 'あ', claimIds: [1] }], notCovered: [] }).success).toBe(false)
+    expect(Stage1Schema.safeParse({ groups: [{ heading: '対象と条件', claimIds: [1] }], notCovered: [] }).success).toBe(false)
   })
 })
 
