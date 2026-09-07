@@ -43,6 +43,44 @@ export async function findSpreadNotesPageId(notion: NotesClient, pageId: string)
   return null
 }
 
+// タイトルに書かれた記事のID（ハイフン無し32桁）。ノートページは
+// 「主題名＋ID」の約束で作るので、そこから拾う。
+const NOTES_TITLE_ID = /[0-9a-f]{32}/g
+
+/**
+ * ノートDBを1回読んで、ノートを持つ記事のIDの集合を返す。
+ *
+ * 一覧（/admin スプレッドタブ）は記事ごとに「計画があるか」を出すが、
+ * findSpreadNotesPageId を記事の数だけ呼ぶとその都度DBを全件走査することになる。
+ * ノートDBは記事1件につき1行しかないので、まとめて読んで集合にする。
+ *
+ * 環境変数が無い・取得に失敗したときは null を返す（空の集合と区別する）。
+ * 空の集合を返すと、画面が全記事を「計画なし」と描いてしまう。
+ */
+export async function fetchSpreadNotesIndex(notion: NotesClient): Promise<Set<string> | null> {
+  const dbId = process.env.SUBSCRIPTION_SPREAD_NOTES_DB
+  if (!dbId) return null
+  const found = new Set<string>()
+  try {
+    let cursor: string | undefined
+    let page = 0
+    do {
+      const res = await notion.databases.query({ database_id: dbId, start_cursor: cursor, page_size: 100 })
+      for (const row of res.results as unknown as { properties?: Record<string, unknown> }[]) {
+        const title = pageTitleOf(row.properties as Parameters<typeof pageTitleOf>[0])
+          .replace(/-/g, '')
+          .toLowerCase()
+        for (const m of title.matchAll(NOTES_TITLE_ID)) found.add(m[0])
+      }
+      page++
+      cursor = res.has_more && page < MAX_NOTES_PAGES ? (res.next_cursor ?? undefined) : undefined
+    } while (cursor)
+    return found
+  } catch {
+    return null
+  }
+}
+
 export async function fetchSpreadNotesBlocks(notion: NotesClient, pageId: string): Promise<ReaderBlock[] | null> {
   const dbId = process.env.SUBSCRIPTION_SPREAD_NOTES_DB
   if (!dbId) return null
