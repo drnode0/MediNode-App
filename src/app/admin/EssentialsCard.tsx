@@ -32,12 +32,16 @@ import type { EssentialsPayload } from '@/app/api/admin/essentials/route'
 // ダークでは明るいほど目立つので、進んだ段階ほど明るくする（ライトの逆順）。
 const STAGE_STYLE: Record<EssentialsStage, { stroke: string; bg: string }> = {
   '0 未収集': { stroke: 'stroke-gray-300 dark:stroke-gray-600', bg: 'bg-gray-300 dark:bg-gray-600' },
-  '1 収集中': { stroke: 'stroke-[#86b6ef] dark:stroke-[#184f95]', bg: 'bg-[#86b6ef] dark:bg-[#184f95]' },
-  '2 収集済': { stroke: 'stroke-[#5598e7] dark:stroke-[#256abf]', bg: 'bg-[#5598e7] dark:bg-[#256abf]' },
-  '3 骨子済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#3987e5]', bg: 'bg-[#2a78d6] dark:bg-[#3987e5]' },
-  '4 本文済': { stroke: 'stroke-[#1c5cab] dark:stroke-[#6da7ec]', bg: 'bg-[#1c5cab] dark:bg-[#6da7ec]' },
-  '5 層3済': { stroke: 'stroke-[#104281] dark:stroke-[#9ec5f4]', bg: 'bg-[#104281] dark:bg-[#9ec5f4]' },
-  '6 サブスク移行済': { stroke: 'stroke-[#082448] dark:stroke-[#cde2fb]', bg: 'bg-[#082448] dark:bg-[#cde2fb]' },
+  // 段が7つに増えたので、検証済みの6値は1段ずつ後ろへずらし、薄い側に1値だけ足した
+  // （濃い側に足すと light の最終段が黒に近づき、段の差が読めなくなる）。
+  // 足した値（light #b8d4f6 / dark #0d3268）は未検証。実画面で薄すぎれば差し替える。
+  '1 収集中': { stroke: 'stroke-[#b8d4f6] dark:stroke-[#0d3268]', bg: 'bg-[#b8d4f6] dark:bg-[#0d3268]' },
+  '2 収集済': { stroke: 'stroke-[#86b6ef] dark:stroke-[#184f95]', bg: 'bg-[#86b6ef] dark:bg-[#184f95]' },
+  '3 骨子済': { stroke: 'stroke-[#5598e7] dark:stroke-[#256abf]', bg: 'bg-[#5598e7] dark:bg-[#256abf]' },
+  '4 本文済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#3987e5]', bg: 'bg-[#2a78d6] dark:bg-[#3987e5]' },
+  '5 層3済': { stroke: 'stroke-[#1c5cab] dark:stroke-[#6da7ec]', bg: 'bg-[#1c5cab] dark:bg-[#6da7ec]' },
+  '6 サブスク移行済': { stroke: 'stroke-[#104281] dark:stroke-[#9ec5f4]', bg: 'bg-[#104281] dark:bg-[#9ec5f4]' },
+  '7 スプレッド公開': { stroke: 'stroke-[#082448] dark:stroke-[#cde2fb]', bg: 'bg-[#082448] dark:bg-[#cde2fb]' },
 }
 
 // 段階名の先頭の数字を落とした短い表示（凡例・チップ用）。
@@ -78,7 +82,7 @@ export function EssentialsCard() {
           caption="Notion の制作DB（主題）と出典台帳DB（論文）を読む。数字は Notion の値そのもの。"
           help={
             <>
-              段階は 0 未収集 → 1 収集中 → 2 収集済 → 3 骨子済 → 4 本文済 → 5 層3済 → 6 サブスク移行済。
+              段階は 0 未収集 → 1 収集中 → 2 収集済 → 3 骨子済 → 4 本文済 → 5 層3済 → 6 サブスク移行済 → 7 スプレッド公開。
               出典の数（全文・抄録・未取得・壁）は制作DBに手で書いた数。台帳に登録済みの出典は行を開くと見える。
             </>
           }
@@ -186,10 +190,11 @@ export function EssentialsBody({
   return (
     <>
       {/* 数字4つ。主題の総数・本文がある数・移行済・台帳の全文数 */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         <Stat label="主題" value={topics.length} note="制作DBの行" />
         <Stat label="本文あり" value={withBody} note="4 本文済 以降" />
-        <Stat label="サブスク移行済" value={overall.counts['6 サブスク移行済']} note="読者に出ている" />
+        <Stat label="サブスク移行済" value={overall.counts['6 サブスク移行済']} note="スプレッド待ち" />
+        <Stat label="スプレッド公開" value={overall.counts['7 スプレッド公開']} note="読者に出ている" />
         <Stat label="全文が手元にある出典" value={fullTextSources} note={`台帳 ${sources.length} 件のうち`} />
       </section>
 

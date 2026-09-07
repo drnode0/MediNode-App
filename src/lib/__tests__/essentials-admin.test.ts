@@ -301,3 +301,24 @@ describe('fetchNotionDatabase', () => {
     expect(r).toEqual({ ok: false, reason: 'timeout' })
   })
 })
+
+describe('段階の選択肢', () => {
+  it('7 スプレッド公開 までの8段', () => {
+    expect(ESSENTIALS_STAGES).toEqual([
+      '0 未収集',
+      '1 収集中',
+      '2 収集済',
+      '3 骨子済',
+      '4 本文済',
+      '5 層3済',
+      '6 サブスク移行済',
+      '7 スプレッド公開',
+    ])
+  })
+
+  it('本文がある段階の判定は 4 本文済 以降のまま（7 も含む）', () => {
+    expect(hasBody('4 本文済')).toBe(true)
+    expect(hasBody('7 スプレッド公開')).toBe(true)
+    expect(hasBody('3 骨子済')).toBe(false)
+  })
+})

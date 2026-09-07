@@ -14,6 +14,9 @@ export const ESSENTIALS_STAGES = [
   '4 本文済',
   '5 層3済',
   '6 サブスク移行済',
+  // 移行しただけでは読者に出ない（スプレッドを公開して制作ステータスを 7️⃣ に上げるまで）。
+  // 工程の存在しない段階があると、完了に見えて届いていない本が生まれる（設計 2026-09-07）。
+  '7 スプレッド公開',
 ] as const
 export type EssentialsStage = (typeof ESSENTIALS_STAGES)[number]
 
