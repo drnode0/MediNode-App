@@ -15,6 +15,7 @@ import {
   STAGE1_BUTTON_LABEL, STAGE1_RUNNING_LABEL, STAGE1_RESET_LABEL, STAGE1_ROLE_TEXT,
   STAGE1_NOT_COVERED_HEADING, STAGE1_URGENT_NOTICE, STAGE1_FAILED_MESSAGE,
 } from '@/lib/ask-shelf/copy'
+import { STAGE1_RELATED_HEADING } from '@/lib/ask-shelf/stage1-prompt'
 
 type AskShelfData = ShelfResult & { logId: number | null }
 type Stage1View = { groups: Array<{ heading: string; claimIds: string[] }>; notCovered: string[]; notice: string | null }
@@ -128,18 +129,17 @@ export function AskShelfPanel({ query, onRequest }: { query: string; onRequest: 
                       {STAGE1_RESET_LABEL}
                     </button>
                   </div>
-                  {/* AI が触るのは順序とグループ分けだけ。カードは段0のまま描く。 */}
-                  {stage1.groups.map((grp, i) => {
+                  {/* AI が触るのは順序とグループ分けだけ。カードは段0のまま描き、
+                      グループの切れ目は間の行ではなく各カードのチップで表す（2026-09-07 表示の決定）。 */}
+                  {(() => {
                     const byId = new Map(data.claims.map((rc) => [rc.claim.claimId, rc]))
-                    const inGroup = grp.claimIds.map((id) => byId.get(id)).filter((rc): rc is RankedClaim => !!rc)
-                    if (inGroup.length === 0) return null
-                    return (
-                      <div key={`${i}-${grp.heading}`} className="space-y-3">
-                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">{grp.heading}</p>
-                        {inGroup.map((rc) => <ClaimCard key={rc.claim.claimId} rc={rc} />)}
-                      </div>
+                    return stage1.groups.flatMap((grp) =>
+                      grp.claimIds
+                        .map((id) => byId.get(id))
+                        .filter((rc): rc is RankedClaim => !!rc)
+                        .map((rc) => <ClaimCard key={rc.claim.claimId} rc={rc} heading={grp.heading} />),
                     )
-                  })}
+                  })()}
                   {stage1.notCovered.length > 0 && (
                     <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{STAGE1_NOT_COVERED_HEADING}</p>
@@ -292,7 +292,7 @@ function BoardItemRow({ item }: { item: ShelfBoardItem }) {
   )
 }
 
-function ClaimCard({ rc }: { rc: RankedClaim }) {
+function ClaimCard({ rc, heading }: { rc: RankedClaim; heading?: string }) {
   const { claim, bodyVisible, kept } = rc
   const { open: openReader } = useReader()
   const [keepState, setKeepState] = useState<'idle' | 'saving' | 'kept' | 'failed'>(kept ? 'kept' : 'idle')
@@ -328,11 +328,24 @@ function ClaimCard({ rc }: { rc: RankedClaim }) {
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">
           {claim.sectionHeading || claim.pageTitle}
         </p>
-        {(kept || keepState === 'kept') && (
-          <span className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
-            あなたが残した
-          </span>
-        )}
+        <span className="shrink-0 flex items-center gap-1.5">
+          {heading && (
+            <span
+              className={
+                heading === STAGE1_RELATED_HEADING
+                  ? 'text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                  : 'text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+              }
+            >
+              {heading}
+            </span>
+          )}
+          {(kept || keepState === 'kept') && (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+              あなたが残した
+            </span>
+          )}
+        </span>
       </div>
       {/* 本文は bodyVisible が true のときだけ描く（無料の利用者には題名と節名まで）。 */}
       {bodyVisible && (

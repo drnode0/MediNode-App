@@ -8,14 +8,18 @@
 // 検出できないこと: 否定表現の反転。機械的に無理なので、段1に医学的な文を書かせないことで避ける。
 // この検証は「書かせない」を確かめる道具であって、「書いた内容の正しさ」を測る道具ではない。
 
+import { STAGE1_HEADINGS } from './stage1-prompt'
+
 export type Stage1Group = { heading: string; claimIds: string[] }
 export type Stage1Output = { groups: Stage1Group[]; notCovered: string[] }
 export type Stage1Verdict = 'ok' | 'rejected_ids' | 'rejected_heading' | 'rejected_vocab'
 
-export const GROUP_MAX = 3
-export const HEADING_MAX = 20
+// 選択肢が7つになったので上限を1つ増やす(2026-09-07 裁定2に伴う補足)。
+export const GROUP_MAX = 4
 export const NOT_COVERED_MAX = 4
 export const NOT_COVERED_LINE_MAX = 40
+
+const STAGE1_HEADING_SET = new Set<string>(STAGE1_HEADINGS)
 
 const DIGIT_RE = /[0-9０-９]/
 
@@ -64,11 +68,10 @@ export function verifyStage1(out: Stage1Output, inputClaimIds: string[], inputTe
   const want = new Set(inputClaimIds)
   if (got.some((id) => !want.has(id))) return 'rejected_ids'
 
-  // 2. 形
+  // 2. 形。見出しは固定の選択肢(§2 の表)のどれかに文字列一致(2026-09-07 裁定2)。
   if (out.groups.length < 1 || out.groups.length > GROUP_MAX) return 'rejected_heading'
   for (const g of out.groups) {
-    const n = [...g.heading].length
-    if (n < 1 || n > HEADING_MAX) return 'rejected_heading'
+    if (!STAGE1_HEADING_SET.has(g.heading)) return 'rejected_heading'
   }
   if (out.notCovered.length > NOT_COVERED_MAX) return 'rejected_heading'
   for (const line of out.notCovered) {

@@ -1672,6 +1672,9 @@ function useTeamNotionHits(mode: Tab, enabled: boolean) {
   return { teamHits, loading, searchTeam }
 }
 
+// 検索欄（textarea）の伸びる上限。text-sm・leading-relaxed・py-2.5の実測値からおよそ4行ぶん。
+const TEXTAREA_MAX_HEIGHT_PX = 104
+
 // Notionモード：検索タブ
 function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscription: boolean }) {
   const { records, loading, refreshing, error, search } = useNotionSearch('search')
@@ -1719,14 +1722,27 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
     search(pending)
   }, [search])
 
-  // 履歴保存はEnterで検索を確定したときのみ（入力途中の文字列は残さない）
+  // 履歴保存はEnterで検索を確定したときのみ（入力途中の文字列は残さない）。
+  // textarea化してもEnterは改行を入れず、今までどおり履歴保存の合図だけにする
+  // （2026-09-07 裁定3。改行を許すと履歴保存の合図を失い、改行が検索語に混ざる）。
   const composingRef = useRef(false)
   const [inputFocused, setInputFocused] = useState(false)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing && query.trim()) {
-      addHistory(query.trim())
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      if (query.trim()) addHistory(query.trim())
     }
   }
+
+  // 1行始まりで、折り返しに応じて上限4行程度まで伸びる。それ以上は欄内スクロール
+  // （2026-09-07 裁定3。最初から複数行にすると短い検索でもスマホの画面を余分に使う）。
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT_PX)}px`
+  }, [query])
 
   return (
     <>
@@ -1734,8 +1750,8 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
       <DailyQuestionCard />
       <div className="sticky top-[calc(120px+env(safe-area-inset-top))] z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-3 pt-1 -mx-4 px-4">
         <div className="relative mb-2">
-          <input
-            type="search"
+          <textarea
+            ref={textareaRef}
             value={query}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -1744,8 +1760,21 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
             placeholder="キーワードで検索..."
-            className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+            rows={1}
+            style={{ maxHeight: `${TEXTAREA_MAX_HEIGHT_PX}px` }}
+            className="w-full resize-none overflow-y-auto border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl pl-4 pr-9 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-300"
           />
+          {/* type=search の標準クリア(×)がtextarea化で無くなる分を補う */}
+          {query && (
+            <button
+              type="button"
+              onClick={() => { handleChange(''); textareaRef.current?.focus() }}
+              aria-label="検索語を消す"
+              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <SearchSuggest
             value={query}
             history={history}

@@ -37,7 +37,7 @@ export const STAGE1_RESET_LABEL = '元の順に戻す'
 export const STAGE1_ROLE_TEXT =
   'MediNodeの検証済み主張を、AIが質問に合わせて並べ替えました。主張の文章はAIが書いたものではなく、記事の原文です。'
 
-export const STAGE1_NOT_COVERED_HEADING = 'この問いのうち、MediNodeの棚にまだ無いこと'
+export const STAGE1_NOT_COVERED_HEADING = 'この問いのうち、今回出た主張が触れていないこと'
 
 export const STAGE1_URGENT_NOTICE =
   '急いでいる判断には間に合いません。目の前の患者さんの対応は、院内の手順と指導医・専門医の判断に従ってください。'

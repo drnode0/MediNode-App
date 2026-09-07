@@ -27,8 +27,8 @@ describe('段1の文言', () => {
     expect(STAGE1_ROLE_TEXT).toContain('記事の原文')
   })
 
-  it('列挙の見出しは「無い」と言い切る', () => {
-    expect(STAGE1_NOT_COVERED_HEADING).toContain('まだ無いこと')
+  it('列挙の見出しは「今回出た主張が触れていない」ことに絞る（棚全体は言い切らない）', () => {
+    expect(STAGE1_NOT_COVERED_HEADING).toContain('今回出た主張が触れていないこと')
   })
 
   it('緊急の固定案内は、間に合わないことと戻り先の両方を書く', () => {
