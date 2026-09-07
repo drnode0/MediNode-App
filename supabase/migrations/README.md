@@ -51,7 +51,7 @@
 | 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ✅ ※6 |
 | 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ⬜ 未適用 |
 | 0031 | ask_shelf_pgroonga（いまは流さない） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用（意図的）※8 |
-| 0032 | ask_shelf_stage1 | `ask_shelf_queries.stage1_*`（8列）, `ask_shelf_queries_stage1_idx` | ⬜ 未適用 |
+| 0032 | ask_shelf_stage1 | `ask_shelf_queries.stage1_*`（8列）, `ask_shelf_queries_stage1_idx` | ✅ |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
