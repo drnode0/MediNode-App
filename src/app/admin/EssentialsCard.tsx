@@ -6,8 +6,11 @@
 // (3) 次にどの出典を取りに行くか。データは /api/admin/essentials（管理者専用）が Notion の
 // 制作DBと出典台帳DBを読んで返す。この画面は読むだけで、書き戻しは Notion 側で行う。
 //
-// 円グラフの色は「段階」の順序を青1色の濃淡で表す（順序のある値なので色相を変えない）。
-// 濃淡の6段は配色検証（隣り合う段の明度差・下地との対比）を通した値。0 未収集だけは灰色で下地に沈める。
+// 円グラフの色は「段階」を工程の3群で分ける。8段を青1色の濃淡にしていたが、
+// 隣り合う段が見分けられなかった（2026-09-07 オーナー指摘）。群で色相を変え、群の中だけ濃淡にする。
+//   集める（0〜2）＝灰 ／ 作る（3〜5）＝青 ／ 出す（6〜7）＝緑（読者に届く側）
+// 8色は配色検証を通した値（隣り合う色の見分け ΔE 15.6 以上・色覚多様性でも同等）。
+// 下地との対比が 3:1 に届かない薄い色があるので、色だけで意味を運ばない（凡例・表に段階名を必ず出す）。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
@@ -31,17 +34,17 @@ import type { EssentialsPayload } from '@/app/api/admin/essentials/route'
 // 段階ごとの色（ライト / ダーク）。SVG の弧は stroke、凡例と帯は bg で同じ色を使う。
 // ダークでは明るいほど目立つので、進んだ段階ほど明るくする（ライトの逆順）。
 const STAGE_STYLE: Record<EssentialsStage, { stroke: string; bg: string }> = {
-  '0 未収集': { stroke: 'stroke-gray-300 dark:stroke-gray-600', bg: 'bg-gray-300 dark:bg-gray-600' },
-  // 段が7つに増えたので、検証済みの6値は1段ずつ後ろへずらし、薄い側に1値だけ足した
-  // （濃い側に足すと light の最終段が黒に近づき、段の差が読めなくなる）。
-  // 足した値（light #b8d4f6 / dark #0d3268）は未検証。実画面で薄すぎれば差し替える。
-  '1 収集中': { stroke: 'stroke-[#b8d4f6] dark:stroke-[#0d3268]', bg: 'bg-[#b8d4f6] dark:bg-[#0d3268]' },
-  '2 収集済': { stroke: 'stroke-[#86b6ef] dark:stroke-[#184f95]', bg: 'bg-[#86b6ef] dark:bg-[#184f95]' },
-  '3 骨子済': { stroke: 'stroke-[#5598e7] dark:stroke-[#256abf]', bg: 'bg-[#5598e7] dark:bg-[#256abf]' },
-  '4 本文済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#3987e5]', bg: 'bg-[#2a78d6] dark:bg-[#3987e5]' },
-  '5 層3済': { stroke: 'stroke-[#1c5cab] dark:stroke-[#6da7ec]', bg: 'bg-[#1c5cab] dark:bg-[#6da7ec]' },
-  '6 サブスク移行済': { stroke: 'stroke-[#104281] dark:stroke-[#9ec5f4]', bg: 'bg-[#104281] dark:bg-[#9ec5f4]' },
-  '7 スプレッド公開': { stroke: 'stroke-[#082448] dark:stroke-[#cde2fb]', bg: 'bg-[#082448] dark:bg-[#cde2fb]' },
+  // 集める（灰）
+  '0 未収集': { stroke: 'stroke-[#bcc6d2] dark:stroke-[#545f6e]', bg: 'bg-[#bcc6d2] dark:bg-[#545f6e]' },
+  '1 収集中': { stroke: 'stroke-[#8695a9] dark:stroke-[#8695a9]', bg: 'bg-[#8695a9] dark:bg-[#8695a9]' },
+  '2 収集済': { stroke: 'stroke-[#4d5a70] dark:stroke-[#bcc6d2]', bg: 'bg-[#4d5a70] dark:bg-[#bcc6d2]' },
+  // 作る（青）
+  '3 骨子済': { stroke: 'stroke-[#79ade9] dark:stroke-[#1f5aa6]', bg: 'bg-[#79ade9] dark:bg-[#1f5aa6]' },
+  '4 本文済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#4a8ee0]', bg: 'bg-[#2a78d6] dark:bg-[#4a8ee0]' },
+  '5 層3済': { stroke: 'stroke-[#0e3d78] dark:stroke-[#a7cbf6]', bg: 'bg-[#0e3d78] dark:bg-[#a7cbf6]' },
+  // 出す（緑）。読者に届く側だけを緑にして、進み具合の終わりが一目で分かるようにする。
+  '6 サブスク移行済': { stroke: 'stroke-[#45a685] dark:stroke-[#3f9d7e]', bg: 'bg-[#45a685] dark:bg-[#3f9d7e]' },
+  '7 スプレッド公開': { stroke: 'stroke-[#196b4f] dark:stroke-[#7bd0b0]', bg: 'bg-[#196b4f] dark:bg-[#7bd0b0]' },
 }
 
 // 段階名の先頭の数字を落とした短い表示（凡例・チップ用）。
