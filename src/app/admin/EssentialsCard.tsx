@@ -6,11 +6,11 @@
 // (3) 次にどの出典を取りに行くか。データは /api/admin/essentials（管理者専用）が Notion の
 // 制作DBと出典台帳DBを読んで返す。この画面は読むだけで、書き戻しは Notion 側で行う。
 //
-// 円グラフの色は「段階」を工程の3群で分ける。8段を青1色の濃淡にしていたが、
-// 隣り合う段が見分けられなかった（2026-09-07 オーナー指摘）。群で色相を変え、群の中だけ濃淡にする。
-//   集める（0〜2）＝灰 ／ 作る（3〜5）＝青 ／ 出す（6〜7）＝緑（読者に届く側）
-// 8色は配色検証を通した値（隣り合う色の見分け ΔE 15.6 以上・色覚多様性でも同等）。
-// 下地との対比が 3:1 に届かない薄い色があるので、色だけで意味を運ばない（凡例・表に段階名を必ず出す）。
+// 円グラフの色は「段階」ごとに色相を変える。1色の濃淡（のちに工程3群の濃淡）にしていたが、
+// 実データでは135主題中128件が「2 収集済」に集まるため、どのリングもほぼ1色になり、
+// 進んだ段階の小さな片がその中に埋もれた（2026-09-07 オーナー指摘）。
+// 未収集は薄く沈め、完了（スプレッド公開）を緑にする。
+// 色の順序では進み具合を読めない。順序は番号と並び順で読む（オーナー了承済み）。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
@@ -21,6 +21,9 @@ import {
   areaSummaries,
   donutSegments,
   fetchQueue,
+  filterSources,
+  journalCounts,
+  sortSources,
   hasBody,
   roleRank,
   sortTopics,
@@ -28,23 +31,24 @@ import {
   type EssentialsSource,
   type EssentialsStage,
   type EssentialsTopic,
+  type SourceSort,
 } from '@/lib/essentials-admin'
 import type { EssentialsPayload } from '@/app/api/admin/essentials/route'
 
 // 段階ごとの色（ライト / ダーク）。SVG の弧は stroke、凡例と帯は bg で同じ色を使う。
 // ダークでは明るいほど目立つので、進んだ段階ほど明るくする（ライトの逆順）。
 const STAGE_STYLE: Record<EssentialsStage, { stroke: string; bg: string }> = {
-  // 集める（灰）
-  '0 未収集': { stroke: 'stroke-[#bcc6d2] dark:stroke-[#545f6e]', bg: 'bg-[#bcc6d2] dark:bg-[#545f6e]' },
-  '1 収集中': { stroke: 'stroke-[#8695a9] dark:stroke-[#8695a9]', bg: 'bg-[#8695a9] dark:bg-[#8695a9]' },
-  '2 収集済': { stroke: 'stroke-[#4d5a70] dark:stroke-[#bcc6d2]', bg: 'bg-[#4d5a70] dark:bg-[#bcc6d2]' },
-  // 作る（青）
-  '3 骨子済': { stroke: 'stroke-[#79ade9] dark:stroke-[#1f5aa6]', bg: 'bg-[#79ade9] dark:bg-[#1f5aa6]' },
-  '4 本文済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#4a8ee0]', bg: 'bg-[#2a78d6] dark:bg-[#4a8ee0]' },
-  '5 層3済': { stroke: 'stroke-[#0e3d78] dark:stroke-[#a7cbf6]', bg: 'bg-[#0e3d78] dark:bg-[#a7cbf6]' },
-  // 出す（緑）。読者に届く側だけを緑にして、進み具合の終わりが一目で分かるようにする。
-  '6 サブスク移行済': { stroke: 'stroke-[#45a685] dark:stroke-[#3f9d7e]', bg: 'bg-[#45a685] dark:bg-[#3f9d7e]' },
-  '7 スプレッド公開': { stroke: 'stroke-[#196b4f] dark:stroke-[#7bd0b0]', bg: 'bg-[#196b4f] dark:bg-[#7bd0b0]' },
+  // 配色検証を通した値。隣り合う段の見分けはライト normal ΔE 16.7 以上・CVD 9.1 以上、
+  // ダーク normal 15.4 以上・CVD 8.4 以上。薄い色は下地との対比が 3:1 に届かないので、
+  // 色だけで意味を運ばない（凡例・帯・表に段階名を必ず添える。この性質を壊さないこと）。
+  '0 未収集': { stroke: 'stroke-[#cbd5e1] dark:stroke-[#4b5563]', bg: 'bg-[#cbd5e1] dark:bg-[#4b5563]' },
+  '1 収集中': { stroke: 'stroke-[#7d7d7a] dark:stroke-[#94a3b8]', bg: 'bg-[#7d7d7a] dark:bg-[#94a3b8]' },
+  '2 収集済': { stroke: 'stroke-[#2a78d6] dark:stroke-[#3987e5]', bg: 'bg-[#2a78d6] dark:bg-[#3987e5]' },
+  '3 骨子済': { stroke: 'stroke-[#eb6834] dark:stroke-[#d95926]', bg: 'bg-[#eb6834] dark:bg-[#d95926]' },
+  '4 本文済': { stroke: 'stroke-[#1baf7a] dark:stroke-[#199e70]', bg: 'bg-[#1baf7a] dark:bg-[#199e70]' },
+  '5 層3済': { stroke: 'stroke-[#eda100] dark:stroke-[#c98500]', bg: 'bg-[#eda100] dark:bg-[#c98500]' },
+  '6 サブスク移行済': { stroke: 'stroke-[#e87ba4] dark:stroke-[#d55181]', bg: 'bg-[#e87ba4] dark:bg-[#d55181]' },
+  '7 スプレッド公開': { stroke: 'stroke-[#008300] dark:stroke-[#008300]', bg: 'bg-[#008300] dark:bg-[#008300]' },
 }
 
 // 段階名の先頭の数字を落とした短い表示（凡例・チップ用）。
@@ -244,6 +248,8 @@ export function EssentialsBody({
       </section>
 
       <TopicTable topics={topics} sourcesByTopic={sourcesByTopic} spreadReady={spreadReady} />
+
+      <SourceTable sources={sources} topics={topics} />
 
       <FetchQueue queue={queue} />
     </>
@@ -527,6 +533,143 @@ function SourceLine({ source: s }: { source: EssentialsSource }) {
 }
 
 const QUEUE_LIMIT = 40
+
+// 台帳の中身そのもの。「どんな文献を集めたのか」に答える場所。段階の進み具合（上の帯と円）は
+// 主題の側の話で、どの文献を持っているかは答えていなかった（2026-09-07 オーナー指摘）。
+// 絞り込み・並び替え・誌の内訳は essentials-admin.ts の純関数に通す（画面は描くだけ）。
+function SourceTable({ sources, topics }: { sources: EssentialsSource[]; topics: EssentialsTopic[] }) {
+  const [state, setState] = useState('')
+  const [role, setRole] = useState('')
+  const [owner, setOwner] = useState('')
+  const [q, setQ] = useState('')
+  const [sort, setSort] = useState<SourceSort>('year-desc')
+
+  const topicById = useMemo(() => new Map(topics.map((t) => [t.id, t])), [topics])
+  const stateOptions = useMemo(() => [...new Set(sources.map((s) => s.state).filter(Boolean))].sort(), [sources])
+  const roleOptions = useMemo(
+    () => [...new Set(sources.map((s) => s.role).filter(Boolean))].sort((a, b) => roleRank(a) - roleRank(b)),
+    [sources],
+  )
+  const ownerOptions = useMemo(() => [...new Set(sources.map((s) => s.owner).filter(Boolean))].sort(), [sources])
+  const rows = useMemo(
+    () => sortSources(filterSources(sources, { state, role, owner, q }), sort),
+    [sources, state, role, owner, q, sort],
+  )
+  const journals = useMemo(() => journalCounts(rows, 8), [rows])
+
+  // 紐づく主題の見出し。1件なら主題名、2件以上は「主題名 ほかN件」。
+  const topicLabel = (s: EssentialsSource) => {
+    const names = s.topicIds.map((id) => topicById.get(id)?.name).filter((n): n is string => !!n)
+    if (names.length === 0) return '—'
+    return names.length === 1 ? names[0] : `${names[0]} ほか${names.length - 1}件`
+  }
+
+  const SORTS: { key: SourceSort; label: string }[] = [
+    { key: 'year-desc', label: '年（新しい順）' },
+    { key: 'year-asc', label: '年（古い順）' },
+    { key: 'role', label: '役割' },
+    { key: 'journal', label: '誌' },
+  ]
+
+  return (
+    <section className={CARD}>
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">出典の一覧</h3>
+        <span className="text-[11px] text-gray-400 dark:text-gray-500">
+          {rows.length} / {sources.length} 件
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <select value={state} onChange={(e) => setState(e.target.value)} className={SELECT} aria-label="状態">
+          <option value="">状態: すべて</option>
+          {stateOptions.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+        <select value={role} onChange={(e) => setRole(e.target.value)} className={SELECT} aria-label="役割">
+          <option value="">役割: すべて</option>
+          {roleOptions.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+        <select value={owner} onChange={(e) => setOwner(e.target.value)} className={SELECT} aria-label="誰が取るか">
+          <option value="">誰が取るか: すべて</option>
+          {ownerOptions.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value as SourceSort)} className={SELECT} aria-label="並び替え">
+          {SORTS.map((x) => (
+            <option key={x.key} value={x.key}>
+              {x.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="文献名・誌で絞る"
+          className={`${SELECT} w-44`}
+          aria-label="文献名・誌で絞る"
+        />
+      </div>
+
+      {/* 誌の内訳。同じ雑誌が略記と正式名で割れていても、件数を並べれば気づける（名寄せはしない）。 */}
+      {journals.top.length > 0 && (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+          誌: {journals.top.map((j) => `${j.journal} ${j.count}`).join(' ／ ')}
+          {journals.otherCount > 0 && ` ／ その他 ${journals.otherCount}`}
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+              <th className="py-1.5 pr-2">文献</th>
+              <th className="py-1.5 pr-2 whitespace-nowrap">役割</th>
+              <th className="py-1.5 pr-2 whitespace-nowrap">誌</th>
+              <th className="py-1.5 pr-2 text-right whitespace-nowrap">年</th>
+              <th className="py-1.5 pr-2 whitespace-nowrap">状態</th>
+              <th className="py-1.5 whitespace-nowrap">主題</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr key={s.id} className="border-b border-gray-100 dark:border-gray-700/60 align-top">
+                <td className="py-1.5 pr-2 text-gray-800 dark:text-gray-100">
+                  <a href={s.url} target="_blank" rel="noreferrer" className="hover:underline">
+                    {s.name || '（名前なし）'}
+                  </a>
+                </td>
+                <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{s.role || '—'}</td>
+                <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{s.journal || '—'}</td>
+                <td className="py-1.5 pr-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{s.year ?? '—'}</td>
+                <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{s.state || '—'}</td>
+                <td className="py-1.5 text-gray-600 dark:text-gray-300">{topicLabel(s)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-4 text-center text-gray-400 dark:text-gray-500">
+                  条件に合う出典がありません
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
 
 function FetchQueue({ queue }: { queue: ReturnType<typeof fetchQueue> }) {
   const groups = ['Claude取得可', '要手動'].map((owner) => ({ owner, items: queue.filter((i) => i.source.owner === owner) }))
