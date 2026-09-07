@@ -351,6 +351,11 @@ export async function GET(req: Request) {
     const src = source.get(r.page_id)
     return {
       ...r,
+      // 一覧に出てこない原本も「棚に無い」。親DBの判定（isSubscriptionSourcePage）は
+      // ゴミ箱に入れたページを見抜けない（親は棚のまま返る）が、同期はクエリ結果しか
+      // 読まないので、その記事は読者に出ない。2026-09-07 の実データで1件見つかった。
+      // 一覧が引けなかったときは触らない（全行が「棚に無い」に化けるため）。
+      offShelf: r.offShelf || (listing.ok && !src),
       plan: planOf(r.page_id),
       productionStatus: src?.productionStatus ?? '',
       withheld: isWithheldFromReaders(src?.productionStatus),

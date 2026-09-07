@@ -527,6 +527,8 @@ describe('GET /api/admin/spread', () => {
       { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z' },
     ]
     notionRetrieve.mockRejectedValue(new Error('not found'))
+    // 一覧には出てくる（棚にはある）。ここで見たいのは stale の誤検知だけ。
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [subPage('p1', '💡 記事A', '7️⃣ サブスク移行済')] })
     const res = await GET(getReq('?check=1'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -623,6 +625,8 @@ describe('原本がサブスク用DBにあることの関門', () => {
     selectRows = [
       { page_id: 'p1', status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z', verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: '💡 酸素療法はどのように使い分ける？' },
     ]
+    // 棚にある＝親DBが棚で、かつサブスクDBの一覧にも出てくる（同期が読むのはこの一覧）。
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [subPage('p1', '💡 記事A', '7️⃣ サブスク移行済')] })
     const res = await GET(getReq('?check=1'))
     const body = await res.json()
     expect(body.spreads[0].offShelf).toBe(false)
@@ -633,6 +637,8 @@ describe('原本がサブスク用DBにあることの関門', () => {
       { page_id: 'p1', status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z', verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: 'x' },
     ]
     notionRetrieve.mockRejectedValue(new Error('not found'))
+    // 一覧には出てくる（＝棚にはある）。retrieve が落ちただけで棚に無いとみなさない。
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [subPage('p1', '💡 記事A', '7️⃣ サブスク移行済')] })
     const res = await GET(getReq('?check=1'))
     const body = await res.json()
     expect(body.spreads[0].offShelf).toBe(false)
@@ -710,6 +716,27 @@ describe('GET /api/admin/spread?check=1 の進み具合', () => {
     const body = await res.json()
     expect(body.missing).toEqual([])
     expect(body.spreads[0].productionStatus).toBe('7️⃣ サブスク移行済')
+  })
+
+  it('一覧に出てこない原本（ゴミ箱に入れたページ）は棚に無いとみなす', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: {} },
+    ]
+    // 親DBは棚のまま（retrieve はゴミ箱のページも返す）。一覧には出てこない。
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [] })
+    const res = await GET(getReq('?check=1'))
+    expect((await res.json()).spreads[0].offShelf).toBe(true)
+  })
+
+  it('一覧が引けなかったときは棚の判定を触らない（全行が棚に無いに化けない）', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: {} },
+    ]
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: false, reason: 'timeout' })
+    const res = await GET(getReq('?check=1'))
+    expect((await res.json()).spreads[0].offShelf).toBe(false)
   })
 
   it('サブスクDBの一覧が引けなければ sourceListFailed を立て、missing は空にする', async () => {
