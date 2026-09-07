@@ -46,6 +46,19 @@ vi.mock('@/lib/notion-page', () => ({ fetchPageBlocks: async () => notionBlocks 
 vi.mock('@notionhq/client', () => ({
   Client: class { pages = { retrieve: (...a: unknown[]) => notionRetrieve(...a) } },
 }))
+// サブスクDBの一覧（fetchNotionDatabase）と、計画ノートの索引を差し替える。
+// どちらも GET ?check=1 でしか呼ばれない。
+const fetchNotionDatabaseMock = vi.fn()
+vi.mock('@/lib/essentials-admin', () => ({ fetchNotionDatabase: (...a: unknown[]) => fetchNotionDatabaseMock(...a) }))
+const fetchSpreadNotesIndexMock = vi.fn()
+vi.mock('@/lib/spread-notes', () => ({
+  fetchSpreadNotesBlocks: async () => null,
+  fetchSpreadNotesIndex: () => fetchSpreadNotesIndexMock(),
+}))
+
+// ページID2つは複数の describe で使うので、ここに置く。
+const PAGE_A = 'a'.repeat(32)
+const PAGE_B = 'b'.repeat(32)
 
 const { PUT, PATCH, GET } = await import('../../app/api/admin/spread/route')
 
@@ -75,6 +88,8 @@ beforeEach(() => {
   // 既定は「保存済み行を variable ベースで返す」。PATCH のテストなど、行の中身を
   // 直接指定したいときだけ maybeSingle.mockResolvedValue で個別に上書きする。
   maybeSingle.mockImplementation(async () => ({ data: existingOverlayRow, error: overlayReadError }))
+  fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [] })
+  fetchSpreadNotesIndexMock.mockResolvedValue(null)
 })
 
 describe('PUT /api/admin/spread', () => {
@@ -444,7 +459,7 @@ describe('GET /api/admin/spread', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.spreads).toEqual([
-      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: '📚 急性呼吸不全 Essentials', quizzes },
+      { page_id: 'p1', status: 'draft', source_last_edited: '2026-08-01T00:00:00.000Z', verified_at: null, updated_at: '2026-08-01T00:00:00.000Z', title: '📚 急性呼吸不全 Essentials', quizzes, overlayEmpty: false },
     ])
     // overlay 列そのものは応答に残らないこと（spread_doc 同様に重いものは返さない）
     expect(body.spreads[0].overlay).toBeUndefined()
@@ -621,5 +636,115 @@ describe('原本がサブスク用DBにあることの関門', () => {
     const res = await GET(getReq('?check=1'))
     const body = await res.json()
     expect(body.spreads[0].offShelf).toBe(false)
+  })
+})
+
+// サブスクDBの1行を作る。properties の形は Notion のクエリ応答と同じ。
+const subPage = (id: string, title: string, status: string) => ({
+  id,
+  properties: {
+    名前: { title: [{ plain_text: title }] },
+    制作ステータス: { select: { name: status } },
+  },
+})
+
+describe('GET /api/admin/spread?check=1 の進み具合', () => {
+  it('スプレッドがある行に計画・制作ステータス・門の判定を足す', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'published', source_last_edited: '2026-08-20T00:00:00.000Z',
+        verified_at: null, updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: { quizzes: [] } },
+    ]
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [subPage(PAGE_A, '💡 記事A', '3️⃣ 原文照合済')] })
+    fetchSpreadNotesIndexMock.mockResolvedValue(new Set([PAGE_A]))
+
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.spreads[0].plan).toBe(true)
+    expect(body.spreads[0].productionStatus).toBe('3️⃣ 原文照合済')
+    expect(body.spreads[0].withheld).toBe(true)
+  })
+
+  it('計画ノートが判定できなければ plan は null（無いとは書かない）', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: {} },
+    ]
+    const res = await GET(getReq('?check=1'))
+    expect((await res.json()).spreads[0].plan).toBe(null)
+  })
+
+  it('棚にあってスプレッドが無い記事を missing に出す', async () => {
+    selectRows = []
+    fetchNotionDatabaseMock.mockResolvedValue({
+      ok: true,
+      pages: [subPage(PAGE_B, '💡 記事B', '7️⃣ サブスク移行済')],
+    })
+    fetchSpreadNotesIndexMock.mockResolvedValue(new Set<string>())
+
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.missing).toEqual([
+      { page_id: PAGE_B, title: '💡 記事B', productionStatus: '7️⃣ サブスク移行済', plan: false, withheld: false },
+    ])
+  })
+
+  it('一覧に出す対象でない記事（💡の 2️⃣・❓）は missing に出さない', async () => {
+    selectRows = []
+    fetchNotionDatabaseMock.mockResolvedValue({
+      ok: true,
+      pages: [subPage(PAGE_B, '💡 記事B', '2️⃣ ファクト済'), subPage('c'.repeat(32), '❓ 記事C', '7️⃣ サブスク移行済')],
+    })
+    const res = await GET(getReq('?check=1'))
+    expect((await res.json()).missing).toEqual([])
+  })
+
+  it('Notion のIDがハイフン付きで返っても、スプレッドがある記事は missing に出さない', async () => {
+    const hyphenated = '3cbfd756-7370-8141-85e3-da90f1864550'
+    const bare = hyphenated.replace(/-/g, '')
+    selectRows = [
+      { page_id: bare, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '📚 記事D', overlay: {} },
+    ]
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: true, pages: [subPage(hyphenated, '📚 記事D', '7️⃣ サブスク移行済')] })
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.missing).toEqual([])
+    expect(body.spreads[0].productionStatus).toBe('7️⃣ サブスク移行済')
+  })
+
+  it('サブスクDBの一覧が引けなければ sourceListFailed を立て、missing は空にする', async () => {
+    selectRows = []
+    fetchNotionDatabaseMock.mockResolvedValue({ ok: false, reason: 'not_shared', status: 404 })
+    const res = await GET(getReq('?check=1'))
+    const body = await res.json()
+    expect(body.sourceListFailed).toBe(true)
+    expect(body.missing).toEqual([])
+  })
+
+  it('?check=1 を付けない GET は今までどおり spreads だけ返す', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: {} },
+    ]
+    const res = await GET(getReq())
+    const body = await res.json()
+    expect(body.missing).toBeUndefined()
+    expect(fetchNotionDatabaseMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/admin/spread の投入済の判定', () => {
+  it('overlay が空の行は overlayEmpty を立てて返す（overlay 自体は返さない）', async () => {
+    selectRows = [
+      { page_id: PAGE_A, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事A', overlay: {} },
+      { page_id: PAGE_B, status: 'draft', source_last_edited: null, verified_at: null,
+        updated_at: '2026-08-20T00:00:00.000Z', title: '💡 記事B', overlay: { quizzes: [] } },
+    ]
+    const res = await GET(getReq())
+    const body = await res.json()
+    expect(body.spreads[0].overlayEmpty).toBe(true)
+    expect(body.spreads[1].overlayEmpty).toBe(false)
+    expect(body.spreads[0].overlay).toBeUndefined()
   })
 })

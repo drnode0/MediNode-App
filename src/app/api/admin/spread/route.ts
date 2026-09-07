@@ -7,8 +7,12 @@ import { fetchPageBlocks } from '@/lib/notion-page'
 import { mapBlocksToReaderDoc } from '@/lib/reader-doc'
 import { revalidateSubscriptionReaderDocs } from '@/lib/reader-cache'
 import { applyOverlay, buildSpreadDraft, canonicalPageId, danglingSourceParts, refItemsOf, refLinkage, sanitizeOverlay, textOf, verifyVerbatim, type SpreadOverlay } from '@/lib/reader-spread'
-import { fetchSpreadNotesBlocks } from '@/lib/spread-notes'
+import { fetchSpreadNotesBlocks, fetchSpreadNotesIndex } from '@/lib/spread-notes'
 import { isSubscriptionSourcePage } from '@/lib/subscription-source-db'
+import { isSpreadCandidate, subscriptionRowOf } from '@/lib/spread-progress'
+import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
+// サブスクDBの一覧は Essentials タブが使っている取得関数をそのまま使う（新しい取得経路を作らない）。
+import { fetchNotionDatabase } from '@/lib/essentials-admin'
 
 /**
  * スプレッド（SpreadDoc）の投入。オーナー専用。
@@ -297,28 +301,77 @@ export async function GET(req: Request) {
       overlay?: SpreadOverlay | null
     }
     const { overlay, ...rest } = row
-    return { ...rest, quizzes: overlay?.quizzes ?? [] }
+    // overlay そのものは返さない（重い・設問以外は画面が使わない）。「中身が入っているか」
+    // だけを真偽で返す。投入だけして中身が空の行を「投入済」と描かないため
+    // （実データに overlay が {} のまま公開待ちになっている行がある）。
+    return { ...rest, quizzes: overlay?.quizzes ?? [], overlayEmpty: Object.keys(overlay ?? {}).length === 0 }
   })
   const check = new URL(req.url).searchParams.get('check') === '1'
   const token = process.env.SUBSCRIPTION_NOTION_TOKEN
   if (!check || !token) return NextResponse.json({ spreads: rows })
 
   const notion = new Client({ auth: token })
-  const withStale = await Promise.all(
-    rows.map(async (r) => {
-      try {
-        const page = await notion.pages.retrieve({ page_id: r.page_id })
-        const last = (page as { last_edited_time?: string }).last_edited_time ?? null
-        // 原本の最終更新が、このスプレッドを組んだ時点の原本更新より新しければ再生成が要る。
-        const stale = !!last && !!r.source_last_edited && new Date(last) > new Date(r.source_last_edited)
-        // 原本が棚（サブスク用DB）に無い行。公開中でも読者はその記事に届いていない。
-        const offShelf = isSubscriptionSourcePage(page) === false
-        return { ...r, stale, offShelf }
-      } catch {
-        // 原本が引けない（削除・権限変更等）ときは判定しない。誤って「更新あり」と出さない。
-        return { ...r, stale: false, offShelf: false }
-      }
-    }),
-  )
-  return NextResponse.json({ spreads: withStale })
+  const dbId = process.env.SUBSCRIPTION_MEDICAL_DB_ID
+  // 3つを並行して集める。原本ごとの retrieve（stale・棚の判定）、サブスクDBの一覧
+  // （制作ステータスと、まだスプレッドが無い記事）、計画ノートの索引。
+  const [withStale, listing, notesIndex] = await Promise.all([
+    Promise.all(
+      rows.map(async (r) => {
+        try {
+          const page = await notion.pages.retrieve({ page_id: r.page_id })
+          const last = (page as { last_edited_time?: string }).last_edited_time ?? null
+          // 原本の最終更新が、このスプレッドを組んだ時点の原本更新より新しければ再生成が要る。
+          const stale = !!last && !!r.source_last_edited && new Date(last) > new Date(r.source_last_edited)
+          // 原本が棚（サブスク用DB）に無い行。公開中でも読者はその記事に届いていない。
+          const offShelf = isSubscriptionSourcePage(page) === false
+          return { ...r, stale, offShelf }
+        } catch {
+          // 原本が引けない（削除・権限変更等）ときは判定しない。誤って「更新あり」と出さない。
+          return { ...r, stale: false, offShelf: false }
+        }
+      }),
+    ),
+    dbId ? fetchNotionDatabase(dbId, token) : Promise.resolve({ ok: false, reason: 'http_error' } as const),
+    fetchSpreadNotesIndex(notion),
+  ])
+
+  // サブスクDBの一覧を page_id（ハイフン無し32桁）で引ける形にする。
+  const source = new Map<string, { title: string; productionStatus: string }>()
+  if (listing.ok) {
+    for (const page of listing.pages) {
+      const row = subscriptionRowOf(page)
+      source.set(row.pageId, { title: row.title, productionStatus: row.productionStatus })
+    }
+  }
+  // 計画ノートが判定できなかった（DB未設定・取得失敗）ときは null を通す。
+  // false にすると画面が全記事を「計画なし」と描く。
+  const planOf = (pageId: string): boolean | null => (notesIndex ? notesIndex.has(pageId) : null)
+
+  const spreads = withStale.map((r) => {
+    const src = source.get(r.page_id)
+    return {
+      ...r,
+      plan: planOf(r.page_id),
+      productionStatus: src?.productionStatus ?? '',
+      withheld: isWithheldFromReaders(src?.productionStatus),
+    }
+  })
+
+  // 棚にあるのにスプレッドがまだ無い記事。ここに出ないと、投入して初めて一覧に載るので
+  // 「まだ手を付けていない記事」が管理タブから見えない（設計 2026-09-07）。
+  const have = new Set(rows.map((r) => r.page_id))
+  const missing = listing.ok
+    ? [...source.entries()]
+        .filter(([pageId, s]) => !have.has(pageId) && isSpreadCandidate(s))
+        .map(([pageId, s]) => ({
+          page_id: pageId,
+          title: s.title,
+          productionStatus: s.productionStatus,
+          plan: planOf(pageId),
+          withheld: isWithheldFromReaders(s.productionStatus),
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title, 'ja'))
+    : []
+
+  return NextResponse.json({ spreads, missing, ...(listing.ok ? {} : { sourceListFailed: true }) })
 }
