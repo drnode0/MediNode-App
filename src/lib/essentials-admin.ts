@@ -290,6 +290,31 @@ export function fetchQueue(sources: EssentialsSource[], topics: EssentialsTopic[
   )
 }
 
+// ---- Essentials とスプレッドの突合 ---------------------------------------------
+//
+// サブスクDBの記事は制作DBの主題を複製して作るので、両者のページIDは別物になる。
+// 突き合わせられるのは名前だけ。サブスク側のタイトル（「📚 ○○ Essentials」）から
+// 先頭の絵文字と末尾の Essentials を落として、主題名と完全一致で照合する。
+// 部分一致にすると「呼吸不全」が「急性呼吸不全」を拾うため、当てにいかない。
+
+export function normalizeSpreadTitle(title: string): string {
+  return title
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .replace(/\s*Essentials\s*$/i, '')
+    .trim()
+}
+
+/**
+ * 段階が「6 サブスク移行済」のまま、スプレッドが読者に出ている主題のID。
+ * 画面はこの主題の行に「段階を7に上げる」を出す（工程が終わっているのに段階が残っている）。
+ */
+export function spreadReadyTopicIds(topics: EssentialsTopic[], readyTitles: string[]): string[] {
+  const ready = new Set(readyTitles.map(normalizeSpreadTitle))
+  return topics
+    .filter((t) => t.stage === '6 サブスク移行済' && ready.has(t.name.trim()))
+    .map((t) => t.id)
+}
+
 // ---- 円グラフの弧 ------------------------------------------------------------
 //
 // SVG の circle に stroke-dasharray を付けて描く。円周を件数比で分け、隣り合う弧の間に

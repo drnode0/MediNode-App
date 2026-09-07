@@ -9,7 +9,9 @@ import {
   hasBody,
   mapSourcePage,
   mapTopicPage,
+  normalizeSpreadTitle,
   sortTopics,
+  spreadReadyTopicIds,
   stageCounts,
   type EssentialsSource,
   type EssentialsTopic,
@@ -320,5 +322,33 @@ describe('段階の選択肢', () => {
     expect(hasBody('4 本文済')).toBe(true)
     expect(hasBody('7 スプレッド公開')).toBe(true)
     expect(hasBody('3 骨子済')).toBe(false)
+  })
+})
+
+describe('スプレッドが読者に出ている主題', () => {
+  const topic = (id: string, name: string, stage: string) =>
+    mapTopicPage({ id, properties: { 名前: { title: [{ plain_text: name }] }, 段階: { select: { name: stage } } } })
+
+  it('先頭の絵文字と末尾の Essentials を落として主題名にそろえる', () => {
+    expect(normalizeSpreadTitle('📚 記事A Essentials')).toBe('記事A')
+    expect(normalizeSpreadTitle('💡 記事B')).toBe('記事B')
+    expect(normalizeSpreadTitle('  記事C  ')).toBe('記事C')
+  })
+
+  it('段階6のまま読者に出ている主題だけを返す', () => {
+    const topics = [
+      topic('a'.repeat(32), '記事A', '6 サブスク移行済'),
+      topic('b'.repeat(32), '記事B', '6 サブスク移行済'),
+      topic('c'.repeat(32), '記事C', '5 層3済'),
+      topic('d'.repeat(32), '記事D', '7 スプレッド公開'),
+    ]
+    // 記事A・記事C・記事D のスプレッドは読者に出ている
+    const ready = ['📚 記事A Essentials', '📚 記事C Essentials', '📚 記事D Essentials']
+    expect(spreadReadyTopicIds(topics, ready)).toEqual(['a'.repeat(32)])
+  })
+
+  it('名前が一致しなければ促さない（部分一致で当てにいかない）', () => {
+    const topics = [topic('a'.repeat(32), '呼吸不全', '6 サブスク移行済')]
+    expect(spreadReadyTopicIds(topics, ['📚 急性呼吸不全 Essentials'])).toEqual([])
   })
 })

@@ -115,7 +115,7 @@ export function EssentialsCard() {
         <p className="text-sm text-red-600 dark:text-red-400">読み込みに失敗しました。もう一度「Notion を読み直す」を押してください。</p>
       )}
       {data && !data.ready && <NotReady payload={data} />}
-      {data && data.ready && <EssentialsBody topics={data.topics} sources={data.sources} topicsDbUrl={data.topicsDbUrl} sourcesDbUrl={data.sourcesDbUrl} />}
+      {data && data.ready && <EssentialsBody topics={data.topics} sources={data.sources} topicsDbUrl={data.topicsDbUrl} sourcesDbUrl={data.sourcesDbUrl} spreadReady={data.spreadReadyTopicIds ?? []} />}
     </div>
   )
 }
@@ -162,9 +162,12 @@ export function EssentialsBody({
   sources,
   topicsDbUrl,
   sourcesDbUrl,
+  spreadReady,
 }: {
   topics: EssentialsTopic[]
   sources: EssentialsSource[]
+  // 段階6のまま、スプレッドが読者に出ている主題のID。行に「段階を7に上げる」を出す。
+  spreadReady: string[]
   topicsDbUrl: string
   sourcesDbUrl: string
 }) {
@@ -237,7 +240,7 @@ export function EssentialsBody({
         </div>
       </section>
 
-      <TopicTable topics={topics} sourcesByTopic={sourcesByTopic} />
+      <TopicTable topics={topics} sourcesByTopic={sourcesByTopic} spreadReady={spreadReady} />
 
       <FetchQueue queue={queue} />
     </>
@@ -318,7 +321,7 @@ function AreaDonut({ area, total, counts, done }: { area: string; total: number;
 
 const SELECT = 'text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 px-2 py-1'
 
-function TopicTable({ topics, sourcesByTopic }: { topics: EssentialsTopic[]; sourcesByTopic: Map<string, EssentialsSource[]> }) {
+function TopicTable({ topics, sourcesByTopic, spreadReady }: { topics: EssentialsTopic[]; sourcesByTopic: Map<string, EssentialsSource[]>; spreadReady: string[] }) {
   const [area, setArea] = useState('')
   const [stage, setStage] = useState('')
   const [priority, setPriority] = useState('')
@@ -340,6 +343,8 @@ function TopicTable({ topics, sourcesByTopic }: { topics: EssentialsTopic[]; sou
         (!needle || t.name.toLowerCase().includes(needle) || t.genre.toLowerCase().includes(needle)),
     )
   }, [topics, area, stage, priority, firstWaveOnly, q])
+
+  const nudges = useMemo(() => new Set(spreadReady), [spreadReady])
 
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -417,7 +422,7 @@ function TopicTable({ topics, sourcesByTopic }: { topics: EssentialsTopic[]; sou
               const linked = sourcesByTopic.get(t.id) ?? []
               const isOpen = open.has(t.id)
               return (
-                <TopicRow key={t.id} topic={t} linked={linked} open={isOpen} onToggle={() => toggle(t.id)} />
+                <TopicRow key={t.id} topic={t} linked={linked} open={isOpen} onToggle={() => toggle(t.id)} nudge={nudges.has(t.id)} />
               )
             })}
             {rows.length === 0 && (
@@ -434,7 +439,7 @@ function TopicTable({ topics, sourcesByTopic }: { topics: EssentialsTopic[]; sou
   )
 }
 
-function TopicRow({ topic: t, linked, open, onToggle }: { topic: EssentialsTopic; linked: EssentialsSource[]; open: boolean; onToggle: () => void }) {
+function TopicRow({ topic: t, linked, open, onToggle, nudge }: { topic: EssentialsTopic; linked: EssentialsSource[]; open: boolean; onToggle: () => void; nudge: boolean }) {
   const stageStyle = STAGE_STYLE[t.stage as EssentialsStage]
   const Chevron = open ? ChevronDown : ChevronRight
   return (
@@ -465,6 +470,13 @@ function TopicRow({ topic: t, linked, open, onToggle }: { topic: EssentialsTopic
             <span className={`inline-block w-2.5 h-2.5 rounded-sm ${stageStyle?.bg ?? 'bg-amber-400'}`} aria-hidden />
             {stageShort(t.stage)}
           </span>
+          {/* スプレッドが公開され読者にも出ているのに、段階が6のまま残っている主題。
+              工程の終わりと段階の表示がずれると、完了に見えて届いていない本が生まれる。 */}
+          {nudge && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60">
+              段階を7に上げる
+            </span>
+          )}
         </td>
         <td className="py-1.5 pr-2 text-right tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
           {t.fullText} / {t.abstract} / {t.missing} / {t.wall}

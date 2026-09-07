@@ -18,9 +18,13 @@ import {
   fetchNotionDatabase,
   mapSourcePage,
   mapTopicPage,
+  spreadReadyTopicIds,
   type EssentialsSource,
   type EssentialsTopic,
 } from '@/lib/essentials-admin'
+import { createAdminClient } from '@/lib/supabase/server'
+import { subscriptionRowOf } from '@/lib/spread-progress'
+import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +36,8 @@ export type EssentialsPayload =
       fetchedAt: string
       topicsDbUrl: string
       sourcesDbUrl: string
+      // 段階6のまま、スプレッドが読者に出ている主題。画面が「段階を7に上げる」を出す。
+      spreadReadyTopicIds: string[]
     }
   | { ready: false; reason: 'not_configured'; missing: string[] }
   | { ready: false; reason: 'not_shared'; topicsDbUrl: string; sourcesDbUrl: string }
@@ -84,13 +90,40 @@ export async function GET(req: Request) {
     return NextResponse.json(body)
   }
 
+  // 読者に出ているスプレッドの記事名。サブスクDBの一覧（制作ステータス）と
+  // reader_spreads（公開状態）の両方を見ないと「読者に出ている」は決まらない。
+  // どちらかが引けなければ促さない（空配列）。誤って段階を上げさせないため。
+  const topics = topicsRes.pages.map(mapTopicPage)
+  let readyTitles: string[] = []
+  const subDb = process.env.SUBSCRIPTION_MEDICAL_DB_ID
+  if (subDb) {
+    try {
+      const admin = createAdminClient()
+      const [{ data: spreadRows }, subRes] = await Promise.all([
+        admin.from('reader_spreads').select('page_id').eq('status', 'published'),
+        fetchNotionDatabase(subDb, token),
+      ])
+      if (subRes.ok && spreadRows) {
+        const published = new Set((spreadRows as { page_id: string }[]).map((r) => r.page_id))
+        readyTitles = subRes.pages
+          .map(subscriptionRowOf)
+          .filter((r) => published.has(r.pageId) && !isWithheldFromReaders(r.productionStatus))
+          .map((r) => r.title)
+      }
+    } catch {
+      // 促しが出ないだけ。Essentials タブ自体は出す。
+      readyTitles = []
+    }
+  }
+
   body = {
     ready: true,
-    topics: topicsRes.pages.map(mapTopicPage),
+    topics,
     sources: sourcesRes.pages.map(mapSourcePage),
     fetchedAt: new Date().toISOString(),
     topicsDbUrl: notionUrl(topicsDb),
     sourcesDbUrl: notionUrl(sourcesDb),
+    spreadReadyTopicIds: spreadReadyTopicIds(topics, readyTitles),
   }
   cache = { at: Date.now(), body }
   return NextResponse.json(body)

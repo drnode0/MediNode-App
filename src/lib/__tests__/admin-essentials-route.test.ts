@@ -3,11 +3,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const { requireAdminMock } = vi.hoisted(() => ({ requireAdminMock: vi.fn() }))
 vi.mock('@/lib/admin-guard', () => ({ requireAdmin: requireAdminMock }))
 
+// 公開済みスプレッドの一覧（reader_spreads）。既定は空。
+const { publishedSpreadRows } = vi.hoisted(() => ({ publishedSpreadRows: { value: [] as { page_id: string }[] } }))
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: () => ({
+    from: () => ({ select: () => ({ eq: async () => ({ data: publishedSpreadRows.value }) }) }),
+  }),
+}))
+
 import { GET } from '../../app/api/admin/essentials/route'
 
 const req = (refresh = true) => new Request(`http://localhost/api/admin/essentials${refresh ? '?refresh=1' : ''}`)
 
-const ENV_KEYS = ['ESSENTIALS_NOTION_DB', 'ESSENTIALS_SOURCES_NOTION_DB', 'SUBSCRIPTION_NOTION_TOKEN'] as const
+const ENV_KEYS = ['ESSENTIALS_NOTION_DB', 'ESSENTIALS_SOURCES_NOTION_DB', 'SUBSCRIPTION_NOTION_TOKEN', 'SUBSCRIPTION_MEDICAL_DB_ID'] as const
 const saved: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 
 function notionPage(id: string, name: string, extra: Record<string, unknown> = {}) {
@@ -21,6 +29,9 @@ beforeEach(() => {
   process.env.ESSENTIALS_NOTION_DB = 'topicsdb'
   process.env.ESSENTIALS_SOURCES_NOTION_DB = 'sourcesdb'
   process.env.SUBSCRIPTION_NOTION_TOKEN = 'tok'
+  // 既定はサブスクDBを見ない（促しの計算に入らない）。促しのテストだけが設定する。
+  delete process.env.SUBSCRIPTION_MEDICAL_DB_ID
+  publishedSpreadRows.value = []
 })
 afterEach(() => {
   for (const k of ENV_KEYS) {
@@ -101,5 +112,58 @@ describe('GET /api/admin/essentials', () => {
     vi.stubGlobal('fetch', fetchMock)
     const res = await GET(req())
     expect(await res.json()).toEqual({ ready: false, reason: 'fetch_failed', detail: 'http_error (500), http_error (500)' })
+  })
+
+  it('サブスクDBを見ない設定なら促しは空', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ results: [], has_more: false, next_cursor: null }),
+      })),
+    )
+    const res = await GET(req())
+    const body = await res.json()
+    expect(body.ready).toBe(true)
+    expect(body.spreadReadyTopicIds).toEqual([])
+  })
+
+  it('段階6のまま読者に出ている主題を促しに出す', async () => {
+    process.env.SUBSCRIPTION_MEDICAL_DB_ID = 'subdb'
+    publishedSpreadRows.value = [{ page_id: 't1' }]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        const results = u.includes('/databases/topicsdb/')
+          ? [notionPage('t1', '記事A', { 段階: { select: { name: '6 サブスク移行済' } } })]
+          : u.includes('/databases/subdb/')
+            ? [notionPage('t1', '📚 記事A Essentials', { 制作ステータス: { select: { name: '7️⃣ サブスク移行済' } } })]
+            : []
+        return { ok: true, status: 200, json: async () => ({ results, has_more: false, next_cursor: null }) }
+      }),
+    )
+    const res = await GET(req())
+    expect((await res.json()).spreadReadyTopicIds).toEqual(['t1'])
+  })
+
+  it('制作ステータスが門に掛かる記事は促さない', async () => {
+    process.env.SUBSCRIPTION_MEDICAL_DB_ID = 'subdb'
+    publishedSpreadRows.value = [{ page_id: 't1' }]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        const results = u.includes('/databases/topicsdb/')
+          ? [notionPage('t1', '記事A', { 段階: { select: { name: '6 サブスク移行済' } } })]
+          : u.includes('/databases/subdb/')
+            ? [notionPage('t1', '📚 記事A Essentials', { 制作ステータス: { select: { name: '3️⃣ 原文照合済' } } })]
+            : []
+        return { ok: true, status: 200, json: async () => ({ results, has_more: false, next_cursor: null }) }
+      }),
+    )
+    const res = await GET(req())
+    expect((await res.json()).spreadReadyTopicIds).toEqual([])
   })
 })
