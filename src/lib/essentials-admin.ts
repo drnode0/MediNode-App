@@ -290,6 +290,65 @@ export function fetchQueue(sources: EssentialsSource[], topics: EssentialsTopic[
   )
 }
 
+// ---- 出典の一覧（/admin Essentials タブの「出典の一覧」） -------------------------
+
+export type SourceFilter = { state: string; role: string; owner: string; q: string }
+export type SourceSort = 'year-desc' | 'year-asc' | 'role' | 'journal'
+
+/** 空の条件は素通し。キーワードは文献名と誌の部分一致（大文字小文字を区別しない）。 */
+export function filterSources(sources: EssentialsSource[], f: SourceFilter): EssentialsSource[] {
+  const needle = f.q.trim().toLowerCase()
+  return sources.filter(
+    (s) =>
+      (!f.state || s.state === f.state) &&
+      (!f.role || s.role === f.role) &&
+      (!f.owner || s.owner === f.owner) &&
+      (!needle || s.name.toLowerCase().includes(needle) || s.journal.toLowerCase().includes(needle)),
+  )
+}
+
+// 年が無い行は、どちらの向きでも末尾に置く（年で並べたときに先頭を占めないため）。
+function yearRank(year: number | null, desc: boolean): number {
+  if (year === null) return desc ? -Infinity : Infinity
+  return year
+}
+
+export function sortSources(sources: EssentialsSource[], sort: SourceSort): EssentialsSource[] {
+  const list = [...sources]
+  if (sort === 'year-desc') {
+    return list.sort((a, b) => yearRank(b.year, true) - yearRank(a.year, true) || a.name.localeCompare(b.name, 'ja'))
+  }
+  if (sort === 'year-asc') {
+    return list.sort((a, b) => yearRank(a.year, false) - yearRank(b.year, false) || a.name.localeCompare(b.name, 'ja'))
+  }
+  if (sort === 'role') {
+    return list.sort((a, b) => roleRank(a.role) - roleRank(b.role) || (b.year ?? 0) - (a.year ?? 0))
+  }
+  return list.sort((a, b) => a.journal.localeCompare(b.journal, 'ja') || (b.year ?? 0) - (a.year ?? 0))
+}
+
+/**
+ * 誌ごとの件数（多い順・同数なら誌名順）。上位 top 件と、それ以外の合計を返す。
+ *
+ * 名寄せはしない。略記と正式名（同じ雑誌が2通りで入っている例が実データにある）を機械で束ねると
+ * 別の雑誌を混ぜる。件数を並べて出すところまでを画面の仕事にし、直すかどうかは Notion 側で人が決める。
+ */
+export function journalCounts(
+  sources: EssentialsSource[],
+  top: number,
+): { top: { journal: string; count: number }[]; otherCount: number } {
+  const counts = new Map<string, number>()
+  for (const s of sources) {
+    const j = s.journal.trim()
+    if (!j) continue
+    counts.set(j, (counts.get(j) ?? 0) + 1)
+  }
+  const all = [...counts.entries()]
+    .map(([journal, count]) => ({ journal, count }))
+    .sort((a, b) => b.count - a.count || a.journal.localeCompare(b.journal, 'ja'))
+  return { top: all.slice(0, top), otherCount: all.slice(top).reduce((n, x) => n + x.count, 0) }
+}
+
 // ---- Essentials とスプレッドの突合 ---------------------------------------------
 //
 // サブスクDBの記事は制作DBの主題を複製して作るので、両者のページIDは別物になる。

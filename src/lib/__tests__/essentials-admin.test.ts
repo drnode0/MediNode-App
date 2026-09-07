@@ -6,15 +6,19 @@ import {
   donutSegments,
   fetchNotionDatabase,
   fetchQueue,
+  filterSources,
   hasBody,
+  journalCounts,
   mapSourcePage,
   mapTopicPage,
   normalizeSpreadTitle,
+  sortSources,
   sortTopics,
   spreadReadyTopicIds,
   stageCounts,
   type EssentialsSource,
   type EssentialsTopic,
+  type SourceFilter,
   type NotionPage,
 } from '../essentials-admin'
 
@@ -350,5 +354,96 @@ describe('スプレッドが読者に出ている主題', () => {
   it('名前が一致しなければ促さない（部分一致で当てにいかない）', () => {
     const topics = [topic('a'.repeat(32), '呼吸不全', '6 サブスク移行済')]
     expect(spreadReadyTopicIds(topics, ['📚 急性呼吸不全 Essentials'])).toEqual([])
+  })
+})
+
+describe('出典の絞り込みと並び替え', () => {
+  const src = (over: Partial<EssentialsSource>): EssentialsSource => ({
+    id: 'x', url: 'https://www.notion.so/x', name: '文献A', state: '全文', owner: 'Claude取得可',
+    role: '主要RCT', year: 2020, journal: '誌A', key: '', link: null, topicIds: [],
+    wall: '', route: '', claim: '', file: '', checkedAt: null, ...over,
+  })
+  const NONE: SourceFilter = { state: '', role: '', owner: '', q: '' }
+
+  it('絞り込みが空なら全件返す', () => {
+    const list = [src({ id: 'a' }), src({ id: 'b' })]
+    expect(filterSources(list, NONE)).toHaveLength(2)
+  })
+
+  it('状態・役割・誰が取るかで絞る', () => {
+    const list = [
+      src({ id: 'a', state: '全文', role: 'ガイドライン', owner: 'Claude取得可' }),
+      src({ id: 'b', state: '未取得', role: '主要RCT', owner: '要手動' }),
+    ]
+    expect(filterSources(list, { ...NONE, state: '未取得' }).map((s) => s.id)).toEqual(['b'])
+    expect(filterSources(list, { ...NONE, role: 'ガイドライン' }).map((s) => s.id)).toEqual(['a'])
+    expect(filterSources(list, { ...NONE, owner: '要手動' }).map((s) => s.id)).toEqual(['b'])
+  })
+
+  it('キーワードは文献名と誌の両方を見る（大文字小文字を区別しない）', () => {
+    const list = [
+      src({ id: 'a', name: '文献A', journal: '誌X' }),
+      src({ id: 'b', name: 'Sepsis trial', journal: '誌Y' }),
+    ]
+    expect(filterSources(list, { ...NONE, q: 'sepsis' }).map((s) => s.id)).toEqual(['b'])
+    expect(filterSources(list, { ...NONE, q: '誌X' }).map((s) => s.id)).toEqual(['a'])
+  })
+
+  it('絞り込みは掛け合わせる', () => {
+    const list = [
+      src({ id: 'a', state: '全文', role: 'ガイドライン' }),
+      src({ id: 'b', state: '全文', role: '主要RCT' }),
+    ]
+    expect(filterSources(list, { ...NONE, state: '全文', role: '主要RCT' }).map((s) => s.id)).toEqual(['b'])
+  })
+
+  it('年で並べる。年が無い行は末尾に置く', () => {
+    const list = [src({ id: 'a', year: 2018 }), src({ id: 'b', year: null }), src({ id: 'c', year: 2024 })]
+    expect(sortSources(list, 'year-desc').map((s) => s.id)).toEqual(['c', 'a', 'b'])
+    expect(sortSources(list, 'year-asc').map((s) => s.id)).toEqual(['a', 'c', 'b'])
+  })
+
+  it('役割は背骨が先（SOURCE_ROLE_ORDER の順）', () => {
+    const list = [src({ id: 'a', role: '総説' }), src({ id: 'b', role: 'ガイドライン' })]
+    expect(sortSources(list, 'role').map((s) => s.id)).toEqual(['b', 'a'])
+  })
+
+  it('誌は名前順。同じ誌なら年の新しい順', () => {
+    const list = [
+      src({ id: 'a', journal: '誌B', year: 2020 }),
+      src({ id: 'b', journal: '誌A', year: 2010 }),
+      src({ id: 'c', journal: '誌A', year: 2022 }),
+    ]
+    expect(sortSources(list, 'journal').map((s) => s.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('並び替えは元の配列を変えない', () => {
+    const list = [src({ id: 'a', year: 2018 }), src({ id: 'b', year: 2024 })]
+    sortSources(list, 'year-desc')
+    expect(list.map((s) => s.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('誌の内訳', () => {
+  const src = (journal: string, i: number): EssentialsSource => ({
+    id: `s${i}`, url: '', name: `文献${i}`, state: '全文', owner: '', role: '', year: null,
+    journal, key: '', link: null, topicIds: [], wall: '', route: '', claim: '', file: '', checkedAt: null,
+  })
+
+  it('件数の多い順に上位を返し、残りをその他に足す', () => {
+    const list = [src('誌A', 1), src('誌A', 2), src('誌A', 3), src('誌B', 4), src('誌B', 5), src('誌C', 6)]
+    expect(journalCounts(list, 2)).toEqual({
+      top: [{ journal: '誌A', count: 3 }, { journal: '誌B', count: 2 }],
+      otherCount: 1,
+    })
+  })
+
+  it('件数が同じなら誌名の順', () => {
+    const list = [src('誌B', 1), src('誌A', 2)]
+    expect(journalCounts(list, 2).top.map((t) => t.journal)).toEqual(['誌A', '誌B'])
+  })
+
+  it('誌が空の行は数えない', () => {
+    expect(journalCounts([src('', 1), src('誌A', 2)], 5)).toEqual({ top: [{ journal: '誌A', count: 1 }], otherCount: 0 })
   })
 })
