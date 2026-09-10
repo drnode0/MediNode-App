@@ -336,7 +336,8 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
   const openCqCapture = useCqCaptureButton()
 
   // フィードバックのアプリ内送信。survey=true でアンケート欄を開いた状態で開く。
-  const [feedback, setFeedback] = useState<{ open: boolean; survey: boolean }>({ open: false, survey: false })
+  // request=true はお知らせの「ご意見を送る」から開いた場合。種類を「要望」で始める。
+  const [feedback, setFeedback] = useState<{ open: boolean; survey: boolean; request?: boolean }>({ open: false, survey: false })
 
   // シート表示中は背景スクロールをロック（LoginModalと同じ挙動に統一）。
   useBodyScrollLock()
@@ -1618,9 +1619,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                         <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{a.date}</span>
                       </div>
                       <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed whitespace-pre-line">{a.body}</p>
-                      {a.links && a.links.length > 0 && (
+                      {((a.links && a.links.length > 0) || a.feedback) && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {a.links.map((lk) => (
+                          {(a.links || []).map((lk) => (
                             <a
                               key={lk.url}
                               // アプリ内のルート（/で始まる）は同じタブで開く（PWAから飛び出さない）。
@@ -1631,6 +1632,14 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
                               {lk.label}
                             </a>
                           ))}
+                          {a.feedback && (
+                            <button
+                              onClick={() => setFeedback({ open: true, survey: false, request: true })}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-full px-3 py-1 hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors"
+                            >
+                              {a.feedback}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1959,8 +1968,9 @@ export default function SettingsPanel({ onClose, onReset, onRedo, onRedoFromNoti
         // key で作り直す。survey は初期値としてしか読まれないため、開いたまま入口が
         // 変わった場合にアンケート欄の開閉が追従しない（key があれば必ず初期化される）。
         <FeedbackModal
-          key={feedback.survey ? 'survey' : 'quick'}
+          key={`${feedback.survey ? 'survey' : 'quick'}-${feedback.request ? 'request' : 'bug'}`}
           survey={feedback.survey}
+          initialKind={feedback.request ? 'request' : 'bug'}
           onClose={() => setFeedback({ open: false, survey: false })}
         />
       )}

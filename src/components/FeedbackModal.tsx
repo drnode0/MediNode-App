@@ -75,11 +75,13 @@ export function currentMembership(): string {
   return isSubscriptionTrialExpired() ? 'free' : 'free'
 }
 
-export function FeedbackModal({ survey = false, onClose }: { survey?: boolean; onClose: () => void }) {
+// initialKind: 開いた直後に選ばれている種類。お知らせから「ご意見を送る」で開くときは
+// 要望を集めたいので 'request' を渡す。既定は従来どおり 'bug'。
+export function FeedbackModal({ survey = false, initialKind = 'bug', onClose }: { survey?: boolean; initialKind?: FeedbackKind; onClose: () => void }) {
   const { user } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
-  const [kind, setKind] = useState<FeedbackKind>('bug')
+  const [kind, setKind] = useState<FeedbackKind>(initialKind)
 
   const [did, setDid] = useState('')
   const [happened, setHappened] = useState('')

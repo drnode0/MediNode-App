@@ -8,7 +8,7 @@ import { useState, useEffect, useContext } from 'react'
 import { MANUAL_GUIDE_URL, MANUAL_TEMPLATE_URL } from '@/lib/app-links'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { OpenSettingsContext } from '@/components/SearchErrors'
-import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, MessageCircleQuestion, type LucideIcon } from 'lucide-react'
+import { Send, Zap, HelpCircle, RefreshCw, ClipboardList, X, Smartphone, Share, ChevronDown, ChevronUp, Gift, Sun, BookOpen, Megaphone, MessageCircleQuestion, Sparkles, type LucideIcon } from 'lucide-react'
 import { ExitSurveyModal, isExitSurveyDone } from '@/components/ExitSurveyModal'
 import { getSettings } from '@/lib/settings'
 import { classifyExitSurveyStage, shouldShowExitSurveyBanner, exitSurveyDismissKey, type ExitSurveyStage } from '@/lib/exit-survey'
@@ -32,8 +32,34 @@ export type Announcement = {
   title: string
   body: string
   links?: { label: string; url: string }[]
+  // 押すとアプリ内フィードバック（要望）が開くボタンの文言。省略した回のお知らせには出ない。
+  // 意見を集めたい回だけ足す。外部フォームへは飛ばさない（アプリの中で完結させる方針）。
+  feedback?: string
 }
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: '2026-09-10-major-update-teaser',
+    date: '2026-09-10',
+    Icon: Sparkles,
+    title: '大型アップデートを開発しています',
+    // 本文はオーナー自筆。Claude 側で書き換えない（2026-09-10 設計書の決定2）。
+    // ホームのバナーは2行までなので、冒頭の1文だけで用件が分かるようにしてある。
+    body:
+      'MediNodeでは現在、大型アップデートの開発を進めています。\n\n' +
+      'これまでMediNodeは、必要な医学知識を検索し、すばやく確認できることを中心に設計してきました。\n\n' +
+      '一方で、臨床で必要になる知識は「調べて終わり」ではありません。\n\n' +
+      '一度確認した知識を残すこと。\n' +
+      '必要なタイミングで再確認できること。\n' +
+      '自分がまだ十分に理解できていない領域を把握できること。\n\n' +
+      '次のMediNodeでは、こうした「調べた後」の体験まで含めて見直しています。\n\n' +
+      '目指しているのは、医学知識を探すためのアプリから、使うほど知識が蓄積され、必要なときに取り出せるアプリへの進化です。\n\n' +
+      '検索、記事、知識の保存、振り返りなど、現在の機能や画面構成についても大きく再設計しています。\n\n' +
+      '大型アップデートの公開までは、現行版のMediNodeを引き続き利用できます。\n' +
+      '開発中の内容については、今後順次お知らせしていく予定です。\n\n' +
+      'また、現在MediNodeを利用していて感じている不便な点や、「こうなればもっと使いやすい」と感じる点があれば、ぜひお聞かせください。\n\n' +
+      'いただいたご意見は、今後の開発の参考にします。',
+    feedback: 'ご意見を送る',
+  },
   {
     id: '2026-08-09-unresolved-cq',
     date: '2026-08-09',
@@ -128,6 +154,9 @@ function countUnreadAnnouncements(): number {
 export function UpdateBanner() {
   const openSettings = useContext(OpenSettingsContext)
   const [unread, setUnread] = useState(0)
+  // お知らせの「ご意見を送る」から開くアプリ内フィードバック。
+  // バナーを閉じた後も開いたままにするため、unread とは別に持つ（FeedbackNudgeBanner と同じ作り）。
+  const [showFeedback, setShowFeedback] = useState(false)
   useEffect(() => {
     if (typeof window === 'undefined') return
     setUnread(countUnreadAnnouncements())
@@ -164,6 +193,7 @@ export function UpdateBanner() {
 
   // 未読1件: 最新お知らせをフル表示（従来UI）。
   return (
+    <>
     <div className="max-w-2xl mx-auto px-4 pt-3 animate-fade-in-up">
       <div className="bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-xl px-4 py-3 flex items-start gap-3">
         <span className="shrink-0"><LATEST_ANNOUNCEMENT.Icon className="h-5 w-5" /></span>
@@ -184,12 +214,33 @@ export function UpdateBanner() {
                 {lk.label}
               </a>
             ))}
+            {/* 本文は2行までしか出ないので、続きへの入口を必ず置く。
+                これが無いと、長いお知らせの肝心な部分が誰にも読まれない。 */}
+            {openSettings && (
+              <button
+                onClick={() => { openSettings('announcements'); markAllSeen() }}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-200 bg-white/70 dark:bg-brand-900/40 border border-brand-300 dark:border-brand-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-brand-900/60 transition-colors"
+              >
+                続きを読む
+              </button>
+            )}
+            {LATEST_ANNOUNCEMENT.feedback && (
+              <button
+                onClick={() => setShowFeedback(true)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-200 bg-white/70 dark:bg-brand-900/40 border border-brand-300 dark:border-brand-600 rounded-full px-3 py-1 hover:bg-white dark:hover:bg-brand-900/60 transition-colors"
+              >
+                {LATEST_ANNOUNCEMENT.feedback}
+              </button>
+            )}
           </div>
           <p className="text-[11px] text-brand-600/70 dark:text-brand-400/70 mt-2">過去のお知らせは 設定 →「お知らせ・更新履歴」から見返せます。</p>
         </div>
         <button onClick={markAllSeen} className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 shrink-0 p-1 -m-1" title="閉じる" aria-label="閉じる"><X className="w-4 h-4" /></button>
       </div>
     </div>
+    {/* お知らせから開くので「要望」で始める。閉じてもバナーの既読状態は変えない。 */}
+    {showFeedback && <FeedbackModal initialKind="request" onClose={() => setShowFeedback(false)} />}
+    </>
   )
 }
 
