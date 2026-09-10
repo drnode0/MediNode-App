@@ -132,3 +132,44 @@ Task 14: complete (commits 3cb2381..23a945a, review Approved後に修正2件; ts
         → Set<string> で行ごとに持つ
   Minor carry: SpreadCard の load に unmount ガードが無い（兄弟カードは cancelled フラグを持つ）
   Minor carry: verified_at を取得しているが画面に出していない
+
+--- 全体レビュー（ブランチ全体・28コミット） ---
+Critical 1件・Important 3件・Minor 多数。修正済み（cc00c62, 1bd52e4）＋再レビューで4件とも RESOLVED。
+  Critical: /admin の「再生成」が保存済みオーバレイ（短ラベル・部品・目視済みの理解チェック）を
+    空で無警告に上書きしていた → body.overlay 未指定なら既存行を読んで再利用。テスト追加。
+    さらに読み取り失敗時は fail-closed で拒否（空で上書きしない）
+  Important: 誌面にすると記事タイトルが画面から消えていた → ReaderBody と同一のマークアップで追加。
+    値は保存済み誌面ではなく その時の原本（doc.title / doc.icon）から渡す
+  Important: オーバレイの ReaderInline.href が無検査で読者に描かれていた（LLMによるURL捏造の経路）
+    → sanitizeOverlay を新設。overlay.parts 由来のみ href を落とし、未知 kind は不採用にして
+    原本由来の part へフォールバック。classifyPart 由来の正当な出典リンクには触れないことを再レビューが確認
+  テストの穴: verbatimTargets の5分岐（comparison/matrix/flow/timeline/gonogo）を固定
+
+未解決（オーナーの判断待ち）:
+  Important: 理解チェックの「目視の関門」を人間に強制する仕組みがコードに無い。reviewed:true を
+    立てるのは制作スキルが投げる overlay JSON そのもの。読者に出す側は二重に閉じている
+    （サーバーで reviewed:false を落とし、描画側で逐語一致も見る）が、目視したかどうかは自己申告。
+    仕様書の段2にある「理解チェックの目視フラグ画面」は未実装。
+    → 目視をどこで行うか（Claude Code のセッション内 vs /admin の画面）を決める必要がある
+
+Task 15（パイロット）: オーナー操作のため未実施。手順は計画の Task 15 にある。
+最終状態: tsc clean / 1277 passed・1 failed（既存の無関係failure admin-engagement-route.test.ts。
+  ブランチの起点 0939479 でも同じく失敗することを確認済み）
+
+Task 16: complete (commits 7a0d480..ff3d0bf, 再レビューで4件とも RESOLVED・Approved; 理解チェックの目視の関門)
+  reviewed:true が立つ経路は PATCH の1本だけ。reader_spreads への書き込みは upsert 2箇所のみで、
+  RLS はポリシー無し（service_role のみ）。sanitizeOverlay も applyOverlay も reviewed を立てない。
+  投入された overlay は必ず reviewed:false に落とし、保存済み overlay の読み直しではフラグを保つ。
+  修正: Important=承認が公開の裏口になっていた（PATCH が spread_doc を原本の最新版で組み直すため、
+        published の記事で1問承認すると原本の編集が即座に読者へ出た）→ source_last_edited と
+        原本の last_edited_time が食い違えば 409 source_changed で保存前に拒否。null は fail-closed
+        Important=全問承認すると設問パネルの開閉ボタンが消えて取り消しに到達できない → quizzes.length で表示
+        テスト=spread_doc への反映・再生成での目視保持・409の3パターン・404×2・400・監査/失効の
+        呼び出し有無を固定（25件）
+  pageId の正規化を PUT/PATCH で共通化
+
+--- 完了 ---
+実装タスク: 1〜14, 16 完了。Task 15（パイロット）はオーナー操作のため未実施。
+最終状態: tsc clean / 全体スイート 133ファイル・1290件すべて通過。
+注記: admin-engagement-route.test.ts は「既存の失敗」ではなく時刻依存の不安定なテストだった
+  （08:38に失敗・12:55以降は通過）。このブランチとは無関係。別途の課題として切り出し済み。
