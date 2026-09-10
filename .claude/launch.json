@@ -23,6 +23,18 @@
       "port": 3210
     },
     {
+      "name": "preview-static-3299",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "3299",
+        "--directory",
+        ".preview"
+      ],
+      "port": 3299
+    },
+    {
       "name": "spread-pct-3211",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
@@ -48,6 +60,15 @@
         "SPREAD_JSON=.preview/oxygen-spread.json npm run dev -- -p 3213"
       ],
       "port": 3213
+    },
+    {
+      "name": "spread-kikan-3214",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "SPREAD_JSON=.preview/kikan-spread-v3.json npm run dev -- -p 3214"
+      ],
+      "port": 3214
     }
   ]
 }
