@@ -49,7 +49,7 @@
 | 0027 | reader_bookmarks（別ブランチ `feat/reader-marks-sync`・未マージ） | `reader_bookmarks` | ❌ ※4 |
 | 0028 | question_interest | `question_interest` | ✅ ※5 |
 | 0029 | recall | `recall_claims`, `recall_section_reads`, `recall_progress`, `recall_review_log` | ✅ ※6 |
-| 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ⬜ 未適用 |
+| 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ✅ ※9 |
 | 0031 | ask_shelf_pgroonga（いまは流さない） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用（意図的）※8 |
 | 0032 | ask_shelf_stage1 | `ask_shelf_queries.stage1_*`（8列）, `ask_shelf_queries_stage1_idx` | ✅ |
 
@@ -103,3 +103,7 @@ OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_a
 流すのは全件読みが実際の負担になってから（設計書の再検討ライン＝主張が 2,000 を超えたとき）で、
 そのとき `src/app/api/ask-shelf/search/route.ts` に候補の絞り込みを足す。
 流すときは Supabase の Extensions で pgroonga を有効にしてから。
+
+※9 2026-09-06 に本番DBで実測。`ask_shelf_queries` と `user_settings.experience_years` /
+`doctor_departments` がいずれも 200 を返し、`recall_claims` は725行すべてで `keywords` が
+空でないことを確認した（0030 適用後にサブスク同期を1回まわして埋めたもの。設計時の写しは687行）。

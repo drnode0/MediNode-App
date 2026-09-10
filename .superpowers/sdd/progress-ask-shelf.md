@@ -75,3 +75,10 @@ Base: (worktree作成時のmain HEAD)
   - Important 2: `_core.ts`の配線を守るテストが無く、静かな失敗経路（typoで消えても例外もSentryも出ずkeywordsが空文字になる）だった。`subscription-sync-core.test.ts`・`recall-sync-claims.test.ts`にend-to-endテストを追加し、実際に配線を壊して落ちることを確認して解消
   - Important 3（**オーナー作業として計画済み・対応不要**）: migration 0030が本番未適用のまま本番へ出すと、Recallの主張同期が毎回0件になる（ただし`_core.ts`の既存のtry/catchで同期自体は継続し、エラーはSentryに上がる設計になっている＝サイレント全断ではない）。設計書の「オーナーの作業」表が元々「migration適用は実装の後」と明記しており、計画通りの順序。デプロイ前にmigration 0030を先に流す必要があることをオーナーへの報告で改めて念押しする
   - Minor（最終レビューで判断）: 1) `_core.ts:255`が`record.aiKeywords`と同じ値を再計算している（`keywords: record.aiKeywords`にすれば名前のズレが原理的に起きない） 2) `sync-claims.ts`の`c.keywords ?? ''`は型上到達しないが実害なし 3) フィールドの並びが3ファイルで揃っていない（見た目のみ） 4) `recall-extract-claims.test.ts`の省略時テストが`claims.length`を確認せず`claims[0]`に触れる（空になった場合undefined参照になる）
+
+## 2026-09-06 本番の下ごしらえ（オーナー作業）
+- migration 0030 を本番の Supabase で適用済み。実測で確認（`ask_shelf_queries` 200／`user_settings.experience_years`・`doctor_departments` 200）。`supabase/migrations/README.md` の 0030 の行を ✅ ※9 に更新
+- サブスク同期を1回実行し、`recall_claims` 725 行すべてで `keywords` が空でないことを確認（設計時の写しは687行）
+- `ASK_SHELF_EMAILS` を Vercel の Production に追加し、再デプロイを実行
+- 0031（PGroonga）は意図的に未適用のまま
+- 残り: 設計書「完了条件」6件をオーナーが本番で一周する
