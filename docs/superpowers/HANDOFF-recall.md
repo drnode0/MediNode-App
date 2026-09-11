@@ -243,6 +243,7 @@ AI に文字位置は返させない・検証は fail-closed・holes には書�
 
 ## 8. 一次資料（この順で当たる）
 
+0. `docs/superpowers/HANDOFF-recall-ui.md` … **UI のこだわり集**（画面を触る前に。なぜその数値・その動きなのか）
 1. `docs/superpowers/specs/2026-09-02-recall-engine-design.md` … 主張・SRS・テーブル・公開範囲（土台。まずこれ）
 2. `docs/superpowers/specs/2026-09-04-recall-dex-design.md` … いまの玄関（標本帳）と点の見せ方
 3. `docs/superpowers/specs/2026-09-05-recall-replan-design.md` … いまの分野ページ・説明・隠しコマンド（最新の見せ方）
