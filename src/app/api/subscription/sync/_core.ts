@@ -5,7 +5,14 @@ import { timingSafeEqual } from 'crypto'
 import { computeContentStats, type NotionBlockLite } from '@/lib/content-stats'
 import { extractCloze } from '@/lib/cloze'
 import { expandChildren, isClozeCandidate } from '@/lib/cloze-sync'
-import { splitIntoSections, buildSectionRecords, extractRelationIds } from '@/lib/subscription-sections'
+import {
+  splitIntoSections,
+  buildSectionRecords,
+  extractRelationIds,
+  sectionTextBudget,
+  recordByteLen,
+  RECORD_MAX_BYTES,
+} from '@/lib/subscription-sections'
 import { isWithheldFromReaders } from '@/lib/subscription-publish-gate'
 import { extractClaims } from '@/lib/recall/extract-claims'
 import { RecallClaimsSaveError, saveRecallClaims } from '@/lib/recall/sync-claims'
@@ -264,7 +271,8 @@ async function syncMedicalDb(
         // 節レコードにclozeを複製しない（クイズ・今日の1問は親レコードだけを使う。
         // 複製するとAlgoliaの1レコード10KB上限を超える節が出る——2026-08-12に実際に発生）
         const { cloze: _cloze, ...sectionParent } = record
-        records.push(...buildSectionRecords(sectionParent, splitIntoSections(blocks)))
+        // 本文の上限は親の実サイズから引く（親が大きい記事で節レコードが10KBを超えないように）
+        records.push(...buildSectionRecords(sectionParent, splitIntoSections(blocks, sectionTextBudget(sectionParent))))
       }
       count++
     }
@@ -321,7 +329,7 @@ async function syncReferenceDb(
         headings: stats?.headings ?? [],
       }
       records.push(record)
-      if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks)))
+      if (blocks) records.push(...buildSectionRecords(record, splitIntoSections(blocks, sectionTextBudget(record))))
       count++
     }
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
@@ -439,6 +447,24 @@ export async function runSubscriptionSync(): Promise<SyncResult | SyncError> {
   // Reference DB の同期（任意）
   if (referenceDbId) {
     syncedReference = await syncReferenceDb(notion, referenceDbId, records)
+  }
+
+  // 書き込みの前に全レコードの大きさを見る（2026-09-14の本番障害の教訓）:
+  // clearObjects の後で saveObjects が「レコード上限超」の 400 を返すと、インデックスが
+  // 空のまま残り、読者全員に「データがありません」が出る。超過が1件でもあれば、
+  // 設定もレコードも触らずに同期ごと失敗させる（前回の同期結果がそのまま残る）。
+  const oversized = records
+    .map((r) => ({ objectID: String(r.objectID), bytes: recordByteLen(r) }))
+    .filter((r) => r.bytes > RECORD_MAX_BYTES)
+  if (oversized.length > 0) {
+    const list = oversized.slice(0, 5).map((r) => `${r.objectID}(${r.bytes}バイト)`).join(', ')
+    return {
+      ok: false,
+      status: 500,
+      error:
+        `Algolia のレコード上限（${RECORD_MAX_BYTES}バイト）を超えるレコードが ${oversized.length} 件あるため、` +
+        `インデックスを触らずに中止しました: ${list}`,
+    }
   }
 
   // 設定はレコード投入より先に適用する（2026-07-29の本番障害の教訓）:

@@ -306,3 +306,47 @@ describe('runSubscriptionSync: 制作途中のページ', () => {
     expect(savedArgs().claims).toEqual([])
   })
 })
+
+// 2026-09-14 の本番障害: clearObjects の直後に saveObjects が「レコードが 10,000 バイト超」で
+// 400 になり、本番インデックスが空のまま残った（読者には「データがありません」）。
+// 書き込みの前に全レコードの大きさを見て、超過があればインデックスに触れずに失敗させる。
+describe('runSubscriptionSync: レコード上限（10,000バイト）', () => {
+  function bigPage(id: string, summaryChars: number) {
+    const p = page({ id, title: `${KNOWLEDGE} 大きい記事`, knowledgeLevel: KNOWLEDGE, status: '7️⃣ サブスク移行済' })
+    ;(p.properties as Record<string, unknown>)['要約'] = {
+      type: 'rich_text',
+      rich_text: [{ plain_text: 'あ'.repeat(summaryChars) }],
+    }
+    return p
+  }
+  const longBody = {
+    id: 'b1',
+    type: 'paragraph',
+    paragraph: { rich_text: [{ plain_text: ('い'.repeat(500) + '。').repeat(12) }] },
+  }
+
+  it('親の属性が大きくても、節レコードは全て 10,000 バイト以下で保存される', async () => {
+    // 要約 3,600 バイト + 節本文（文単位で詰めると 6,000 バイト強）で、固定 7,500 の旧実装では上限超になる
+    setup([bigPage('p1', 1200)], { p1: [heading, longBody] })
+    const result = await runSubscriptionSync()
+    expect(result).toMatchObject({ success: true })
+    expect(algolia.saveObjects).toHaveBeenCalledTimes(1)
+    const calls = algolia.saveObjects.mock.calls as unknown as Array<[Array<Record<string, unknown>>]>
+    const records = calls[0][0]
+    const sections = records.filter((r) => r.recordType === 'section')
+    expect(sections.length).toBeGreaterThan(1)
+    for (const r of records) {
+      expect(Buffer.byteLength(JSON.stringify(r), 'utf8')).toBeLessThanOrEqual(10000)
+    }
+  })
+
+  it('それでも超過するレコードがあれば、clearObjects も saveObjects も呼ばずに失敗を返す', async () => {
+    // 親レコード自体が上限超（要約だけで 15,000 バイト）。節を切っても親は小さくならない。
+    setup([bigPage('p2', 5000)], { p2: [heading, longBody] })
+    const result = await runSubscriptionSync()
+    expect(result).toMatchObject({ ok: false })
+    expect(String((result as { error?: string }).error)).toContain('subscription_p2')
+    expect(algolia.clearObjects).not.toHaveBeenCalled()
+    expect(algolia.saveObjects).not.toHaveBeenCalled()
+  })
+})

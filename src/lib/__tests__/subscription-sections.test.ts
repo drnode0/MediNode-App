@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitIntoSections, buildSectionRecords, extractRelationIds, SECTION_MAX_BYTES } from '../subscription-sections'
+import { splitIntoSections, buildSectionRecords, extractRelationIds, sectionTextBudget, SECTION_MAX_BYTES, RECORD_MAX_BYTES } from '../subscription-sections'
 import type { NotionBlockLite } from '../content-stats'
 
 const para = (text: string): NotionBlockLite => ({ type: 'paragraph', paragraph: { rich_text: [{ plain_text: text }] } })
@@ -103,5 +103,46 @@ describe('extractRelationIds', () => {
   it('relation以外・空は空配列', () => {
     expect(extractRelationIds({ type: 'rich_text' })).toEqual([])
     expect(extractRelationIds({})).toEqual([])
+  })
+})
+
+// 2026-09-14 の本番障害: 節本文は7500バイトに収めていたが、親から引き継ぐ属性（要約・見出し一覧・
+// 参考文献ID等）が2500バイトを超えた記事で、節レコード全体が Algolia の上限 10,000 バイトを
+// 超えて saveObjects が 400 になった。上限は「レコード全体」なので、本文の予算は親の実サイズから引く。
+describe('sectionTextBudget / レコード全体が10,000バイトに収まる', () => {
+  const bigParent = {
+    objectID: 'subscription_big', title: '主幹動脈閉塞を疑う脳卒中の所見は？', genre: ['脳神経'],
+    source: 'medical', owner: 'subscription',
+    aiSummary: 'あ'.repeat(800), // 2400バイト
+    aiKeywords: 'い'.repeat(200), // 600バイト
+    headings: Array.from({ length: 12 }, (_, i) => `${i + 1}. ${'う'.repeat(20)}`),
+    referenceIds: Array.from({ length: 10 }, (_, i) => `00000000-0000-0000-0000-0000000000${String(i).padStart(2, '0')}`),
+    lastEdited: '2026-09-14T00:00:00.000Z',
+  }
+  it('親の属性が大きいほど本文の予算は小さくなる（固定7500ではない）', () => {
+    const small = { objectID: 'subscription_s', title: 't' }
+    expect(sectionTextBudget(bigParent)).toBeLessThan(sectionTextBudget(small))
+    expect(sectionTextBudget(bigParent)).toBeLessThan(SECTION_MAX_BYTES)
+  })
+  it('予算で切った節は、親の属性を引き継いだ後もレコード全体が10,000バイト以下', () => {
+    const long = ('え'.repeat(500) + '。').repeat(12) // 約18,000バイト
+    const chunks = splitIntoSections([h2('1. 所見'), para(long)], sectionTextBudget(bigParent))
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const rec of buildSectionRecords(bigParent, chunks)) {
+      expect(Buffer.byteLength(JSON.stringify(rec), 'utf8')).toBeLessThanOrEqual(RECORD_MAX_BYTES)
+    }
+  })
+  it('改行や引用符はJSONでエスケープされて膨らむぶんも数える', () => {
+    // 生テキストでは "\n" は1バイトだが、JSON化すると "\\n" の2バイトになる
+    const text = 'a"b\\c\n'.repeat(2000) // 生12,000バイト・JSON化で約18,000バイト
+    const parent = { objectID: 'subscription_q', title: 't' }
+    const chunks = splitIntoSections([h2('1. 記号'), para(text)], sectionTextBudget(parent))
+    for (const rec of buildSectionRecords(parent, chunks)) {
+      expect(Buffer.byteLength(JSON.stringify(rec), 'utf8')).toBeLessThanOrEqual(RECORD_MAX_BYTES)
+    }
+  })
+  it('親が異常に大きくても予算は最低1,000バイトを確保する（0や負にならない）', () => {
+    const huge = { objectID: 'subscription_h', title: 't', aiSummary: 'お'.repeat(5000) }
+    expect(sectionTextBudget(huge)).toBeGreaterThanOrEqual(1000)
   })
 })
