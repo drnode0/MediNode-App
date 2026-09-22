@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Star, MessageCircleQuestion, Search, ExternalLink } from 'lucide-react'
 import { recordNotionEscape } from '@/lib/notion-escape'
-import { unsupportedStats } from '@/lib/reader-doc'
+import { hasToggleHeadings, unsupportedStats } from '@/lib/reader-doc'
 import { useCqCaptureButton } from '@/components/CqCapture'
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock'
 import type { BookmarkEntry } from '@/lib/reader-marks'
@@ -260,7 +260,7 @@ export default function ReaderOverlay({
   // スプレッドがある記事では表層が要点の役割を、節ごとの深掘りが全文の役割を引き継ぐので、
   // 全文｜要点のトグルは出さない（保存された端末設定は上書きしない＝スプレッドのない記事を
   // 開けば従来どおり要点で開く）。
-  const canDigest = !isPersonalDoc && !spread
+  const canDigest = !isPersonalDoc && !spread && !(doc && hasToggleHeadings(doc.blocks))
   const effectiveViewMode: ReaderViewMode = canDigest ? viewMode : 'full'
 
   const onToggleBookmark = () => {
@@ -480,6 +480,7 @@ export default function ReaderOverlay({
                 {spread ? (
                   <ReaderSpread
                     spread={spread}
+                    doc={doc}
                     onImageClick={(u) => onZoom(u)}
                     scaleEm={SCALE_EM[fontScale]}
                     lastEdited={doc.lastEdited}

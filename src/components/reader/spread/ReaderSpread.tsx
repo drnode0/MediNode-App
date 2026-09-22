@@ -1,7 +1,9 @@
 'use client'
-import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState, type RefObject, type ComponentProps } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
-import { RenderedBlocks, ReaderRecallCtx } from '../ReaderBody'
+import { ReaderBody, RenderedBlocks, ReaderRecallCtx } from '../ReaderBody'
+import { ReaderNavBar } from '../ReaderNavBar'
+import { hasToggleHeadings, type ReaderDoc } from '@/lib/reader-doc'
 import { SectionReadButton } from '../SectionReadButton'
 import { SectionReadMark } from '../SectionReadMark'
 import { SpreadPartView } from './SpreadParts'
@@ -115,7 +117,7 @@ const SECTION_INDEX_STRIDE = 1000
  * 非nullにならないため現状は無害だが、将来 doc.sourceUrl をスプレッド側にも流用するときは
  * ここに Provider が要ることを忘れないこと。
  */
-export function ReaderSpread({
+function LegacyReaderSpread({
   spread,
   onImageClick,
   scaleEm,
@@ -785,5 +787,26 @@ export function ReaderSpread({
         </NoAutoMarkerCtx.Provider>
       </div>
     </div>
+  )
+}
+
+
+// 作者が開閉範囲を指定した原稿は、旧Spreadの全節折畳みを通さない。
+// 最新docを優先し、旧形式で保存済みのSpreadが届いても原稿の構造を保持する。
+export function ReaderSpread(props: ComponentProps<typeof LegacyReaderSpread> & { doc?: ReaderDoc }) {
+  const blocks = props.doc && (hasToggleHeadings(props.doc.blocks) || props.spread.authoredBlocks)
+    ? props.doc.blocks
+    : props.spread.authoredBlocks
+  if (!blocks) return <LegacyReaderSpread {...props} />
+  const doc: ReaderDoc = {
+    title: props.title, icon: props.icon, cover: props.cover,
+    lastEdited: props.lastEdited, blocks,
+  }
+  return (
+    <>
+      {props.scrollRef && <ReaderNavBar doc={doc} scrollRef={props.scrollRef} active={NO_FILTER} />}
+      <ReaderBody key={props.spread.pageId} doc={doc} onImageClick={props.onImageClick}
+        scaleEm={props.scaleEm} pageId={props.spread.pageId} />
+    </>
   )
 }

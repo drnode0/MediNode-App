@@ -8,8 +8,12 @@ export type ReaderInline = { text: string; bold?: boolean; italic?: boolean; cod
 // 常に optional として扱うこと（欠けていても描画は成立する）。
 type BlockBase = { blockId?: string }
 
+// toggleChildren は Notion が明示した見出しの子だけの範囲（後続の平坦なブロック数）。
+// 平坦な順序と既存の節アンカーを保つ。未指定の旧キャッシュは従来どおり描画する。
+// 見出しの文言や、次の見出しまでの距離から折畳み範囲を推測しない。
+
 export type ReaderBlock = BlockBase & (
-  | { kind: 'heading'; level: 1 | 2 | 3; inlines: ReaderInline[] }
+  | { kind: 'heading'; level: 1 | 2 | 3; inlines: ReaderInline[]; toggleChildren?: number }
   | { kind: 'paragraph'; inlines: ReaderInline[] }
   | { kind: 'list_item'; ordered: boolean; inlines: ReaderInline[] }
   | { kind: 'callout'; icon: string | null; color: string | null; blocks: ReaderBlock[] }
@@ -111,9 +115,19 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string, opts?: MapBlocksO
     const start = out.length
     const blockId = b.id ? String(b.id) : undefined
     switch (b.type) {
-      case 'heading_1': out.push({ kind: 'heading', level: 1, inlines: inlines(b.heading_1?.rich_text) }); break
-      case 'heading_2': out.push({ kind: 'heading', level: 2, inlines: inlines(b.heading_2?.rich_text) }); break
-      case 'heading_3': out.push({ kind: 'heading', level: 3, inlines: inlines(b.heading_3?.rich_text) }); break
+      case 'heading_1':
+      case 'heading_2':
+      case 'heading_3': {
+        const heading = b[b.type]
+        const children = heading?.is_toggleable ? mapBlocks(b.children || [], pageId, opts) : null
+        out.push({
+          kind: 'heading', level: Number(b.type.slice(-1)) as 1 | 2 | 3,
+          inlines: inlines(heading?.rich_text),
+          ...(children ? { toggleChildren: children.length } : {}),
+        })
+        if (children) out.push(...children)
+        break
+      }
       case 'paragraph': out.push({ kind: 'paragraph', inlines: inlines(b.paragraph?.rich_text) }); break
       case 'bulleted_list_item':
         out.push({ kind: 'list_item', ordered: false, inlines: inlines(b.bulleted_list_item?.rich_text) }); break
@@ -143,11 +157,20 @@ export function mapBlocks(blocks: RawBlock[], pageId?: string, opts?: MapBlocksO
         out.push({ kind: 'unsupported', text: `[未対応ブロック: ${b.type}]`, blockType: b.type })
     }
     if (blockId && out.length > start) out[start] = { ...out[start], blockId }
-    if (b.children?.length && b.type !== 'callout' && b.type !== 'table') {
+    const toggleHeading = b.type.startsWith('heading_') && b[b.type]?.is_toggleable
+    if (b.children?.length && b.type !== 'callout' && b.type !== 'table' && !toggleHeading) {
       out.push(...mapBlocks(b.children, pageId, opts))
     }
   }
   return out
+}
+
+// 作者が開閉範囲を指定した原稿では、旧要点抽出・全節折畳みを適用しない。
+export function hasToggleHeadings(blocks: ReaderBlock[]): boolean {
+  return blocks.some((b) =>
+    (b.kind === 'heading' && b.toggleChildren !== undefined) ||
+    (b.kind === 'callout' && hasToggleHeadings(b.blocks)),
+  )
 }
 
 // リーダーが描画できるNotionブロックtype（mapBlocksのswitchと同期させること）。

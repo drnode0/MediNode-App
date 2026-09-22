@@ -21,7 +21,7 @@ export function ReaderNavBar({
   active,
 }: {
   doc: ReaderDoc
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement | null>
   active: Set<Confidence>
 }) {
   const tldr = findTldr(doc)

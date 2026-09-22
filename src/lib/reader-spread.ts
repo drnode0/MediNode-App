@@ -6,6 +6,7 @@
 // ここは純関数だけに留めてテスト可能にする（描画は components/reader/spread 側）。
 import {
   calloutRole,
+  hasToggleHeadings,
   parseSectionHeading,
   sectionAnchor,
   type ReaderBlock,
@@ -152,6 +153,9 @@ export type SpreadQuiz = {
 export type SpreadRef = { title: string; source: string; note: string; sourceId?: string }
 
 export type SpreadDoc = {
+  // 明示された折畳みを持つ原稿は順序と範囲をそのまま描く。旧保存データには無い。
+  // 表層・deepへの再配置やオーバレイの文言ではなく、原本のブロックだけを保持する。
+  authoredBlocks?: ReaderBlock[]
   version: 1
   pageId: string
   title: string
@@ -306,6 +310,7 @@ export function buildSpreadDraft(doc: ReaderDoc, pageId: string): SpreadDoc {
     version: 1,
     pageId,
     title: doc.title,
+    ...(hasToggleHeadings(doc.blocks) ? { authoredBlocks: doc.blocks } : {}),
     lead: split.lead,
     preface: split.preface,
     sections: split.sections.map((s) => ({

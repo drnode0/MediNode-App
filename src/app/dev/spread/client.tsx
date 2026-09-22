@@ -52,6 +52,7 @@ export function DevSpreadClient({ payload }: { payload: DevSpreadPayload }) {
           <ReaderSearchCtx.Provider value={query}>
             <ReaderSpread
               spread={payload.spread}
+              doc={payload.doc}
               onImageClick={() => {}}
               lastEdited={payload.lastEdited}
               cover={payload.cover}

@@ -1,9 +1,10 @@
 'use client'
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
+import { createContext, Fragment, useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { ChevronDown, CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
 import { digestSections, type DigestSection, type ReaderViewMode } from '@/lib/reader-digest'
 import {
   calloutRole,
+  hasToggleHeadings,
   parseSectionHeading,
   sectionAnchor,
   isRecapText,
@@ -15,6 +16,7 @@ import {
 import { isDimmed, type Confidence } from '@/lib/reader-confidence'
 import { KnowledgeTitle, sectionHeadingParts } from '@/lib/title-display'
 import { ReaderSourceCtx } from './reader-source-context'
+import { ReaderSearchCtx } from './reader-search-context'
 import { recordNotionEscape } from '@/lib/notion-escape'
 import { Inlines, NoAutoMarkerCtx } from './Inlines'
 import { useRecallStore } from '@/components/recall/RecallProvider'
@@ -331,13 +333,56 @@ function Block({
 // 節末は「最後の list_item の直後」に来ることがあるため、先頭だけでなく全項目の位置が要る）。
 type ListGroup = { kind: 'list'; ordered: boolean; items: ReaderInline[][]; index: number; indices: number[] }
 type ItemGroup = { kind: 'item'; block: ReaderBlock; index: number }
-type Grouped = ItemGroup | ListGroup
+type ToggleGroup = { kind: 'toggle'; block: ReaderBlock & { kind: 'heading' }; blocks: ReaderBlock[]; index: number; endIndex: number }
+type Grouped = ItemGroup | ListGroup | ToggleGroup
+
+function ToggleHeading({ group, offset, onImageClick, active }: {
+  group: ToggleGroup
+  offset: number
+  onImageClick: (url: string) => void
+  active: Set<Confidence>
+}) {
+  const [open, setOpen] = useState(false)
+  const query = useContext(ReaderSearchCtx)
+  const searching = query.trim().length > 0
+  const id = useId()
+  useEffect(() => { setOpen(false) }, [group.block])
+  const expanded = searching || open
+  const parsed = parseSectionHeading(group.block.inlines)
+  const anchor = group.block.level === 2 ? sectionAnchor(parsed?.n ?? null, offset + group.index) : undefined
+  return (
+    <section data-reader-disclosure="" data-section={anchor}>
+      <h3 className="mt-9 mb-3.5 border-b border-gray-200 dark:border-gray-700">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={id}
+          disabled={searching}
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-start gap-2 min-h-[44px] py-2 text-left text-[1.12em] font-bold text-gray-900 dark:text-gray-100"
+        >
+          <ChevronDown className={`h-[1em] w-[1em] shrink-0 mt-1 ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
+          <span className="min-w-0 break-words"><Inlines items={group.block.inlines} k={`toggle-${id}`} plain /></span>
+        </button>
+      </h3>
+      <div id={id} hidden={!expanded}>
+        {expanded && <RenderedBlocks blocks={group.blocks} offset={offset + group.index + 1} onImageClick={onImageClick} active={active} />}
+      </div>
+    </section>
+  )
+}
 
 // 連続する list_item を ul/ol にまとめる。index はキー生成用にグループ先頭の元インデックスを保持する。
 function groupBlocks(blocks: ReaderBlock[]): Grouped[] {
   const out: Grouped[] = []
-  blocks.forEach((b, idx) => {
-    if (b.kind === 'list_item') {
+  for (let idx = 0; idx < blocks.length; idx++) {
+    const b = blocks[idx]
+    if (b.kind === 'heading' && b.toggleChildren !== undefined) {
+      const count = Number.isInteger(b.toggleChildren) && b.toggleChildren >= 0 ? b.toggleChildren : 0
+      const endIndex = Math.min(blocks.length - 1, idx + count)
+      out.push({ kind: 'toggle', block: b, blocks: blocks.slice(idx + 1, endIndex + 1), index: idx, endIndex })
+      idx = endIndex
+    } else if (b.kind === 'list_item') {
       const last = out[out.length - 1]
       if (last && last.kind === 'list' && last.ordered === b.ordered) {
         last.items.push(b.inlines); last.indices.push(idx)
@@ -347,7 +392,7 @@ function groupBlocks(blocks: ReaderBlock[]): Grouped[] {
     } else {
       out.push({ kind: 'item', block: b, index: idx })
     }
-  })
+  }
   return out
 }
 
@@ -381,6 +426,15 @@ export function RenderedBlocks({
   return (
     <>
       {grouped.map((g, i) => {
+        if (g.kind === 'toggle') {
+          const end = endAt(g.endIndex)
+          return (
+            <Fragment key={g.block.blockId ?? i}>
+              <ToggleHeading group={g} offset={offset} onImageClick={onImageClick} active={active} />
+              {end && <SectionReadButton pageId={pageId} sectionKey={end.sectionKey} />}
+            </Fragment>
+          )
+        }
         if (g.kind === 'list') {
           const Tag = g.ordered ? 'ol' : 'ul'
           const lastIndex = g.indices[g.indices.length - 1]
@@ -577,7 +631,7 @@ export function ReaderBody({
         <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
           <KnowledgeTitle title={doc.title} level={doc.icon?.startsWith('http') ? null : doc.icon} />
         </h2>
-        {mode === 'digest' ? (
+        {mode === 'digest' && !hasToggleHeadings(doc.blocks) ? (
           <DigestBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
         ) : (
           <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />

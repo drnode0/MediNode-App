@@ -20,7 +20,7 @@ const getReaderDocCached = (pageId: string, token: string) =>
       // pageId を渡すと file 画像/cover が安定プロキシURLになる（署名URL失効対策）。
       return mapBlocksToReaderDoc(page as Parameters<typeof mapBlocksToReaderDoc>[0], blocks, pageId)
     },
-    ['subscription-reader-doc', pageId],
+    ['subscription-reader-doc-v2', pageId],
     // tags を付けることで、サブスク同期時に revalidateTag で明示パージできる
     // （付けないと最大1時間は古い本文が返り続ける）。
     { revalidate: 3600, tags: [SUBSCRIPTION_READER_TAG] },
