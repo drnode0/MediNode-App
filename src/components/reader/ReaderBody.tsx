@@ -19,6 +19,7 @@ import { ReaderSourceCtx } from './reader-source-context'
 import { ReaderSearchCtx } from './reader-search-context'
 import { recordNotionEscape } from '@/lib/notion-escape'
 import { Inlines, NoAutoMarkerCtx } from './Inlines'
+import { ReaderCitationProvider } from './ReaderCitations'
 import { useRecallStore } from '@/components/recall/RecallProvider'
 import { buildClaimIndex, claimForRowText, sectionEnds } from '@/lib/recall/reader-claims'
 import { RecallNode } from './RecallNode'
@@ -197,11 +198,11 @@ function Block({
         const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={anchor} className="flex items-start gap-2.5 mt-10 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-3">
               <span className="text-[0.95em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
-              <h3 className="flex items-center gap-2 text-[1.3em] font-bold text-gray-900 dark:text-gray-100 leading-snug">
+              <h3 className="flex items-center gap-2 text-[1.12em] font-bold text-gray-900 dark:text-gray-100 leading-snug">
                 {p.rest}
                 {/* 見出しに既読の印。節末まで読まなくても、節に入った時点で
                     前に読んだ節かどうか分かるようにする（2026-09-04 指摘）。 */}
@@ -215,14 +216,14 @@ function Block({
         const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
         if (SecIcon) {
           return (
-            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.3em] font-bold text-gray-900 dark:text-gray-100 mt-9 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.12em] font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">
               <SecIcon className={`h-[1.05em] w-[1.05em] shrink-0 ${secColor}`} aria-hidden />
               <span className="min-w-0">{secText}</span>
             </h3>
           )
         }
         return (
-          <h3 data-section={anchor} className="text-[1.3em] font-bold text-gray-900 dark:text-gray-100 mt-9 mb-3.5 pb-2 border-b border-gray-200 dark:border-gray-700">
+          <h3 data-section={anchor} className="text-[1.12em] font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
@@ -251,7 +252,7 @@ function Block({
       const body = <Inlines items={block.inlines} k={`p-${index}`} />
       return (
         <p
-          className={`leading-[1.9] my-7 whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
+          className={`leading-[1.85] my-5 whitespace-pre-line break-words transition-colors duration-150 motion-reduce:transition-none ${color}`}
         >
           {recap ? <NoAutoMarkerCtx.Provider value={true}>{body}</NoAutoMarkerCtx.Provider> : body}
         </p>
@@ -610,6 +611,7 @@ export function ReaderBody({
     //
     // サイズの流れ: .reader-prose（基準サイズ・iOSはDynamic Type）→ 内側ラッパー（Aa倍率）
     // → 本文/見出し/表は em 系サイズで連動拡大。更新日はメタ情報なので固定のまま。
+    <ReaderCitationProvider blocks={doc.blocks}>
     <ReaderRecallCtx.Provider value={{ pageId, sectionKey: 'sec0' }}>
     <ReaderSourceCtx.Provider value={source}>
     <div className="reader-prose">
@@ -628,7 +630,7 @@ export function ReaderBody({
         {/* ページアイコンは生の絵文字で出さず、種別ヒントとして KnowledgeTitle に渡す
             （タイトル先頭の絵文字は剥がされ lucide アイコンに置き換わる＝二重に出ない）。
             iconForLevel は includes 判定なので、画像アイコン（URL）は渡さない。 */}
-        <h2 className="text-[1.42em] font-bold leading-snug text-gray-900 dark:text-gray-100 mb-4">
+        <h2 className="text-[1.36em] font-bold leading-normal text-gray-900 dark:text-gray-100 mb-4">
           <KnowledgeTitle title={doc.title} level={doc.icon?.startsWith('http') ? null : doc.icon} />
         </h2>
         {mode === 'digest' && !hasToggleHeadings(doc.blocks) ? (
@@ -640,5 +642,6 @@ export function ReaderBody({
     </div>
     </ReaderSourceCtx.Provider>
     </ReaderRecallCtx.Provider>
+    </ReaderCitationProvider>
   )
 }

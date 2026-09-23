@@ -3,7 +3,7 @@
 // 本文レンダラ・目次・確信度チップ・lucide などリーダーでしか使わない重い依存はこのファイルに
 // 閉じ込め、アプリ初期バンドル（立ち上がり）を軽く保つ。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Star, MessageCircleQuestion, Search, ExternalLink } from 'lucide-react'
+import { X, Star, MessageCircleQuestion, Search, ExternalLink, MoreHorizontal } from 'lucide-react'
 import { recordNotionEscape } from '@/lib/notion-escape'
 import { hasToggleHeadings, unsupportedStats } from '@/lib/reader-doc'
 import { useCqCaptureButton } from '@/components/CqCapture'
@@ -112,7 +112,7 @@ export default function ReaderOverlay({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || e.defaultPrevented) return
       if (zoom) { onZoom(null); return }
       if (searchOpen) { setSearchOpen(false); setSearchQuery(''); return }
       onClose()
@@ -290,35 +290,12 @@ export default function ReaderOverlay({
         tabIndex={-1}
         className="fixed inset-x-0 bottom-0 z-[9999] bg-white dark:bg-gray-800 rounded-t-2xl max-h-[92vh] flex flex-col shadow-xl outline-none"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-1">
-            <span className={`text-xs font-medium ${isPersonalDoc ? 'text-teal-600 dark:text-teal-300' : 'text-purple-600 dark:text-purple-300'}`}>
-              {hit.owner === 'personal' ? '自分のページ' : hit.owner === 'team' ? '部署のページ' : 'プレミアム'}
-            </span>
-            <button
-              type="button"
-              onClick={onToggleBookmark}
-              aria-pressed={pressed}
-              aria-label="ブックマーク"
-              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] transition-transform duration-150 motion-reduce:transition-none motion-reduce:transform-none ${
-                popped ? 'scale-125' : 'scale-100'
-              } ${
-                pressed
-                  ? 'text-amber-500'
-                  : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-              }`}
-            >
-              <Star className="w-5 h-5" fill={pressed ? 'currentColor' : 'none'} />
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSearchOpen((o) => !o); if (searchOpen) setSearchQuery('') }}
-              aria-pressed={searchOpen}
-              aria-label="記事内を検索"
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+        <div className="relative z-20 flex shrink-0 items-center justify-between gap-1 px-3 py-1 border-b border-gray-200 dark:border-gray-700" data-reader-toolbar="">
+          <span className="min-w-0 truncate text-xs font-medium text-brand-700 dark:text-brand-300">
+            {hit.owner === 'personal' ? '自分のページ' : hit.owner === 'team' ? '部署のページ' : 'プレミアム'}
+          </span>
+          <div className="flex shrink-0 items-center">
+            {doc && (!spread || spread.authoredBlocks || hasToggleHeadings(doc.blocks)) && <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />}
             {/* 文字サイズ（Yahoo!ニュース「あ」方式の巡回）。状態はAaの字面の大きさ＋色で示す。 */}
             <button
               type="button"
@@ -335,9 +312,6 @@ export default function ReaderOverlay({
                 Aa
               </span>
             </button>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* 逃げ道常設（降格式の第3原則）: 個人・部署ページはいつでもNotionへ戻れる */}
             {isPersonalDoc && hit.notionUrl && (
               <a
                 href={hit.notionUrl}
@@ -351,9 +325,44 @@ export default function ReaderOverlay({
                 <ExternalLink className="w-5 h-5" />
               </a>
             )}
-            <button type="button" onClick={onClose} aria-label="閉じる" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
-              <X className="w-5 h-5" />
+            <details className="relative" onKeyDown={(event) => {
+              if (event.key === 'Escape' && event.currentTarget.open) {
+                event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false
+                event.currentTarget.querySelector('summary')?.focus()
+              }
+            }}>
+              <summary aria-label="記事の操作" className="list-none [&::-webkit-details-marker]:hidden flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer text-gray-500 dark:text-gray-400">
+                <MoreHorizontal className="w-5 h-5" />
+              </summary>
+              <div className="absolute right-0 top-full z-30 w-52 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg py-2"
+                onClick={(event) => { const details = event.currentTarget.closest('details'); if (details) details.open = false }}>
+            <button
+              type="button"
+              onClick={onToggleBookmark}
+              aria-pressed={pressed}
+              aria-label="ブックマーク"
+              className={`flex w-full items-center gap-3 px-3 min-h-[44px] transition-transform duration-150 motion-reduce:transition-none motion-reduce:transform-none ${
+                popped ? 'scale-125' : 'scale-100'
+              } ${
+                pressed
+                  ? 'text-amber-500'
+                  : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              <Star className="w-5 h-5" fill={pressed ? 'currentColor' : 'none'} /><span className="text-sm">ブックマーク</span>
             </button>
+            <button
+              type="button"
+              onClick={() => { setSearchOpen((o) => !o); if (searchOpen) setSearchQuery('') }}
+              aria-pressed={searchOpen}
+              aria-label="記事内を検索"
+              className="flex w-full items-center gap-3 px-3 min-h-[44px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <Search className="w-5 h-5" /><span className="text-sm">記事内を検索</span>
+            </button>
+              </div>
+            </details>
+            <button type="button" onClick={onClose} aria-label="閉じる" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"><X className="w-5 h-5" /></button>
           </div>
         </div>
         {searchOpen && (
@@ -374,10 +383,7 @@ export default function ReaderOverlay({
         </p>
         {/* overflow-x-hidden＋overscroll-contain: スマホで縦スクロール中に横へずれる
             （幅超過コンテンツで水平パンが起きる）のを封じる。表は自前の overflow-x-auto で横スクロール可。 */}
-        {/* scroll-pt-14: 目次バーは上端に貼り付く h-0 オーバーレイなので、scrollIntoView で
-            節へ飛ぶと見出しがバーの真下に潜る（実測61px・2026-08-13）。scroll-padding-top を
-            バー高（44px）より少し大きく取り、飛び先が必ずバーの下端より下に来るようにする。 */}
-        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-5 pt-4 pb-20 scroll-pt-14">
+        <div ref={scrollRef} className="overflow-y-auto overflow-x-hidden overscroll-contain px-[22px] pt-[22px] pb-24 scroll-pt-4">
           <div className="mx-auto w-full max-w-2xl">
           {state === 'loading' && (
             <div className="animate-pulse motion-reduce:animate-none" role="status">
@@ -472,10 +478,6 @@ export default function ReaderOverlay({
                   仕様・ReaderSpread.tsx 参照）ため、チップを出すと押しても絞り込みが効かない
                   見掛け倒しのUIになる。 */}
               {!spread && effectiveViewMode === 'full' && <ConfidenceChips marks={marks} active={active} onToggle={toggleActive} />}
-              {/* スプレッドは自前の追従目次（チップ＋現在地＋読了バー）を持つ（パイロット準拠）。
-                  ReaderNavBar のドロップダウン目次と役割が重なり、上端で2本のバーが
-                  重なって見えるため、スプレッドのときはこちらを出さない。 */}
-              {!spread && <ReaderNavBar doc={doc} scrollRef={scrollRef} active={active} />}
               <ReaderSearchCtx.Provider value={searchOpen ? searchQuery : ''}>
                 {spread ? (
                   <ReaderSpread

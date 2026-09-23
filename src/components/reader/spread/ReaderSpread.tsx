@@ -2,7 +2,7 @@
 import { useContext, useEffect, useMemo, useRef, useState, type RefObject, type ComponentProps } from 'react'
 import { ReaderSearchCtx } from '../reader-search-context'
 import { ReaderBody, RenderedBlocks, ReaderRecallCtx } from '../ReaderBody'
-import { ReaderNavBar } from '../ReaderNavBar'
+import { ReaderCitationProvider } from '../ReaderCitations'
 import { hasToggleHeadings, type ReaderDoc } from '@/lib/reader-doc'
 import { SectionReadButton } from '../SectionReadButton'
 import { SectionReadMark } from '../SectionReadMark'
@@ -797,14 +797,13 @@ export function ReaderSpread(props: ComponentProps<typeof LegacyReaderSpread> & 
   const blocks = props.doc && (hasToggleHeadings(props.doc.blocks) || props.spread.authoredBlocks)
     ? props.doc.blocks
     : props.spread.authoredBlocks
-  if (!blocks) return <LegacyReaderSpread {...props} />
+  if (!blocks) return <ReaderCitationProvider blocks={props.doc?.blocks ?? []}><LegacyReaderSpread {...props} /></ReaderCitationProvider>
   const doc: ReaderDoc = {
     title: props.title, icon: props.icon, cover: props.cover,
     lastEdited: props.lastEdited, blocks,
   }
   return (
     <>
-      {props.scrollRef && <ReaderNavBar doc={doc} scrollRef={props.scrollRef} active={NO_FILTER} />}
       <ReaderBody key={props.spread.pageId} doc={doc} onImageClick={props.onImageClick}
         scaleEm={props.scaleEm} pageId={props.spread.pageId} />
     </>

@@ -154,7 +154,9 @@ mark[data-reader-search].reader-search-active {
   font-variant-numeric: tabular-nums;
   /* 通読する地の文はわずかに字間を開ける。詰めるのは見出しだけ（下記palt）。
      body 全体の palt（継承）もここで解除する — 詰めっぱなしだと通読が窮屈になる。 */
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  font-size: 17px;
+  font-weight: 400;
   font-feature-settings: normal;
 }
 
@@ -165,6 +167,7 @@ mark[data-reader-search].reader-search-active {
    macOS Safari は対象外 — -apple-system-body が13px相当で逆に縮む。 */
 .ios-dt .reader-prose {
   font: -apple-system-body;
+  font-weight: 400;
   /* ショートハンドが設定するシステム書体（SF＋ヒラギノ）をそのまま使う —
      本文の書体方針（上記 .reader-prose）と一致するため上書き不要。 */
   font-variant-numeric: tabular-nums;

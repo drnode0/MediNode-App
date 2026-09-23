@@ -4,12 +4,14 @@
 // mark[data-reader-search] の出し方は ReaderOverlay が DOM を数えて現在位置を
 // 付け替える前提なので、属性と構造を変えないこと。
 import { createContext, useContext } from 'react'
-import { Bookmark, ExternalLink } from 'lucide-react'
+import { Bookmark } from 'lucide-react'
 import { type ReaderInline } from '@/lib/reader-doc'
 import { CONFIDENCE_MARKS, type Confidence } from '@/lib/reader-confidence'
 import { ConfidenceMark, MARK_COLOR } from './ConfidenceMark'
 import { ReaderSearchCtx } from './reader-search-context'
 import { findMatchRanges, inlineSegments } from '@/lib/reader-search'
+import { detachedCitationIndexes, scholarlySourceUrl } from '@/lib/reader-citations'
+import { CitationNumber, useReaderCitations } from './ReaderCitations'
 
 // CONFIDENCE_MARKS からマーク文字を導出する（表記ゆれ防止：分割用正規表現と判定マップを同一ソースから作る）。
 const MARK_OF: Record<string, Confidence> = Object.fromEntries(
@@ -61,19 +63,13 @@ const INLINE_COLOR: Record<string, string> = {
   brown: 'text-amber-700 dark:text-amber-400',
   gray: 'text-gray-500 dark:text-gray-400',
 }
-// 太字だけの強調にも薄いマーカーを敷き、重要箇所が「面」で目に入るようにする
-// （執筆側が色を付けている場合はそちらを優先）。
-// 濃度は控えめに — 数値密なナレッジでは1画面に何箇所も出るため、濃いと「面の圧」になる。
-const BOLD_MARKER = `bg-amber-100/40 dark:bg-amber-300/10 ${MARKER_BASE}`
-
-// 既に背景色のある領域（結論・署名・査読スタンプなどのボックスやrecap）では、
-// 自動マーカーを重ねると塗りだらけになる。そこでは太字は太字のままにする。
-// Notionで明示的に付けた色（n.color）はボックス内でも尊重する。
+// 旧スプレッドからのimport互換。自動マーカーは廃止し、作者の明示色だけを描く。
 export const NoAutoMarkerCtx = createContext(false)
 
 export function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string; plain?: boolean }) {
-  const noAutoMarker = useContext(NoAutoMarkerCtx)
   const searchQuery = useContext(ReaderSearchCtx)
+  const citations = useReaderCitations()
+  const detached = !plain && !searchQuery && citations ? detachedCitationIndexes(items) : new Set<number>()
   // 検索中だけ、inlines連結テキスト上のヒットレンジを各inlineのセグメントに割り付ける。
   const segs = searchQuery
     ? inlineSegments(items, findMatchRanges(items.map((n) => n.text).join(''), searchQuery))
@@ -120,35 +116,33 @@ export function Inlines({ items, k, plain }: { items: ReaderInline[]; k: string;
   return (
     <>
       {items.map((n, i) => {
-        // 太字は本気で太く（老眼でも強調が拾えるように）。font-medium では地の文と区別がつかない。
         const color = n.color ? INLINE_COLOR[n.color] ?? '' : ''
-        const autoMarker = !noAutoMarker && n.bold && !n.code ? BOLD_MARKER : ''
         const cls = [
-          n.bold ? 'font-bold' : '',
+          n.bold ? 'font-[650]' : '',
           n.italic ? 'italic' : '',
           n.code ? 'font-mono text-[0.85em] bg-gray-100 dark:bg-gray-700 px-1 rounded' : '',
-          plain ? '' : color || autoMarker,
+          plain ? '' : color,
         ].join(' ')
         if (n.href) {
           // 直前のノードが確信度マーク単体なら、リンクの文字色をマークの意味色へ寄せる。
           // ただし確信度の一次表現は ConfidenceMark（sr-only 語）に置く。
           const prevMark = MARK_OF[items[i - 1]?.text?.trim() ?? '']
           const linkColor = prevMark ? MARK_COLOR[prevMark] : 'text-brand-600 dark:text-brand-300'
-          // 出典リンクは「チップ」に畳む。下線つきの長文リンクは本文の中で1〜2行を
-          // 占領して読みの流れを分断するため、幅に上限を設けた小さなピルにする
-          // （全文はaria-labelとtitleに残る。タップ挙動は従来どおり別タブで出典を開く）。
+          const sourceUrl = scholarlySourceUrl(n.href)
+          if (detached.has(i) && sourceUrl && citations?.has(sourceUrl)) {
+            return <CitationNumber key={i} href={n.href} label={n.text} />
+          }
+          // 文中のリンクや出典と判定できないものは、文字を省略せず本文として読む。
+          // 検索中も元の全文を出し、原本上のヒット位置とDOMのmarkを一致させる。
           return (
             <a
               key={i}
               href={n.href}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`出典: ${n.text}`}
-              title={n.text.trim()}
-              className={`inline-flex items-center gap-1 align-baseline max-w-[13em] mx-0.5 px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 text-[0.8em] leading-normal whitespace-nowrap no-underline ${linkColor}`}
+              className={`underline decoration-current/40 underline-offset-4 break-words ${linkColor} ${cls}`}
             >
-              <ExternalLink className="w-[1em] h-[1em] shrink-0" aria-hidden="true" />
-              <span className="truncate">{renderInlineText(n, i, true)}</span>
+              {renderInlineText(n, i, true)}
             </a>
           )
         }
