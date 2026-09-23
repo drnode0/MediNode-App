@@ -20,6 +20,7 @@ import { ReaderSearchCtx } from './reader-search-context'
 import { recordNotionEscape } from '@/lib/notion-escape'
 import { Inlines, NoAutoMarkerCtx } from './Inlines'
 import { ReaderCitationProvider } from './ReaderCitations'
+import { leadingEmphasisIndex } from '@/lib/reader-hierarchy'
 import { useRecallStore } from '@/components/recall/RecallProvider'
 import { buildClaimIndex, claimForRowText, sectionEnds } from '@/lib/recall/reader-claims'
 import { RecallNode } from './RecallNode'
@@ -198,7 +199,7 @@ function Block({
         const anchor = sectionAnchor(p ? p.n : null, index)
         if (p) {
           return (
-            <div data-section={anchor} className="flex items-start gap-2.5 mt-8 mb-3">
+            <div data-section={anchor} className="reader-section-heading flex items-start gap-2.5">
               <span className="text-[0.95em] font-bold tabular-nums text-teal-700 dark:text-teal-300 bg-teal-500/12 w-7 h-7 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5">
                 {p.n}
               </span>
@@ -216,14 +217,14 @@ function Block({
         const { Icon: SecIcon, color: secColor, text: secText } = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
         if (SecIcon) {
           return (
-            <h3 data-section={anchor} className="flex items-center gap-2 text-[1.12em] font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">
+            <h3 data-section={anchor} className="reader-section-heading flex items-center gap-2 text-[1.12em] font-bold text-gray-900 dark:text-gray-100">
               <SecIcon className={`h-[1.05em] w-[1.05em] shrink-0 ${secColor}`} aria-hidden />
               <span className="min-w-0">{secText}</span>
             </h3>
           )
         }
         return (
-          <h3 data-section={anchor} className="text-[1.12em] font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">
+          <h3 data-section={anchor} className="reader-section-heading text-[1.12em] font-bold text-gray-900 dark:text-gray-100">
             <Inlines items={block.inlines} k={`h-${index}`} plain />
           </h3>
         )
@@ -353,14 +354,14 @@ function ToggleHeading({ group, offset, onImageClick, active }: {
   const anchor = group.block.level === 2 ? sectionAnchor(parsed?.n ?? null, offset + group.index) : undefined
   return (
     <section data-reader-disclosure="" data-section={anchor}>
-      <h3 className="mt-9 mb-3.5 border-b border-gray-200 dark:border-gray-700">
+      <h3 className="reader-section-heading">
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={id}
           disabled={searching}
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-start gap-2 min-h-[44px] py-2 text-left text-[1.12em] font-bold text-gray-900 dark:text-gray-100"
+          className="flex w-full items-start gap-2 min-h-[44px] py-1 text-left text-[1.12em] font-bold text-gray-900 dark:text-gray-100"
         >
           <ChevronDown className={`h-[1em] w-[1em] shrink-0 mt-1 ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
           <span className="min-w-0 break-words"><Inlines items={group.block.inlines} k={`toggle-${id}`} plain /></span>
@@ -402,6 +403,7 @@ export function RenderedBlocks({
   onImageClick,
   active,
   offset = 0,
+  leadIndex,
 }: {
   blocks: ReaderBlock[]
   onImageClick: (u: string) => void
@@ -410,6 +412,8 @@ export function RenderedBlocks({
   // Block に渡す index が doc 全体と一致し、番号なしH2の data-section アンカー（i<index>）が
   // 目次バーの計算とズレなくなる。
   offset?: number
+  // ルート文書だけが指定する。入れ子や要点表示には自動伝播しない。
+  leadIndex?: number
 }) {
   const grouped = groupBlocks(blocks)
   const { pageId, sectionKey: ctxSection } = useContext(ReaderRecallCtx)
@@ -471,7 +475,13 @@ export function RenderedBlocks({
         const end = endAt(g.index)
         return (
           <Fragment key={i}>
-            <Block block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
+            {offset + g.index === leadIndex ? (
+              <div className="reader-lead" data-reader-lead="">
+                <Block block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
+              </div>
+            ) : (
+              <Block block={g.block} index={offset + g.index} onImageClick={onImageClick} active={active} />
+            )}
             {end && <SectionReadButton pageId={pageId} sectionKey={end.sectionKey} />}
           </Fragment>
         )
@@ -636,7 +646,7 @@ export function ReaderBody({
         {mode === 'digest' && !hasToggleHeadings(doc.blocks) ? (
           <DigestBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
         ) : (
-          <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} />
+          <RenderedBlocks blocks={doc.blocks} onImageClick={onImageClick} active={active} leadIndex={leadingEmphasisIndex(doc.blocks)} />
         )}
       </div>
     </div>

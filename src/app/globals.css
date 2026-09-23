@@ -186,6 +186,35 @@ mark[data-reader-search].reader-search-active {
   letter-spacing: 0;
 }
 
+/* 太字が強く表示される端末でも、冒頭の答えと節の区切りを見分けられる面と罫線。 */
+.reader-lead {
+  margin: 1.4em 0;
+  padding: 1em 1em 1em 1.05em;
+  border: 1px solid #b5d5c6;
+  border-left: 4px solid #347c62;
+  border-radius: 10px;
+  background: #eff7f2;
+}
+.reader-lead > p { margin-block: 0; }
+.reader-section-heading {
+  margin-top: 2em;
+  margin-bottom: .85em;
+  padding: .65em .8em;
+  border-left: 3px solid #43856d;
+  border-radius: 0 5px 5px 0;
+  background: #f1f4f3;
+  line-height: 1.6;
+}
+.dark .reader-lead {
+  border-color: #3e6a56;
+  border-left-color: #7bbb99;
+  background: #20392d;
+}
+.dark .reader-section-heading {
+  border-left-color: #83bca4;
+  background: #293b36;
+}
+
 /* ────────────────────────────────────────────────────────────
    プレミアムのアカウントマークに流すグラデーション（AccountButton）。
    ベタ塗りより奥行きが出て、設定のプレミアム帯と佇まいが揃う。
