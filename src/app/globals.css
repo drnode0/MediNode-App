@@ -195,12 +195,24 @@ mark[data-reader-search].reader-search-active {
   background: #eff7f2;
 }
 .reader-lead > p { margin-block: 0; }
+/* 作者が段落・箇条書き・短い太字ラベルで組んだ結論。本文を一律に太字にしない。 */
+.reader-conclusion { font-weight: 400; }
+.reader-conclusion > p { margin-block: .85em; }
+.reader-conclusion > :first-child { margin-top: 0; }
+.reader-conclusion > :last-child { margin-bottom: 0; }
 .reader-section-heading {
   margin-top: 2em;
   margin-bottom: .85em;
   padding: .65em .8em;
   border-radius: 5px;
   background: #f1f4f3;
+  line-height: 1.6;
+}
+.reader-subsection-heading {
+  margin-top: 1.6em;
+  margin-bottom: .6em;
+  font-size: 1em;
+  font-weight: 650;
   line-height: 1.6;
 }
 .dark .reader-lead {

@@ -1,6 +1,6 @@
 'use client'
 import { createContext, Fragment, useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChevronDown, CircleCheck, ExternalLink, BookOpenText, Zap, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
+import { ChevronDown, CircleCheck, ExternalLink, BookOpenText, BookText, TriangleAlert, NotebookPen, Info, type LucideIcon } from 'lucide-react'
 import { digestSections, type DigestSection, type ReaderViewMode } from '@/lib/reader-digest'
 import {
   calloutRole,
@@ -31,11 +31,8 @@ import { SectionReadMark } from './SectionReadMark'
 // pageId が空文字のときは Recall の部品を一切描かない（個人・部署リーダー・dev ハーネス）。
 export const ReaderRecallCtx = createContext<{ pageId: string; sectionKey: string }>({ pageId: '', sectionKey: 'sec0' })
 
-// 色つきボックスの枠。左の太い柱で種別を示し、上下右の細い線で箱の端を定義する。
-// 塗り（*-50 系）は白背景の上ではほとんど沈むので、柱だけだと右端・下端が消えて
-// 「囲い」として成立しない（実機の見え方で確認）。
-// かといって全周を太くすると、節ごとに出る recap（1ページに5〜8個）が結論ボックスと
-// 同じ重さになり、「答え」と「節の持ち帰り」の段差が潰れる。だから太いのは左だけに留める。
+// 結論以外のcalloutは既存の種別別デザインを保つ。
+// 結論はglobals.cssのreader-leadを使い、左端の強調線を付けない。
 const BOX_FRAME = 'border-l-4 border-y border-r rounded-r-lg'
 const BOX_EDGE: Record<string, string> = {
   amber: 'border-l-amber-400 dark:border-l-amber-500 border-y-amber-300 border-r-amber-300 dark:border-y-amber-500/40 dark:border-r-amber-500/40',
@@ -59,7 +56,7 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
   if (dim) return 'text-gray-500 dark:text-gray-400'
   const text = block.kind === 'paragraph' || block.kind === 'list_item' ? block.inlines.map((x) => x.text).join('') : ''
   // recap（→だから…）は節の持ち帰りポイント。淡色で沈めず、teal の小箱で「面」として立てる。
-  // 柱は3px＝結論ボックス（4px）より一段軽い。数が多いのでここで段差をつける。
+  // 既存recapのスタイルは、作者が明示した結論枠の変更とは分けて保持する。
   if (isRecapText(text))
     return 'text-gray-700 dark:text-gray-300 font-medium bg-teal-50/70 dark:bg-teal-900/20 border-l-[3px] border-y border-r border-l-teal-500 border-y-teal-300 border-r-teal-300 dark:border-y-teal-500/40 dark:border-r-teal-500/40 rounded-r-md px-3 py-2'
   return 'text-gray-900 dark:text-gray-100'
@@ -72,7 +69,6 @@ function textColorClass(block: ReaderBlock, active: Set<Confidence>): string {
 // 塞いでおけば、マッピングの追加漏れは「見慣れないアイコン」で済み、事故にならない。
 const CALLOUT_FALLBACK = { Icon: Info, color: 'text-gray-400 dark:text-gray-500' }
 const CALLOUT_ICON: Partial<Record<CalloutRole, { Icon: LucideIcon; color: string }>> = {
-  conclusion: { Icon: Zap, color: 'text-amber-500 dark:text-amber-400' },
   evidence: { Icon: BookText, color: 'text-amber-600 dark:text-amber-400' },
   disclaimer: { Icon: TriangleAlert, color: 'text-amber-600 dark:text-amber-400' },
   note: { Icon: NotebookPen, color: 'text-gray-500 dark:text-gray-400' },
@@ -110,14 +106,9 @@ function CalloutBlock({
     return (
       <div
         data-tldr=""
-        className={`${BOX_FRAME} ${BOX_EDGE.amber} bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 my-4`}
+        className="reader-lead reader-conclusion min-w-0"
       >
-        <div className="flex gap-2">
-          <CalloutIcon role={role} icon={block.icon} />
-          <div className="min-w-0">
-            <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
-          </div>
-        </div>
+        <RenderedBlocks blocks={block.blocks} onImageClick={onImageClick} active={active} />
       </div>
     )
   }
@@ -229,20 +220,20 @@ function Block({
           </h3>
         )
       }
-      const size = block.level === 1 ? 'text-[1.35em] font-bold' : 'text-[1.12em] font-bold'
+      const headingClass = block.level === 1 ? 'text-[1.35em] font-bold mt-7 mb-2' : 'reader-subsection-heading'
       // H1/H3 の見出しも同様に、既知テンプレ絵文字ならアイコン化（未知は忠実描画のまま）。
       const h13 = sectionHeadingParts(block.inlines.map((n) => n.text).join(''))
       if (h13.Icon) {
         const H13Icon = h13.Icon
         return (
-          <h3 className={`flex items-center gap-2 ${size} text-gray-900 dark:text-gray-100 mt-7 mb-2`}>
+          <h3 className={`flex items-center gap-2 ${headingClass} text-gray-900 dark:text-gray-100`}>
             <H13Icon className={`h-[1.05em] w-[1.05em] shrink-0 ${h13.color}`} aria-hidden />
             <span className="min-w-0">{h13.text}</span>
           </h3>
         )
       }
       return (
-        <h3 className={`${size} text-gray-900 dark:text-gray-100 mt-7 mb-2`}>
+        <h3 className={`${headingClass} text-gray-900 dark:text-gray-100`}>
           <Inlines items={block.inlines} k={`h-${index}`} plain />
         </h3>
       )
@@ -352,16 +343,18 @@ function ToggleHeading({ group, offset, onImageClick, active }: {
   const expanded = searching || open
   const parsed = parseSectionHeading(group.block.inlines)
   const anchor = group.block.level === 2 ? sectionAnchor(parsed?.n ?? null, offset + group.index) : undefined
+  const headingClass = group.block.level === 3 ? 'reader-subsection-heading' : 'reader-section-heading'
+  const headingSize = group.block.level === 3 ? 'text-[1em]' : 'text-[1.12em]'
   return (
     <section data-reader-disclosure="" data-section={anchor}>
-      <h3 className="reader-section-heading">
+      <h3 className={headingClass}>
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={id}
           disabled={searching}
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-start gap-2 min-h-[44px] py-1 text-left text-[1.12em] font-bold text-gray-900 dark:text-gray-100"
+          className={`flex w-full items-start gap-2 min-h-[44px] py-1 text-left ${headingSize} font-bold text-gray-900 dark:text-gray-100`}
         >
           <ChevronDown className={`h-[1em] w-[1em] shrink-0 mt-1 ${expanded ? '' : '-rotate-90'}`} aria-hidden="true" />
           <span className="min-w-0 break-words"><Inlines items={group.block.inlines} k={`toggle-${id}`} plain /></span>
