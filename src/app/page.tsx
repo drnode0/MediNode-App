@@ -106,6 +106,9 @@ import { fetchAuthorAdditions, markAuthorAdditionsSeen, isNewAuthorAddition, typ
 import { OpenSettingsContext, SearchErrorNotice, AlgoliaSearchErrorNotice, type SettingsPanelSection } from '@/components/SearchErrors'
 import { OwnerFilterTabs, buildOwnerFilter, isTeamOwner, teamIdOf, type OwnerFilter } from '@/components/OwnerFilterTabs'
 import { AskShelfPanel } from '@/components/AskShelfPanel'
+import { TrailPanel } from '@/components/trail/TrailPanel'
+import { TrailSavedList } from '@/components/trail/TrailSavedList'
+import { TrailReturnSheet } from '@/components/trail/TrailReturnSheet'
 import { CqCaptureProvider, useCqCapture } from '@/components/CqCapture'
 import { ASK_SHELF_REQUEST_LABEL } from '@/lib/ask-shelf/copy'
 import { UnresolvedCqLink } from '@/components/UnresolvedCqLink'
@@ -1326,6 +1329,8 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
           hasSubscription={hasSubscription}
         />
       </div>
+      {/* 調べた記録（前にも調べています・外で調べる）。trail が閉じていれば何も描かない。 */}
+      <TrailPanel query={query} />
       <AskShelfPanel
         query={query}
         onRequest={(logId) => {
@@ -1339,6 +1344,7 @@ function SearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSubscrip
       />
       {!query && !hasSearched ? (
         <>
+          <TrailSavedList />
           <SearchHistoryList
             history={history}
             onSelect={handleSelect}
@@ -1784,6 +1790,8 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         </div>
         <OwnerFilterTabs owner={ownerFilter} onChange={setOwnerFilter} hasTeam={hasTeam} hasSubscription={hasSubscription} />
       </div>
+      {/* 調べた記録（前にも調べています・外で調べる）。trail が閉じていれば何も描かない。 */}
+      <TrailPanel query={query} />
       <AskShelfPanel
         query={query}
         onRequest={(logId) => {
@@ -1805,6 +1813,7 @@ function NotionSearchTab({ hasTeam, hasSubscription }: { hasTeam: boolean; hasSu
         <SubscriptionPromoPanel />
       ) : !query && !hasSearched ? (
         <>
+          <TrailSavedList />
           <SearchHistoryList history={history} onSelect={(q) => { addHistory(q); handleChange(q) }} onClear={clearHistory} />
           <BookmarksList />
           <RecentViewsList />
@@ -3240,6 +3249,8 @@ export default function Home() {
         )}
         {settingsModal}
         {tourModal}
+        {/* 「外で調べる」から戻ったときの「見つかりましたか？」。trail が閉じていれば何も描かない。 */}
+        <TrailReturnSheet />
       </div>
       </ReaderProvider>
       </ReaderMarksProvider>
@@ -3359,6 +3370,8 @@ export default function Home() {
       </div>
       {settingsModal}
       {tourModal}
+      {/* 「外で調べる」から戻ったときの「見つかりましたか？」。trail が閉じていれば何も描かない。 */}
+      <TrailReturnSheet />
     </InstantSearch>
     </ReaderProvider>
     </ReaderMarksProvider>
