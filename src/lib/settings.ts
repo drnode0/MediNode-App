@@ -49,7 +49,7 @@ export type AppSettings = {
   // 値は 'easy_connect' / 'multi_department' / 'tower' / 'personal_reader' / 'recall' / 'ask_shelf' / 'trail'。
   earlyAccessFeatures?: string[]
   // 調べた言葉を記録に残さない（任意・未設定=残す）。trail が開いている人だけに意味がある。
-  // オフの間は検索の記録を送らない。「外で調べる」と「残す」はオフでも使える
+  // オフの間は検索の記録を送らない。外部サイトのボタンと「残す」はオフでも使える
   // （残すは本人がそのつど選ぶ操作なので、記録のスイッチとは分ける）。
   trailOff?: boolean
 

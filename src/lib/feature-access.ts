@@ -39,7 +39,7 @@ const FEATURE_ENV: Record<EarlyAccessFeature, { ga: string; emails: string; emai
   // 専用リストのみ・フォールバック無し（EARLY_ACCESS_EMAILS に落とすと、他機能の
   // モニターに未完成の依頼経路まで開いてしまう）。ASK_SHELF_GA は公開判断まで置かない。
   ask_shelf: { ga: 'ASK_SHELF_GA', emails: 'ASK_SHELF_EMAILS' },
-  // 調べた記録（前にも調べています・外で調べる・戻って残す）。大型アップデートの段階1。
+  // 調べた記録（以前の自分のカード・外部サイトのボタン・戻って残す）。大型アップデートの段階1。
   // 検索した言葉と残したものをサーバーに置くので、プライバシーポリシーを更新するまで
   // オーナー専用。専用リストのみ・フォールバック無し。TRAIL_GA は公開判断まで置かない。
   trail: { ga: 'TRAIL_GA', emails: 'TRAIL_EMAILS' },

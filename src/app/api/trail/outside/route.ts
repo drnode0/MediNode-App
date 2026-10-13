@@ -1,5 +1,5 @@
-// 「外で調べる」で外へ出たことを記録する（どの行き先へ出たか・いつ）。
-// 次に同じことを調べたとき「そのときは PubMed を開いています」と出すための材料。
+// 外部サイトのボタンで外へ出たことを記録する（どの行き先へ出たか・いつ）。
+// 次に同じことを調べたとき以前の自分のカードに、そのとき開いた行き先を出すための材料。
 // 検索の記録が無い（記録のスイッチを切っている）ときは何も書かずに成功を返す。
 import { requireTrail, notFound, serverError, json } from '@/lib/trail/guard'
 import { validOutsideKey, validUuid } from '@/lib/trail/validate'

@@ -40,7 +40,7 @@ function cleanText(value: unknown, max: number): string | 'invalid' {
   return s.length > max ? 'invalid' : s
 }
 
-// 残したもの1件の出どころ。段階1は「外で調べて戻ってきた」と「貼り付け」の2つだけ。
+// 残したもの1件の出どころ。段階1は lookup（外部サイトから戻ってきた）と paste（貼り付け）の2つだけ。
 // 共有ボタン・LINE・メール・取り込みは後の段階でここに足す（鍵の名前は変えない）。
 export type SaveOrigin = 'lookup' | 'paste'
 
@@ -86,7 +86,7 @@ export function parseSaveBody(raw: unknown): { ok: true; value: SaveInput } | { 
   const lookupId = validUuid(b.lookupId)
   const outside = validOutsideKey(b.outside)
   // 出どころはサーバーが決める（呼び手の申告を信じない）。外の行き先か検索の記録に
-  // つながっていれば「外で調べて残した」、そうでなければ「貼り付け」。
+  // つながっていれば lookup、そうでなければ paste。
   const origin: SaveOrigin = lookupId || outside ? 'lookup' : 'paste'
 
   return { ok: true, value: { lookupId, query, url, title, note, body, origin, outside } }

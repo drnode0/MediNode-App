@@ -1,4 +1,4 @@
-// 検索を1件記録し、「前にも調べています」に出すものを返す。
+// 検索を1件記録し、以前の自分のカード（検索履歴・残したメモ）に出すものを返す。
 // 照合と書き方の判断は src/lib/trail/match.ts（純ロジック）が持ち、ここは読み書きだけをする。
 // record: false のときは書かずに照合だけを返す（本人が記録のスイッチを切っている場合）。
 import { cleanQuery, normalizeQuery, pickPrevious, planLookupWrite, type PastLookup } from '@/lib/trail/match'

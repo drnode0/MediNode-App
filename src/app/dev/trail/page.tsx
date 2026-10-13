@@ -1,12 +1,12 @@
 'use client'
 // 調べた記録（大型アップデート段階1）の dev ハーネス（development 限定）。ログインもDBも要らない。
 // /api/trail/* への fetch をメモリ上の表に差し替え、照合と書き方は本物の純ロジック
-// （src/lib/trail/match.ts）で計算する。見た目と流れ（前にも調べています → 外で調べる →
-// 戻ってきたら残す → 最近残したもの → 記録の扱い）を目で確かめるためのもの。
+// （src/lib/trail/match.ts）で計算する。見た目と流れ（以前の自分のカード → 外部サイト →
+// 戻ってきたら残す → メモ → 検索履歴の設定）を目で確かめるためのもの。
 // 機能フラグは localStorage の設定に 'trail' を足して開ける（localhost の設定にだけ書く）。
 import { notFound } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { TrailPanel } from '@/components/trail/TrailPanel'
+import { TrailPast, TrailWeb } from '@/components/trail/TrailPanel'
 import { TrailSavedList } from '@/components/trail/TrailSavedList'
 import { TrailReturnSheet } from '@/components/trail/TrailReturnSheet'
 import { normalizeQuery, pickPrevious, planLookupWrite, type PastLookup, type SavedItem } from '@/lib/trail/match'
@@ -122,13 +122,13 @@ export default function DevTrailPage() {
     <div className="min-h-screen bg-gradient-to-b from-brand-50 to-gray-50 dark:from-gray-900 dark:to-gray-800">
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex flex-wrap gap-2 mb-3 text-xs">
-          <span className="text-gray-400">dev｜調べた記録</span>
+          <span className="text-gray-400">dev｜trail</span>
           <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={() => setDark(document.documentElement.classList.toggle('dark'))}>
             {dark ? 'ライト' : 'ダーク'}
           </button>
           <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={() => setQuery('')}>空の画面</button>
-          <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={() => setQuery('セフトリアキソン 偽胆石')}>残したものに一致</button>
-          <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={simulateReturn}>外から戻った</button>
+          <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={() => setQuery('セフトリアキソン 偽胆石')}>メモに一致</button>
+          <button type="button" className="px-2 py-1 rounded ring-1 ring-gray-300" onClick={simulateReturn}>外部から戻る</button>
         </div>
         <textarea
           value={query}
@@ -137,8 +137,9 @@ export default function DevTrailPage() {
           aria-label="検索語"
           className="w-full resize-none border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl px-4 py-2.5 text-sm mb-3"
         />
-        <TrailPanel query={query} />
+        <TrailPast query={query} />
         {!query && <TrailSavedList />}
+        <TrailWeb query={query} />
       </div>
       <TrailReturnSheet />
     </div>

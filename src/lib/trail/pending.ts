@@ -1,5 +1,5 @@
-// 「外で調べる」で外へ出たことを、戻ってくるまで端末に覚えておく（localStorage）。
-// アプリに戻った瞬間に「見つかりましたか？」のシートを出すための材料。サーバーには送らない
+// 外部サイトのボタンで外へ出たことを、戻ってくるまで端末に覚えておく（localStorage）。
+// アプリに戻った瞬間に残すシートを出すための材料。サーバーには送らない
 // （外へ出た事実そのものは /api/trail/outside が検索の記録に書く。ここは画面の段取りだけ）。
 //
 // PWA はバックグラウンドで止められて読み込み直されることがあるので、メモリではなく
@@ -19,9 +19,9 @@ export const RETURN_MIN_AWAY_MS = 4 * 1000
 // 長く経ってから戻ったときは、もう別の用事。古い問いでシートを出さない。
 export const RETURN_MAX_AGE_MS = 3 * 60 * 60 * 1000
 
-// シートを手で開く（「見つけたものを残す」）ときの合図。detail は TrailSaveRequest。
+// シートを手で開く（検索画面の「残す」）ときの合図。detail は TrailSaveRequest。
 export const TRAIL_SAVE_OPEN_EVENT = 'medinode:trail-save-open'
-// 1件残したあとの合図。「最近残したもの」が読み直す。
+// 1件残したあとの合図。メモの一覧と検索の結果が読み直す。
 export const TRAIL_SAVED_EVENT = 'medinode:trail-saved'
 
 export type TrailSaveRequest = { lookupId: string | null; query: string; dest: string | null }

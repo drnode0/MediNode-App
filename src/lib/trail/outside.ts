@@ -1,11 +1,11 @@
-// 「外で調べる」の行き先。自分の記録に答えが無いとき、MediNode から外へ出る先を並べる。
+// 外部サイトの行き先。自分の記録に答えが無いとき、検索語を入れたまま開く先を並べる。
 // MediNode を「調べはじめる場所」にするための入口なので、行き先は医療者が実際に使う所に絞る。
 // 行き先の鍵（key）は記録（trail_lookups.outside・saved_items.outside）にそのまま残るので、
 // 一度出した鍵は名前を変えない。並びはこの配列の順。
+// 画面には名前（label）だけを出す。説明の文は添えない（2026-10-13 本人の指示）。
 export type OutsideDest = {
   key: string
   label: string
-  hint: string
   url: (query: string) => string
 }
 
@@ -15,33 +15,27 @@ export const OUTSIDE_DESTS: readonly OutsideDest[] = [
   {
     key: 'pubmed',
     label: 'PubMed',
-    hint: '論文をさがす',
     url: (q) => `https://pubmed.ncbi.nlm.nih.gov/?term=${enc(q)}`,
   },
   {
-    // PMDA の添付文書検索は GET で問いを渡せないため、PMDA のサイト内を Google で探す。
-    // 説明にもそのとおり書く（行き先を偽らない）。
+    // PMDA の添付文書検索は GET で検索語を渡せないため、PMDA のサイト内を Google で探す。
     key: 'pmda',
-    label: '添付文書（PMDA）',
-    hint: 'PMDAのサイトの中をさがす',
+    label: '添付文書',
     url: (q) => `https://www.google.com/search?q=${enc(`${q} site:pmda.go.jp`)}`,
   },
   {
     key: 'google',
     label: 'Google',
-    hint: 'ひろくさがす',
     url: (q) => `https://www.google.com/search?q=${enc(q)}`,
   },
   {
     key: 'chatgpt',
     label: 'ChatGPT',
-    hint: 'AIに聞く。答えは出典で確かめてから残す',
     url: (q) => `https://chatgpt.com/?q=${enc(q)}`,
   },
   {
     key: 'claude',
     label: 'Claude',
-    hint: 'AIに聞く。答えは出典で確かめてから残す',
     url: (q) => `https://claude.ai/new?q=${enc(q)}`,
   },
 ]

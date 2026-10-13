@@ -11,7 +11,7 @@ export const OPTIONS = notFound
 export const PUT = notFound
 export const PATCH = notFound
 
-// ホームの「最近残したもの」に出す数。全部を並べる画面は段階2（ライブラリ）で作る。
+// 検索画面の「メモ」に出す数。全部を並べる画面は段階2（ライブラリ）で作る。
 const LIST_LIMIT = 20
 
 function toClient(r: Record<string, unknown>) {
