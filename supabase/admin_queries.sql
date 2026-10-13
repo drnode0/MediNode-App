@@ -83,3 +83,26 @@ select
   (select count(*) from auth.users where last_sign_in_at >= now() - interval '30 days')   as active_30d,
   (select count(*) from public.subscriptions where status in ('active','trialing'))       as stripe_active_or_trialing,
   (select count(*) from public.subscriptions where trial_ends_at > now())                 as code_trial_valid;
+
+
+-- ============================================================
+-- 調べた記録（trail・0034）— 件数だけを数える。中身（調べた言葉・一言・リンク）は読まない。
+-- 段階1の確かめること「調べものを MediNode から始めるようになるか」を、回数だけで見る。
+-- ============================================================
+
+-- ⑧ 調べた記録の週ごとの件数（調べた言葉の数・外へ出た数・戻って残した数）
+select
+  date_trunc('week', d)::date as week,
+  sum(lookups) as lookups,
+  sum(went_outside) as went_outside,
+  sum(saved) as saved
+from (
+  select last_searched_at as d, 1 as lookups, 0 as went_outside, 0 as saved from public.trail_lookups
+  union all
+  select outside_at, 0, 1, 0 from public.trail_lookups where outside_at is not null
+  union all
+  select created_at, 0, 0, 1 from public.saved_items
+) t
+group by 1
+order by 1 desc;
+

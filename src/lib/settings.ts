@@ -46,8 +46,12 @@ export type AppSettings = {
   // サーバー由来の先行体験フラグのミラー（表示制御のみ・判定の正はサーバー）。
   earlyAccess?: boolean
   // サーバー由来の先行体験・機能一覧のミラー（表示制御のみ・判定の正はサーバー）。
-  // 値は 'easy_connect' / 'multi_department' / 'tower' / 'personal_reader' / 'recall'。
+  // 値は 'easy_connect' / 'multi_department' / 'tower' / 'personal_reader' / 'recall' / 'ask_shelf' / 'trail'。
   earlyAccessFeatures?: string[]
+  // 調べた言葉を記録に残さない（任意・未設定=残す）。trail が開いている人だけに意味がある。
+  // オフの間は検索の記録を送らない。「外で調べる」と「残す」はオフでも使える
+  // （残すは本人がそのつど選ぶ操作なので、記録のスイッチとは分ける）。
+  trailOff?: boolean
 
   // サブスク用（任意・Algoliaモードのみ）
   subscriptionSearchKey: string

@@ -112,6 +112,17 @@ describe('PATCH /api/admin/ledger（機能トグル）', () => {
     }
   })
 
+  it('trail（調べた記録）も台帳から開けない（入口は TRAIL_EMAILS だけ）', async () => {
+    for (const enabled of [true, false]) {
+      upsertMock.mockClear(); logMock.mockClear()
+      const res = await PATCH(makeReq({ userId: 'u1', feature: 'trail', enabled }))
+      expect(res.status, `enabled=${enabled}`).toBe(400)
+      expect((await res.json()).error).toContain('TRAIL_EMAILS')
+      expect(upsertMock).not.toHaveBeenCalled()
+      expect(logMock).not.toHaveBeenCalled()
+    }
+  })
+
   it('存在しないユーザーは404', async () => {
     getUserByIdMock.mockResolvedValue({ data: null, error: { message: 'not found' } })
     const res = await PATCH(makeReq({ userId: 'u9', feature: 'tower', enabled: true }))

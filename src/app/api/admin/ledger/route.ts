@@ -701,6 +701,14 @@ export async function PATCH(req: NextRequest) {
           { status: 400 },
         )
       }
+      // 調べた記録（trail）も同じ理由で台帳から開けない。検索した言葉をサーバーに置く機能なので、
+      // プライバシーポリシーを更新するまでは入口を TRAIL_EMAILS の1つに保つ。
+      if (feature === 'trail') {
+        return NextResponse.json(
+          { error: '調べた記録は台帳から開けません（入口は TRAIL_EMAILS のみ）' },
+          { status: 400 },
+        )
+      }
       const key = feature as EarlyAccessFeature
       const admin = createAdminClient()
       const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId)

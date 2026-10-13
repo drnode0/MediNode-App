@@ -69,7 +69,7 @@ describe('hasFeature', () => {
   }
 
   it('機能キーは6つ', () => {
-    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall', 'ask_shelf'])
+    expect([...EARLY_ACCESS_FEATURES]).toEqual(['easy_connect', 'multi_department', 'tower', 'personal_reader', 'recall', 'ask_shelf', 'trail'])
   })
 
   it('機能ごとのGA envが立っていればその機能だけ true', () => {

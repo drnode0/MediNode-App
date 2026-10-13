@@ -52,6 +52,8 @@
 | 0030 | ask_shelf | `recall_claims.keywords`, `ask_shelf_queries`, `user_settings.experience_years`/`doctor_departments` | ✅ ※9 |
 | 0031 | ask_shelf_pgroonga（いまは流さない） | `recall_claims.search_text` と PGroonga 索引 | ⬜ 未適用（意図的）※8 |
 | 0032 | ask_shelf_stage1 | `ask_shelf_queries.stage1_*`（8列）, `ask_shelf_queries_stage1_idx` | ✅ |
+| 0033 | recall_hole_suggestion（予約・ファイル未作成） | `recall_claims` に3列（docs/superpowers/plans/2026-09-07-recall-hole-suggestion-plan.md） | ⬜ 未作成 |
+| 0034 | trail | `trail_lookups`, `saved_items` | ⬜ 未適用 ※10 |
 
 ※1 ファイルは `migrations/` → `supabase/migrations/` の移動時に失われたが、
 　　列は本番に存在する（適用済み）。復元の必要はない。
@@ -107,3 +109,7 @@ OpenAPI スキーマの定義に `user_id` / `block_id` / `page_id` / `created_a
 ※9 2026-09-06 に本番DBで実測。`ask_shelf_queries` と `user_settings.experience_years` /
 `doctor_departments` がいずれも 200 を返し、`recall_claims` は725行すべてで `keywords` が
 空でないことを確認した（0030 適用後にサブスク同期を1回まわして埋めたもの。設計時の写しは687行）。
+
+※10 大型アップデート段階1（調べた記録）。流してから TRAIL_EMAILS にオーナーのメールを置く。
+流す前に TRAIL_EMAILS を置くと、/api/trail/* が表の無いDBを叩いて server_error を返す（検索そのものは止まらない）。
+適用の確かめ方: `/rest/v1/trail_lookups?select=id&limit=1` と `/rest/v1/saved_items?select=id&limit=1` が 200。
